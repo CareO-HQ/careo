@@ -7,7 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { canAddDietMenu, canLogFoodFluidEntry } from "@/lib/permissions";
+import { canAddDietMenu, canLogFoodFluidEntry, canManageMenu } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
@@ -45,6 +45,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
@@ -69,6 +70,16 @@ const DietFormSchema = z.object({
   foodConsistency: z.enum(["level7", "level6", "level5", "level4", "level3"]).optional(),
   fluidConsistency: z.enum(["level0", "level1", "level2", "level3", "level4"]).optional(),
   assistanceRequired: z.enum(["yes", "no"]).optional(),
+  chefNotified: z.enum(["yes", "no"]).optional(),
+  chefName: z.string().optional(),
+}).refine((data) => {
+  if (data.chefNotified === "yes" && (!data.chefName || data.chefName.trim() === "")) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Chef name is required if chef is notified",
+  path: ["chefName"],
 });
 
 // Food/Fluid Log Form Schema
@@ -99,10 +110,15 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const [fluidLogs, setFluidLogs] = useState<any[]>([]);
   const [logSummary, setLogSummary] = useState<any>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [isMenuDialogOpen, setIsMenuDialogOpen] = useState(false);
+  const [isAddingDish, setIsAddingDish] = useState(false);
+  const [dishName, setDishName] = useState("");
 
   const { profile } = useProfile();
   const userRole = profile?.role;
   const canManageDietActions = canAddDietMenu(userRole);
+  const canManageMenuActions = canManageMenu(userRole);
   const canLogEntries = canLogFoodFluidEntry(userRole);
 
   const fetchData = useCallback(async () => {
@@ -124,7 +140,23 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         .eq("resident_id", id)
         .single();
 
-      if (dietData) setExistingDiet(dietData);
+      if (dietData) {
+        setExistingDiet({
+          id: dietData.id,
+          residentId: dietData.resident_id,
+          organizationId: dietData.organization_id,
+          dietTypes: dietData.diet_types || [],
+          otherDietType: dietData.other_diet_type || "",
+          culturalRestrictions: dietData.cultural_restrictions || "",
+          allergies: dietData.allergies || [],
+          chokingRisk: dietData.choking_risk,
+          foodConsistency: dietData.food_consistency,
+          fluidConsistency: dietData.fluid_consistency,
+          assistanceRequired: dietData.assistance_required,
+          chefNotified: dietData.chef_notified,
+          chefName: dietData.chef_name,
+        });
+      }
 
       // Use UK timezone for today's date
       const today = getUKTodayDate();
@@ -161,12 +193,23 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         });
       }
 
+      // Fetch menu items only if organization ID is available
+      if (profile?.active_organization_id) {
+        const { data: menuData } = await supabase
+          .from("menu_items")
+          .select("*")
+          .eq("organization_id", profile.active_organization_id)
+          .order("name", { ascending: true });
+
+        if (menuData) setMenuItems(menuData);
+      }
+
     } catch (error) {
       console.error("Error fetching food/fluid data:", error);
     } finally {
       setIsInitialLoading(false);
     }
-  }, [id]);
+  }, [id, profile?.active_organization_id]);
 
   useEffect(() => {
     fetchData();
@@ -212,6 +255,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
       foodConsistency: undefined,
       fluidConsistency: undefined,
       assistanceRequired: undefined,
+      chefNotified: undefined,
+      chefName: "",
     },
   });
 
@@ -251,6 +296,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         foodConsistency: existingDiet.foodConsistency,
         fluidConsistency: existingDiet.fluidConsistency,
         assistanceRequired: existingDiet.assistanceRequired,
+        chefNotified: existingDiet.chef_notified,
+        chefName: existingDiet.chef_name || "",
       });
     }
   }, [existingDiet, form]);
@@ -371,6 +418,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           food_consistency: values.foodConsistency,
           fluid_consistency: values.fluidConsistency,
           assistance_required: values.assistanceRequired,
+          chef_notified: values.chefNotified,
+          chef_name: values.chefName,
           created_by: profile.id,
           updated_at: new Date().toISOString()
         }, { onConflict: 'resident_id' });
@@ -465,6 +514,55 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
     setShowLogAnotherActions(false);
   };
 
+  const handleAddDish = async () => {
+    if (!dishName.trim()) return;
+    setIsAddingDish(true);
+    try {
+      if (!profile?.active_organization_id || !profile?.id) {
+        toast.error("Missing organization or user information");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("menu_items")
+        .insert({
+          name: dishName.trim(),
+          organization_id: profile.active_organization_id,
+          created_by: profile.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setMenuItems(prev => [...prev, data]);
+      setDishName("");
+      toast.success("Dish added to menu");
+    } catch (error) {
+      toast.error("Failed to add dish");
+      console.error("Error adding dish:", error);
+    } finally {
+      setIsAddingDish(false);
+    }
+  };
+
+  const handleDeleteDish = async (dishId: string) => {
+    try {
+      const { error } = await supabase
+        .from("menu_items")
+        .delete()
+        .eq("id", dishId);
+
+      if (error) throw error;
+
+      setMenuItems(prev => prev.filter(item => item.id !== dishId));
+      toast.success("Dish removed from menu");
+    } catch (error) {
+      toast.error("Failed to remove dish");
+      console.error("Error removing dish:", error);
+    }
+  };
+
 
 
   return (
@@ -497,13 +595,15 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   <Plus className="w-4 h-4 mr-2" />
                   Add Diet
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(true)}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Menu
-                </Button>
+                {canManageMenuActions && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsMenuDialogOpen(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Menu
+                  </Button>
+                )}
               </>
             )}
             <Button
@@ -653,6 +753,25 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                       {existingDiet.fluidConsistency === "level2" && "Level 2 - Mildly Thick"}
                       {existingDiet.fluidConsistency === "level3" && "Level 3 - Moderately Thick"}
                       {existingDiet.fluidConsistency === "level4" && "Level 4 - Extremely Thick"}
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Chef Notification */}
+                {existingDiet.chefNotified && (
+                  <div>
+                    <p className="text-[11px] font-medium text-gray-500 mb-1">
+                      Chef Notified
+                    </p>
+                    <Badge
+                      className={`text-xs ${existingDiet.chefNotified === "yes"
+                        ? "bg-amber-100 text-amber-800 border-amber-300"
+                        : "bg-gray-100 text-gray-800 border-gray-300"
+                        }`}
+                    >
+                      {existingDiet.chefNotified === "yes"
+                        ? `Notified: ${existingDiet.chefName || "Yes"}`
+                        : "Not Notified"}
                     </Badge>
                   </div>
                 )}
@@ -1191,6 +1310,51 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                       )}
                     />
 
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="chefNotified"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Chef Notified?</FormLabel>
+                            <FormControl>
+                              <RadioGroup
+                                onValueChange={field.onChange}
+                                value={field.value}
+                                className="flex space-x-4"
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="yes" id="chef-yes" />
+                                  <label htmlFor="chef-yes" className="text-sm cursor-pointer">Yes</label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="no" id="chef-no" />
+                                  <label htmlFor="chef-no" className="text-sm cursor-pointer">No</label>
+                                </div>
+                              </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {form.watch("chefNotified") === "yes" && (
+                        <FormField
+                          control={form.control}
+                          name="chefName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Chef Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Enter chef's name..." {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+
                     {/* Summary */}
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h4 className="font-medium mb-2">Summary</h4>
@@ -1210,6 +1374,9 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                               )}
                               {formValues.fluidConsistency && (
                                 <p>Fluid Consistency: {formValues.fluidConsistency}</p>
+                              )}
+                              {formValues.chefNotified === "yes" && (
+                                <p>Chef Notified: {formValues.chefName}</p>
                               )}
                             </>
                           );
@@ -1270,6 +1437,70 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           </DialogContent>
         </Dialog>
 
+        {/* Add Menu Dialog */}
+        <Dialog open={isMenuDialogOpen} onOpenChange={setIsMenuDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Management Menu Items</DialogTitle>
+              <DialogDescription>
+                Add or remove dishes from the list. These will appear when logging food entries.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6">
+              <div className="flex space-x-2">
+                <Input
+                  placeholder="Enter dish name (e.g., Roast Chicken)..."
+                  value={dishName}
+                  onChange={(e) => setDishName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddDish();
+                    }
+                  }}
+                />
+                <Button onClick={handleAddDish} disabled={isAddingDish || !dishName.trim()}>
+                  {isAddingDish ? "Adding..." : "Add"}
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Already Added Menu Items</Label>
+                <div className="border rounded-md max-h-[300px] overflow-y-auto">
+                  {menuItems.length > 0 ? (
+                    <div className="divide-y">
+                      {menuItems.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between p-3 hover:bg-gray-50">
+                          <span className="text-sm font-medium">{item.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteDish(item.id)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-muted-foreground">
+                      <p className="text-sm">No dishes added to the menu yet.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setIsMenuDialogOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Food/Fluid Log Dialog */}
         <Dialog open={isFoodFluidDialogOpen} onOpenChange={setIsFoodFluidDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
@@ -1319,14 +1550,31 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                         {entryType === "food" ? "Type of Food" : "Type of Fluid"}
                       </FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder={
-                            entryType === "food"
-                              ? "e.g., Chicken, Toast, Soup..."
-                              : "e.g., Water, Tea, Coffee, Juice..."
-                          }
-                          {...field}
-                        />
+                        {entryType === "food" ? (
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select food item..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {menuItems.length > 0 ? (
+                                menuItems.map((item) => (
+                                  <SelectItem key={item.id} value={item.name}>
+                                    {item.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <div className="p-2 text-sm text-muted-foreground">No menu items added. Please add menu items first.</div>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            placeholder="e.g., Water, Tea, Coffee, Juice..."
+                            {...field}
+                          />
+                        )}
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -140,6 +140,10 @@ export function canAddDietMenu(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "nurse" || role === "admin";
 }
 
+export function canManageMenu(role?: string): boolean {
+  return role === "nurse";
+}
+
 export function canLogFoodFluidEntry(role?: string): boolean {
   return (
     role === "owner" ||

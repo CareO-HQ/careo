@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
@@ -36,6 +36,8 @@ import {
   MessageSquare,
   Printer,
 } from "lucide-react";
+import { handoverService } from "@/lib/handover-service";
+import { toast } from "sonner";
 
 export default function HandoverReportDetailPage() {
   const router = useRouter();
@@ -99,8 +101,8 @@ export default function HandoverReportDetailPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
-        <div className="flex items-center justify-center h-full">
+      <div className="flex flex-col min-h-full w-full bg-background">
+        <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
             <p className="mt-2 text-muted-foreground">Loading handover report...</p>
@@ -113,8 +115,8 @@ export default function HandoverReportDetailPage() {
   // Report not found
   if (!report) {
     return (
-      <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
-        <div className="flex items-center justify-center h-full">
+      <div className="flex flex-col min-h-full w-full bg-background">
+        <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <p className="text-muted-foreground">Report not found</p>
             <Button
@@ -151,129 +153,129 @@ export default function HandoverReportDetailPage() {
           }
         }
       `}</style>
-    <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10 print:h-auto print:w-auto print:m-0">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b px-6 py-4 print:border-none">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push("/dashboard/handover/documents")}
-            className="h-8 w-8 print:hidden"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold">
-                Handover Report - {format(new Date(report.date), "dd MMMM yyyy")}
-              </h1>
-              <Badge
-                variant="secondary"
-                className={
-                  isNightShift
-                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
-                    : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                }
-              >
-                {isNightShift ? (
-                  <Moon className="w-3 h-3 mr-1" />
-                ) : (
-                  <Sun className="w-3 h-3 mr-1" />
-                )}
-                {isNightShift ? "Night" : "Day"} Shift
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {report.teamName} • Created by {report.createdByName}
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handlePrint}
-          className="h-8 print:hidden"
-        >
-          <Printer className="h-4 w-4 mr-2" />
-          Print
-        </Button>
-      </div>
-
-      {/* Report Info */}
-      <div className="border-b px-6 py-3 bg-muted/30">
-        <div className="flex items-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Created:</span>
-            <span>{format(new Date(report.createdAt), "dd/MM/yyyy HH:mm")}</span>
-          </div>
-          {report.updatedAt && (
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Updated:</span>
-              <span>{format(new Date(report.updatedAt), "dd/MM/yyyy HH:mm")}</span>
-              {report.updatedByName && <span>by {report.updatedByName}</span>}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-6 print:overflow-visible">
-        <div className="max-w-6xl mx-auto space-y-6 border border-border/40 rounded-lg p-6 bg-background">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
-                <User className="h-4 w-4" />
-                Residents
+      <div className="flex flex-col min-h-full w-full bg-background print:h-auto print:w-auto print:m-0">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b px-6 py-4 print:border-none">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push("/dashboard/handover/documents")}
+              className="h-8 w-8 print:hidden"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-semibold">
+                  Handover Report - {format(new Date(report.date), "dd MMMM yyyy")}
+                </h1>
+                <Badge
+                  variant="secondary"
+                  className={
+                    isNightShift
+                      ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
+                      : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                  }
+                >
+                  {isNightShift ? (
+                    <Moon className="w-3 h-3 mr-1" />
+                  ) : (
+                    <Sun className="w-3 h-3 mr-1" />
+                  )}
+                  {isNightShift ? "Night" : "Day"} Shift
+                </Badge>
               </div>
-              <div className="text-2xl font-bold">{report.residentHandovers.length}</div>
-            </div>
-
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
-                <AlertTriangle className="h-4 w-4" />
-                Incidents
-              </div>
-              <div className="text-2xl font-bold">
-                {report.residentHandovers.reduce((sum, r) => sum + r.incidentCount, 0)}
-              </div>
-            </div>
-
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
-                <Hospital className="h-4 w-4" />
-                Transfers
-              </div>
-              <div className="text-2xl font-bold">
-                {report.residentHandovers.reduce((sum, r) => sum + r.hospitalTransferCount, 0)}
-              </div>
-            </div>
-
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
-                <Droplet className="h-4 w-4" />
-                Total Fluids
-              </div>
-              <div className="text-2xl font-bold">
-                {report.residentHandovers.reduce((sum, r) => sum + r.totalFluid, 0)} ml
-              </div>
-            </div>
-          </div>
-
-          {/* Resident Details */}
-          <div>
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold">Resident Details</h2>
               <p className="text-sm text-muted-foreground">
-                Detailed handover information for each resident
+                {report.teamName} • Created by {report.createdByName || "Unknown"}
               </p>
             </div>
-            <div className="space-y-6">
-              {report.residentHandovers.map((resident, index) => (
-                <div key={resident.residentId} className="bg-muted/20 rounded-lg p-4 border border-border/40">
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrint}
+            className="h-8 print:hidden"
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Print
+          </Button>
+        </div>
+
+        {/* Report Info */}
+        <div className="border-b px-6 py-3 bg-muted/30">
+          <div className="flex items-center gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Created:</span>
+              <span>{format(new Date(report.createdAt), "dd/MM/yyyy HH:mm")}</span>
+            </div>
+            {report.updatedAt && (
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">Updated:</span>
+                <span>{format(new Date(report.updatedAt), "dd/MM/yyyy HH:mm")}</span>
+                {report.updatedByName && <span>by {report.updatedByName}</span>}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-auto p-6 print:overflow-visible">
+          <div className="max-w-6xl mx-auto space-y-6 border border-border/40 rounded-lg p-6 bg-background">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
+                  <User className="h-4 w-4" />
+                  Residents
+                </div>
+                <div className="text-2xl font-bold">{report.residentHandovers?.length || 0}</div>
+              </div>
+
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Incidents
+                </div>
+                <div className="text-2xl font-bold">
+                  {report.residentHandovers?.reduce((sum: number, r: any) => sum + r.incidentCount, 0) || 0}
+                </div>
+              </div>
+
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
+                  <Hospital className="h-4 w-4" />
+                  Transfers
+                </div>
+                <div className="text-2xl font-bold">
+                  {report.residentHandovers?.reduce((sum: number, r: any) => sum + r.hospitalTransferCount, 0) || 0}
+                </div>
+              </div>
+
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
+                  <Droplet className="h-4 w-4" />
+                  Total Fluids
+                </div>
+                <div className="text-2xl font-bold">
+                  {report.residentHandovers?.reduce((sum: number, r: any) => sum + r.totalFluid, 0) || 0} ml
+                </div>
+              </div>
+            </div>
+
+            {/* Resident Details */}
+            <div>
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold">Resident Details</h2>
+                <p className="text-sm text-muted-foreground">
+                  Detailed handover information for each resident
+                </p>
+              </div>
+              <div className="space-y-6">
+                {report.residentHandovers?.map((resident: any) => (
+                  <div key={resident.residentId} className="bg-muted/20 rounded-lg p-4 border border-border/40">
                     {/* Resident Header */}
                     <div className="flex items-center justify-between mb-4">
                       <div>
@@ -334,7 +336,7 @@ export default function HandoverReportDetailPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {resident.foodIntakeLogs.map((log) => (
+                            {resident.foodIntakeLogs.map((log: any) => (
                               <TableRow key={log.id}>
                                 <TableCell>{format(new Date(log.timestamp), "HH:mm")}</TableCell>
                                 <TableCell>{log.typeOfFoodDrink || "—"}</TableCell>
@@ -364,7 +366,7 @@ export default function HandoverReportDetailPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {resident.fluidLogs.map((log) => (
+                            {resident.fluidLogs.map((log: any) => (
                               <TableRow key={log.id}>
                                 <TableCell>{format(new Date(log.timestamp), "HH:mm")}</TableCell>
                                 <TableCell>{log.typeOfFoodDrink || "—"}</TableCell>
@@ -385,10 +387,10 @@ export default function HandoverReportDetailPage() {
                           Incidents
                         </h4>
                         <div className="space-y-2">
-                          {resident.incidents.map((incident) => (
+                          {resident.incidents.map((incident: any) => (
                             <div key={incident.id} className="rounded-lg p-3 bg-orange-50 dark:bg-orange-900/10">
                               <div className="flex items-center gap-2 mb-1">
-                                {incident.type.map((type) => (
+                                {incident.type.map((type: string) => (
                                   <Badge key={type} variant="outline" className="text-xs">
                                     {type}
                                   </Badge>
@@ -414,7 +416,7 @@ export default function HandoverReportDetailPage() {
                           Hospital Transfers
                         </h4>
                         <div className="space-y-2">
-                          {resident.hospitalTransfers.map((transfer) => (
+                          {resident.hospitalTransfers.map((transfer: any) => (
                             <div key={transfer.id} className="rounded-lg p-3 bg-blue-50 dark:bg-blue-900/10">
                               {transfer.hospitalName && (
                                 <div className="font-medium">{transfer.hospitalName}</div>
@@ -442,11 +444,11 @@ export default function HandoverReportDetailPage() {
                     )}
                   </div>
                 ))}
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
     </>
   );
 }

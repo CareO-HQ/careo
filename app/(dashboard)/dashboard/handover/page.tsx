@@ -43,6 +43,8 @@ export default function HandoverPage() {
   const [residents, setResidents] = useState<Resident[]>([]);
   const [isLoadingResidents, setIsLoadingResidents] = useState(true);
 
+  const [residents, setResidents] = useState<Resident[]>([]);
+  const [isResidentsLoading, setIsResidentsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<"day" | "night">(getCurrentShift());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -111,7 +113,7 @@ export default function HandoverPage() {
     if (isDialogOpen) {
       loadCommentsSummary();
     }
-  }, [isDialogOpen, selectedDate, selectedShift]);
+  }, [isDialogOpen, selectedDate, selectedShift, activeTeamId, residents.length]);
 
   const handleSaveHandover = async () => {
     if (!activeTeamId || !activeTeam || !residents || !currentUser || !supabase) {
@@ -281,30 +283,22 @@ export default function HandoverPage() {
       toast.success("Handover saved successfully!");
       setIsDialogOpen(false);
 
-      // Optionally navigate to documents page
+      // Navigate to documents page
       router.push("/dashboard/handover/documents");
     } catch (error) {
       console.error("Error saving handover:", error);
-
-      // Provide specific error message based on error type
-      if (error instanceof Error) {
-        if (error.message.includes("network") || error.message.includes("fetch")) {
-          toast.error("Network error: Please check your connection and try again.");
-        } else if (error.message.includes("permission") || error.message.includes("auth")) {
-          toast.error("Permission denied: You may not have access to save handovers.");
-        } else {
-          toast.error(`Failed to save handover: ${error.message}`);
-        }
-      } else {
-        toast.error("Failed to save handover. Please try again or contact support.");
-      }
+      toast.error("Failed to save handover. Please try again.");
     } finally {
       setIsSaving(false);
     }
   };
 
+  if (isProfileLoading) {
+    return <div className="flex items-center justify-center h-screen">Loading profile...</div>;
+  }
+
   return (
-    <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
+    <div className="flex flex-col min-h-full w-full bg-background">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-4">
@@ -326,7 +320,7 @@ export default function HandoverPage() {
             variant="default"
             size="sm"
             onClick={() => setIsDialogOpen(true)}
-            disabled={!residents || residents.length === 0}
+            disabled={isResidentsLoading || residents.length === 0}
             className="h-8"
           >
             Save as Archive
@@ -337,7 +331,7 @@ export default function HandoverPage() {
       {/* Filters - matching careo-audit style */}
       <div className="flex items-center gap-2 border-b px-6 py-3">
         <Badge variant="outline" className="rounded-sm">
-          {residents?.length || 0} Residents
+          {isResidentsLoading ? "Loading..." : `${residents.length} Residents`}
         </Badge>
       </div>
 

@@ -137,7 +137,7 @@ const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId
 
   if (report.foodIntakeCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0 meals
       </Badge>
     );
@@ -146,7 +146,7 @@ const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.foodIntakeCount} meals
         </Badge>
       </TooltipTrigger>
@@ -192,7 +192,7 @@ const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: s
 
   if (report.totalFluid === 0 || !report.fluidLogs || report.fluidLogs.length === 0) {
     return (
-      <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm">
+      <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0 ml
       </Badge>
     );
@@ -201,7 +201,7 @@ const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: s
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.totalFluid} ml
         </Badge>
       </TooltipTrigger>
@@ -251,7 +251,7 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
 
   if (report.incidentCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0
       </Badge>
     );
@@ -260,7 +260,7 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-red-50 text-red-700 border-red-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-red-50 text-red-700 border-red-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.incidentCount}
         </Badge>
       </TooltipTrigger>
@@ -303,7 +303,7 @@ const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; team
 
   if (report.hospitalTransferCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0
       </Badge>
     );
@@ -312,7 +312,7 @@ const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; team
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.hospitalTransferCount}
         </Badge>
       </TooltipTrigger>
@@ -347,12 +347,14 @@ const CommentsCell = ({
   residentId,
   teamId,
   currentUserId,
-  currentUserName
+  currentUserName,
+  organizationId,
 }: {
   residentId: string;
   teamId?: string;
   currentUserId?: string;
   currentUserName?: string;
+  organizationId?: string;
 }) => {
   const today = new Date().toISOString().split('T')[0];
   const shift = getCurrentShift();
@@ -392,7 +394,8 @@ const CommentsCell = ({
 export const getColumns = (
   teamId?: string,
   currentUserId?: string,
-  currentUserName?: string
+  currentUserName?: string,
+  organizationId?: string
 ): ColumnDef<Resident, unknown>[] => [
   {
     id: "name",
@@ -461,8 +464,6 @@ export const getColumns = (
       if (!isNaN(numA) && !isNaN(numB)) {
         return numA - numB;
       }
-
-      return a.localeCompare(b);
     },
     cell: ({ row }) => {
       return (
@@ -541,20 +542,20 @@ export const getColumns = (
         <div className="text-left text-muted-foreground text-sm">Medication</div>
       );
     },
-    enableSorting: false,
-    size: 100,
-    cell: ({ row }) => {
-      return (
-        <div className="text-sm text-muted-foreground">—</div>
-      );
-    }
-  },
-  {
-    accessorKey: "comments",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">Comments</div>
-      );
+    {
+      accessorKey: "medication",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">Medication</div>
+        );
+      },
+      enableSorting: false,
+      size: 70,
+      cell: ({ row }) => {
+        return (
+          <div className="text-sm text-muted-foreground">—</div>
+        );
+      }
     },
     enableSorting: false,
     size: 300,
@@ -569,5 +570,4 @@ export const getColumns = (
         />
       );
     }
-  }
-];
+  ];

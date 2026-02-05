@@ -17,15 +17,15 @@ import {
 } from "@/components/ui/table";
 import {
   ArrowLeft,
-  Sun,
-  Moon,
-  Eye,
   FileText,
   MoreHorizontal,
   ArrowUpDown,
   SlidersHorizontal,
   Plus,
+  Eye,
 } from "lucide-react";
+import { handoverService } from "@/lib/handover-service";
+import { toast } from "sonner";
 
 export default function HandoverDocumentsPage() {
   const router = useRouter();
@@ -108,8 +108,8 @@ export default function HandoverDocumentsPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
-        <div className="flex items-center justify-center h-full">
+      <div className="flex flex-col min-h-full w-full bg-background">
+        <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
             <p className="mt-2 text-muted-foreground">Loading handover reports...</p>
@@ -120,7 +120,7 @@ export default function HandoverDocumentsPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
+    <div className="flex flex-col min-h-full w-full bg-background text-sm">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-3">
@@ -183,7 +183,7 @@ export default function HandoverDocumentsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {groupedHandovers.length === 0 ? (
+            {!handovers || handovers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="h-8 py-1 text-center">
                   <div className="flex items-center justify-center">
@@ -211,7 +211,7 @@ export default function HandoverDocumentsPage() {
                           <Eye className="h-3 w-3 mr-1" />
                           View
                         </Badge>
-                    
+
                       </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
@@ -220,7 +220,7 @@ export default function HandoverDocumentsPage() {
                   <TableCell className="h-8 py-1">
                     {item.night ? (
                       <div className="flex items-center gap-1.5">
-                         <Badge
+                        <Badge
                           variant="outline"
                           className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-amber-100"
                           onClick={() => router.push(`/dashboard/handover/documents/${item.night.id}`)}
@@ -228,7 +228,7 @@ export default function HandoverDocumentsPage() {
                           <Eye className="h-3 w-3 mr-1" />
                           View
                         </Badge>
-                    
+
                       </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
