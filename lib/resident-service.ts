@@ -55,5 +55,39 @@ export const residentService = {
             careManagerAddress: data.care_manager_address,
             careManagerPhone: data.care_manager_phone
         };
+    },
+
+    async getResidentsByTeamId(teamId: string): Promise<Resident[]> {
+        if (!teamId) return [];
+
+        const { data, error } = await supabase
+            .from('residents')
+            .select('*')
+            .eq('team_id', teamId)
+            .eq('status', 'active');
+
+        if (error) throw error;
+        if (!data) return [];
+
+        return data.map(resident => ({
+            id: resident.id,
+            firstName: resident.first_name,
+            lastName: resident.last_name,
+            dateOfBirth: resident.date_of_birth,
+            imageUrl: resident.image_url,
+            phoneNumber: resident.phone_number,
+            roomNumber: resident.room_number,
+            admissionDate: resident.admission_date,
+            nhsHealthNumber: resident.nhs_health_number,
+            status: resident.status,
+            organizationId: resident.organization_id,
+            teamId: resident.team_id,
+            gpName: resident.gp_name,
+            gpAddress: resident.gp_address,
+            gpPhone: resident.gp_phone,
+            careManagerName: resident.care_manager_name,
+            care_manager_address: resident.care_manager_address,
+            care_manager_phone: resident.care_manager_phone
+        })) as Resident[];
     }
 };

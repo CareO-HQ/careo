@@ -9,36 +9,50 @@ import {
   TooltipContent,
   TooltipTrigger
 } from "@/components/ui/tooltip";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import { getAge } from "@/lib/utils";
 import { Resident } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
-import { useQuery, useMutation } from "convex/react";
 import { useState, useEffect, useRef } from "react";
 import { getCurrentShift } from "@/lib/config/shift-config";
 import { toast } from "sonner";
+import { handoverService } from "@/lib/handover-service";
+
+// Helper hook for handover stats
+const useHandoverStats = (residentId: string, teamId?: string) => {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!residentId) return;
+      setLoading(true);
+      try {
+        const timestamp = teamId ? await handoverService.getLastHandoverTimestamp(teamId) : undefined;
+        const data = await handoverService.getHandoverStats(residentId, timestamp || undefined);
+        setStats(data);
+      } catch (err) {
+        console.error("Failed to fetch handover stats:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, [residentId, teamId]);
+
+  return { stats, loading };
+};
 
 // Component for displaying handover report
 const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  // Get the last handover timestamp for this team
-  const lastHandoverTimestamp = useQuery(
-    api.handoverReports.getLastHandoverTimestamp,
-    teamId ? { teamId } : "skip"
-  );
+  const { stats: report, loading } = useHandoverStats(residentId, teamId);
 
-  const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">,
-    afterTimestamp: lastHandoverTimestamp ?? undefined,
-  });
-
-  if (!report) {
+  if (loading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
   if (report.foodIntakeCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0 meals
       </Badge>
     );
@@ -47,13 +61,13 @@ const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.foodIntakeCount} meals
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="bg-white border max-w-md">
         <div className="flex flex-col gap-2">
-          {report.foodIntakeLogs.map((log, index) => (
+          {report.foodIntakeLogs.map((log: any, index: number) => (
             <div key={log.id} className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-sm text-primary">
@@ -85,24 +99,15 @@ const HandoverReportCell = ({ residentId, teamId }: { residentId: string; teamId
 
 // Component for displaying fluid total
 const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  // Get the last handover timestamp for this team
-  const lastHandoverTimestamp = useQuery(
-    api.handoverReports.getLastHandoverTimestamp,
-    teamId ? { teamId } : "skip"
-  );
+  const { stats: report, loading } = useHandoverStats(residentId, teamId);
 
-  const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">,
-    afterTimestamp: lastHandoverTimestamp ?? undefined,
-  });
-
-  if (!report) {
+  if (loading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
   if (report.totalFluid === 0 || !report.fluidLogs || report.fluidLogs.length === 0) {
     return (
-      <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm">
+      <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0 ml
       </Badge>
     );
@@ -111,13 +116,13 @@ const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: s
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-blue-50 text-blue-700 border-blue-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.totalFluid} ml
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="bg-white border max-w-md">
         <div className="flex flex-col gap-2">
-          {report.fluidLogs.map((log, index) => (
+          {report.fluidLogs.map((log: any, index: number) => (
             <div key={log.id} className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-sm text-primary">
@@ -153,24 +158,15 @@ const FluidTotalCell = ({ residentId, teamId }: { residentId: string; teamId?: s
 
 // Component for displaying incidents
 const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  // Get the last handover timestamp for this team
-  const lastHandoverTimestamp = useQuery(
-    api.handoverReports.getLastHandoverTimestamp,
-    teamId ? { teamId } : "skip"
-  );
+  const { stats: report, loading } = useHandoverStats(residentId, teamId);
 
-  const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">,
-    afterTimestamp: lastHandoverTimestamp ?? undefined,
-  });
-
-  if (!report) {
+  if (loading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
   if (report.incidentCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0
       </Badge>
     );
@@ -179,13 +175,13 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-red-50 text-red-700 border-red-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-red-50 text-red-700 border-red-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.incidentCount}
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="bg-white border max-w-md">
         <div className="flex flex-col gap-2">
-          {report.incidents.map((incident, index) => (
+          {report.incidents.map((incident: any, index: number) => (
             <div key={incident.id} className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-sm text-primary">
@@ -199,7 +195,7 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
                 Type: {incident.type.join(", ") || "Not specified"}
               </div>
               <div className="text-sm">
-                Level: <span className="capitalize">{incident.level.replace("_", " ")}</span>
+                Level: <span className="capitalize">{(incident.level || "").replace("_", " ")}</span>
               </div>
               {index < report.incidents.length - 1 && (
                 <div className="border-t my-1" />
@@ -214,24 +210,15 @@ const IncidentsCell = ({ residentId, teamId }: { residentId: string; teamId?: st
 
 // Component for displaying hospital transfers
 const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  // Get the last handover timestamp for this team
-  const lastHandoverTimestamp = useQuery(
-    api.handoverReports.getLastHandoverTimestamp,
-    teamId ? { teamId } : "skip"
-  );
+  const { stats: report, loading } = useHandoverStats(residentId, teamId);
 
-  const report = useQuery(api.handover.getHandoverReport, {
-    residentId: residentId as Id<"residents">,
-    afterTimestamp: lastHandoverTimestamp ?? undefined,
-  });
-
-  if (!report) {
+  if (loading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
   if (report.hospitalTransferCount === 0) {
     return (
-      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm">
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm text-[10px] px-1 py-0 h-5">
         0
       </Badge>
     );
@@ -240,13 +227,13 @@ const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; team
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm cursor-pointer">
+        <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
           {report.hospitalTransferCount}
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="bg-white border max-w-md">
         <div className="flex flex-col gap-2">
-          {report.hospitalTransfers.map((transfer, index) => (
+          {report.hospitalTransfers.map((transfer: any, index: number) => (
             <div key={transfer.id} className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-sm text-primary">
@@ -285,19 +272,6 @@ const CommentsCell = ({
   const today = new Date().toISOString().split('T')[0];
   const shift = getCurrentShift();
 
-  // Fetch existing comment from database
-  const existingComment = useQuery(
-    api.handoverComments.getComment,
-    teamId && currentUserId ? {
-      teamId,
-      residentId: residentId as Id<"residents">,
-      date: today,
-      shift,
-    } : "skip"
-  );
-
-  const saveComment = useMutation(api.handoverComments.saveComment);
-
   const [comment, setComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
@@ -306,12 +280,21 @@ const CommentsCell = ({
 
   // Load existing comment on mount
   useEffect(() => {
-    if (existingComment && !initialLoadComplete.current) {
-      setComment(existingComment.comment);
-      setLastSavedAt(existingComment.updatedAt);
-      initialLoadComplete.current = true;
+    async function loadComment() {
+      if (!residentId) return;
+      try {
+        const data = await handoverService.getComment(residentId, today, shift);
+        if (data && !initialLoadComplete.current) {
+          setComment(data.comment);
+          setLastSavedAt(new Date(data.updated_at).getTime());
+          initialLoadComplete.current = true;
+        }
+      } catch (error) {
+        console.error("Failed to load comment:", error);
+      }
     }
-  }, [existingComment]);
+    loadComment();
+  }, [residentId, today, shift]);
 
   // Auto-save with debounce
   const handleCommentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -326,18 +309,16 @@ const CommentsCell = ({
     // Set new timeout for auto-save (2 seconds)
     saveTimeoutRef.current = setTimeout(async () => {
       if (!teamId || !currentUserId || !currentUserName) return;
-      if (value === existingComment?.comment) return;
 
       setIsSaving(true);
       try {
-        await saveComment({
+        await handoverService.saveComment({
           teamId,
-          residentId: residentId as Id<"residents">,
+          residentId: residentId,
           date: today,
           shift,
           comment: value,
           createdBy: currentUserId,
-          createdByName: currentUserName,
         });
         setLastSavedAt(Date.now());
       } catch (error) {
@@ -391,180 +372,182 @@ export const getColumns = (
   currentUserId?: string,
   currentUserName?: string
 ): ColumnDef<Resident, unknown>[] => [
-  {
-    id: "name",
-    accessorFn: (row) => `${row.firstName || ''} ${row.lastName || ''}`.trim(),
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">Name</div>
-      );
-    },
-    enableSorting: false,
-    size: 180,
-    filterFn: (row, columnId, value) => {
-      const resident = row.original;
-      if (!value || typeof value !== 'string') return true;
+    {
+      id: "name",
+      accessorFn: (row) => `${row.firstName || row.first_name || ''} ${row.lastName || row.last_name || ''}`.trim(),
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">Name</div>
+        );
+      },
+      enableSorting: false,
+      size: 150,
+      filterFn: (row, columnId, value) => {
+        const resident = row.original;
+        if (!value || typeof value !== 'string') return true;
 
-      const searchTerm = value.toLowerCase().trim();
-      if (!searchTerm) return true;
+        const searchTerm = value.toLowerCase().trim();
+        if (!searchTerm) return true;
 
-      const firstName = (resident.firstName || '').toLowerCase();
-      const lastName = (resident.lastName || '').toLowerCase();
-      const fullName = `${firstName} ${lastName}`.trim();
+        const firstName = (resident.firstName || resident.first_name || '').toLowerCase();
+        const lastName = (resident.lastName || resident.last_name || '').toLowerCase();
+        const fullName = `${firstName} ${lastName}`.trim();
 
-      return firstName.includes(searchTerm) ||
-             lastName.includes(searchTerm) ||
-             fullName.includes(searchTerm);
-    },
-    cell: ({ row }) => {
-      const resident = row.original;
-      const name = `${resident.firstName} ${resident.lastName}`;
-      const initials =
-        `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+        return firstName.includes(searchTerm) ||
+          lastName.includes(searchTerm) ||
+          fullName.includes(searchTerm);
+      },
+      cell: ({ row }) => {
+        const resident = row.original;
+        const firstName = resident.firstName || resident.first_name || '';
+        const lastName = resident.lastName || resident.last_name || '';
+        const name = `${firstName} ${lastName}`;
+        const initials =
+          `${(firstName[0] || '')}${(lastName[0] || '')}`.toUpperCase();
 
-      return (
-        <div className="flex items-center gap-2">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={resident.imageUrl} alt={name} />
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-          <div className="font-medium text-sm">
-            {resident.firstName} {resident.lastName}
+        return (
+          <div className="flex items-center gap-2">
+            <Avatar className="h-6 w-6">
+              <AvatarImage src={resident.imageUrl || resident.image_url} alt={name} />
+              <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="font-medium text-xs truncate max-w-[110px]">
+              {firstName} {lastName}
+            </div>
           </div>
-        </div>
-      );
-    }
-  },
-  {
-    accessorKey: "roomNumber",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">Room No</div>
-      );
-    },
-    enableSorting: true,
-    size: 80,
-    sortingFn: (rowA, rowB) => {
-      const a = rowA.original.roomNumber;
-      const b = rowB.original.roomNumber;
-
-      if (!a && !b) return 0;
-      if (!a) return 1;
-      if (!b) return -1;
-
-      const numA = parseInt(a, 10);
-      const numB = parseInt(b, 10);
-
-      if (!isNaN(numA) && !isNaN(numB)) {
-        return numA - numB;
+        );
       }
+    },
+    {
+      accessorKey: "roomNumber",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">Room No</div>
+        );
+      },
+      enableSorting: true,
+      size: 60,
+      sortingFn: (rowA, rowB) => {
+        const a = rowA.original.roomNumber || rowA.original.room_number;
+        const b = rowB.original.roomNumber || rowB.original.room_number;
 
-      return a.localeCompare(b);
+        if (!a && !b) return 0;
+        if (!a) return 1;
+        if (!b) return -1;
+
+        const numA = parseInt(a, 10);
+        const numB = parseInt(b, 10);
+
+        if (!isNaN(numA) && !isNaN(numB)) {
+          return numA - numB;
+        }
+
+        return a.localeCompare(b);
+      },
+      cell: ({ row }) => {
+        return (
+          <p className="text-muted-foreground text-xs">
+            {row.original.roomNumber || row.original.room_number || "-"}
+          </p>
+        );
+      }
     },
-    cell: ({ row }) => {
-      return (
-        <p className="text-muted-foreground">
-          {row.original.roomNumber || "-"}
-        </p>
-      );
-    }
-  },
-  {
-    accessorKey: "foodIntake",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">
-          Food Intake
-        </div>
-      );
+    {
+      accessorKey: "foodIntake",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">
+            Food Intake
+          </div>
+        );
+      },
+      enableSorting: false,
+      size: 80,
+      cell: ({ row }) => {
+        const resident = row.original;
+        return <HandoverReportCell residentId={resident.id} teamId={teamId} />;
+      }
     },
-    enableSorting: false,
-    size: 100,
-    cell: ({ row }) => {
-      const resident = row.original;
-      return <HandoverReportCell residentId={resident._id} teamId={teamId} />;
-    }
-  },
-  {
-    accessorKey: "fluidTotal",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">
-          Fluid Total
-        </div>
-      );
+    {
+      accessorKey: "fluidTotal",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">
+            Fluid Total
+          </div>
+        );
+      },
+      enableSorting: false,
+      size: 80,
+      cell: ({ row }) => {
+        const resident = row.original;
+        return <FluidTotalCell residentId={resident.id} teamId={teamId} />;
+      }
     },
-    enableSorting: false,
-    size: 90,
-    cell: ({ row }) => {
-      const resident = row.original;
-      return <FluidTotalCell residentId={resident._id} teamId={teamId} />;
-    }
-  },
-  {
-    accessorKey: "incidents",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">Incidents</div>
-      );
+    {
+      accessorKey: "incidents",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">Incidents</div>
+        );
+      },
+      enableSorting: false,
+      size: 60,
+      cell: ({ row }) => {
+        const resident = row.original;
+        return <IncidentsCell residentId={resident.id} teamId={teamId} />;
+      }
     },
-    enableSorting: false,
-    size: 80,
-    cell: ({ row }) => {
-      const resident = row.original;
-      return <IncidentsCell residentId={resident._id} teamId={teamId} />;
-    }
-  },
-  {
-    accessorKey: "hospitalTransfer",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">
-          Hospital Transfer
-        </div>
-      );
+    {
+      accessorKey: "hospitalTransfer",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">
+            Hospital Transfer
+          </div>
+        );
+      },
+      enableSorting: false,
+      size: 110,
+      cell: ({ row }) => {
+        const resident = row.original;
+        return <HospitalTransferCell residentId={resident.id} teamId={teamId} />;
+      }
     },
-    enableSorting: false,
-    size: 130,
-    cell: ({ row }) => {
-      const resident = row.original;
-      return <HospitalTransferCell residentId={resident._id} teamId={teamId} />;
-    }
-  },
-  {
-    accessorKey: "medication",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">Medication</div>
-      );
+    {
+      accessorKey: "medication",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">Medication</div>
+        );
+      },
+      enableSorting: false,
+      size: 80,
+      cell: ({ row }) => {
+        return (
+          <div className="text-sm text-muted-foreground">—</div>
+        );
+      }
     },
-    enableSorting: false,
-    size: 100,
-    cell: ({ row }) => {
-      return (
-        <div className="text-sm text-muted-foreground">—</div>
-      );
+    {
+      accessorKey: "comments",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">Comments</div>
+        );
+      },
+      enableSorting: false,
+      size: 250,
+      cell: ({ row }) => {
+        const resident = row.original;
+        return (
+          <CommentsCell
+            residentId={resident.id}
+            teamId={teamId}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+          />
+        );
+      }
     }
-  },
-  {
-    accessorKey: "comments",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">Comments</div>
-      );
-    },
-    enableSorting: false,
-    size: 300,
-    cell: ({ row }) => {
-      const resident = row.original;
-      return (
-        <CommentsCell
-          residentId={resident._id}
-          teamId={teamId}
-          currentUserId={currentUserId}
-          currentUserName={currentUserName}
-        />
-      );
-    }
-  }
-];
+  ];

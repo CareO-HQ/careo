@@ -1,9 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -18,25 +16,40 @@ import {
 } from "@/components/ui/table";
 import {
   ArrowLeft,
-  Sun,
-  Moon,
-  Eye,
   FileText,
   MoreHorizontal,
   ArrowUpDown,
   SlidersHorizontal,
   Plus,
+  Eye,
 } from "lucide-react";
+import { handoverService } from "@/lib/handover-service";
+import { toast } from "sonner";
 
 export default function HandoverDocumentsPage() {
   const router = useRouter();
   const { activeTeamId } = useActiveTeam();
 
-  // Fetch handover reports from Convex
-  const handovers = useQuery(
-    api.handoverReports.getHandoverReportsByTeam,
-    activeTeamId ? { teamId: activeTeamId } : "skip"
-  );
+  const [handovers, setHandovers] = useState<any[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch handover reports from Supabase
+  useEffect(() => {
+    async function fetchHandovers() {
+      if (!activeTeamId) return;
+      setIsLoading(true);
+      try {
+        const data = await handoverService.getHandoverReportsByTeam(activeTeamId);
+        setHandovers(data);
+      } catch (error) {
+        console.error("Failed to fetch handover reports:", error);
+        toast.error("Failed to load handover reports");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchHandovers();
+  }, [activeTeamId]);
 
   // Group handovers by date
   const groupedHandovers = useMemo(() => {
@@ -69,7 +82,7 @@ export default function HandoverDocumentsPage() {
   }, [handovers]);
 
   // Loading state
-  if (handovers === undefined) {
+  if (isLoading) {
     return (
       <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
         <div className="flex items-center justify-center h-full">
@@ -146,7 +159,7 @@ export default function HandoverDocumentsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {groupedHandovers.length === 0 ? (
+            {!handovers || handovers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="h-8 py-1 text-center">
                   <div className="flex items-center justify-center">
@@ -166,15 +179,15 @@ export default function HandoverDocumentsPage() {
                   <TableCell className="h-8 py-1">
                     {item.day ? (
                       <div className="flex items-center gap-1.5">
-                      <Badge
-                         
-                          className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-green-100 text-black"
-                          onClick={() => router.push(`/dashboard/handover/documents/${item.day._id}`)}
+                        <Badge
+                          variant="outline"
+                          className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-green-100 text-black border-transparent"
+                          onClick={() => router.push(`/dashboard/handover/documents/${item.day.id}`)}
                         >
                           <Eye className="h-3 w-3 mr-1" />
                           View
                         </Badge>
-                    
+
                       </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
@@ -183,15 +196,15 @@ export default function HandoverDocumentsPage() {
                   <TableCell className="h-8 py-1">
                     {item.night ? (
                       <div className="flex items-center gap-1.5">
-                         <Badge
+                        <Badge
                           variant="outline"
-                          className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-amber-100"
-                          onClick={() => router.push(`/dashboard/handover/documents/${item.night._id}`)}
+                          className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-amber-100 text-black border-transparent"
+                          onClick={() => router.push(`/dashboard/handover/documents/${item.night.id}`)}
                         >
                           <Eye className="h-3 w-3 mr-1" />
                           View
                         </Badge>
-                    
+
                       </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
