@@ -381,7 +381,7 @@ export const getColumns = (
         );
       },
       enableSorting: false,
-      size: 150,
+      size: 130,
       filterFn: (row, columnId, value) => {
         const resident = row.original;
         if (!value || typeof value !== 'string') return true;
@@ -411,7 +411,7 @@ export const getColumns = (
               <AvatarImage src={resident.imageUrl || resident.image_url} alt={name} />
               <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
             </Avatar>
-            <div className="font-medium text-xs truncate max-w-[110px]">
+            <div className="font-medium text-xs truncate max-w-[90px]">
               {firstName} {lastName}
             </div>
           </div>
@@ -426,7 +426,7 @@ export const getColumns = (
         );
       },
       enableSorting: true,
-      size: 60,
+      size: 50,
       sortingFn: (rowA, rowB) => {
         const a = rowA.original.roomNumber || rowA.original.room_number;
         const b = rowB.original.roomNumber || rowB.original.room_number;
@@ -462,7 +462,7 @@ export const getColumns = (
         );
       },
       enableSorting: false,
-      size: 80,
+      size: 70,
       cell: ({ row }) => {
         const resident = row.original;
         return <HandoverReportCell residentId={resident.id} teamId={teamId} />;
@@ -478,7 +478,7 @@ export const getColumns = (
         );
       },
       enableSorting: false,
-      size: 80,
+      size: 70,
       cell: ({ row }) => {
         const resident = row.original;
         return <FluidTotalCell residentId={resident.id} teamId={teamId} />;
@@ -492,7 +492,7 @@ export const getColumns = (
         );
       },
       enableSorting: false,
-      size: 60,
+      size: 50,
       cell: ({ row }) => {
         const resident = row.original;
         return <IncidentsCell residentId={resident.id} teamId={teamId} />;
@@ -508,7 +508,7 @@ export const getColumns = (
         );
       },
       enableSorting: false,
-      size: 110,
+      size: 100,
       cell: ({ row }) => {
         const resident = row.original;
         return <HospitalTransferCell residentId={resident.id} teamId={teamId} />;
@@ -522,7 +522,7 @@ export const getColumns = (
         );
       },
       enableSorting: false,
-      size: 80,
+      size: 70,
       cell: ({ row }) => {
         return (
           <div className="text-sm text-muted-foreground">—</div>
@@ -537,7 +537,7 @@ export const getColumns = (
         );
       },
       enableSorting: false,
-      size: 250,
+      size: 200,
       cell: ({ row }) => {
         const resident = row.original;
         return (

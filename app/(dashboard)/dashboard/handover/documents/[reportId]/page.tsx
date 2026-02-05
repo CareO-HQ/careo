@@ -66,8 +66,8 @@ export default function HandoverReportDetailPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
-        <div className="flex items-center justify-center h-full">
+      <div className="flex flex-col min-h-full w-full bg-background">
+        <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
             <p className="mt-2 text-muted-foreground">Loading handover report...</p>
@@ -80,8 +80,8 @@ export default function HandoverReportDetailPage() {
   // Report not found
   if (!report) {
     return (
-      <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
-        <div className="flex items-center justify-center h-full">
+      <div className="flex flex-col min-h-full w-full bg-background">
+        <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <p className="text-muted-foreground">Report not found</p>
             <Button
@@ -118,7 +118,7 @@ export default function HandoverReportDetailPage() {
           }
         }
       `}</style>
-      <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10 print:h-auto print:w-auto print:m-0">
+      <div className="flex flex-col min-h-full w-full bg-background print:h-auto print:w-auto print:m-0">
         {/* Header */}
         <div className="flex items-center justify-between border-b px-6 py-4 print:border-none">
           <div className="flex items-center gap-3">

@@ -84,8 +84,8 @@ export default function HandoverDocumentsPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
-        <div className="flex items-center justify-center h-full">
+      <div className="flex flex-col min-h-full w-full bg-background">
+        <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
             <p className="mt-2 text-muted-foreground">Loading handover reports...</p>
@@ -96,7 +96,7 @@ export default function HandoverDocumentsPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
+    <div className="flex flex-col min-h-full w-full bg-background text-sm">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-3">
