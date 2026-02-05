@@ -80,7 +80,8 @@ export default function InviteForm() {
       const organizationName = orgData?.name || "your organization";
 
       for (const user of usersWithEmails) {
-        if (!user) continue;
+        if (!user?.email) continue;
+        const email = user.email;
         try {
           const token = nanoid(32);
           const expiresAt = new Date();
@@ -91,7 +92,7 @@ export default function InviteForm() {
             .insert({
               organization_id: profile.active_organization_id,
               care_home_id: user.role === "manager" ? profile.active_care_home_id : undefined,
-              email: user.email,
+              email,
               role: user.role,
               invited_by: profile.id,
               token: token,
@@ -104,7 +105,7 @@ export default function InviteForm() {
 
             // 2. Send Invitation Email
             await sendInvitationEmail({
-              email: user.email,
+              email,
               organizationId: profile.active_organization_id,
               organizationName: organizationName,
               inviterName: profile.name || "A team member",

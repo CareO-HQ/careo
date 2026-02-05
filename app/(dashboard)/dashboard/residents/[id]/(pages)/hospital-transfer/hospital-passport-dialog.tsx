@@ -43,8 +43,8 @@ import {
 } from "lucide-react";
 
 // Helper to generate time options in 15-minute intervals
-const generateTimeOptions = () => {
-  const options = [];
+const generateTimeOptions = (): string[] => {
+  const options: string[] = [];
   for (let i = 0; i < 24; i++) {
     for (let j = 0; j < 60; j += 15) {
       const hour = i.toString().padStart(2, '0');

@@ -93,7 +93,7 @@ export default function DependencyDialog({
 
   const handleNext = async () => {
     setDatePopoverOpen(false);
-    let isValid = step === 1 ? await form.trigger(["dependencyLevel"]) : await form.trigger(["completedBy", "completedBySignature", "assessmentDate"]);
+    const isValid = step === 1 ? await form.trigger(["dependencyLevel"]) : await form.trigger(["completedBy", "completedBySignature", "assessmentDate"]);
     if (isValid || step === totalSteps) {
       if (step < totalSteps) setStep(step + 1);
       else await handleSubmit();

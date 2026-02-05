@@ -123,7 +123,7 @@ function SessionPageContent() {
                   <div className="flex flex-col justify-start items-start">
                     <div className="flex flex-row justify-start items-center gap-2">
                       <p className="text-sm font-medium">{session.ipAddress}</p>
-                      {session.id === currentSession?.session.id && (
+                      {session.id === (currentSession as { session?: { id?: string } })?.session?.id && (
                         <p className="text-xs text-muted-foreground">
                           Current session
                         </p>

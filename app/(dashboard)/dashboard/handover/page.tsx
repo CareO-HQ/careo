@@ -122,23 +122,23 @@ export default function HandoverPage() {
       const residentHandoversPromises = residents.map(async (resident) => {
         // Fetch the handover report for this resident
         const report = await convex.query(api.handover.getHandoverReport, {
-          residentId: resident._id as Id<"residents">
+          residentId: resident.id as Id<"residents">
         });
 
         // Get comments from database instead of DOM
         const commentData = await convex.query(api.handoverComments.getComment, {
           teamId: activeTeamId,
-          residentId: resident._id as Id<"residents">,
+          residentId: resident.id as Id<"residents">,
           date: dateString,
           shift: selectedShift,
         });
         const comments = commentData?.comment || "";
 
         return {
-          residentId: resident._id as Id<"residents">,
-          residentName: `${resident.firstName} ${resident.lastName}`,
-          roomNumber: resident.roomNumber,
-          age: getAge(resident.dateOfBirth),
+          residentId: resident.id as Id<"residents">,
+          residentName: `${resident.first_name} ${resident.last_name}`,
+          roomNumber: resident.room_number,
+          age: getAge(resident.date_of_birth),
           foodIntakeCount: report?.foodIntakeCount || 0,
           foodIntakeLogs: report?.foodIntakeLogs?.map(log => ({
             id: log.id.toString(),

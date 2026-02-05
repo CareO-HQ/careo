@@ -1031,6 +1031,20 @@ export default defineSchema({
     .index("byActiveStatus", ["isActive"])
     .index("byCreatedBy", ["createdBy"]),
 
+  // Appointments (for appointment read status tracking)
+  appointments: defineTable({
+    residentId: v.id("residents"),
+    status: v.string(),
+    startTime: v.string(),
+  }).index("byResidentId", ["residentId"]),
+
+  // Appointment read status - which users have read which appointments
+  appointmentReadStatus: defineTable({
+    userId: v.id("users"),
+    appointmentId: v.id("appointments"),
+    readAt: v.number(),
+  })
+    .index("by_user_and_appointment", ["userId", "appointmentId"]),
 
   preAdmissionCareFiles: defineTable({
     residentId: v.id("residents"),

@@ -161,7 +161,7 @@ export default function ClinicalDocumentsPage({ params }: ClinicalDocumentsPageP
   const years = useMemo(() => {
     const currentYear = new Date().getFullYear();
     const startYear = 2020;
-    const yearList = [];
+    const yearList: string[] = [];
     for (let y = currentYear; y >= startYear; y--) {
       yearList.push(y.toString());
     }

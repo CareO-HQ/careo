@@ -393,7 +393,7 @@ export const getColumns = (
 ): ColumnDef<Resident, unknown>[] => [
   {
     id: "name",
-    accessorFn: (row) => `${row.firstName || ''} ${row.lastName || ''}`.trim(),
+    accessorFn: (row) => `${row.first_name || ''} ${row.last_name || ''}`.trim(),
     header: () => {
       return (
         <div className="text-left text-muted-foreground text-sm">Name</div>
@@ -408,8 +408,8 @@ export const getColumns = (
       const searchTerm = value.toLowerCase().trim();
       if (!searchTerm) return true;
 
-      const firstName = (resident.firstName || '').toLowerCase();
-      const lastName = (resident.lastName || '').toLowerCase();
+      const firstName = (resident.first_name || '').toLowerCase();
+      const lastName = (resident.last_name || '').toLowerCase();
       const fullName = `${firstName} ${lastName}`.trim();
 
       return firstName.includes(searchTerm) ||
@@ -418,18 +418,18 @@ export const getColumns = (
     },
     cell: ({ row }) => {
       const resident = row.original;
-      const name = `${resident.firstName} ${resident.lastName}`;
+      const name = `${resident.first_name} ${resident.last_name}`;
       const initials =
-        `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+        `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
       return (
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={resident.imageUrl} alt={name} />
+            <AvatarImage src={resident.image_url} alt={name} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
           <div className="font-medium text-sm">
-            {resident.firstName} {resident.lastName}
+            {resident.first_name} {resident.last_name}
           </div>
         </div>
       );
@@ -445,8 +445,8 @@ export const getColumns = (
     enableSorting: true,
     size: 80,
     sortingFn: (rowA, rowB) => {
-      const a = rowA.original.roomNumber;
-      const b = rowB.original.roomNumber;
+      const a = rowA.original.room_number;
+      const b = rowB.original.room_number;
 
       if (!a && !b) return 0;
       if (!a) return 1;
@@ -464,7 +464,7 @@ export const getColumns = (
     cell: ({ row }) => {
       return (
         <p className="text-muted-foreground">
-          {row.original.roomNumber || "-"}
+          {row.original.room_number || "-"}
         </p>
       );
     }
@@ -482,7 +482,7 @@ export const getColumns = (
     size: 100,
     cell: ({ row }) => {
       const resident = row.original;
-      return <HandoverReportCell residentId={resident._id} teamId={teamId} />;
+      return <HandoverReportCell residentId={resident.id} teamId={teamId} />;
     }
   },
   {
@@ -498,7 +498,7 @@ export const getColumns = (
     size: 90,
     cell: ({ row }) => {
       const resident = row.original;
-      return <FluidTotalCell residentId={resident._id} teamId={teamId} />;
+      return <FluidTotalCell residentId={resident.id} teamId={teamId} />;
     }
   },
   {
@@ -512,7 +512,7 @@ export const getColumns = (
     size: 80,
     cell: ({ row }) => {
       const resident = row.original;
-      return <IncidentsCell residentId={resident._id} teamId={teamId} />;
+      return <IncidentsCell residentId={resident.id} teamId={teamId} />;
     }
   },
   {
@@ -528,7 +528,7 @@ export const getColumns = (
     size: 130,
     cell: ({ row }) => {
       const resident = row.original;
-      return <HospitalTransferCell residentId={resident._id} teamId={teamId} />;
+      return <HospitalTransferCell residentId={resident.id} teamId={teamId} />;
     }
   },
   {
@@ -559,7 +559,7 @@ export const getColumns = (
       const resident = row.original;
       return (
         <CommentsCell
-          residentId={resident._id}
+          residentId={resident.id}
           teamId={teamId}
           currentUserId={currentUserId}
           currentUserName={currentUserName}

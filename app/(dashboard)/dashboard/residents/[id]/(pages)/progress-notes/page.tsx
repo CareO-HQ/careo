@@ -242,7 +242,6 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
       fetchProgressNotes(null, false);
       fetchStats();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, filterType, searchQuery]);
 
   const form = useForm<ProgressNoteFormData>({
@@ -697,7 +696,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
                   <div className="flex justify-center pt-4 border-t">
                     <Button
                       variant="outline"
-                      onClick={() => loadMore(ITEMS_PER_PAGE)}
+                      onClick={() => loadMore()}
                       disabled={isLoading || !canLoadMore}
                       className="w-full sm:w-auto"
                     >

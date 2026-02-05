@@ -379,31 +379,31 @@ export default function ViewCompletedAuditPage() {
                   </TableHeader>
                   <TableBody>
             {(dbResidents || []).map(resident => {
-              const hasData = auditData.answers.some(a => a.residentId === resident._id) ||
-                             getComment(resident._id) ||
-                             getResidentDate(resident._id);
+              const hasData = auditData.answers.some(a => a.residentId === resident.id) ||
+                             getComment(resident.id) ||
+                             getResidentDate(resident.id);
 
               // Only show residents that have audit data
               if (!hasData) return null;
 
               return (
-                    <TableRow key={resident._id} className="hover:bg-muted/50">
+                    <TableRow key={resident.id} className="hover:bg-muted/50">
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={resident.imageUrl} alt={`${resident.firstName} ${resident.lastName}`} />
+                            <AvatarImage src={resident.image_url} alt={`${resident.first_name} ${resident.last_name}`} />
                             <AvatarFallback>
-                              {resident.firstName[0]}{resident.lastName[0]}
+                              {resident.first_name[0]}{resident.last_name[0]}
                             </AvatarFallback>
                           </Avatar>
-                          <span>{resident.firstName} {resident.lastName}</span>
+                          <span>{resident.first_name} {resident.last_name}</span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        {resident.roomNumber || "-"}
+                        {resident.room_number || "-"}
                       </TableCell>
                       {auditData.questions.map(question => {
-                        const answer = getAnswer(resident._id, question.id);
+                        const answer = getAnswer(resident.id, question.id);
                         return (
                           <TableCell key={question.id}>
                             {answer?.value ? (
@@ -428,12 +428,12 @@ export default function ViewCompletedAuditPage() {
                         );
                       })}
                       <TableCell className="text-sm">
-                        {getResidentDate(resident._id)
-                          ? format(new Date(getResidentDate(resident._id)!), "MMM dd, yyyy")
+                        {getResidentDate(resident.id)
+                          ? format(new Date(getResidentDate(resident.id)!), "MMM dd, yyyy")
                           : "-"}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {getComment(resident._id) || "-"}
+                        {getComment(resident.id) || "-"}
                       </TableCell>
                     </TableRow>
                   );

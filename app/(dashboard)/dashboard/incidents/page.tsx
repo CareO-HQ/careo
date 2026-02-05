@@ -59,7 +59,7 @@ export default function IncidentsPage() {
       // Fetch read status for these incidents from notification_read_status
       // We need to find notifications associated with these incidents
       const incidentIds = (incidentsData || []).map(i => i.id);
-      let readStatusMap: Record<string, boolean> = {};
+      const readStatusMap: Record<string, boolean> = {};
 
       if (incidentIds.length > 0) {
         // Find notifications for these incident IDs

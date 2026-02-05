@@ -242,12 +242,12 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
       
       // Header
       doc.setFontSize(18);
-      doc.setFont(undefined, 'bold');
+      doc.setFont("helvetica", 'bold');
       doc.text('Progress Notes', margin, yPos);
       yPos += 10;
       
       doc.setFontSize(12);
-      doc.setFont(undefined, 'normal');
+      doc.setFont("helvetica", 'normal');
       doc.text(`Resident: ${fullName}`, margin, yPos);
       yPos += 7;
       doc.text(`Date: ${format(new Date(date), "EEEE, dd MMMM yyyy")}`, margin, yPos);
@@ -270,13 +270,13 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
         }
         
         // Note header
-        doc.setFont(undefined, 'bold');
+        doc.setFont("helvetica", 'bold');
         doc.setFontSize(11);
         doc.text(`Note ${index + 1}`, margin, yPos);
         yPos += 7;
         
         // Note details
-        doc.setFont(undefined, 'normal');
+        doc.setFont("helvetica", 'normal');
         doc.setFontSize(10);
         const details = [
           `Time: ${note.time || "00:00"}`,
@@ -292,11 +292,11 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
         yPos += 3;
         
         // Note content
-        doc.setFont(undefined, 'bold');
+        doc.setFont("helvetica", 'bold');
         doc.text('Content:', margin + 5, yPos);
         yPos += 6;
         
-        doc.setFont(undefined, 'normal');
+        doc.setFont("helvetica", 'normal');
         const noteText = note.note || "No note content";
         const splitText = doc.splitTextToSize(noteText, maxWidth - 10);
         
@@ -378,12 +378,12 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
       
       // Header
       doc.setFontSize(18);
-      doc.setFont(undefined, 'bold');
+      doc.setFont("helvetica", 'bold');
       doc.text('Progress Notes - Complete History', margin, yPos);
       yPos += 10;
       
       doc.setFontSize(12);
-      doc.setFont(undefined, 'normal');
+      doc.setFont("helvetica", 'normal');
       doc.text(`Resident: ${fullName}`, margin, yPos);
       yPos += 7;
       doc.text(`Generated: ${format(new Date(), "dd MMM yyyy HH:mm")}`, margin, yPos);
@@ -401,11 +401,11 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
         
         // Day header
         doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
+        doc.setFont("helvetica", 'bold');
         doc.text(format(new Date(dayGroup.date), "EEEE, dd MMMM yyyy"), margin, yPos);
         yPos += 7;
         doc.setFontSize(10);
-        doc.setFont(undefined, 'normal');
+        doc.setFont("helvetica", 'normal');
         doc.text(`${dayGroup.notes.length} note${dayGroup.notes.length !== 1 ? 's' : ''}`, margin, yPos);
         yPos += 5;
         
@@ -423,13 +423,13 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
           }
           
           // Note header
-          doc.setFont(undefined, 'bold');
+          doc.setFont("helvetica", 'bold');
           doc.setFontSize(11);
           doc.text(`Note ${noteIndex + 1}`, margin, yPos);
           yPos += 7;
           
           // Note details
-          doc.setFont(undefined, 'normal');
+          doc.setFont("helvetica", 'normal');
           doc.setFontSize(10);
           const details = [
             `Time: ${note.time || "00:00"}`,
@@ -445,11 +445,11 @@ export default function ProgressNotesDocumentsPage({ params }: ProgressNotesDocu
           yPos += 3;
           
           // Note content
-          doc.setFont(undefined, 'bold');
+          doc.setFont("helvetica", 'bold');
           doc.text('Content:', margin + 5, yPos);
           yPos += 6;
           
-          doc.setFont(undefined, 'normal');
+          doc.setFont("helvetica", 'normal');
           const noteText = note.note || "No note content";
           const splitText = doc.splitTextToSize(noteText, maxWidth - 10);
           

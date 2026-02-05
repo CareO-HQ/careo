@@ -53,9 +53,9 @@ export default function AppointmentPage() {
         };
 
         if (shouldUseOrganization || !activeTeamId) {
-          filters.organizationId = activeOrganizationId;
+          filters.organizationId = activeOrganizationId ?? undefined;
         } else {
-          filters.teamId = activeTeamId;
+          filters.teamId = activeTeamId ?? undefined;
         }
 
         const result = await getAppointments(filters);

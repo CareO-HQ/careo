@@ -55,6 +55,16 @@ type MedicationDocumentsPageProps = {
   params: Promise<{ id: string }>;
 };
 
+type MedicationReportByDate = {
+  date: string;
+  formattedDate: string;
+  totalCount: number;
+  administeredCount: number;
+  missedCount: number;
+  refusedCount: number;
+  logs: any[];
+};
+
 export default function MedicationDocumentsPage({ params }: MedicationDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
@@ -136,14 +146,14 @@ export default function MedicationDocumentsPage({ params }: MedicationDocumentsP
         notes: intake.comment || undefined
       });
       return acc;
-    }, {} as Record<string, any>);
+    }, {} as Record<string, MedicationReportByDate>);
 
-    return Object.values(grouped);
+    return Object.values(grouped) as MedicationReportByDate[];
   }, [allIntakes]);
 
   // Filter and sort
   const filteredReports = useMemo(() => {
-    let filtered = [...reportObjects];
+    let filtered: MedicationReportByDate[] = [...reportObjects];
 
     if (selectedYear !== "all") {
       filtered = filtered.filter(report => new Date(report.date).getFullYear() === parseInt(selectedYear));

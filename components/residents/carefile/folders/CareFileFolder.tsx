@@ -736,7 +736,7 @@ export default function CareFileFolder({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Care Plan?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "{deleteCarePlanDialog.carePlanName}".
+              This will permanently delete &quot;{deleteCarePlanDialog.carePlanName}&quot;.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
