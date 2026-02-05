@@ -14,10 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
-import type { Id } from "@/convex/_generated/dataModel";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { auditService } from "@/lib/audit-service";
 
 interface ArchivedAudit {
   id: string;
@@ -38,98 +37,97 @@ function ArchivedAuditsContent() {
   const templateId = searchParams.get("templateId") || "";
 
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
+  const { supabase } = useSupabase();
   const [archivedAudits, setArchivedAudits] = useState<ArchivedAudit[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load completed audits from database for resident category
-  const dbArchivedAudits = useQuery(
-    api.auditResponses.getResponsesByTemplate,
-    templateId && activeTeamId && auditCategory === "resident"
-      ? {
-          templateId: templateId as Id<"residentAuditTemplates">,
-          teamId: activeTeamId
-        }
-      : "skip"
-  );
-
-  // Load completed governance audits from database
-  const dbGovernanceAudits = useQuery(
-    api.governanceAuditResponses.getCompletedResponsesByTemplate,
-    templateId && activeOrganizationId && auditCategory === "governance"
-      ? {
-          templateId: templateId as Id<"governanceAuditTemplates">,
-          organizationId: activeOrganizationId
-        }
-      : "skip"
-  );
-
-  // Load completed clinical audits from database
-  const dbClinicalAudits = useQuery(
-    api.clinicalAuditResponses.getCompletedResponsesByTemplate,
-    templateId && activeOrganizationId && auditCategory === "clinical"
-      ? {
-          templateId: templateId as Id<"clinicalAuditTemplates">,
-          organizationId: activeOrganizationId
-        }
-      : "skip"
-  );
-
-  // Load completed environment audits from database
-  const dbEnvironmentAudits = useQuery(
-    api.environmentAuditResponses.getCompletedResponsesByTemplate,
-    templateId && activeOrganizationId && auditCategory === "environment"
-      ? {
-          templateId: templateId as Id<"environmentAuditTemplates">,
-          organizationId: activeOrganizationId
-        }
-      : "skip"
-  );
-
+  // Load completed audits from database
   useEffect(() => {
-    if (auditCategory === "resident" && dbArchivedAudits) {
-      const formatted = dbArchivedAudits.map((audit) => ({
-        id: audit._id,
-        name: audit.templateName,
-        category: audit.category,
-        completedAt: audit.completedAt || audit.createdAt,
-        status: audit.status,
-        responses: audit.responses,
-      }));
-      setArchivedAudits(formatted as any);
-    } else if (auditCategory === "governance" && dbGovernanceAudits) {
-      const formatted = dbGovernanceAudits.map((audit) => ({
-        id: audit._id,
-        name: audit.templateName,
-        category: "governance",
-        completedAt: audit.completedAt || audit.createdAt,
-        status: audit.status,
-        items: audit.items,
-        overallNotes: audit.overallNotes,
-      }));
-      setArchivedAudits(formatted as any);
-    } else if (auditCategory === "clinical" && dbClinicalAudits) {
-      const formatted = dbClinicalAudits.map((audit) => ({
-        id: audit._id,
-        name: audit.templateName,
-        category: "clinical",
-        completedAt: audit.completedAt || audit.createdAt,
-        status: audit.status,
-        items: audit.items,
-        overallNotes: audit.overallNotes,
-      }));
-      setArchivedAudits(formatted as any);
-    } else if (auditCategory === "environment" && dbEnvironmentAudits) {
-      const formatted = dbEnvironmentAudits.map((audit) => ({
-        id: audit._id,
-        name: audit.templateName,
-        category: "environment",
-        completedAt: audit.completedAt || audit.createdAt,
-        status: audit.status,
-        items: audit.items,
-        overallNotes: audit.overallNotes,
-      }));
-      setArchivedAudits(formatted as any);
+    if (!templateId || !supabase) {
+      setIsLoading(false);
+      return;
     }
-  }, [auditName, auditCategory, dbArchivedAudits, dbGovernanceAudits, dbClinicalAudits, dbEnvironmentAudits]);
+
+    const fetchArchivedAudits = async () => {
+      try {
+        let data: any[] = [];
+        
+        if (auditCategory === "resident" && activeTeamId) {
+          const { data: residentData, error } = await supabase
+            .from("audit_resident_completions")
+            .select("*")
+            .eq("template_id", templateId)
+            .eq("team_id", activeTeamId)
+            .eq("status", "completed")
+            .order("completed_at", { ascending: false });
+          
+          if (error) throw error;
+          data = residentData || [];
+        } else if (auditCategory === "governance" && activeOrganizationId) {
+          const { data: governanceData, error } = await supabase
+            .from("audit_governance_completions")
+            .select("*")
+            .eq("template_id", templateId)
+            .eq("organization_id", activeOrganizationId)
+            .eq("status", "completed")
+            .order("completed_at", { ascending: false });
+          
+          if (error) throw error;
+          data = governanceData || [];
+        } else if (auditCategory === "clinical" && activeOrganizationId) {
+          const { data: clinicalData, error } = await supabase
+            .from("audit_clinical_completions")
+            .select("*")
+            .eq("template_id", templateId)
+            .eq("organization_id", activeOrganizationId)
+            .eq("status", "completed")
+            .order("completed_at", { ascending: false });
+          
+          if (error) throw error;
+          data = clinicalData || [];
+        } else if (auditCategory === "environment" && activeOrganizationId) {
+          const { data: environmentData, error } = await supabase
+            .from("audit_environment_completions")
+            .select("*")
+            .eq("template_id", templateId)
+            .eq("organization_id", activeOrganizationId)
+            .eq("status", "completed")
+            .order("completed_at", { ascending: false });
+          
+          if (error) throw error;
+          data = environmentData || [];
+        }
+
+        const formatted = data.map((audit) => ({
+          id: audit.id,
+          name: audit.template_name || auditName,
+          category: auditCategory,
+          completedAt: audit.completed_at ? new Date(audit.completed_at).getTime() : new Date(audit.created_at).getTime(),
+          status: audit.status,
+          responses: audit.responses || audit.items,
+        }));
+        
+        setArchivedAudits(formatted);
+      } catch (error) {
+        console.error("Error fetching archived audits:", error);
+        setArchivedAudits([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchArchivedAudits();
+  }, [templateId, auditCategory, activeTeamId, activeOrganizationId, supabase, auditName]);
+
+  // Loading state handled in useEffect above
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
 
   const loadArchivedAuditsFromLocalStorage = () => {
     const completedAudits = localStorage.getItem("completed-audits");

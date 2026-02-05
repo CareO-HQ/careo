@@ -37,8 +37,6 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
-import { api } from "@/convex/_generated/api";
-import { useQuery } from "convex/react";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
@@ -72,7 +70,7 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { supabase } = useSupabase();
-  const [staffMember, setStaffMember] = React.useState<{ id: string; name?: string; email?: string; userId?: string } | null>(null);
+  const [staffMember, setStaffMember] = React.useState<{ id: string; name?: string; email?: string; userId?: string; image_url?: string | null } | null>(null);
   const [staffLoading, setStaffLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -85,7 +83,7 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
       try {
         const { data } = await supabase
           .from("users")
-          .select("id, name, email")
+          .select("id, name, email, image_url")
           .eq("id", id)
           .single();
         setStaffMember(data ? { ...data, userId: data.id } : null);
@@ -96,12 +94,6 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
       }
     })();
   }, [supabase, id]);
-
-  // Fetch staff member's profile image from Convex
-  const userImage = useQuery(
-    api.files.image.getUserImageByUserId,
-    staffMember?.id ? { userId: staffMember.id } : "skip"
-  );
 
   // Dialog states
   const [isOnlineDialogOpen, setIsOnlineDialogOpen] = React.useState(false);
@@ -275,7 +267,7 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
           </Button>
           <Avatar className="w-20 h-20">
             <AvatarImage
-              src={userImage?.url || ""}
+              src={staffMember?.image_url || ""}
               alt={fullName}
               className="border"
             />

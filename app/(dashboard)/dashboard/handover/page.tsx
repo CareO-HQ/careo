@@ -1,8 +1,6 @@
 "use client";
 
-import { api } from "@/convex/_generated/api";
 import { useActiveTeam } from "@/hooks/use-active-team";
-import { useQuery, useMutation, useConvex } from "convex/react";
 import { useRouter } from "next/navigation";
 import { Resident } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -10,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { getColumns } from "./columns";
 import { DataTable } from "./data-table";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getAge } from "@/lib/utils";
 import {
   Dialog,
@@ -28,21 +26,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Id } from "@/convex/_generated/dataModel";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { CalendarIcon, FileText, MessageSquare, Users } from "lucide-react";
-import { useEffect } from "react";
 import { getCurrentShift } from "@/lib/config/shift-config";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
+import { getUKTodayDate } from "@/lib/date-utils";
 
 export default function HandoverPage() {
   const router = useRouter();
-  const convex = useConvex();
+  const { supabase } = useSupabase();
   const { activeTeamId, activeTeam } = useActiveTeam();
-  const residents = useQuery(api.residents.getByTeamId, {
-    teamId: activeTeamId ?? "skip"
-  }) as Resident[] | undefined;
+  const { profile: currentUser } = useProfile();
+  const [residents, setResidents] = useState<Resident[]>([]);
+  const [isLoadingResidents, setIsLoadingResidents] = useState(true);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<"day" | "night">(getCurrentShift());
@@ -50,23 +49,50 @@ export default function HandoverPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [commentsSummary, setCommentsSummary] = useState<{ total: number; withComments: number; withoutComments: number } | null>(null);
 
-  const saveHandoverReport = useMutation(api.handoverReports.saveHandoverReport);
-  const currentUser = useQuery(api.auth.getCurrentUser);
+  // Fetch residents from Supabase
+  useEffect(() => {
+    if (!activeTeamId || !supabase) {
+      setIsLoadingResidents(false);
+      return;
+    }
+
+    const fetchResidents = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("team_id", activeTeamId);
+
+        if (error) throw error;
+        setResidents((data as Resident[]) || []);
+      } catch (error) {
+        console.error("Error fetching residents:", error);
+        setResidents([]);
+      } finally {
+        setIsLoadingResidents(false);
+      }
+    };
+
+    fetchResidents();
+  }, [activeTeamId, supabase]);
 
   // Load comments summary when dialog opens
   const loadCommentsSummary = async () => {
-    if (!activeTeamId || !residents) return;
+    if (!activeTeamId || !residents || !supabase) return;
 
     const dateString = selectedDate.toISOString().split('T')[0];
 
     try {
-      const commentsData = await convex.query(api.handoverComments.getCommentsByTeamDateShift, {
-        teamId: activeTeamId,
-        date: dateString,
-        shift: selectedShift,
-      });
+      const { data: commentsData, error } = await supabase
+        .from("handover_comments")
+        .select("*")
+        .eq("team_id", activeTeamId)
+        .eq("date", dateString)
+        .eq("shift", selectedShift);
 
-      const withComments = commentsData?.filter(c => c.comment.trim().length > 0).length || 0;
+      if (error) throw error;
+
+      const withComments = commentsData?.filter(c => c.comment && c.comment.trim().length > 0).length || 0;
       const total = residents.length;
 
       setCommentsSummary({
@@ -88,7 +114,7 @@ export default function HandoverPage() {
   }, [isDialogOpen, selectedDate, selectedShift]);
 
   const handleSaveHandover = async () => {
-    if (!activeTeamId || !activeTeam || !residents || !currentUser) {
+    if (!activeTeamId || !activeTeam || !residents || !currentUser || !supabase) {
       toast.error("Missing required information");
       return;
     }
@@ -98,11 +124,13 @@ export default function HandoverPage() {
       const dateString = selectedDate.toISOString().split('T')[0];
 
       // Check if handover already exists for this date/shift
-      const existingHandover = await convex.query(api.handoverReports.getHandoverReport, {
-        teamId: activeTeamId,
-        date: dateString,
-        shift: selectedShift,
-      });
+      const { data: existingHandover } = await supabase
+        .from("handover_reports")
+        .select("*")
+        .eq("team_id", activeTeamId)
+        .eq("date", dateString)
+        .eq("shift", selectedShift)
+        .maybeSingle();
 
       if (existingHandover) {
         const confirmed = confirm(
@@ -112,6 +140,11 @@ export default function HandoverPage() {
           setIsSaving(false);
           return;
         }
+        // Delete existing handover if confirmed
+        await supabase
+          .from("handover_reports")
+          .delete()
+          .eq("id", existingHandover.id);
       }
 
       // Wait for any pending auto-saves to complete (2s debounce + 0.5s buffer)
@@ -120,79 +153,130 @@ export default function HandoverPage() {
 
       // Fetch handover data for each resident
       const residentHandoversPromises = residents.map(async (resident) => {
-        // Fetch the handover report for this resident
-        const report = await convex.query(api.handover.getHandoverReport, {
-          residentId: resident.id as Id<"residents">
-        });
+        const today = getUKTodayDate();
+        const fluidTypes = ["Water", "Tea", "Coffee", "Juice", "Milk"];
 
-        // Get comments from database instead of DOM
-        const commentData = await convex.query(api.handoverComments.getComment, {
-          teamId: activeTeamId,
-          residentId: resident.id as Id<"residents">,
-          date: dateString,
-          shift: selectedShift,
-        });
+        // Fetch food/fluid logs for today
+        const { data: logs } = await supabase
+          .from("food_fluid_logs")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .eq("date", today)
+          .eq("is_archived", false)
+          .order("timestamp", { ascending: false });
+
+        // Separate food and fluid logs
+        const foodLogs = (logs || []).filter(log =>
+          log.type_of_food_drink &&
+          !fluidTypes.includes(log.type_of_food_drink) &&
+          !log.fluid_consumed_ml &&
+          log.amount_eaten &&
+          log.amount_eaten !== "None" &&
+          log.amount_eaten.trim() !== ""
+        );
+
+        const fluidLogs = (logs || []).filter(log =>
+          fluidTypes.includes(log.type_of_food_drink) || (log.fluid_consumed_ml && log.fluid_consumed_ml > 0)
+        );
+
+        const totalFluid = fluidLogs.reduce((sum, log) => sum + (log.fluid_consumed_ml || 0), 0);
+
+        // Fetch incidents for today
+        const { data: incidents } = await supabase
+          .from("incidents")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .eq("date", today)
+          .order("time", { ascending: false });
+
+        // Fetch hospital transfers for today
+        const { data: transfers } = await supabase
+          .from("hospital_transfers")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .eq("date", today);
+
+        // Get comments from database
+        const { data: commentData } = await supabase
+          .from("handover_comments")
+          .select("*")
+          .eq("team_id", activeTeamId)
+          .eq("resident_id", resident.id)
+          .eq("date", dateString)
+          .eq("shift", selectedShift)
+          .maybeSingle();
+
         const comments = commentData?.comment || "";
 
         return {
-          residentId: resident.id as Id<"residents">,
+          residentId: resident.id,
           residentName: `${resident.first_name} ${resident.last_name}`,
           roomNumber: resident.room_number,
           age: getAge(resident.date_of_birth),
-          foodIntakeCount: report?.foodIntakeCount || 0,
-          foodIntakeLogs: report?.foodIntakeLogs?.map(log => ({
+          foodIntakeCount: foodLogs.length,
+          foodIntakeLogs: foodLogs.map(log => ({
             id: log.id.toString(),
-            typeOfFoodDrink: log.typeOfFoodDrink,
-            amountEaten: log.amountEaten,
+            typeOfFoodDrink: log.type_of_food_drink,
+            amountEaten: log.amount_eaten,
             section: log.section,
-            timestamp: log.timestamp,
-          })) || [],
-          totalFluid: report?.totalFluid || 0,
-          fluidLogs: report?.fluidLogs?.map(log => ({
+            timestamp: new Date(log.timestamp).getTime(),
+          })),
+          totalFluid: totalFluid,
+          fluidLogs: fluidLogs.map(log => ({
             id: log.id.toString(),
-            typeOfFoodDrink: log.typeOfFoodDrink,
-            fluidConsumedMl: log.fluidConsumedMl,
+            typeOfFoodDrink: log.type_of_food_drink,
+            fluidConsumedMl: log.fluid_consumed_ml,
             section: log.section,
-            timestamp: log.timestamp,
-          })) || [],
-          incidentCount: report?.incidentCount || 0,
-          incidents: report?.incidents?.map(inc => ({
+            timestamp: new Date(log.timestamp).getTime(),
+          })),
+          incidentCount: incidents?.length || 0,
+          incidents: (incidents || []).map(inc => ({
             id: inc.id.toString(),
-            type: inc.type,
-            level: inc.level,
+            type: inc.incident_types || [],
+            level: inc.incident_level,
             time: inc.time,
-          })) || [],
-          hospitalTransferCount: report?.hospitalTransferCount || 0,
-          hospitalTransfers: report?.hospitalTransfers?.map(transfer => ({
+          })),
+          hospitalTransferCount: transfers?.length || 0,
+          hospitalTransfers: (transfers || []).map(transfer => ({
             id: transfer.id.toString(),
-            hospitalName: transfer.hospitalName,
+            hospitalName: transfer.hospital_name,
             reason: transfer.reason,
-          })) || [],
+          })),
           comments: comments,
         };
       });
 
       const residentHandovers = await Promise.all(residentHandoversPromises);
 
-      await saveHandoverReport({
-        date: dateString,
-        shift: selectedShift,
-        teamId: activeTeamId,
+      // Prepare handover_data JSONB structure
+      const handoverData = {
         teamName: activeTeam.name,
-        organizationId: currentUser.organizationId || "",
-        residentHandovers: residentHandovers as any,
-        createdBy: currentUser.userId,
+        organizationId: currentUser.active_organization_id || "",
+        residentHandovers: residentHandovers,
         createdByName: currentUser.name || "Unknown",
-        updatedBy: currentUser.userId,
         updatedByName: currentUser.name || "Unknown",
-      });
+      };
+
+      // Insert handover report into Supabase
+      const { error: insertError } = await supabase
+        .from("handover_reports")
+        .insert({
+          date: dateString,
+          shift: selectedShift,
+          team_id: activeTeamId,
+          handover_data: handoverData,
+          created_by: currentUser.id,
+        });
+
+      if (insertError) throw insertError;
 
       // Cleanup: Delete draft comments after successful archive
-      await convex.mutation(api.handoverComments.deleteCommentsAfterArchive, {
-        teamId: activeTeamId,
-        date: dateString,
-        shift: selectedShift,
-      });
+      await supabase
+        .from("handover_comments")
+        .delete()
+        .eq("team_id", activeTeamId)
+        .eq("date", dateString)
+        .eq("shift", selectedShift);
 
       toast.success("Handover saved successfully!");
       setIsDialogOpen(false);
@@ -259,15 +343,24 @@ export default function HandoverPage() {
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
-        <DataTable<Resident, unknown>
-          columns={getColumns(
-            activeTeamId ?? undefined,
-            currentUser?.userId,
-            currentUser?.name || "Unknown"
-          )}
-          data={residents || []}
-          teamName={activeTeam?.name ?? ""}
-        />
+        {isLoadingResidents ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="mt-2 text-muted-foreground">Loading residents...</p>
+            </div>
+          </div>
+        ) : (
+          <DataTable<Resident, unknown>
+            columns={getColumns(
+              activeTeamId ?? undefined,
+              currentUser?.id,
+              currentUser?.name || "Unknown"
+            )}
+            data={residents || []}
+            teamName={activeTeam?.name ?? ""}
+          />
+        )}
       </div>
 
       {/* Save Handover Dialog */}

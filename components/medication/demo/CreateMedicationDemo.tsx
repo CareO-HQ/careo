@@ -10,12 +10,11 @@ import {
   DialogTrigger
 } from "@/components/ui/dialog";
 import { useState } from "react";
-import { Id } from "@/convex/_generated/dataModel";
 
 export default function CreateMedicationDemo() {
   const [dialogOpen, setDialogOpen] = useState(false);
   // Dummy residentId for demo purposes
-  const dummyResidentId = "demo-resident-id" as Id<"residents">;
+  const dummyResidentId = "demo-resident-id";
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger asChild>

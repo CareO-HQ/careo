@@ -2,10 +2,9 @@
 
 import React from "react";
 import { useRouter, useParams } from "next/navigation";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -42,15 +41,63 @@ export default function HandoverReportDetailPage() {
   const router = useRouter();
   const params = useParams();
   const reportId = params.reportId as string;
+  const { supabase } = useSupabase();
+  const [report, setReport] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch the specific handover report
-  const report = useQuery(
-    api.handoverReports.getHandoverReportById,
-    reportId ? { reportId: reportId as Id<"handoverReports"> } : "skip"
-  );
+  useEffect(() => {
+    if (!reportId || !supabase) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchReport = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("handover_reports")
+          .select("*")
+          .eq("id", reportId)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          // Parse handover_data JSONB field
+          const handoverData = typeof data.handover_data === 'string' 
+            ? JSON.parse(data.handover_data) 
+            : data.handover_data;
+
+          setReport({
+            id: data.id,
+            date: data.date,
+            shift: data.shift,
+            teamId: data.team_id,
+            teamName: handoverData?.teamName || "Unknown Team",
+            organizationId: handoverData?.organizationId || "",
+            residentHandovers: handoverData?.residentHandovers || [],
+            createdBy: data.created_by,
+            createdByName: handoverData?.createdByName || "Unknown",
+            createdAt: new Date(data.created_at).getTime(),
+            updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : null,
+            updatedByName: handoverData?.updatedByName || null,
+          });
+        } else {
+          setReport(null);
+        }
+      } catch (error) {
+        console.error("Error fetching handover report:", error);
+        setReport(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReport();
+  }, [reportId, supabase]);
 
   // Loading state
-  if (report === undefined) {
+  if (isLoading) {
     return (
       <div className="flex flex-col h-screen w-screen bg-background -ml-10 -mr-10 -mt-10 -mb-10">
         <div className="flex items-center justify-center h-full">

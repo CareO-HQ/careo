@@ -23,14 +23,11 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { useAction } from "convex/react";
 import { toast } from "sonner";
 import { useState } from "react";
 
 interface EmailPDFProps {
-  pdfStorageId: Id<"_storage">;
+  pdfStorageId: string;
   filename: string;
   residentName?: string;
 }
@@ -42,7 +39,10 @@ export default function EmailPDF({
 }: EmailPDFProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const sendEmailAction = useAction(api.emails.sendEmailWithPDFAttachment);
+  // TODO: Implement email sending with Supabase or external service
+  const sendEmailAction = async (params: any) => {
+    throw new Error("Email functionality not yet implemented with Supabase");
+  };
 
   const formSchema = z.object({
     email: z.string().email()
@@ -58,35 +58,10 @@ export default function EmailPDF({
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      const result = await sendEmailAction({
-        to: values.email,
-        subject: `Care File Document - ${filename}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px;">
-              Care File Document
-            </h2>
-            ${residentName ? `<p><strong>Resident:</strong> ${residentName}</p>` : ""}
-            <p><strong>Document:</strong> ${filename}</p>
-            <p>Please find the attached care file document.</p>
-            <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-            <p style="color: #666; font-size: 12px;">
-              This email was sent from Careo Care Management System.
-            </p>
-          </div>
-        `,
-        pdfStorageId,
-        filename
-      });
-
-      if (result.success) {
-        console.log("RESULT EMAIL", result);
-        toast.success("Email sent successfully!");
-        setIsOpen(false);
-        form.reset();
-      } else {
-        toast.error(`Failed to send email: ${result.error}`);
-      }
+      // TODO: Implement email sending with Supabase or external service
+      toast.info("Email functionality is not yet available. Please download the PDF and send it manually.");
+      setIsOpen(false);
+      form.reset();
     } catch (error) {
       console.error("Error sending email:", error);
       toast.error("Failed to send email. Please try again.");

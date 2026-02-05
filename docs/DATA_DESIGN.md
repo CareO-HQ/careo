@@ -1,7 +1,7 @@
 # Data Design & ERD - CareO
 
 ## 1. Entity Relationship Diagram (ERD)
-The following Mermaid diagram visualizes the relationships between the core data entities in the Convex database.
+The following Mermaid diagram visualizes the relationships between the core data entities in the Supabase PostgreSQL database.
 
 ```mermaid
 erDiagram
@@ -65,6 +65,6 @@ stateDiagram-v2
 ```
 
 ## 3. Storage Strategy
-- **Relational Data**: Stored in Convex document tables with strong indexing on `organizationId` and `residentId`.
-- **Files/Images**: Stored in Convex File Storage (`_storage`).
+- **Relational Data**: Stored in PostgreSQL tables with strong indexing on `organization_id` and `resident_id`.
+- **Files/Images**: Stored in Supabase Storage with RLS policies for access control.
 - **Audit Logs**: Append-only tables with high performance indexing for date-range queries.

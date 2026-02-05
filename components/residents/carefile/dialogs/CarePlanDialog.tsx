@@ -43,9 +43,6 @@ import { CalendarIcon, Pen, Plus, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
-// import { api } from "../../../../convex/_generated/api";
-// import { Id } from "../../../../convex/_generated/dataModel";
-// import { useMutation } from "convex/react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
