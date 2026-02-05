@@ -443,6 +443,46 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
     });
   };
 
+  // Helper to get signed URL and open file (for private buckets)
+  const handleViewFile = async (storagePath: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("resident-files")
+        .createSignedUrl(storagePath, 3600); // 1 hour expiry
+
+      if (error) throw error;
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, "_blank");
+      }
+    } catch (error) {
+      console.error("Error getting file URL:", error);
+      toast.error("Failed to open file");
+    }
+  };
+
+  const handleDownloadFile = async (storagePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("resident-files")
+        .download(storagePath);
+
+      if (error) throw error;
+      if (data) {
+        const url = URL.createObjectURL(data);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      toast.error("Failed to download file");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -712,12 +752,6 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                       <div className="space-y-2">
                         {folderFiles.length > 0 ? (
                           folderFiles.map((file) => {
-                            // Get public URL for file
-                            const { data: publicUrlData } = supabase.storage
-                              .from("resident-files")
-                              .getPublicUrl(file.storage_path);
-                            const fileUrl = publicUrlData?.publicUrl;
-
                             return (
                               <div key={file.id} className="flex items-center justify-between rounded-md hover:bg-muted/50 transition-colors px-1">
                                 <div className="flex-1 flex items-center gap-2">
@@ -750,18 +784,14 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
                                 </div>
 
                                 <div className="flex items-center gap-1">
-                                  {fileUrl && (
-                                    <>
-                                      <Eye
-                                        className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
-                                        onClick={() => window.open(fileUrl, "_blank")}
-                                      />
-                                      <Download
-                                        className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
-                                        onClick={() => window.open(fileUrl, "_blank")}
-                                      />
-                                    </>
-                                  )}
+                                  <Eye
+                                    className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+                                    onClick={() => handleViewFile(file.storage_path)}
+                                  />
+                                  <Download
+                                    className="h-4 w-4 text-muted-foreground/70 hover:text-primary cursor-pointer"
+                                    onClick={() => handleDownloadFile(file.storage_path, `${file.name}.pdf`)}
+                                  />
                                   <Trash2
                                     className="h-4 w-4 text-muted-foreground/70 hover:text-red-500 cursor-pointer"
                                     onClick={() => handleDeleteFile(file.id)}
