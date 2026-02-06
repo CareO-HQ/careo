@@ -41,7 +41,6 @@ export default function HandoverPage() {
   const { activeTeamId, activeTeam } = useActiveTeam();
   const { profile: currentUser, isLoading: isProfileLoading } = useProfile();
   const [residents, setResidents] = useState<Resident[]>([]);
-  const [isResidentsLoading, setIsResidentsLoading] = useState(true);
   const [isLoadingResidents, setIsLoadingResidents] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<"day" | "night">(getCurrentShift());
@@ -85,8 +84,11 @@ export default function HandoverPage() {
     try {
       const { data: commentsData, error } = await supabase
         .from("handover_comments")
-        .select("*")
-        .eq("team_id", activeTeamId)
+        .select(`
+          *,
+          residents!inner(team_id)
+        `)
+        .eq("residents.team_id", activeTeamId)
         .eq("date", dateString)
         .eq("shift", selectedShift);
 
@@ -191,7 +193,7 @@ export default function HandoverPage() {
 
         // Fetch hospital transfers for today
         const { data: transfers } = await supabase
-          .from("hospital_transfers")
+          .from("hospital_transfer_logs")
           .select("*")
           .eq("resident_id", resident.id)
           .eq("date", today);
@@ -264,6 +266,7 @@ export default function HandoverPage() {
           date: dateString,
           shift: selectedShift,
           team_id: activeTeamId,
+          organization_id: currentUser.active_organization_id,
           handover_data: handoverData,
           created_by: currentUser.id,
         });
@@ -318,7 +321,7 @@ export default function HandoverPage() {
             variant="default"
             size="sm"
             onClick={() => setIsDialogOpen(true)}
-            disabled={isResidentsLoading || residents.length === 0}
+            disabled={isLoadingResidents || residents.length === 0}
             className="h-8"
           >
             Save as Archive
@@ -329,7 +332,7 @@ export default function HandoverPage() {
       {/* Filters - matching careo-audit style */}
       <div className="flex items-center gap-2 border-b px-6 py-3">
         <Badge variant="outline" className="rounded-sm">
-          {isResidentsLoading ? "Loading..." : `${residents.length} Residents`}
+          {isLoadingResidents ? "Loading..." : `${residents.length} Residents`}
         </Badge>
       </div>
 
@@ -347,7 +350,8 @@ export default function HandoverPage() {
             columns={getColumns(
               activeTeamId ?? undefined,
               currentUser?.id,
-              currentUser?.name || "Unknown"
+              currentUser?.name || "Unknown",
+              currentUser?.active_organization_id || undefined
             )}
             data={residents || []}
             teamName={activeTeam?.name ?? ""}

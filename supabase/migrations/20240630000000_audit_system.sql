@@ -14,7 +14,7 @@ $$ language plpgsql;
 
 -- 1. RESIDENT AUDIT TABLES
 create table if not exists audit_resident_templates (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     name text not null,
     description text,
     category text check (category in ('resident', 'carefile', 'governance', 'clinical', 'environment')),
@@ -33,7 +33,7 @@ create trigger update_audit_resident_templates_modtime
     for each row execute procedure update_updated_at_column();
 
 create table if not exists audit_resident_completions (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     template_id uuid references audit_resident_templates(id),
     template_name text,
     category text,
@@ -55,7 +55,7 @@ create trigger update_audit_resident_completions_modtime
     for each row execute procedure update_updated_at_column();
 
 create table if not exists audit_resident_action_plans (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     audit_response_id uuid references audit_resident_completions(id),
     template_id uuid references audit_resident_templates(id),
     description text not null,
@@ -86,7 +86,7 @@ create trigger update_audit_resident_action_plans_modtime
 
 -- 2. CARE FILE AUDIT TABLES
 create table if not exists audit_care_file_templates (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     name text not null,
     description text,
     category text default 'carefile',
@@ -101,7 +101,7 @@ create table if not exists audit_care_file_templates (
 );
 
 create table if not exists audit_care_file_completions (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     template_id uuid references audit_care_file_templates(id),
     template_name text,
     resident_id text,
@@ -122,7 +122,7 @@ create table if not exists audit_care_file_completions (
 );
 
 create table if not exists audit_care_file_action_plans (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     audit_response_id uuid references audit_care_file_completions(id),
     template_id uuid references audit_care_file_templates(id),
     description text not null,
@@ -149,7 +149,7 @@ create table if not exists audit_care_file_action_plans (
 
 -- 3. GOVERNANCE AUDIT TABLES
 create table if not exists audit_governance_templates (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     name text not null,
     description text,
     category text default 'governance',
@@ -163,7 +163,7 @@ create table if not exists audit_governance_templates (
 );
 
 create table if not exists audit_governance_completions (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     template_id uuid references audit_governance_templates(id),
     template_name text,
     organization_id text not null,
@@ -181,7 +181,7 @@ create table if not exists audit_governance_completions (
 );
 
 create table if not exists audit_governance_action_plans (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     audit_response_id uuid references audit_governance_completions(id),
     template_id uuid references audit_governance_templates(id),
     description text not null,
@@ -205,7 +205,7 @@ create table if not exists audit_governance_action_plans (
 
 -- 4. CLINICAL AUDIT TABLES
 create table if not exists audit_clinical_templates (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     name text not null,
     description text,
     category text default 'clinical',
@@ -219,7 +219,7 @@ create table if not exists audit_clinical_templates (
 );
 
 create table if not exists audit_clinical_completions (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     template_id uuid references audit_clinical_templates(id),
     template_name text,
     organization_id text not null,
@@ -237,7 +237,7 @@ create table if not exists audit_clinical_completions (
 );
 
 create table if not exists audit_clinical_action_plans (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     audit_response_id uuid references audit_clinical_completions(id),
     template_id uuid references audit_clinical_templates(id),
     description text not null,
@@ -261,7 +261,7 @@ create table if not exists audit_clinical_action_plans (
 
 -- 5. ENVIRONMENT AUDIT TABLES
 create table if not exists audit_environment_templates (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     name text not null,
     description text,
     category text default 'environment',
@@ -275,7 +275,7 @@ create table if not exists audit_environment_templates (
 );
 
 create table if not exists audit_environment_completions (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     template_id uuid references audit_environment_templates(id),
     template_name text,
     organization_id text not null,
@@ -293,7 +293,7 @@ create table if not exists audit_environment_completions (
 );
 
 create table if not exists audit_environment_action_plans (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     audit_response_id uuid references audit_environment_completions(id),
     template_id uuid references audit_environment_templates(id),
     description text not null,
@@ -317,7 +317,7 @@ create table if not exists audit_environment_action_plans (
 
 -- 6. MANAGER AUDITS (REVIEWS)
 create table if not exists audit_manager_reviews (
-    id uuid primary key default uuid_generate_v4(),
+    id uuid primary key default gen_random_uuid(),
     form_type text,
     form_id text,
     resident_id text,

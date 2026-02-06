@@ -114,7 +114,7 @@ export default function ClinicalDocumentsPage({ params }: ClinicalDocumentsPageP
     // Filter by search, day, month, and year
     const filtered = notes.filter(note => {
       const matchesSearch = note.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (note.signature && note.signature.toLowerCase().includes(searchQuery.toLowerCase()));
+        (note.staffName && note.staffName.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const noteDateObj = new Date(note.noteDate);
       const matchesDay = selectedDay === "all" || noteDateObj.getDate().toString() === selectedDay;
@@ -244,7 +244,7 @@ export default function ClinicalDocumentsPage({ params }: ClinicalDocumentsPageP
     // --- Table Data ---
     const tableData = dayNotes.map(note => [
       note.noteTime || "N/A",
-      note.signature || "Unknown Staff",
+      note.staffName || "Unknown Staff",
       note.content
     ]);
 
@@ -431,7 +431,7 @@ export default function ClinicalDocumentsPage({ params }: ClinicalDocumentsPageP
                   <TableRow>
                     <TableHead className="w-[250px]">Date</TableHead>
                     <TableHead>Summary</TableHead>
-                    <TableHead className="w-[150px] text-center">Records</TableHead>
+                    <TableHead className="w-[150px] text-center text-xs uppercase tracking-wider">Entries</TableHead>
                     <TableHead className="w-[200px] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -523,7 +523,7 @@ export default function ClinicalDocumentsPage({ params }: ClinicalDocumentsPageP
                       {note.noteTime || "N/A"}
                     </Badge>
                     <span className="font-semibold text-gray-900">
-                      {note.signature}
+                      {note.staffName}
                     </span>
                   </div>
                   <div className="text-xs text-gray-500">
