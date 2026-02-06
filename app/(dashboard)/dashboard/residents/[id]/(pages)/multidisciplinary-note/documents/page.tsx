@@ -216,6 +216,9 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
           resident: {
             first_name: resident.firstName,
             last_name: resident.lastName,
+            dob: resident.dateOfBirth,
+            room: resident.roomNumber,
+            nhs: resident.nhsHealthNumber,
           },
           dayData: {
             date: day,

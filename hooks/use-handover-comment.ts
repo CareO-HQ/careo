@@ -9,6 +9,7 @@ type UseHandoverCommentProps = {
   shift: "day" | "night";
   currentUserId: string;
   currentUserName: string;
+  organizationId: string;
 };
 
 export function useHandoverComment({
@@ -18,6 +19,7 @@ export function useHandoverComment({
   shift,
   currentUserId,
   currentUserName,
+  organizationId,
 }: UseHandoverCommentProps) {
   const [comment, setComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -70,8 +72,7 @@ export function useHandoverComment({
         shift: shift,
         comment: newComment,
         created_by: currentUserId,
-        // created_by_name is not in schema, but we can store it in a JSONB if needed 
-        // or just rely on the created_by reference.
+        organization_id: organizationId,
       };
 
       let result;

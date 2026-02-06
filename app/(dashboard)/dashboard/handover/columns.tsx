@@ -75,7 +75,7 @@ const useHandoverReport = (residentId: string, teamId?: string) => {
 
         // Fetch hospital transfers for today
         const { data: transfers, error: transfersError } = await supabase
-          .from("hospital_transfers")
+          .from("hospital_transfer_logs")
           .select("*")
           .eq("resident_id", residentId)
           .eq("date", today);
@@ -371,6 +371,7 @@ const CommentsCell = ({
     shift,
     currentUserId: currentUserId || "",
     currentUserName: currentUserName || "",
+    organizationId: organizationId || "",
   });
 
   return (
@@ -397,180 +398,180 @@ export const getColumns = (
   currentUserName?: string,
   organizationId?: string
 ): ColumnDef<Resident, unknown>[] => [
-  {
-    id: "name",
-    accessorFn: (row) => `${row.first_name || ''} ${row.last_name || ''}`.trim(),
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">Name</div>
-      );
-    },
-    enableSorting: false,
-    size: 180,
-    filterFn: (row, columnId, value) => {
-      const resident = row.original;
-      if (!value || typeof value !== 'string') return true;
+    {
+      id: "name",
+      accessorFn: (row) => `${row.first_name || ''} ${row.last_name || ''}`.trim(),
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">Name</div>
+        );
+      },
+      enableSorting: false,
+      size: 180,
+      filterFn: (row, columnId, value) => {
+        const resident = row.original;
+        if (!value || typeof value !== 'string') return true;
 
-      const searchTerm = value.toLowerCase().trim();
-      if (!searchTerm) return true;
+        const searchTerm = value.toLowerCase().trim();
+        if (!searchTerm) return true;
 
-      const firstName = (resident.first_name || '').toLowerCase();
-      const lastName = (resident.last_name || '').toLowerCase();
-      const fullName = `${firstName} ${lastName}`.trim();
+        const firstName = (resident.first_name || '').toLowerCase();
+        const lastName = (resident.last_name || '').toLowerCase();
+        const fullName = `${firstName} ${lastName}`.trim();
 
-      return firstName.includes(searchTerm) ||
-             lastName.includes(searchTerm) ||
-             fullName.includes(searchTerm);
-    },
-    cell: ({ row }) => {
-      const resident = row.original;
-      const name = `${resident.first_name} ${resident.last_name}`;
-      const initials =
-        `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
+        return firstName.includes(searchTerm) ||
+          lastName.includes(searchTerm) ||
+          fullName.includes(searchTerm);
+      },
+      cell: ({ row }) => {
+        const resident = row.original;
+        const name = `${resident.first_name} ${resident.last_name}`;
+        const initials =
+          `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
-      return (
-        <div className="flex items-center gap-2">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={resident.image_url} alt={name} />
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-          <div className="font-medium text-sm">
-            {resident.first_name} {resident.last_name}
+        return (
+          <div className="flex items-center gap-2">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={resident.image_url} alt={name} />
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <div className="font-medium text-sm">
+              {resident.first_name} {resident.last_name}
+            </div>
           </div>
-        </div>
-      );
-    }
-  },
-  {
-    accessorKey: "roomNumber",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">Room No</div>
-      );
-    },
-    enableSorting: true,
-    size: 80,
-    sortingFn: (rowA, rowB) => {
-      const a = rowA.original.room_number;
-      const b = rowB.original.room_number;
-
-      if (!a && !b) return 0;
-      if (!a) return 1;
-      if (!b) return -1;
-
-      const numA = parseInt(a, 10);
-      const numB = parseInt(b, 10);
-
-      if (!isNaN(numA) && !isNaN(numB)) {
-        return numA - numB;
+        );
       }
-      return 0;
     },
-    cell: ({ row }) => {
-      return (
-        <p className="text-muted-foreground">
-          {row.original.room_number || "-"}
-        </p>
-      );
-    }
-  },
-  {
-    accessorKey: "foodIntake",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">
-          Food Intake
-        </div>
-      );
+    {
+      accessorKey: "roomNumber",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">Room No</div>
+        );
+      },
+      enableSorting: true,
+      size: 80,
+      sortingFn: (rowA, rowB) => {
+        const a = rowA.original.room_number;
+        const b = rowB.original.room_number;
+
+        if (!a && !b) return 0;
+        if (!a) return 1;
+        if (!b) return -1;
+
+        const numA = parseInt(a, 10);
+        const numB = parseInt(b, 10);
+
+        if (!isNaN(numA) && !isNaN(numB)) {
+          return numA - numB;
+        }
+        return 0;
+      },
+      cell: ({ row }) => {
+        return (
+          <p className="text-muted-foreground">
+            {row.original.room_number || "-"}
+          </p>
+        );
+      }
     },
-    enableSorting: false,
-    size: 100,
-    cell: ({ row }) => {
-      const resident = row.original;
-      return <HandoverReportCell residentId={resident.id} teamId={teamId} />;
-    }
-  },
-  {
-    accessorKey: "fluidTotal",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">
-          Fluid Total
-        </div>
-      );
+    {
+      accessorKey: "foodIntake",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">
+            Food Intake
+          </div>
+        );
+      },
+      enableSorting: false,
+      size: 100,
+      cell: ({ row }) => {
+        const resident = row.original;
+        return <HandoverReportCell residentId={resident.id} teamId={teamId} />;
+      }
     },
-    enableSorting: false,
-    size: 90,
-    cell: ({ row }) => {
-      const resident = row.original;
-      return <FluidTotalCell residentId={resident.id} teamId={teamId} />;
-    }
-  },
-  {
-    accessorKey: "incidents",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">Incidents</div>
-      );
+    {
+      accessorKey: "fluidTotal",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">
+            Fluid Total
+          </div>
+        );
+      },
+      enableSorting: false,
+      size: 90,
+      cell: ({ row }) => {
+        const resident = row.original;
+        return <FluidTotalCell residentId={resident.id} teamId={teamId} />;
+      }
     },
-    enableSorting: false,
-    size: 80,
-    cell: ({ row }) => {
-      const resident = row.original;
-      return <IncidentsCell residentId={resident.id} teamId={teamId} />;
-    }
-  },
-  {
-    accessorKey: "hospitalTransfer",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">
-          Hospital Transfer
-        </div>
-      );
+    {
+      accessorKey: "incidents",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">Incidents</div>
+        );
+      },
+      enableSorting: false,
+      size: 80,
+      cell: ({ row }) => {
+        const resident = row.original;
+        return <IncidentsCell residentId={resident.id} teamId={teamId} />;
+      }
     },
-    enableSorting: false,
-    size: 130,
-    cell: ({ row }) => {
-      const resident = row.original;
-      return <HospitalTransferCell residentId={resident.id} teamId={teamId} />;
-    }
-  },
-  {
-    accessorKey: "medication",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">Medication</div>
-      );
+    {
+      accessorKey: "hospitalTransfer",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">
+            Hospital Transfer
+          </div>
+        );
+      },
+      enableSorting: false,
+      size: 130,
+      cell: ({ row }) => {
+        const resident = row.original;
+        return <HospitalTransferCell residentId={resident.id} teamId={teamId} />;
+      }
     },
-    enableSorting: false,
-    size: 70,
-    cell: ({ row }) => {
-      return (
-        <div className="text-sm text-muted-foreground">—</div>
-      );
-    }
-  },
-  {
-    accessorKey: "comments",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">Comments</div>
-      );
+    {
+      accessorKey: "medication",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">Medication</div>
+        );
+      },
+      enableSorting: false,
+      size: 70,
+      cell: ({ row }) => {
+        return (
+          <div className="text-sm text-muted-foreground">—</div>
+        );
+      }
     },
-    enableSorting: false,
-    size: 300,
-    cell: ({ row }) => {
-      const resident = row.original;
-      return (
-        <CommentsCell
-          residentId={resident.id}
-          teamId={teamId}
-          currentUserId={currentUserId}
-          currentUserName={currentUserName}
-          organizationId={organizationId}
-        />
-      );
+    {
+      accessorKey: "comments",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">Comments</div>
+        );
+      },
+      enableSorting: false,
+      size: 300,
+      cell: ({ row }) => {
+        const resident = row.original;
+        return (
+          <CommentsCell
+            residentId={resident.id}
+            teamId={teamId}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            organizationId={organizationId}
+          />
+        );
+      }
     }
-  }
   ];

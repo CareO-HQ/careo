@@ -129,7 +129,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
   useEffect(() => {
     async function fetchResident() {
       if (!supabase || !id) return;
-      
+
       try {
         const { data, error } = await supabase
           .from("residents")
@@ -171,12 +171,12 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
       }
 
       const response = await fetch(`/api/progress-notes?${params.toString()}`);
-      
+
       // Get response text first to see what we're actually getting
       const responseText = await response.text();
       console.log("API Response Status:", response.status);
       console.log("API Response Text:", responseText);
-      
+
       if (!response.ok) {
         let errorData;
         try {
@@ -187,7 +187,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
         console.error("API Error:", errorData);
         throw new Error(errorData.error || `Failed to fetch progress notes: ${response.status}`);
       }
-      
+
       let data;
       try {
         data = JSON.parse(responseText);
@@ -195,13 +195,13 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
         console.error("Failed to parse JSON:", e, "Response:", responseText);
         throw new Error("Invalid JSON response from server");
       }
-      
+
       if (append) {
         setProgressNotes(prev => [...prev, ...data.page]);
       } else {
         setProgressNotes(data.page);
       }
-      
+
       setCanLoadMore(!data.isDone);
       setNextCursor(data.continueCursor);
     } catch (error) {
@@ -287,7 +287,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
           console.error("API Error:", errorData);
           throw new Error(errorData.error || `Failed to update progress note: ${response.status}`);
         }
-        
+
         toast.success("Progress note updated successfully");
       } else {
         const response = await fetch("/api/progress-notes", {
@@ -315,16 +315,16 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
           console.error("API Error:", errorData);
           throw new Error(errorData.error || `Failed to create progress note: ${response.status}`);
         }
-        
+
         toast.success("Progress note added successfully");
       }
-      
+
       form.reset();
       setIsDialogOpen(false);
       setEditingNote(null);
       fetchProgressNotes(null, false);
       fetchStats();
-      
+
       // Refresh notes and stats
       fetchProgressNotes(null, false);
       fetchStats();
@@ -344,7 +344,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
       const finalHours = roundedMinutes === 60 ? (hours + 1) % 24 : hours;
       return `${String(finalHours).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`;
     };
-    
+
     form.reset({
       type: note.type,
       date: new Date(note.date),
@@ -368,11 +368,11 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
       });
 
       if (!response.ok) throw new Error("Failed to delete progress note");
-      
+
       toast.success("Progress note deleted successfully");
       setShowDeleteDialog(false);
       setNoteToDelete(null);
-      
+
       // Refresh notes and stats
       fetchProgressNotes(null, false);
       fetchStats();
@@ -516,8 +516,8 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
     );
   }
 
-  const fullName = `${resident.firstName} ${resident.lastName}`;
-  const initials = `${resident.firstName[0]}${resident.lastName[0]}`.toUpperCase();
+  const fullName = `${resident.first_name} ${resident.last_name}`;
+  const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
 
   return (
@@ -529,7 +529,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Avatar className="w-10 h-10">
-            <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
+            <AvatarImage src={resident.image_url} alt={fullName} className="border" />
             <AvatarFallback className="text-sm bg-primary/10 text-primary">
               {initials}
             </AvatarFallback>
@@ -537,7 +537,7 @@ export default function ProgressNotesPage({ params }: ProgressNotesPageProps) {
           <div className="flex-1">
             <h1 className="text-xl sm:text-2xl font-bold">Progress Notes</h1>
             <p className="text-muted-foreground text-sm">
-              View daily nursing notes and observations for {resident.firstName} {resident.lastName}.
+              View daily nursing notes and observations for {resident.first_name} {resident.last_name}.
             </p>
           </div>
           <div className="flex flex-row gap-2">

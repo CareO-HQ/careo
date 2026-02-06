@@ -566,287 +566,253 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       <html>
         <head>
           <title>Daily Care Report - ${fullName} (${today})</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
           <style>
-            @page { size: A4; margin: 20mm; }
-            @media print { body { margin: 0; } }
+            @page { size: A4; margin: 15mm; }
+            @media print { 
+              body { margin: 0; } 
+              .activity-item { page-break-inside: avoid; }
+            }
             body { 
-              font-family: Arial, sans-serif; 
-              line-height: 1.4; 
-              color: #000;
-              margin: 0;
-              padding: 20px;
-            }
-            .header {
-              text-align: center;
-              margin-bottom: 30px;
-              border-bottom: 2px solid #2563eb;
-              padding-bottom: 15px;
-            }
-            .header h1 {
-              margin: 0;
-              font-size: 24px;
-              color: #2563eb;
-              font-weight: bold;
-            }
-            .header h2 {
-              margin: 10px 0 0 0;
-              font-size: 18px;
-              color: #374151;
-              font-weight: 600;
-            }
-            .summary {
-              margin-bottom: 30px;
-              padding: 15px;
-              background: #f8fafc;
-              border: 1px solid #e2e8f0;
-              border-radius: 8px;
-            }
-            .summary h3 {
-              margin: 0 0 15px 0;
+              font-family: 'Inter', -apple-system, sans-serif; 
+              line-height: 1.5; 
               color: #1f2937;
-              font-size: 16px;
+              margin: 0;
+              padding: 0;
+              background: #fff;
+            }
+            .brand-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 20px;
+              background: #f9fafb;
+              border-bottom: 2px solid #2563eb;
+            }
+            .brand-logo {
+              font-size: 24px;
+              font-weight: 800;
+              color: #2563eb;
+              letter-spacing: -0.025em;
+            }
+            .report-type {
+              font-size: 12px;
               font-weight: 600;
-            }
-            .summary-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 15px;
-              margin-bottom: 15px;
-            }
-            .summary-item {
-              font-size: 14px;
-            }
-            .summary-label {
-              font-weight: 600;
-              color: #374151;
-              margin-bottom: 5px;
-            }
-            .summary-value {
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
               color: #6b7280;
             }
-            .section {
-              margin-bottom: 30px;
+            .resident-info {
+              padding: 20px;
+              background: #ffffff;
+              border-bottom: 1px solid #e5e7eb;
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 20px;
             }
-            .section-header {
+            .info-block {
               display: flex;
-              align-items: center;
-              margin-bottom: 15px;
-              padding-bottom: 8px;
-              border-bottom: 2px solid #10b981;
+              flex-direction: column;
             }
-            .section-header.blue {
-              border-bottom-color: #3b82f6;
-            }
-            .section-header h3 {
-              margin: 0;
-              font-size: 18px;
+            .info-label {
+              font-size: 10px;
               font-weight: 600;
-              margin-left: 10px;
+              text-transform: uppercase;
+              color: #6b7280;
+              margin-bottom: 4px;
             }
-            .section-header.green h3 {
-              color: #047857;
+            .info-value {
+              font-size: 14px;
+              font-weight: 500;
+              color: #111827;
             }
-            .section-header.blue h3 {
-              color: #1e40af;
+            .content {
+              padding: 20px;
             }
-            .icon {
-              width: 24px;
-              height: 24px;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: white;
-              font-weight: bold;
-              font-size: 12px;
-            }
-            .icon.green {
-              background: #10b981;
-            }
-            .icon.blue {
-              background: #3b82f6;
-            }
-            .activity-item {
-              margin-bottom: 12px;
-              padding: 12px;
+            .daily-summary-bar {
+              background: #eff6ff;
               border: 1px solid #bfdbfe;
               border-radius: 8px;
-              background: #eff6ff;
+              padding: 12px 20px;
+              margin-bottom: 24px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
             }
-            .activity-item.green {
-              border-color: #a7f3d0;
-              background: #ecfdf5;
+            .summary-text {
+              font-size: 14px;
+              color: #1e40af;
+              font-weight: 600;
+            }
+            .section-title {
+              font-size: 16px;
+              font-weight: 700;
+              color: #111827;
+              margin: 24px 0 12px 0;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+            .section-title::before {
+              content: '';
+              display: inline-block;
+              width: 4px;
+              height: 16px;
+              background: #2563eb;
+              border-radius: 2px;
+            }
+            .activity-item {
+              margin-bottom: 16px;
+              border: 1px solid #e5e7eb;
+              border-radius: 10px;
+              padding: 16px;
+              background: #fff;
             }
             .activity-header {
               display: flex;
               justify-content: space-between;
-              align-items: center;
+              align-items: flex-start;
               margin-bottom: 8px;
             }
-            .activity-title {
-              color: #1e40af;
+            .activity-name {
               font-size: 14px;
               font-weight: 600;
-            }
-            .activity-title.green {
-              color: #047857;
-            }
-            .activity-status {
-              background: #22c55e;
-              color: white;
-              padding: 2px 8px;
-              border-radius: 4px;
-              font-size: 10px;
-              font-weight: 600;
-            }
-            .activity-notes {
-              margin-bottom: 8px;
-              font-style: italic;
-              color: #1e40af;
-              font-size: 12px;
-              padding: 5px 0;
-            }
-            .activity-notes.green {
-              color: #047857;
+              color: #111827;
             }
             .activity-time {
-              font-size: 10px;
+              font-size: 12px;
               color: #6b7280;
+              font-weight: 500;
             }
-            .empty-state {
-              text-align: center;
-              padding: 20px;
-              background: #f0f9ff;
-              border: 1px solid #bfdbfe;
-              border-radius: 8px;
+            .activity-notes {
+              font-size: 13px;
+              color: #4b5563;
+              font-style: italic;
+              margin-top: 8px;
+              padding-left: 12px;
+              border-left: 2px solid #e5e7eb;
+            }
+            .staff-meta {
+              margin-top: 12px;
+              font-size: 11px;
+              color: #9ca3af;
+              display: flex;
+              gap: 12px;
+            }
+            .badge {
+              display: inline-block;
+              padding: 2px 8px;
+              border-radius: 9999px;
+              font-size: 10px;
+              font-weight: 600;
+              background: #dbeafe;
               color: #1e40af;
             }
-            .empty-state.green {
-              background: #f0fdf4;
-              border-color: #a7f3d0;
-              color: #047857;
-            }
             .footer {
-              margin-top: 30px;
-              padding-top: 15px;
-              border-top: 2px solid #e5e7eb;
-              font-size: 10px;
+              margin-top: 40px;
+              padding: 20px;
+              border-top: 1px solid #e5e7eb;
+              font-size: 11px;
               color: #9ca3af;
               text-align: center;
+            }
+            .empty-state {
+              padding: 24px;
+              text-align: center;
+              background: #f9fafb;
+              border: 1px dashed #e5e7eb;
+              border-radius: 10px;
+              color: #6b7280;
+              font-size: 13px;
             }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1>Daily Care Report</h1>
-            <h2>${fullName}</h2>
-          </div>
-          
-          <div class="summary">
-            <h3>Care Summary</h3>
-            <div class="summary-grid">
-              <div class="summary-item">
-                <div class="summary-label">Date & Shift</div>
-                <div class="summary-value">${formatDateForDisplay(today)}</div>
-                <div class="summary-value">Daily Report (00:00 - 23:59)</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">Activity Summary</div>
-                <div class="summary-value">Personal Care: ${personalCareTasks.length}</div>
-                <div class="summary-value">Activity Records: ${activityRecords.length}</div>
-              </div>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid #e5e7eb;">
-              <div>Total Activities: ${activityRecords.length + personalCareTasks.length}</div>
-              <div>Generated: ${formatTimestampToUKDateTime(Date.now(), 'dd/MM/yyyy HH:mm')}</div>
-            </div>
-          </div>
-          
-          <div class="section">
-            <div class="section-header green">
-              <div class="icon green">📋</div>
-              <h3>Daily Activity Records</h3>
-            </div>
-            ${activityRecords.length > 0 ?
-        activityRecords
-          .filter(a => a.created_at)
-          .sort((a, b) => {
-            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-            return bTime - aTime;
-          })
-          .map((activity, index) => {
-            const payload = activity.payload as { time?: string; staff?: string } | null;
-            const staffName = payload?.staff;
-            const displayTime = payload?.time || (activity.created_at ? formatTimestampToUKDateTime(activity.created_at, 'dd/MM/yyyy HH:mm') : '--');
-            return `
-                    <div class="activity-item green">
-                      <div class="activity-header">
-                        <div class="activity-title green">${index + 1}. Daily Activity Record</div>
-                        <div class="activity-status">Complete</div>
-                      </div>
-                      ${activity.notes ? `<div class="activity-notes green">${activity.notes}</div>` : ''}
-                      <div class="activity-time">
-                        Recorded: ${displayTime}
-                        ${staffName ? ` • Staff: ${staffName}` : ''}
-                      </div>
-                    </div>
-                  `;
-          }).join('')
-        : `
-                <div class="empty-state green">
-                  <div style="font-size: 14px; margin-bottom: 5px;">No daily activity records</div>
-                  <div style="font-size: 11px;">No daily activity records were logged for this day.</div>
-                </div>
-              `
-      }
+          <div class="brand-header">
+            <div class="brand-logo">CareO</div>
+            <div class="report-type">Daily Care Report</div>
           </div>
 
-          <div class="section">
-            <div class="section-header blue">
-              <div class="icon blue">👤</div>
-              <h3>Personal Care Activities</h3>
+          <div class="resident-info">
+            <div class="info-block">
+              <span class="info-label">Resident Name</span>
+              <span class="info-value">${fullName}</span>
             </div>
-            ${personalCareTasks.length > 0 ?
-        personalCareTasks
+            <div class="info-block">
+              <span class="info-label">Date of Birth</span>
+              <span class="info-value">${resident.date_of_birth ? formatTimestampToUKDate(resident.date_of_birth) : '--'}</span>
+            </div>
+          </div>
+          
+          <div class="content">
+            <div class="daily-summary-bar">
+              <span class="summary-text">${formatDateForDisplay(today)}</span>
+              <span class="badge">Day Period: 08:00 - 08:00</span>
+            </div>
+
+            <div class="section">
+              <h3 class="section-title">Daily Activity Records</h3>
+              ${activityRecords.length > 0 ?
+        activityRecords
           .filter(a => a.created_at)
-          .sort((a, b) => {
-            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-            return bTime - aTime;
-          })
-          .map((activity, index) => {
-            const payload = activity.payload as { time?: string; primaryStaff?: string; assistedStaff?: string } | null;
-            const primaryStaff = payload?.primaryStaff;
-            const assistedStaff = payload?.assistedStaff;
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .map((activity) => {
+            const payload = activity.payload as { time?: string; staff?: string } | null;
             const displayTime = payload?.time || (activity.created_at ? formatTimestampToUKDateTime(activity.created_at, 'dd/MM/yyyy HH:mm') : '--');
             return `
-                    <div class="activity-item">
-                      <div class="activity-header">
-                        <div class="activity-title">${index + 1}. ${activity.task_type}</div>
-                        <div class="activity-status">Complete</div>
+                      <div class="activity-item">
+                        <div class="activity-header">
+                          <div class="activity-name">Daily Activity Record</div>
+                          <div class="activity-time">${displayTime}</div>
+                        </div>
+                        ${activity.notes ? `<div class="activity-notes">${activity.notes}</div>` : ''}
+                        <div class="staff-meta">
+                          <span>Staff: ${payload?.staff || 'Staff'}</span>
+                          <span>•</span>
+                          <span>Recorded: ${formatTimestampToUKDateTime(activity.created_at, 'dd/MM/yyyy HH:mm')}</span>
+                        </div>
                       </div>
-                      ${activity.notes ? `<div class="activity-notes">${activity.notes}</div>` : ''}
-                      <div class="activity-time">
-                        Recorded: ${displayTime}
-                        ${primaryStaff ? ` • Primary Staff: ${primaryStaff}` : ''}
-                        ${assistedStaff ? ` • Assisted by: ${assistedStaff}` : ''}
-                      </div>
-                    </div>
-                  `;
+                    `;
           }).join('')
-        : `
-                <div class="empty-state">
-                  <div style="font-size: 14px; margin-bottom: 5px;">No personal care activities recorded</div>
-                  <div style="font-size: 11px;">No personal care activities were logged for this day.</div>
-                </div>
-              `
+        : `<div class="empty-state">No daily activity records logged for this day.</div>`
       }
+            </div>
+
+            <div class="section">
+              <h3 class="section-title">Personal Care Activities</h3>
+              ${personalCareTasks.length > 0 ?
+        personalCareTasks
+          .filter(a => a.created_at)
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .map((activity) => {
+            const payload = activity.payload as { time?: string; primaryStaff?: string; assistedStaff?: string } | null;
+            const displayTime = payload?.time || (activity.created_at ? formatTimestampToUKDateTime(activity.created_at, 'dd/MM/yyyy HH:mm') : '--');
+            return `
+                      <div class="activity-item">
+                        <div class="activity-header">
+                          <div class="activity-name">${activity.task_type}</div>
+                          <div class="activity-time">${displayTime}</div>
+                        </div>
+                        ${activity.notes ? `<div class="activity-notes">${activity.notes}</div>` : ''}
+                        <div class="staff-meta">
+                          <span>Staff: ${payload?.primaryStaff || 'Staff'} ${payload?.assistedStaff ? `(Assisted by: ${payload.assistedStaff})` : ''}</span>
+                          <span>•</span>
+                          <span>Recorded: ${formatTimestampToUKDateTime(activity.created_at, 'dd/MM/yyyy HH:mm')}</span>
+                        </div>
+                      </div>
+                    `;
+          }).join('')
+        : `<div class="empty-state">No personal care activities logged for this day.</div>`
+      }
+            </div>
           </div>
           
           <div class="footer">
-            <div style="font-weight: 600; margin-bottom: 5px;">Generated by Care Management System</div>
-            <div>${formatTimestampToUKDateTime(Date.now(), 'dd/MM/yyyy HH:mm')} (UK time) • Confidential Care Documentation</div>
+            <div style="font-weight: 600; margin-bottom: 4px;">CareO Management System</div>
+            <div>Generated: ${formatTimestampToUKDateTime(Date.now(), 'dd/MM/yyyy HH:mm')} UK Time</div>
+            <div style="margin-top: 8px;">Confidential • For professional use only</div>
           </div>
         </body>
       </html>
