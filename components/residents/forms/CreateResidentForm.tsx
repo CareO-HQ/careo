@@ -218,22 +218,23 @@ export function CreateResidentForm({
         return;
       }
 
+      let residentId = residentData?.id;
       let imageUrl = residentData?.image_url;
 
       // Handle Image Upload
       if (selectedFile) {
         const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
-        const filePath = `residents/${fileName}`;
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `residents/${residentId || 'new'}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('images')
+          .from('careo-public')
           .upload(filePath, selectedFile);
 
         if (uploadError) throw uploadError;
 
         const { data: { publicUrl } } = supabase.storage
-          .from('images')
+          .from('careo-public')
           .getPublicUrl(filePath);
 
         imageUrl = publicUrl;
@@ -265,8 +266,6 @@ export function CreateResidentForm({
         care_home_id: profile.active_care_home_id,
         created_by: user.id,
       };
-
-      let residentId = residentData?.id;
 
       if (editMode && residentId) {
         // Update existing resident
