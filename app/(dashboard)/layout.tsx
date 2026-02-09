@@ -1,6 +1,7 @@
 "use client";
 
 import { AppSidebar } from "@/components/navigation/AppSidebar";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { useProfile } from "@/hooks/use-profile";
 import { useRouter } from "next/navigation";
@@ -32,7 +33,10 @@ export default function DashboardLayout({
   return (
     <main className="flex px-6 py-10 w-full">
       <AppSidebar />
-      <div className="flex-1">
+      <div className="flex-1 w-full">
+        <div className="mb-4">
+          <SidebarTrigger />
+        </div>
         {children}
       </div>
       <Toaster />

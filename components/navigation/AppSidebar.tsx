@@ -8,7 +8,8 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenuButton,
-  SidebarMenuItem
+  SidebarMenuItem,
+  SidebarRail
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -218,7 +219,7 @@ export function AppSidebar() {
   const isStillLoading = isProfileLoading;
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="offcanvas">
       <SidebarContent>
         <TeamSwitcher
           orgName={displayName}
@@ -407,6 +408,7 @@ export function AppSidebar() {
           <LogoutButton />
         </SidebarMenuItem>
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }

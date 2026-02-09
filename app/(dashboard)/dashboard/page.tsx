@@ -203,14 +203,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-medium">Welcome, {profile?.name || "User"}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{today}</p>
         </div>
-        <Button
-          variant="outline"
-          onClick={handleSignOut}
-          className="border-red-500 bg-red-50 text-black hover:text-black hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50"
-        >
-          <LogOut className="h-3.5 w-3.5 mr-2" />
-          Sign Out
-        </Button>
+
       </div>
 
       {/* Stats Cards */}

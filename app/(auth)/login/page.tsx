@@ -9,6 +9,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { MessageCircle } from "lucide-react";
+import { FEATURES } from "@/lib/config/features";
 
 function LoginContent() {
   const router = useRouter();
@@ -175,14 +176,16 @@ function LoginContent() {
             </div>
 
             {/* Sign up link */}
-            <div className="text-center">
-              <Link
-                href="/signup"
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                Create an account
-              </Link>
-            </div>
+            {FEATURES.SHOW_SIGNUP && (
+              <div className="text-center">
+                <Link
+                  href="/signup"
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  Create an account
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Footer Links */}
