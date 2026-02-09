@@ -73,27 +73,35 @@ export function useProfile() {
                 const enrichedProfile = { ...baseProfile };
 
                 // 2. Fetch context names and resolve organization_id
-                if (dbUser.active_care_home_id) {
-                    const { data: home } = await supabase
-                        .from("care_homes")
-                        .select("name, organization_id")
-                        .eq("id", dbUser.active_care_home_id)
-                        .single();
-                    if (home) {
-                        enrichedProfile.care_home_name = home.name;
-                        enrichedProfile.active_organization_id = home.organization_id;
-                    }
-                }
-
                 if (dbUser.active_team_id) {
                     const { data: team } = await supabase
                         .from("teams")
-                        .select("name, organization_id")
+                        .select("name, organization_id, care_home_id")
                         .eq("id", dbUser.active_team_id)
                         .single();
                     if (team) {
                         enrichedProfile.active_team_name = team.name;
                         enrichedProfile.active_organization_id = team.organization_id;
+                        // If we don't have a care home ID yet, take it from the team
+                        if (!enrichedProfile.active_care_home_id && team.care_home_id) {
+                            enrichedProfile.active_care_home_id = team.care_home_id;
+                        }
+                    }
+                }
+
+                // Resolving care home name if we have an ID
+                if (enrichedProfile.active_care_home_id) {
+                    const { data: home } = await supabase
+                        .from("care_homes")
+                        .select("name, organization_id")
+                        .eq("id", enrichedProfile.active_care_home_id)
+                        .single();
+                    if (home) {
+                        enrichedProfile.care_home_name = home.name;
+                        // Ensure organization ID is set
+                        if (!enrichedProfile.active_organization_id) {
+                            enrichedProfile.active_organization_id = home.organization_id;
+                        }
                     }
                 }
 

@@ -16,7 +16,7 @@ interface TeamWithMembers {
 
 export default function TeamsPage() {
   const { supabase } = useSupabase();
-  const { activeOrganizationId } = useActiveTeam();
+  const { activeOrganizationId, activeCareHomeId } = useActiveTeam();
   const [teamsWithMembers, setTeamsWithMembers] = useState<TeamWithMembers[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -28,12 +28,19 @@ export default function TeamsPage() {
 
     const fetchTeams = async () => {
       try {
-        // Fetch teams
-        const { data: teamsData, error: teamsError } = await supabase
+        // Build query with care home isolation
+        let query = supabase
           .from("teams")
-          .select("id, name, organization_id, created_at")
-          .eq("organization_id", activeOrganizationId)
-          .order("created_at", { ascending: false });
+          .select("id, name, organization_id, created_at");
+
+        // Filter by care_home_id when available for proper multi-tenant isolation
+        if (activeCareHomeId) {
+          query = query.eq("care_home_id", activeCareHomeId);
+        } else {
+          query = query.eq("organization_id", activeOrganizationId);
+        }
+
+        const { data: teamsData, error: teamsError } = await query.order("created_at", { ascending: false });
 
         if (teamsError) throw teamsError;
 
@@ -75,7 +82,7 @@ export default function TeamsPage() {
     };
 
     fetchTeams();
-  }, [activeOrganizationId, supabase]);
+  }, [activeOrganizationId, activeCareHomeId, supabase]);
 
   if (isLoading) {
     return (

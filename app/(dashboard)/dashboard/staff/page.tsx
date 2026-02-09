@@ -49,13 +49,14 @@ function StaffPage() {
     setActiveTeamId(value === "all" ? null : value);
   };
   const activeOrganizationId = profile?.active_organization_id;
+  const activeCareHomeId = profile?.active_care_home_id;
 
   const fetchStaff = useCallback(async () => {
     if (!supabase || !activeOrganizationId) return;
 
     try {
       setIsLoading(true);
-      // Base query - get all users that RLS allows (scoped to active care home)
+      // Base query - get all users that RLS allows
       let query = supabase
         .from("users")
         .select(`
@@ -67,8 +68,15 @@ function StaffPage() {
               name
             )
           )
-        `)
-        .eq("active_organization_id", activeOrganizationId);
+        `);
+
+      // Filter by care home for multi-tenant isolation
+      // If a care home is selected, only show staff in that care home
+      if (activeCareHomeId) {
+        query = query.eq("active_care_home_id", activeCareHomeId);
+      } else if (activeOrganizationId) {
+        query = query.eq("active_organization_id", activeOrganizationId);
+      }
 
       // Filter by team assignment if explicitly provided
       // If activeTeamId is set, we only want staff assigned to that unit
@@ -103,7 +111,7 @@ function StaffPage() {
         return true;
       });
 
-      console.log(`[Staff Page] Found ${mappedStaff.length} staff members for organization ${activeOrganizationId}${activeTeamId ? ` (filtered by team ${activeTeamId})` : ''}`);
+      console.log(`[Staff Page] Found ${mappedStaff.length} staff members for ${activeCareHomeId ? 'care home ' + activeCareHomeId : 'organization ' + activeOrganizationId}${activeTeamId ? ` (filtered by team ${activeTeamId})` : ''}`);
       setStaff(mappedStaff);
     } catch (err) {
       console.error("Unexpected error fetching staff:", err);
@@ -111,7 +119,7 @@ function StaffPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [supabase, activeOrganizationId, activeTeamId]);
+  }, [supabase, activeOrganizationId, activeCareHomeId, activeTeamId]);
 
   useEffect(() => {
     fetchStaff();

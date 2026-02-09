@@ -43,15 +43,22 @@ export default function SendInvitationForm() {
   const selectedRole = form.watch("role");
   const showTeamSelector = selectedRole === "nurse" || selectedRole === "care_assistant";
 
-  // Fetch teams (units) from Supabase
+  // Fetch teams (units) from Supabase - filtered by care_home_id for proper isolation
   useEffect(() => {
     async function fetchTeams() {
       if (!supabase || !activeOrganizationId) return;
 
-      const { data, error } = await supabase
-        .from('teams')
-        .select('id, name')
-        .eq('organization_id', activeOrganizationId);
+      // Build query with care home isolation
+      let query = supabase.from('teams').select('id, name');
+
+      // Filter by care_home_id when available for proper multi-tenant isolation
+      if (activeCareHomeId) {
+        query = query.eq('care_home_id', activeCareHomeId);
+      } else {
+        query = query.eq('organization_id', activeOrganizationId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Error fetching teams:", error);
@@ -61,7 +68,7 @@ export default function SendInvitationForm() {
     }
 
     fetchTeams();
-  }, [supabase, activeOrganizationId]);
+  }, [supabase, activeOrganizationId, activeCareHomeId]);
 
   // Filter teams logic
   const filteredTeams = teams.filter((team) => {

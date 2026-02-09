@@ -21,7 +21,9 @@ export default function MembersPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const activeOrganizationId = profile?.active_organization_id;
+  const activeCareHomeId = profile?.active_care_home_id;
   const userRole = profile?.role as UserRole | undefined;
+  const isOwner = userRole === "owner";
 
   useEffect(() => {
     async function fetchData() {
@@ -31,51 +33,81 @@ export default function MembersPage() {
       }
 
       try {
+        // For multi-tenant isolation:
+        // All roles (including owners) see only members in the active care home
+        // This ensures data updates when switching between care homes
+        const shouldFilterByCareHome = !!activeCareHomeId;
+
         // Fetch ALL users in the organization to check for existing users
-        const { data: allUsersData, error: allUsersError } = await supabase
+        let allUsersQuery = supabase
           .from('users')
           .select('email, is_onboarding_complete')
           .eq('active_organization_id', activeOrganizationId);
 
+        if (shouldFilterByCareHome) {
+          allUsersQuery = allUsersQuery.eq('active_care_home_id', activeCareHomeId);
+        }
+
+        const { data: allUsersData, error: allUsersError } = await allUsersQuery;
         if (allUsersError) throw allUsersError;
 
         // Fetch fully onboarded members
-        const { data: membersData, error: membersError } = await supabase
+        let membersQuery = supabase
           .from('users')
           .select('*')
           .eq('active_organization_id', activeOrganizationId)
           .eq('is_onboarding_complete', true);
 
+        if (shouldFilterByCareHome) {
+          membersQuery = membersQuery.eq('active_care_home_id', activeCareHomeId);
+        }
+
+        const { data: membersData, error: membersError } = await membersQuery;
         if (membersError) throw membersError;
 
         setMembers(membersData || []);
 
         // 1. Fetch current members (onboarding complete)
-        const { data: currentMembers, error: currentMembersError } = await supabase
+        let currentMembersQuery = supabase
           .from("users")
           .select("*")
           .eq("active_organization_id", activeOrganizationId)
           .eq("is_onboarding_complete", true);
 
+        if (shouldFilterByCareHome) {
+          currentMembersQuery = currentMembersQuery.eq('active_care_home_id', activeCareHomeId);
+        }
+
+        const { data: currentMembers, error: currentMembersError } = await currentMembersQuery;
         if (currentMembersError) throw currentMembersError;
         setMembers(currentMembers || []);
 
         // 2. Fetch pending users (accepted invitation but onboarding incomplete)
-        const { data: pendingUsersData, error: pendingUsersError } = await supabase
+        let pendingUsersQuery = supabase
           .from("users")
           .select("*")
           .eq("active_organization_id", activeOrganizationId)
           .eq("is_onboarding_complete", false);
 
+        if (shouldFilterByCareHome) {
+          pendingUsersQuery = pendingUsersQuery.eq('active_care_home_id', activeCareHomeId);
+        }
+
+        const { data: pendingUsersData, error: pendingUsersError } = await pendingUsersQuery;
         if (pendingUsersError) throw pendingUsersError;
 
         // 3. Fetch invitations that haven't been accepted yet
-        const { data: invitationsData, error: invitationsError } = await supabase
+        let invitationsQuery = supabase
           .from("invitations")
           .select("*")
           .eq("organization_id", activeOrganizationId)
           .eq("status", "pending");
 
+        if (shouldFilterByCareHome) {
+          invitationsQuery = invitationsQuery.eq('care_home_id', activeCareHomeId);
+        }
+
+        const { data: invitationsData, error: invitationsError } = await invitationsQuery;
         if (invitationsError) throw invitationsError;
 
         // Get emails of ALL existing users in the organization (regardless of onboarding status)
@@ -137,7 +169,7 @@ export default function MembersPage() {
     }
 
     fetchData();
-  }, [supabase, activeOrganizationId]);
+  }, [supabase, activeOrganizationId, activeCareHomeId, isOwner]);
 
   const handleRemoveMember = async (memberId: string) => {
     if (!supabase) return;
@@ -181,8 +213,6 @@ export default function MembersPage() {
   function showRemoveButton() {
     return userRole === "owner" || userRole === "manager";
   }
-
-  const isOwner = userRole === "owner";
 
   if (isLoading) {
     return (

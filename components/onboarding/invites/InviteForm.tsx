@@ -91,7 +91,7 @@ export default function InviteForm() {
             .from("invitations")
             .insert({
               organization_id: profile.active_organization_id,
-              care_home_id: user.role === "manager" ? profile.active_care_home_id : undefined,
+              care_home_id: profile.active_care_home_id,
               email,
               role: user.role,
               invited_by: profile.id,
