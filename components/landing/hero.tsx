@@ -6,6 +6,7 @@ import { MoveRight, PhoneCall, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { FEATURES } from "@/lib/config/features";
 
 export const Hero = () => {
   const [titleNumber, setTitleNumber] = useState(0);
@@ -72,13 +73,13 @@ export const Hero = () => {
                       animate={
                         titleNumber === index
                           ? {
-                              y: 0,
-                              opacity: 1,
-                            }
+                            y: 0,
+                            opacity: 1,
+                          }
                           : {
-                              y: titleNumber > index ? 150 : -150,
-                              opacity: 0,
-                            }
+                            y: titleNumber > index ? 150 : -150,
+                            opacity: 0,
+                          }
                       }
                     >
                       {title}
@@ -101,11 +102,13 @@ export const Hero = () => {
                 Sign In
               </Button>
             </Link>
-            <Link href="/signup">
-              <Button>
-                Sign Up
-              </Button>
-            </Link>
+            {FEATURES.SHOW_SIGNUP && (
+              <Link href="/signup">
+                <Button>
+                  Sign Up
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
