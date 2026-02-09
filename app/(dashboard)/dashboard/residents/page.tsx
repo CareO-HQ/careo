@@ -10,7 +10,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 
 export default function ResidentsPage() {
-  const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization } = useActiveTeam();
+  const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization, activeCareHomeId } = useActiveTeam();
   const { profile, isLoading: isProfileLoading } = useProfile();
   const { supabase, isLoading: isSupabaseLoading } = useSupabase();
   const [residents, setResidents] = useState<Resident[]>([]);
@@ -25,8 +25,14 @@ export default function ResidentsPage() {
     try {
       let query = supabase.from("residents").select("*");
 
+      // Multi-tenant filtering hierarchy:
+      // 1. If team is selected, filter by team_id (most specific)
+      // 2. If care home is selected, filter by care_home_id (care home isolation)
+      // 3. Otherwise, filter by organization_id (fallback)
       if (activeTeamId) {
         query = query.eq("team_id", activeTeamId);
+      } else if (activeCareHomeId) {
+        query = query.eq("care_home_id", activeCareHomeId);
       } else if (activeOrganizationId) {
         query = query.eq("organization_id", activeOrganizationId);
       } else {
@@ -44,7 +50,7 @@ export default function ResidentsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeTeamId, activeOrganizationId, contextLoading, supabase]);
+  }, [activeTeamId, activeCareHomeId, activeOrganizationId, contextLoading, supabase]);
 
   useEffect(() => {
     fetchResidents();
@@ -52,7 +58,21 @@ export default function ResidentsPage() {
 
   // Set up real-time subscription for residents
   useEffect(() => {
-    if (contextLoading || (!activeTeamId && !activeOrganizationId)) return;
+    if (contextLoading || (!activeTeamId && !activeCareHomeId && !activeOrganizationId)) return;
+
+    // Determine filter for real-time subscription (same hierarchy as query)
+    let filterValue: string;
+    let filterField: string;
+    if (activeTeamId) {
+      filterField = "team_id";
+      filterValue = activeTeamId;
+    } else if (activeCareHomeId) {
+      filterField = "care_home_id";
+      filterValue = activeCareHomeId;
+    } else {
+      filterField = "organization_id";
+      filterValue = activeOrganizationId!;
+    }
 
     const channel = supabase
       .channel("residents-changes")
@@ -62,9 +82,7 @@ export default function ResidentsPage() {
           event: "*",
           schema: "public",
           table: "residents",
-          filter: activeTeamId
-            ? `team_id=eq.${activeTeamId}`
-            : `organization_id=eq.${activeOrganizationId}`,
+          filter: `${filterField}=eq.${filterValue}`,
         },
         (payload) => {
           // Refetch residents when any change occurs (INSERT, UPDATE, DELETE)
@@ -76,7 +94,7 @@ export default function ResidentsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeTeamId, activeOrganizationId, contextLoading, supabase, fetchResidents]);
+  }, [activeTeamId, activeCareHomeId, activeOrganizationId, contextLoading, supabase, fetchResidents]);
 
   // Determine display name for header
   const displayName = activeTeamId

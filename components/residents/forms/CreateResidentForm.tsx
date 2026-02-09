@@ -178,17 +178,26 @@ export function CreateResidentForm({
     if (!profile?.active_organization_id || !supabase) return;
 
     try {
-      const { data, error } = await supabase
+      // Filter by care_home_id for proper multi-tenant isolation
+      // Only show teams in the current care home
+      let query = supabase
         .from("teams")
-        .select("id, name")
-        .eq("organization_id", profile.active_organization_id);
+        .select("id, name");
+
+      if (profile.active_care_home_id) {
+        query = query.eq("care_home_id", profile.active_care_home_id);
+      } else {
+        query = query.eq("organization_id", profile.active_organization_id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setTeams(data || []);
     } catch (error) {
       console.error("Error fetching teams:", error);
     }
-  }, [profile?.active_organization_id, supabase]);
+  }, [profile?.active_organization_id, profile?.active_care_home_id, supabase]);
 
   const MAX_CONDITIONS = 10;
   const MAX_RISKS = 10;
@@ -218,22 +227,23 @@ export function CreateResidentForm({
         return;
       }
 
+      let residentId = residentData?.id;
       let imageUrl = residentData?.image_url;
 
       // Handle Image Upload
       if (selectedFile) {
         const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
-        const filePath = `residents/${fileName}`;
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `residents/${residentId || 'new'}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('images')
+          .from('careo-public')
           .upload(filePath, selectedFile);
 
         if (uploadError) throw uploadError;
 
         const { data: { publicUrl } } = supabase.storage
-          .from('images')
+          .from('careo-public')
           .getPublicUrl(filePath);
 
         imageUrl = publicUrl;
@@ -265,8 +275,6 @@ export function CreateResidentForm({
         care_home_id: profile.active_care_home_id,
         created_by: user.id,
       };
-
-      let residentId = residentData?.id;
 
       if (editMode && residentId) {
         // Update existing resident

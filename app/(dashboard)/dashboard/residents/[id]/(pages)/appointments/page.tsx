@@ -374,36 +374,49 @@ function DailyCarePage({ params }: DailyCarePageProps) {
 
         console.log("[AppointmentsPage] Fetching users for organization:", activeOrganization.id);
 
-        // Step 1: Get all teams in this organization
-        const { data: teamsData, error: teamsError } = await supabase
-          .from("teams")
-          .select("id")
-          .eq("organization_id", activeOrganization.id);
+        // Get the resident's care_home_id for proper isolation
+        const residentCareHomeId = resident?.care_home_id;
+        console.log("[AppointmentsPage] Resident care_home_id:", residentCareHomeId);
+
+        // Step 1: Get teams - filter by care_home_id for proper multi-tenant isolation
+        let teamsQuery = supabase.from("teams").select("id");
+        if (residentCareHomeId) {
+          teamsQuery = teamsQuery.eq("care_home_id", residentCareHomeId);
+        } else {
+          teamsQuery = teamsQuery.eq("organization_id", activeOrganization.id);
+        }
+        const { data: teamsData, error: teamsError } = await teamsQuery;
 
         const teamIds = (teamsData || []).map(t => t.id);
-        console.log("[AppointmentsPage] Teams in org:", teamIds.length);
+        console.log("[AppointmentsPage] Teams in care home:", teamIds.length);
 
-        // Step 2: Get all care homes in this organization
-        const { data: careHomes, error: careHomesError } = await supabase
-          .from("care_homes")
-          .select("id")
-          .eq("organization_id", activeOrganization.id);
+        // Step 2: Get care homes - filter to just the resident's care home if available
+        let careHomesQuery = supabase.from("care_homes").select("id");
+        if (residentCareHomeId) {
+          careHomesQuery = careHomesQuery.eq("id", residentCareHomeId);
+        } else {
+          careHomesQuery = careHomesQuery.eq("organization_id", activeOrganization.id);
+        }
+        const { data: careHomes, error: careHomesError } = await careHomesQuery;
 
         const careHomeIds = (careHomes || []).map(ch => ch.id);
-        console.log("[AppointmentsPage] Care homes in org:", careHomeIds.length);
+        console.log("[AppointmentsPage] Care homes:", careHomeIds.length);
 
         // Step 3: Collect user IDs from multiple sources
         const allUserIdsSet = new Set<string>();
 
-        // 3a: Users with active_organization_id set
-        const { data: directOrgUsers, error: directOrgError } = await supabase
-          .from("users")
-          .select("id")
-          .eq("active_organization_id", activeOrganization.id);
+        // 3a: Users with active_care_home_id matching resident's care home (or active_organization_id as fallback)
+        let directUsersQuery = supabase.from("users").select("id");
+        if (residentCareHomeId) {
+          directUsersQuery = directUsersQuery.eq("active_care_home_id", residentCareHomeId);
+        } else {
+          directUsersQuery = directUsersQuery.eq("active_organization_id", activeOrganization.id);
+        }
+        const { data: directOrgUsers, error: directOrgError } = await directUsersQuery;
 
         if (!directOrgError && directOrgUsers) {
           directOrgUsers.forEach(u => allUserIdsSet.add(u.id));
-          console.log("[AppointmentsPage] Users with active_organization_id:", directOrgUsers.length);
+          console.log("[AppointmentsPage] Users with active_care_home_id:", directOrgUsers.length);
         }
 
         // 3b: Users from team_staff (nurses/care assistants assigned to teams)
@@ -560,7 +573,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     if (activeOrganization?.id && resident?.team_id) {
       fetchUsers();
     }
-  }, [supabase, activeOrganization?.id, activeTeamId, resident?.team_id]);
+  }, [supabase, activeOrganization?.id, activeTeamId, resident?.team_id, resident?.care_home_id]);
 
   // Form setup - after user data is available
   const form = useForm<z.infer<typeof PersonalCareSchema>>({

@@ -66,10 +66,17 @@ export function TeamSwitcher({
       .select("id, name")
       .eq("organization_id", activeOrganizationId);
 
+    console.log("[DEBUG TeamSwitcher] Raw care_homes data:", data);
+    console.log("[DEBUG TeamSwitcher] activeOrganizationId:", activeOrganizationId);
+
     if (!error && data) {
-      setCareHomes(data);
+      // Deduplicate by ID
+      const uniqueCareHomes = Array.from(new Map(data.map(item => [item.id, item])).values());
+      console.log("[DEBUG TeamSwitcher] Unique care homes after dedup:", uniqueCareHomes);
+      setCareHomes(uniqueCareHomes);
     }
   }, [activeOrganizationId, supabase]);
+
 
   useEffect(() => {
     fetchCareHomes();
@@ -122,9 +129,16 @@ export function TeamSwitcher({
   const handleTeamClick = async (teamId: string) => {
     startTransition(async () => {
       try {
+        // Find the team to get its care_home_id
+        const team = orgTeams.find(t => t.id === teamId);
+
         const { error } = await supabase
           .from("users")
-          .update({ active_team_id: teamId })
+          .update({
+            active_team_id: teamId,
+            // Also update care home context if it belongs to one
+            ...(team?.care_home_id ? { active_care_home_id: team.care_home_id } : {})
+          })
           .eq("id", profile?.id);
 
         if (error) throw error;

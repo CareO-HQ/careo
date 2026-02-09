@@ -56,9 +56,25 @@ export default function LogoSelector({
     setIsModalOpen(false);
   };
 
-  const handleCropComplete = (croppedImageData: string) => {
+  const handleCropComplete = async (croppedImageData: string) => {
     setCroppedImage(croppedImageData);
     setIsModalOpen(false);
+
+    // Convert cropped image data to File object
+    try {
+      const response = await fetch(croppedImageData);
+      const blob = await response.blob();
+      const croppedFile = new File(
+        [blob],
+        selectedFile?.name || "cropped-logo.png",
+        {
+          type: blob.type || "image/png"
+        }
+      );
+      setSelectedFile(croppedFile);
+    } catch {
+      console.error("Failed to process cropped image");
+    }
   };
 
   return (
