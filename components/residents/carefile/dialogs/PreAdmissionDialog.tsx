@@ -53,6 +53,7 @@ interface PreAdmissionDialogProps {
   resident: Resident;
   userId: string;
   userName: string;
+  userRole?: string;
   onClose?: () => void;
   initialData?: any; // Data from existing assessment for editing
   isEditMode?: boolean; // Whether this is an edit/review mode
@@ -66,6 +67,7 @@ export default function PreAdmissionDialog({
   resident,
   userId,
   userName,
+  userRole,
   onClose,
   initialData,
   isEditMode = false
@@ -80,6 +82,10 @@ export default function PreAdmissionDialog({
   const firstKin = resident.emergency_contacts?.find(
     (contact) => contact.is_primary
   );
+
+  const kinNameParts = (firstKin?.name || "").trim().split(/\s+/);
+  const kinFirstName = kinNameParts[0] || "";
+  const kinLastName = kinNameParts.slice(1).join(" ") || "";
 
   const form = useForm<z.infer<typeof preAdmissionSchema>>({
     resolver: zodResolver(preAdmissionSchema),
@@ -100,14 +106,11 @@ export default function PreAdmissionDialog({
 
         // Fallbacks for specific fields if not in assessment_data but top level in initialData
         userName: initialData.assessment_data?.userName || initialData.userName || userName,
-        jobRole: initialData.assessment_data?.jobRole || initialData.jobRole || "",
+        jobRole: initialData.assessment_data?.jobRole || initialData.jobRole || userRole || "",
         date: initialData.assessment_data?.date || initialData.date || undefined,
         firstName: initialData.assessment_data?.firstName || initialData.firstName || resident.first_name || "",
         lastName: initialData.assessment_data?.lastName || initialData.lastName || resident.last_name || "",
         dateOfBirth: initialData.assessment_data?.dateOfBirth || initialData.dateOfBirth || resident.date_of_birth || "",
-        // ... Continue mapping critical fields or rely on spread. 
-        // Since spreading flat object is risky if key names differ, validation might fail if mapped incorrectly.
-        // But assessment_data should mirror the schema structure ideally.
       }
       : {
         residentId,
@@ -118,7 +121,7 @@ export default function PreAdmissionDialog({
         careHomeName,
         nhsHealthCareNumber: resident.nhs_health_number ?? "",
         userName: userName,
-        jobRole: "",
+        jobRole: userRole || "",
         date: undefined,
         firstName: resident.first_name ?? "",
         lastName: resident.last_name ?? "",
@@ -128,8 +131,8 @@ export default function PreAdmissionDialog({
         gender: undefined,
         religion: "",
         dateOfBirth: resident.date_of_birth ?? "",
-        kinFirstName: firstKin?.name ?? "",
-        kinLastName: "",
+        kinFirstName: kinFirstName,
+        kinLastName: kinLastName,
         kinRelationship: firstKin?.relationship ?? "",
         kinPhoneNumber: firstKin?.phone_number ?? "",
         careManagerName: resident.care_manager_name ?? "",
@@ -298,7 +301,7 @@ export default function PreAdmissionDialog({
           {step === 1 && "Pre-Admission Assessment Form"}
           {step === 2 && "Header information"}
           {step === 3 && "About the resident"}
-          {step === 4 && "First of kin"}
+          {step === 4 && "Next of Kin"}
           {step === 5 && "Professional contacts"}
           {step === 6 && "Medical information"}
           {step === 7 && "Assessment sections A"}
@@ -330,12 +333,12 @@ export default function PreAdmissionDialog({
             {step === 2 && (
               <>
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="careHomeName" render={({ field }) => (<FormItem><FormLabel>Care home name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="careHomeName" render={({ field }) => (<FormItem><FormLabel>Care home name</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
                   <FormField control={form.control} name="nhsHealthCareNumber" render={({ field }) => (<FormItem><FormLabel>NHS Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="userName" render={({ field }) => (<FormItem><FormLabel>Worker Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel>Job Role</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="userName" render={({ field }) => (<FormItem><FormLabel>Worker Name</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel>Job Role</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
                 </div>
                 <FormField control={form.control} name="date" render={({ field }) => (
                   <FormItem className="flex flex-col"><FormLabel>Expected Admission Date</FormLabel><Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen} modal><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDatePopoverOpen(false); } }} /></PopoverContent></Popover><FormMessage /></FormItem>

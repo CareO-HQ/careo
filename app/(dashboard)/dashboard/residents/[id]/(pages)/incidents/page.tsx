@@ -1669,6 +1669,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
               // Refresh incidents data when a new report is submitted
               setShowReportForm(false);
               setSelectedIncident(null);
+              fetchData();
             }}
             existingIncident={selectedIncident}
           />

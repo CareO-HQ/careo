@@ -48,32 +48,43 @@ export default function HandoverPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [commentsSummary, setCommentsSummary] = useState<{ total: number; withComments: number; withoutComments: number } | null>(null);
 
-  // Fetch residents from Supabase
+  const fetchResidents = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("residents")
+        .select("*")
+        .eq("team_id", activeTeamId);
+
+      if (error) throw error;
+      setResidents((data as Resident[]) || []);
+    } catch (error) {
+      console.error("Error fetching residents:", error);
+      setResidents([]);
+    } finally {
+      setIsLoadingResidents(false);
+    }
+  }, [activeTeamId, supabase]);
+
   useEffect(() => {
     if (!activeTeamId || !supabase) {
       setIsLoadingResidents(false);
       return;
     }
 
-    const fetchResidents = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("residents")
-          .select("*")
-          .eq("team_id", activeTeamId);
+    fetchResidents();
+  }, [fetchResidents, activeTeamId, supabase]);
 
-        if (error) throw error;
-        setResidents((data as Resident[]) || []);
-      } catch (error) {
-        console.error("Error fetching residents:", error);
-        setResidents([]);
-      } finally {
-        setIsLoadingResidents(false);
-      }
+  // Listen for custom 'residents-updated' event
+  useEffect(() => {
+    const handleUpdate = () => {
+      fetchResidents();
     };
 
-    fetchResidents();
-  }, [activeTeamId, supabase]);
+    window.addEventListener("residents-updated", handleUpdate);
+    return () => {
+      window.removeEventListener("residents-updated", handleUpdate);
+    };
+  }, [fetchResidents]);
 
   // Load comments summary when dialog opens
   const loadCommentsSummary = async () => {
@@ -180,6 +191,7 @@ export default function HandoverPage() {
         const fluidLogs = (logs || []).filter(log =>
           fluidTypes.includes(log.type_of_food_drink) || (log.fluid_consumed_ml && log.fluid_consumed_ml > 0)
         );
+
 
         const totalFluid = fluidLogs.reduce((sum, log) => sum + (log.fluid_consumed_ml || 0), 0);
 

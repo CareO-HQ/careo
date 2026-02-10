@@ -10,7 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { FileText } from "lucide-react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 const safeFormat = (dateValue: any, formatStr: string) => {
@@ -22,6 +22,146 @@ const safeFormat = (dateValue: any, formatStr: string) => {
   } catch (e) {
     return "N/A";
   }
+};
+
+// Internal fields to skip when rendering nested objects
+const SKIP_KEYS = new Set([
+  "id", "_id", "resident_id", "residentId", "organization_id", "organizationId",
+  "team_id", "teamId", "user_id", "userId", "created_by", "createdBy",
+  "created_at", "createdAt", "updated_at", "updatedAt", "updated_by", "updatedBy",
+  "previous_version_id", "previousVersionId", "previous_care_plan_id",
+  "status", "archived_at", "archivedAt", "version", "is_archived", "isArchived",
+  "pdf_file_id", "pdfFileId", "pdf_generated", "pdfGenerated",
+  "pdf_generated_at", "pdfGeneratedAt", "saved_as_draft", "savedAsDraft",
+  "__v", "_rev"
+]);
+
+// Format a camelCase or snake_case key into a human-readable label
+const formatFieldKey = (key: string): string => {
+  return key
+    .replace(/_/g, " ")
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (str) => str.toUpperCase())
+    .trim();
+};
+
+// Recursively render any value in a human-readable format
+const renderNestedValue = (value: any, label?: string, depth: number = 0): React.ReactNode => {
+  if (value === null || value === undefined) {
+    return label ? (
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="text-sm text-muted-foreground">N/A</p>
+      </div>
+    ) : null;
+  }
+
+  // Boolean
+  if (typeof value === "boolean") {
+    return label ? (
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="text-sm">{value ? "Yes" : "No"}</p>
+      </div>
+    ) : <span>{value ? "Yes" : "No"}</span>;
+  }
+
+  // Number — check if timestamp
+  if (typeof value === "number") {
+    const display = value > 1000000000000 ? safeFormat(value, "dd MMM yyyy") : String(value);
+    return label ? (
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="text-sm">{display}</p>
+      </div>
+    ) : <span>{display}</span>;
+  }
+
+  // String — check if ISO date
+  if (typeof value === "string") {
+    let display = value;
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+      display = safeFormat(value, "dd MMM yyyy");
+    }
+    return label ? (
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{display || "N/A"}</p>
+      </div>
+    ) : <span>{display}</span>;
+  }
+
+  // Array
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return label ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">{label}</p>
+          <p className="text-sm text-muted-foreground">None</p>
+        </div>
+      ) : null;
+    }
+
+    // Array of primitives
+    if (typeof value[0] !== "object" || value[0] === null) {
+      return label ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">{label}</p>
+          <p className="text-sm">{value.join(", ")}</p>
+        </div>
+      ) : <span>{value.join(", ")}</span>;
+    }
+
+    // Array of objects
+    return (
+      <div className="space-y-2">
+        {label && <p className="text-xs font-medium text-muted-foreground">{label}</p>}
+        {value.map((item: any, index: number) => (
+          <div key={index} className={`p-3 border rounded-lg ${depth === 0 ? "bg-muted/30" : "bg-muted/20"} space-y-2`}>
+            <p className="text-xs font-semibold text-muted-foreground">Entry {index + 1}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {Object.entries(item)
+                .filter(([k]) => !SKIP_KEYS.has(k))
+                .map(([k, v]) => (
+                  <div key={k}>
+                    {renderNestedValue(v, formatFieldKey(k), depth + 1)}
+                  </div>
+                ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Object
+  if (typeof value === "object") {
+    const entries = Object.entries(value).filter(([k]) => !SKIP_KEYS.has(k));
+    if (entries.length === 0) return null;
+
+    return (
+      <div className="space-y-2">
+        {label && <p className={`text-xs font-medium ${depth === 0 ? "text-sm font-semibold text-primary" : "text-muted-foreground"}`}>{label}</p>}
+        <div className={`p-3 border rounded-lg ${depth === 0 ? "bg-muted/30" : "bg-muted/20"} space-y-3`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {entries.map(([k, v]) => (
+              <div key={k} className={typeof v === "object" && v !== null && !Array.isArray(v) ? "col-span-full" : ""}>
+                {renderNestedValue(v, formatFieldKey(k), depth + 1)}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback
+  return label ? (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="text-sm">{String(value)}</p>
+    </div>
+  ) : <span>{String(value)}</span>;
 };
 
 interface RiskAssessmentViewDialogProps {
@@ -503,7 +643,12 @@ export default function RiskAssessmentViewDialog({
                   )
                   .join("\n\n");
               } else {
-                displayValue = JSON.stringify(value, null, 2);
+                // Array of complex objects — use recursive renderer
+                return (
+                  <div key={key} className="space-y-1">
+                    {renderNestedValue(value, formattedKey)}
+                  </div>
+                );
               }
             } else {
               displayValue = value.join(", ");
@@ -543,7 +688,12 @@ export default function RiskAssessmentViewDialog({
                 </div>
               );
             }
-            displayValue = JSON.stringify(value, null, 2);
+            // Nested object — use recursive renderer
+            return (
+              <div key={key} className="space-y-1">
+                {renderNestedValue(value, formattedKey)}
+              </div>
+            );
           }
 
           return (
