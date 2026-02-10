@@ -68,6 +68,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
   const [formData, setFormData] = React.useState({
+    name: "",
     phone: "",
     address: "",
     date_of_join: "",
@@ -102,6 +103,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
       setStaffMember(data);
       // Initialize form data
       setFormData({
+        name: data.name || "",
         phone: data.phone || "",
         address: data.address || "",
         date_of_join: data.date_of_join || "",
@@ -159,10 +161,21 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
 
       if (updateError) throw updateError;
 
+      // Sync with auth metadata if it's the current user
+      if (currentProfile && id === currentProfile.id) {
+        await supabase.auth.updateUser({
+          data: {
+            full_name: formData.name,
+            avatar_url: imageUrl
+          }
+        });
+        await refreshCurrentProfile();
+      }
+
       toast.success("Staff details updated successfully");
       setIsEditOpen(false);
       setSelectedFile(null);
-      fetchStaffMember(); // Refresh data
+      await fetchStaffMember(); // Refresh data
     } catch (error: any) {
       console.error("Error updating staff:", error);
       toast.error(error.message || "Failed to update staff details");
@@ -267,6 +280,15 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                 <div className="space-y-4">
                   <h3 className="font-semibold">Personal Information</h3>
                   <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <Label htmlFor="name">Full Name</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="John Doe"
+                      />
+                    </div>
                     <div>
                       <Label htmlFor="phone">Phone Number</Label>
                       <Input

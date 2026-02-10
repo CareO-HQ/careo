@@ -133,6 +133,16 @@ export default function CareFileFolder({
     completedAt: number;
     category: string;
   } | null>(null);
+  // View dialog state
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [viewDialogFile, setViewDialogFile] = useState<{
+    formKey: string;
+    formId: string;
+    name: string;
+    completedAt: number;
+    isLatest?: boolean;
+    isCarePlan?: boolean;
+  } | null>(null);
   const { activeTeamId } = useActiveTeam();
   const { profile } = useProfile();
 
@@ -174,7 +184,7 @@ export default function CareFileFolder({
         setResidentError(null);
         const { data, error } = await supabase
           .from('residents')
-          .select('*')
+          .select('*, emergency_contacts(*)')
           .eq('id', residentId)
           .single();
 
@@ -514,11 +524,13 @@ export default function CareFileFolder({
           <SheetHeader className="flex-shrink-0">
             <div className="flex items-center justify-between pr-10">
               <SheetTitle>{folderName}</SheetTitle>
-              <UploadFileModal
-                folderName={folderName}
-                residentId={residentId}
-                variant="button"
-              />
+              {folderKey !== "preAdmission" && (
+                <UploadFileModal
+                  folderName={folderName}
+                  residentId={residentId}
+                  variant="button"
+                />
+              )}
             </div>
             <SheetDescription>{description}</SheetDescription>
           </SheetHeader>
@@ -763,8 +775,9 @@ export default function CareFileFolder({
               organizationId={profile?.active_organization_id ?? ""}
               userId={profile?.id ?? ""}
               userName={profile?.name || profile?.email || "User"}
+              userRole={profile?.role ?? ""}
               resident={resident}
-              careHomeName={""} // Fetch if needed
+              careHomeName={profile?.care_home_name ?? ""}
               folderKey={folderKey}
               formDataForEdit={formDataForEdit}
               isReviewMode={!!reviewFormData} // Only true when editing existing form
@@ -796,6 +809,42 @@ export default function CareFileFolder({
         )
       }
 
+      {/* View Dialog for Care Plans */}
+      {viewDialogOpen && viewDialogFile?.isCarePlan && (
+        <CarePlanViewDialog
+          open={viewDialogOpen}
+          onOpenChange={(open) => {
+            setViewDialogOpen(open);
+            if (!open) setViewDialogFile(null);
+          }}
+          carePlan={{
+            formKey: viewDialogFile.formKey,
+            formId: viewDialogFile.formId,
+            name: viewDialogFile.name,
+            completedAt: viewDialogFile.completedAt,
+            isLatest: viewDialogFile.isLatest ?? true,
+          }}
+        />
+      )}
+
+      {/* View Dialog for Risk Assessments / Other Forms */}
+      {viewDialogOpen && viewDialogFile && !viewDialogFile.isCarePlan && (
+        <RiskAssessmentViewDialog
+          open={viewDialogOpen}
+          onOpenChange={(open) => {
+            setViewDialogOpen(open);
+            if (!open) setViewDialogFile(null);
+          }}
+          assessment={{
+            formKey: viewDialogFile.formKey,
+            formId: viewDialogFile.formId,
+            name: viewDialogFile.name,
+            completedAt: viewDialogFile.completedAt,
+            category: folderName,
+          }}
+        />
+      )}
+
     </div >
   );
 
@@ -816,6 +865,20 @@ export default function CareFileFolder({
           {isCarePlan && (
             <CarePlanEvaluationDialog carePlan={file} />
           )}
+          <Button variant="ghost" size="icon" className="h-8 w-8" title="View" onClick={(e) => {
+            e.stopPropagation();
+            setViewDialogFile({
+              formKey: file.formKey,
+              formId: file.formId,
+              name: file.name,
+              completedAt: file.completedAt,
+              isLatest: file.isLatest,
+              isCarePlan: !!isCarePlan,
+            });
+            setViewDialogOpen(true);
+          }}>
+            <Eye className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownloadPDF(file.formKey as CareFileFormKey, file.data)}>
             <DownloadIcon className="h-4 w-4" />
           </Button>

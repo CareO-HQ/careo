@@ -30,6 +30,7 @@ interface BaseDialogProps {
   organizationId: string;
   userId: string;
   userName?: string;
+  userRole?: string;
   resident: any;
   initialData?: any;
   isEditMode?: boolean;
@@ -54,6 +55,7 @@ export function CareFileDialogRenderer({
   organizationId,
   userId,
   userName,
+  userRole,
   resident,
   careHomeName,
   folderKey,
@@ -82,6 +84,8 @@ export function CareFileDialogRenderer({
     residentId,
     organizationId,
     userId,
+    userName,
+    userRole,
     isEditMode: isReviewMode,
     onClose
   };
@@ -92,6 +96,7 @@ export function CareFileDialogRenderer({
         <PreAdmissionDialog
           {...commonProps}
           userName={userName ?? ""}
+          userRole={userRole ?? ""}
           careHomeName={careHomeName ?? ""}
           initialData={editData}
         />

@@ -46,7 +46,9 @@ export default function CreateResidentDialog({
           </DialogDescription>
         </DialogHeader>
         <CreateResidentForm
-          onSuccess={() => setIsResidentDialogOpen(false)}
+          onSuccess={() => {
+            setIsResidentDialogOpen(false);
+          }}
           editMode={editMode}
           residentData={residentData}
         />

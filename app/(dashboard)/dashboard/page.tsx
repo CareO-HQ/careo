@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useProfile } from "@/hooks/use-profile";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { Button } from "@/components/ui/button";
@@ -38,110 +38,122 @@ export default function DashboardPage() {
   const activeCareHomeId = profile?.active_care_home_id;
   const activeTeamId = profile?.active_team_id;
 
-  useEffect(() => {
+  const fetchDashboardData = useCallback(async () => {
     if (!profile || isSupabaseLoading) return;
 
-    async function fetchDashboardData() {
-      setDataLoading(true);
-      try {
-        // Build filters for care home isolation
-        // If a care home is selected, filter by care_home_id for proper multi-tenant isolation
-        // Otherwise, fall back to organization_id
+    setDataLoading(true);
+    try {
+      // Build filters for care home isolation
+      // If a care home is selected, filter by care_home_id for proper multi-tenant isolation
+      // Otherwise, fall back to organization_id
 
-        // Fetch Stats - use care_home_id when available
-        let residentsQuery = supabase.from("residents").select("id", { count: "exact", head: true });
-        let teamsQuery = supabase.from("teams").select("id", { count: "exact", head: true });
-        let staffQuery = supabase.from("users").select("id", { count: "exact", head: true });
+      // Fetch Stats - use care_home_id when available
+      let residentsQuery = supabase.from("residents").select("id", { count: "exact", head: true });
+      let teamsQuery = supabase.from("teams").select("id", { count: "exact", head: true });
+      let staffQuery = supabase.from("users").select("id", { count: "exact", head: true });
 
-        if (activeCareHomeId) {
-          residentsQuery = residentsQuery.eq("care_home_id", activeCareHomeId);
-          teamsQuery = teamsQuery.eq("care_home_id", activeCareHomeId);
-          staffQuery = staffQuery.eq("active_care_home_id", activeCareHomeId);
-        } else if (activeOrganizationId) {
-          residentsQuery = residentsQuery.eq("organization_id", activeOrganizationId);
-          teamsQuery = teamsQuery.eq("organization_id", activeOrganizationId);
-          staffQuery = staffQuery.eq("active_organization_id", activeOrganizationId);
-        }
-
-        const [residentsRes, staffRes, teamsRes] = await Promise.all([
-          residentsQuery,
-          staffQuery,
-          teamsQuery
-        ]);
-
-        // Fetch Latest Incidents - filter by care_home_id via residents
-        let incidentsQuery = supabase
-          .from("incidents")
-          .select(`
-            id, incident_types, type_other_details, 
-            incident_level, date, time, resident_id,
-            resident:residents!inner(first_name, last_name, care_home_id)
-          `)
-          .order("date", { ascending: false })
-          .limit(5);
-
-        if (activeCareHomeId) {
-          incidentsQuery = incidentsQuery.eq("resident.care_home_id", activeCareHomeId);
-        } else if (activeOrganizationId) {
-          incidentsQuery = incidentsQuery.eq("organization_id", activeOrganizationId);
-        }
-
-        const { data: incidents } = await incidentsQuery;
-
-        // Fetch Upcoming Appointments - filter by care_home_id via residents
-        let appointmentsQuery = supabase
-          .from("appointments")
-          .select(`
-            id, title, start_time, resident_id,
-            resident:residents!inner(first_name, last_name, care_home_id)
-          `)
-          .gte("start_time", new Date().toISOString())
-          .order("start_time", { ascending: true })
-          .limit(5);
-
-        if (activeCareHomeId) {
-          appointmentsQuery = appointmentsQuery.eq("resident.care_home_id", activeCareHomeId);
-        } else if (activeOrganizationId) {
-          appointmentsQuery = appointmentsQuery.eq("organization_id", activeOrganizationId);
-        }
-
-        const { data: appointments } = await appointmentsQuery;
-
-        // Fetch Recent Hospital Transfers - filter by care_home_id via residents
-        let transfersQuery = supabase
-          .from("hospital_transfer_logs")
-          .select(`
-            id, reason, transfer_date, destination_hospital, resident_id,
-            resident:residents!inner(first_name, last_name, care_home_id)
-          `)
-          .order("transfer_date", { ascending: false })
-          .limit(5);
-
-        if (activeCareHomeId) {
-          transfersQuery = transfersQuery.eq("resident.care_home_id", activeCareHomeId);
-        } else if (activeOrganizationId) {
-          transfersQuery = transfersQuery.eq("organization_id", activeOrganizationId);
-        }
-
-        const { data: transfers } = await transfersQuery;
-
-        setDashboardData({
-          totalResidents: residentsRes.count || 0,
-          totalStaff: staffRes.count || 0,
-          totalUnits: teamsRes.count || 0,
-          latestIncidents: incidents || [],
-          upcomingAppointments: appointments || [],
-          recentHospitalTransfers: transfers || []
-        });
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
-        setDataLoading(false);
+      if (activeCareHomeId) {
+        residentsQuery = residentsQuery.eq("care_home_id", activeCareHomeId);
+        teamsQuery = teamsQuery.eq("care_home_id", activeCareHomeId);
+        staffQuery = staffQuery.eq("active_care_home_id", activeCareHomeId);
+      } else if (activeOrganizationId) {
+        residentsQuery = residentsQuery.eq("organization_id", activeOrganizationId);
+        teamsQuery = teamsQuery.eq("organization_id", activeOrganizationId);
+        staffQuery = staffQuery.eq("active_organization_id", activeOrganizationId);
       }
-    }
 
-    fetchDashboardData();
+      const [residentsRes, staffRes, teamsRes] = await Promise.all([
+        residentsQuery,
+        staffQuery,
+        teamsQuery
+      ]);
+
+      // Fetch Latest Incidents - filter by care_home_id via residents
+      let incidentsQuery = supabase
+        .from("incidents")
+        .select(`
+          id, incident_types, type_other_details, 
+          incident_level, date, time, resident_id,
+          resident:residents!inner(first_name, last_name, care_home_id)
+        `)
+        .order("date", { ascending: false })
+        .limit(5);
+
+      if (activeCareHomeId) {
+        incidentsQuery = incidentsQuery.eq("resident.care_home_id", activeCareHomeId);
+      } else if (activeOrganizationId) {
+        incidentsQuery = incidentsQuery.eq("organization_id", activeOrganizationId);
+      }
+
+      const { data: incidents } = await incidentsQuery;
+
+      // Fetch Upcoming Appointments - filter by care_home_id via residents
+      let appointmentsQuery = supabase
+        .from("appointments")
+        .select(`
+          id, title, start_time, resident_id,
+          resident:residents!inner(first_name, last_name, care_home_id)
+        `)
+        .gte("start_time", new Date().toISOString())
+        .order("start_time", { ascending: true })
+        .limit(5);
+
+      if (activeCareHomeId) {
+        appointmentsQuery = appointmentsQuery.eq("resident.care_home_id", activeCareHomeId);
+      } else if (activeOrganizationId) {
+        appointmentsQuery = appointmentsQuery.eq("organization_id", activeOrganizationId);
+      }
+
+      const { data: appointments } = await appointmentsQuery;
+
+      // Fetch Recent Hospital Transfers - filter by care_home_id via residents
+      let transfersQuery = supabase
+        .from("hospital_transfer_logs")
+        .select(`
+          id, reason, transfer_date, destination_hospital, resident_id,
+          resident:residents!inner(first_name, last_name, care_home_id)
+        `)
+        .order("transfer_date", { ascending: false })
+        .limit(5);
+
+      if (activeCareHomeId) {
+        transfersQuery = transfersQuery.eq("resident.care_home_id", activeCareHomeId);
+      } else if (activeOrganizationId) {
+        transfersQuery = transfersQuery.eq("organization_id", activeOrganizationId);
+      }
+
+      const { data: transfers } = await transfersQuery;
+
+      setDashboardData({
+        totalResidents: residentsRes.count || 0,
+        totalStaff: staffRes.count || 0,
+        totalUnits: teamsRes.count || 0,
+        latestIncidents: incidents || [],
+        upcomingAppointments: appointments || [],
+        recentHospitalTransfers: transfers || []
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    } finally {
+      setDataLoading(false);
+    }
   }, [profile, activeOrganizationId, activeCareHomeId, isSupabaseLoading, supabase]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Listen for custom 'residents-updated' event
+  useEffect(() => {
+    const handleUpdate = () => {
+      fetchDashboardData();
+    };
+
+    window.addEventListener("residents-updated", handleUpdate);
+    return () => {
+      window.removeEventListener("residents-updated", handleUpdate);
+    };
+  }, [fetchDashboardData]);
 
   // Handle sign out
   const handleSignOut = async () => {

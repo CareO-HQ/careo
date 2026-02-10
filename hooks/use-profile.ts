@@ -14,6 +14,14 @@ export type Profile = {
     active_team_id: string | null;
     is_saas_admin: boolean;
     is_onboarding_complete: boolean;
+    address: string | null;
+    date_of_join: string | null;
+    right_to_work_status: string | null;
+    next_of_kin_name: string | null;
+    next_of_kin_relationship: string | null;
+    next_of_kin_phone: string | null;
+    next_of_kin_email: string | null;
+    next_of_kin_address: string | null;
     // Computed/Joined fields
     organization_name?: string;
     care_home_name?: string;
@@ -68,6 +76,14 @@ export function useProfile() {
                     is_saas_admin: !!dbUser.is_saas_admin,
                     is_onboarding_complete: !!dbUser.is_onboarding_complete,
                     role: user?.app_metadata?.role || (dbUser.is_saas_admin ? "saas_admin" : "member"),
+                    address: dbUser.address || null,
+                    date_of_join: dbUser.date_of_join || null,
+                    right_to_work_status: dbUser.right_to_work_status || null,
+                    next_of_kin_name: dbUser.next_of_kin_name || null,
+                    next_of_kin_relationship: dbUser.next_of_kin_relationship || null,
+                    next_of_kin_phone: dbUser.next_of_kin_phone || null,
+                    next_of_kin_email: dbUser.next_of_kin_email || null,
+                    next_of_kin_address: dbUser.next_of_kin_address || null,
                 };
 
                 const enrichedProfile = { ...baseProfile };

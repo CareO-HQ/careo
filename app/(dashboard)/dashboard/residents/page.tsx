@@ -96,6 +96,18 @@ export default function ResidentsPage() {
     };
   }, [activeTeamId, activeCareHomeId, activeOrganizationId, contextLoading, supabase, fetchResidents]);
 
+  // Listen for custom 'residents-updated' event (from sidebar creation dialog)
+  useEffect(() => {
+    const handleUpdate = () => {
+      fetchResidents();
+    };
+
+    window.addEventListener("residents-updated", handleUpdate);
+    return () => {
+      window.removeEventListener("residents-updated", handleUpdate);
+    };
+  }, [fetchResidents]);
+
   // Determine display name for header
   const displayName = activeTeamId
     ? activeTeam?.name || 'selected unit'

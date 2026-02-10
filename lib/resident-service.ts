@@ -19,6 +19,13 @@ export interface Resident {
     careManagerName?: string;
     careManagerAddress?: string;
     careManagerPhone?: string;
+    emergency_contacts?: {
+        name: string;
+        phone_number: string;
+        relationship: string;
+        is_primary: boolean;
+        address?: string;
+    }[];
 }
 
 export const residentService = {
@@ -27,7 +34,7 @@ export const residentService = {
 
         const { data, error } = await supabase
             .from('residents')
-            .select('*')
+            .select('*, emergency_contacts(*)')
             .eq('id', id)
             .maybeSingle();
 
@@ -53,7 +60,14 @@ export const residentService = {
             gpPhone: data.gp_phone,
             careManagerName: data.care_manager_name,
             careManagerAddress: data.care_manager_address,
-            careManagerPhone: data.care_manager_phone
+            careManagerPhone: data.care_manager_phone,
+            emergency_contacts: data.emergency_contacts?.map((contact: any) => ({
+                name: contact.name,
+                phone_number: contact.phone_number,
+                relationship: contact.relationship,
+                is_primary: contact.is_primary,
+                address: contact.address
+            }))
         };
     },
 

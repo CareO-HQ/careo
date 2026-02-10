@@ -8,6 +8,7 @@ import { ChevronDownIcon, PlusIcon, Trash2Icon, User2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import z from "zod";
 import { cn } from "@/lib/utils";
 import {
@@ -59,6 +60,7 @@ export function CreateResidentForm({
 
   const { profile, isLoading: isProfileLoading } = useProfile();
   const { supabase, user, isLoading: isSupabaseLoading } = useSupabase();
+  const router = useRouter();
 
   const isLoading = isSubmitting || isProfileLoading || isSupabaseLoading;
 
@@ -343,6 +345,9 @@ export function CreateResidentForm({
 
         toast.success("Resident created successfully");
       }
+
+      window.dispatchEvent(new CustomEvent("residents-updated"));
+      router.refresh();
 
       form.reset();
       setStep(1);
