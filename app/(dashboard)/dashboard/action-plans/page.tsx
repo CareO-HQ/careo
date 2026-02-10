@@ -33,6 +33,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { useProfile } from "@/hooks/use-profile";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { auditService } from "@/lib/audit-service";
 import { markActionPlanNotificationsAsRead } from "@/lib/notifications";
@@ -41,6 +42,7 @@ type ActionPlanStatus = "pending" | "in_progress" | "completed";
 
 export default function MyActionPlansPage() {
   const { user } = useSupabase();
+  const { profile } = useProfile();
   const userEmail = user?.email || "";
   const { activeOrganizationId, role } = useActiveTeam();
   const isOwner = role === "owner" || role === "saas_admin";
@@ -88,7 +90,7 @@ export default function MyActionPlansPage() {
   // Mark all action plan related notifications as read when visiting this page
   useEffect(() => {
     if (user?.id && activeOrganizationId) {
-      markActionPlanNotificationsAsRead(user.id, activeOrganizationId);
+      markActionPlanNotificationsAsRead(user.id, activeOrganizationId, profile?.active_care_home_id);
     }
   }, [user?.id, activeOrganizationId]);
 

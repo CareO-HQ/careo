@@ -48,7 +48,7 @@ export async function POST(
   try {
     const { supabase } = createSupabaseClient(request);
     const { id } = await params;
-    
+
     // Get user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
@@ -81,6 +81,30 @@ export async function POST(
         { error: insertError.message || "Failed to mark appointment as read" },
         { status: 500 }
       );
+    }
+
+    // Also mark the corresponding sidebar notification as read
+    try {
+      const { data: notifs } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("type", "appointment_created")
+        .contains("metadata", { appointmentId: id });
+
+      if (notifs && notifs.length > 0) {
+        const readEntries = notifs.map((n: any) => ({
+          notification_id: n.id,
+          user_id: user.id,
+        }));
+        await supabase.from("notification_read_status").upsert(readEntries, {
+          onConflict: "notification_id,user_id",
+          ignoreDuplicates: true,
+        });
+      }
+    } catch (notifErr) {
+      console.error("Error clearing sidebar notification:", notifErr);
+      // Don't fail the main operation
     }
 
     return NextResponse.json({ success: true, alreadyRead: false }, { status: 200 });

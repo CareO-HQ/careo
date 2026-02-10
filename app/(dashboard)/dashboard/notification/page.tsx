@@ -12,6 +12,7 @@ import {
   updateActionPlanStatus,
   type Notification
 } from "@/lib/notifications";
+import { useProfile } from "@/hooks/use-profile";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,7 +64,9 @@ type ActionPlanStatus = "pending" | "in_progress" | "completed";
 export default function NotificationPage() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
+  const { profile } = useProfile();
   const userEmail = session?.user?.email || "";
+  const activeCareHomeId = profile?.active_care_home_id;
 
   // Supabase client
   const supabase = createBrowserClient(
@@ -89,7 +92,7 @@ export default function NotificationPage() {
     if (!userId) return;
     try {
       setIsLoading(true);
-      const data = await getNotifications(userId);
+      const data = await getNotifications(userId, 50, false, activeCareHomeId);
       setNotifications(data as Notification[]);
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
@@ -97,7 +100,7 @@ export default function NotificationPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [userId, activeCareHomeId]);
 
   useEffect(() => {
     fetchNotifications();
@@ -122,14 +125,23 @@ export default function NotificationPage() {
 
   // Filter notifications
   const filteredNotifications = notifications?.filter((n) => {
+    // Exclude incidents and appointments - they have their own dedicated pages/badges
+    if (n.type === "incident" || n.type?.startsWith("appointment_")) {
+      return false;
+    }
+
     if (filter === "unread") {
       return !n.isRead;
     }
     return true;
   });
 
-  // Count unread
-  const unreadCount = notifications?.filter((n) => !n.isRead).length || 0;
+  // Count unread (consistent with filtering above)
+  const unreadCount = notifications?.filter((n) =>
+    !n.isRead &&
+    n.type !== "incident" &&
+    !n.type?.startsWith("appointment_")
+  ).length || 0;
 
   // Handle notification click
   const handleNotificationClick = async (notification: Notification) => {
@@ -169,7 +181,7 @@ export default function NotificationPage() {
     }
 
     try {
-      await markAllNotificationsAsRead(userId);
+      await markAllNotificationsAsRead(userId, activeCareHomeId);
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       toast.success("All notifications marked as read");
     } catch (error) {
@@ -189,7 +201,7 @@ export default function NotificationPage() {
 
   const handleDeleteAllConfirm = async () => {
     try {
-      const result = await deleteAllNotifications(userId);
+      const result = await deleteAllNotifications(userId, activeCareHomeId);
       setNotifications([]);
       toast.success(`Deleted ${result.deleted} notification${result.deleted !== 1 ? 's' : ''}`);
       setDeleteAllDialogOpen(false);

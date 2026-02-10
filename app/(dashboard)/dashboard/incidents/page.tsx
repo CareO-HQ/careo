@@ -43,14 +43,23 @@ export default function IncidentsPage() {
           *,
           resident:residents(id, first_name, last_name, image_url)
         `)
-        .eq("organization_id", activeOrganizationId)
-        .order("date", { ascending: false })
-        .order("time", { ascending: false });
+      // Filtering logic:
+      // 1. If manager/owner/admin, filter by organization_id AND active_care_home_id if selected
+      // 2. Otherwise, filter by team_id
+      const isPowerUser = userRole === "manager" || userRole === "owner" || userRole === "saas_admin";
 
-      // If not manager/owner, filter by team
-      if (userRole !== "manager" && userRole !== "owner" && userRole !== "saas_admin" && activeTeamId) {
+      if (isPowerUser) {
+        query = query.eq("organization_id", activeOrganizationId);
+        if (profile.active_care_home_id) {
+          query = query.eq("care_home_id", profile.active_care_home_id);
+        }
+      } else if (activeTeamId) {
         query = query.eq("team_id", activeTeamId);
       }
+
+      query = query
+        .order("date", { ascending: false })
+        .order("time", { ascending: false });
 
       const { data: incidentsData, error } = await query.limit(50);
 
@@ -116,7 +125,7 @@ export default function IncidentsPage() {
   useEffect(() => {
     if (activeOrganizationId && profile?.id) {
       import("@/lib/notifications").then(({ markIncidentNotificationsAsRead }) => {
-        markIncidentNotificationsAsRead(profile.id, activeOrganizationId)
+        markIncidentNotificationsAsRead(profile.id, activeOrganizationId, profile.active_care_home_id)
           .then(() => {
             // After marking as read, we might want to refresh the local state
             // but fetchIncidents should already be covering the initial load.
@@ -157,7 +166,7 @@ export default function IncidentsPage() {
 
     try {
       const { markIncidentNotificationsAsRead } = await import("@/lib/notifications");
-      await markIncidentNotificationsAsRead(profile.id, activeOrganizationId);
+      await markIncidentNotificationsAsRead(profile.id, activeOrganizationId, profile.active_care_home_id);
 
       setIncidents(prev => prev.map(i => ({ ...i, is_read: true })));
       toast.success("All incidents marked as read");

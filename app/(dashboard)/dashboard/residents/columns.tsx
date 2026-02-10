@@ -99,7 +99,7 @@ const AllergiesCell = ({ residentId }: { residentId: string }) => {
 
 // Component for displaying next medication intake
 const NextMedicationCell = ({ residentId }: { residentId: string }) => {
-  const [nextIntake, setNextIntake] = useState<any>(null);
+  const [nextIntakes, setNextIntakes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -114,11 +114,13 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
         .in("status", ["scheduled", "pending"])
         .gte("scheduled_time", new Date().toISOString())
         .order("scheduled_time", { ascending: true })
-        .limit(1)
-        .single();
+        .limit(10);
 
-      if (!error) {
-        setNextIntake(data);
+      if (!error && data && data.length > 0) {
+        // Find all intakes that share the same earliest scheduled time
+        const earliestTime = data[0].scheduled_time;
+        const matchingIntakes = data.filter(i => i.scheduled_time === earliestTime);
+        setNextIntakes(matchingIntakes);
       }
       setIsLoading(false);
     }
@@ -129,13 +131,14 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
-  if (!nextIntake) {
+  if (nextIntakes.length === 0) {
     return <Badge variant="outline">None</Badge>;
   }
 
+  const primaryIntake = nextIntakes[0];
   // Format times in UK timezone
-  const scheduledDateStr = formatTimestampToUKDate(nextIntake.scheduled_time);
-  const timeString = formatTimestampToUKTime(nextIntake.scheduled_time);
+  const scheduledDateStr = formatTimestampToUKDate(primaryIntake.scheduled_time);
+  const timeString = formatTimestampToUKTime(primaryIntake.scheduled_time);
   const today = getUKTodayDate();
   const isToday = scheduledDateStr === today;
 
@@ -145,27 +148,38 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
         <Badge
           variant="table"
           className={cn(
-            "flex items-center gap-1 text-primary",
+            "flex items-center gap-1 text-primary cursor-help",
             isToday && "bg-blue-50 text-blue-700 border-blue-300"
           )}
         >
           <Clock className="w-3 h-3" />
-          {isToday ? `Today ${timeString}` : scheduledDateStr}
+          <div className="flex items-center gap-1">
+            <span>{isToday ? `Today ${timeString}` : scheduledDateStr}</span>
+            {nextIntakes.length > 1 && (
+              <span className="bg-primary/10 text-[10px] px-1 rounded-sm">
+                +{nextIntakes.length - 1}
+              </span>
+            )}
+          </div>
         </Badge>
       </TooltipTrigger>
-      <TooltipContent className="bg-white border">
-        <div className="flex flex-col gap-1">
-          <p className="font-medium text-sm text-primary">
-            {nextIntake.medication?.name}
+      <TooltipContent className="bg-white border p-3">
+        <div className="flex flex-col gap-3">
+          <p className="font-semibold text-xs text-muted-foreground border-b pb-1">
+            Scheduled for {timeString}
           </p>
-          <p className="text-sm text-muted-foreground">
-            {nextIntake.medication?.strength}
-            {nextIntake.medication?.strength_unit} -{" "}
-            {nextIntake.medication?.dosage_form}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Scheduled: {timeString} (UK time)
-          </p>
+          {nextIntakes.map((intake, index) => (
+            <div key={intake.id} className={cn("flex flex-col gap-0.5", index !== 0 && "pt-2 border-t border-dashed")}>
+              <p className="font-medium text-sm text-primary">
+                {intake.medication?.name}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {intake.medication?.strength}
+                {intake.medication?.strength_unit} -{" "}
+                {intake.medication?.dosage_form}
+              </p>
+            </div>
+          ))}
         </div>
       </TooltipContent>
     </Tooltip>
@@ -211,7 +225,7 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
     const filteredAlerts = (alertsData || []).filter(
       (alert: any) => !dismissedAlertIds.has(alert.id)
     );
-    
+
     setAlerts(filteredAlerts);
     setAlertData({ total: filteredAlerts.length });
     setIsLoading(false);
@@ -224,7 +238,7 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
   const handleDismissAlert = async (alertId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!profile?.id) return;
-    
+
     try {
       // Insert into alert_dismissals table for per-user dismissal tracking
       const { error } = await supabase

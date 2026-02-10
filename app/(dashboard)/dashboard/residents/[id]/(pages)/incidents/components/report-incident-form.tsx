@@ -173,6 +173,7 @@ export function ReportIncidentForm({
         try {
           await supabase.from("notifications").insert({
             organization_id: resident?.organization_id,
+            care_home_id: resident?.care_home_id,
             // null user_id means it's for all managers/admins (based on AppSidebar logic)
             user_id: null,
             type: "incident",
@@ -185,7 +186,8 @@ export function ReportIncidentForm({
               incidentId: createdIncident.id,
               residentId: residentId,
               severity: values.severity,
-              type: values.type
+              type: values.type,
+              careHomeId: resident?.care_home_id
             }
           });
         } catch (notifError) {
@@ -321,25 +323,25 @@ export function ReportIncidentForm({
                 control={form.control}
                 name="time"
                 render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Time of Incident</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="pl-10 relative">
-                            <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                            <SelectValue placeholder="Select time" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="max-h-[200px]">
-                          {TIME_OPTIONS_15MIN.map((time) => (
-                            <SelectItem key={time} value={time}>
-                              {time}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
+                  <FormItem>
+                    <FormLabel>Time of Incident</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="pl-10 relative">
+                          <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <SelectValue placeholder="Select time" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-[200px]">
+                        {TIME_OPTIONS_15MIN.map((time) => (
+                          <SelectItem key={time} value={time}>
+                            {time}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
                 )}
               />
 

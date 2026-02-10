@@ -241,6 +241,10 @@ export function CreateAppointmentForm({
       });
 
       toast.success("Appointment created successfully");
+
+      // Dispatch custom event to refresh appointment lists
+      window.dispatchEvent(new CustomEvent("appointments-updated"));
+
       createAppointmentForm.reset();
       onClose();
     } catch (error) {
@@ -355,7 +359,7 @@ export function CreateAppointmentForm({
                       <SelectItem value="none">No staff assigned</SelectItem>
                       {otherStaffOptions.length > 0 ? (
                         otherStaffOptions.map((staff) => (
-                          <SelectItem key={staff.key} value={staff.email}>
+                          <SelectItem key={staff.key} value={staff.id}>
                             {staff.label}
                           </SelectItem>
                         ))
