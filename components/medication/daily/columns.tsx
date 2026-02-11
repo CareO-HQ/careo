@@ -67,6 +67,7 @@ interface MedicationIntake {
   } | null;
   witness_id?: string | null;
   witness_at?: string | null;
+  quantity?: number;
 }
 
 export const createColumns = (
@@ -92,6 +93,7 @@ export const createColumns = (
       header: "Medication",
       cell: ({ row }) => {
         const medication = row.original.medication;
+        const quantity = row.original.quantity;
 
         if (!medication) {
           return (
@@ -107,7 +109,14 @@ export const createColumns = (
 
         return (
           <div className={`flex flex-col ${isRoundCompleted ? 'opacity-60' : ''}`}>
-            <p className="font-medium">{medication.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium">{medication.name}</p>
+              {quantity && quantity > 1 && (
+                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                  x{quantity}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
               {strength} {strengthUnit} - {dosageForm}
             </p>
@@ -116,6 +125,13 @@ export const createColumns = (
             )}
           </div>
         );
+      }
+    },
+    {
+      id: "quantity",
+      header: "Qty",
+      cell: ({ row }) => {
+        return <p className="font-medium text-center w-8">{row.original.quantity || 1}</p>;
       }
     },
     {

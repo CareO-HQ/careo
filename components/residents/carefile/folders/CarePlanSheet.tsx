@@ -16,12 +16,15 @@ import {
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { formatInTimeZone, toZonedTime, fromZonedTime } from "date-fns-tz";
 import { Plus, Trash2, Calendar } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/lib/supabase";
 import { Separator } from "@/components/ui/separator";
+
+const UK_TIMEZONE = "Europe/London";
 
 export default function CarePlanSheetContent({
   open,
@@ -120,6 +123,25 @@ export default function CarePlanSheetContent({
   const [showEvaluationForm, setShowEvaluationForm] = useState(false);
   const [openDatePickers, setOpenDatePickers] = useState<{ [key: number]: boolean }>({});
   const [evaluationComments, setEvaluationComments] = useState("");
+  const [evaluationTime, setEvaluationTime] = useState("");
+
+  const generateTimeOptions = () => {
+    const options: string[] = [];
+    for (let i = 0; i < 24; i++) {
+      for (let j = 0; j < 60; j += 5) {
+        const hour = i.toString().padStart(2, '0');
+        const minute = j.toString().padStart(2, '0');
+        options.push(`${hour}:${minute}`);
+      }
+    }
+    return options;
+  };
+
+  useEffect(() => {
+    if (showEvaluationForm) {
+      setEvaluationTime(formatInTimeZone(new Date(), UK_TIMEZONE, "HH:mm"));
+    }
+  }, [showEvaluationForm]);
 
   // Initialize form data when care plan loads
   useEffect(() => {
@@ -192,7 +214,18 @@ export default function CarePlanSheetContent({
     try {
       const { error } = await supabase.from('care_plan_evaluations').insert({
         care_plan_id: carePlan.formId,
-        evaluation_date: new Date().toISOString(),
+        evaluation_date: (() => {
+          // If evaluationTime is set, combine it with today's date in UK time
+          if (evaluationTime) {
+            // Get today's date in UK YYYY-MM-DD
+            const todayUK = formatInTimeZone(new Date(), UK_TIMEZONE, 'yyyy-MM-dd');
+            // Combine with selected time
+            const dateTimeString = `${todayUK}T${evaluationTime}:00`;
+            // Convert to UTC object from the Zoned Time
+            return fromZonedTime(dateTimeString, UK_TIMEZONE).toISOString();
+          }
+          return new Date().toISOString();
+        })(),
         progress_notes: evaluationComments.trim(),
         created_by: profile.id,
         organization_id: profile.active_organization_id,
@@ -580,8 +613,25 @@ export default function CarePlanSheetContent({
                       {profile?.name || "Unknown User"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(), "dd MMMM yyyy 'at' HH:mm")}
+                      {format(new Date(), "dd MMMM yyyy")}
                     </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">
+                      Time of Evaluation
+                    </label>
+                    <div className="w-[150px]">
+                      <select
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        value={evaluationTime}
+                        onChange={(e) => setEvaluationTime(e.target.value)}
+                      >
+                        {generateTimeOptions().map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -633,8 +683,9 @@ export default function CarePlanSheetContent({
                       <div className="flex items-center justify-between">
                         <p className="text-xs text-muted-foreground">
                           {evaluation.evaluationDate
-                            ? format(
+                            ? formatInTimeZone(
                               new Date(evaluation.evaluationDate),
+                              UK_TIMEZONE,
                               "dd MMMM yyyy 'at' HH:mm"
                             )
                             : "Unknown Date"}

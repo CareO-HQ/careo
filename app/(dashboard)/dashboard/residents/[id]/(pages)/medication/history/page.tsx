@@ -198,7 +198,7 @@ export default function MedicationHistoryPage({
       {} as Record<string, any[]>
     );
 
-        // Transform to array with aggregated stats
+    // Transform to array with aggregated stats
     const groupedArray: GroupedIntake[] = Object.entries(grouped).map(
       ([date, intakes]) => {
         const dateObj = new Date(date);
@@ -366,9 +366,14 @@ export default function MedicationHistoryPage({
 
     const renderMedicationRow = (intake: any) => {
       const status = intake.status || intake.state || "scheduled";
-      
+      const time = intake.scheduled_time ? format(new Date(intake.scheduled_time), "HH:mm") : "-";
+      const quantity = intake.quantity || 1;
+
       return `
         <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 12px; vertical-align: top;">
+            <strong>${time}</strong>
+          </td>
           <td style="padding: 12px; vertical-align: top;">
             <strong>${intake.medication?.name || "N/A"}</strong><br>
             <span style="color: #6b7280; font-size: 12px;">
@@ -376,6 +381,9 @@ export default function MedicationHistoryPage({
               ${intake.medication?.dosage_form || "N/A"}
             </span><br>
             <span style="color: #6b7280; font-size: 12px;">Route: ${intake.medication?.route || "N/A"}</span>
+          </td>
+          <td style="padding: 12px; vertical-align: top;">
+            ${quantity}
           </td>
           <td style="padding: 12px; vertical-align: top;">
             <span style="display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; ${getStateBadgeStyle(status).includes('green') ? 'background-color: #dcfce7; color: #166534;' : getStateBadgeStyle(status).includes('red') ? 'background-color: #fee2e2; color: #991b1b;' : getStateBadgeStyle(status).includes('orange') ? 'background-color: #fed7aa; color: #9a3412;' : 'background-color: #f3f4f6; color: #374151;'}">
@@ -393,20 +401,26 @@ export default function MedicationHistoryPage({
       `;
     };
 
+    const tableHeaderInfo = `
+      <thead style="background-color: #f9fafb;">
+        <tr>
+          <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Time</th>
+          <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Medication</th>
+          <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Qty</th>
+          <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Status</th>
+          <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Administered By</th>
+          <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Notes</th>
+        </tr>
+      </thead>
+    `;
+
     let scheduledHTML = "";
     if (allScheduledMedications.length > 0) {
       scheduledHTML = `
         <div style="margin-bottom: 24px;">
           <h3 style="margin-bottom: 12px; color: #374151;">Scheduled Medications</h3>
           <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
-            <thead style="background-color: #f9fafb;">
-              <tr>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Medication</th>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Status</th>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Administered By</th>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Notes</th>
-              </tr>
-            </thead>
+            ${tableHeaderInfo}
             <tbody>
               ${allScheduledMedications.map(renderMedicationRow).join("")}
             </tbody>
@@ -421,15 +435,7 @@ export default function MedicationHistoryPage({
         <div style="margin-bottom: 24px;">
           <h3 style="margin-bottom: 12px; color: #374151;">PRN (As Needed) Medications</h3>
           <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
-            <thead style="background-color: #f9fafb;">
-              <tr>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Medication</th>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Status</th>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Administered By</th>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Time</th>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Notes</th>
-              </tr>
-            </thead>
+            ${tableHeaderInfo}
             <tbody>
               ${prn.map(renderMedicationRow).join("")}
             </tbody>
@@ -444,15 +450,7 @@ export default function MedicationHistoryPage({
         <div style="margin-bottom: 24px;">
           <h3 style="margin-bottom: 12px; color: #374151;">Topical Medications</h3>
           <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
-            <thead style="background-color: #f9fafb;">
-              <tr>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Medication</th>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Status</th>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Administered By</th>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Time</th>
-                <th style="padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Notes</th>
-              </tr>
-            </thead>
+            ${tableHeaderInfo}
             <tbody>
               ${topical.map(renderMedicationRow).join("")}
             </tbody>
@@ -620,6 +618,7 @@ export default function MedicationHistoryPage({
       Strength: intake.medication ? `${intake.medication.strength} ${intake.medication.strength_unit}` : "N/A",
       "Dosage Form": intake.medication?.dosage_form || "N/A",
       Route: intake.medication?.route || "N/A",
+      Quantity: intake.quantity || 1,
       Status: intake.status || intake.state || "scheduled",
       "Popped Out": intake.popped_out_at ? format(new Date(intake.popped_out_at), "HH:mm") : "-",
       Notes: intake.comment || intake.notes || ""
@@ -725,13 +724,13 @@ export default function MedicationHistoryPage({
           <div className="mt-6 space-y-8">
             {selectedDateIntakeGroup && (() => {
               const { scheduled, prn, topical } = organizeIntakesByCategory(selectedDateIntakeGroup.intakes, selectedDateIntakeGroup.dateObj);
-              
+
               // Flatten scheduled medications (remove time grouping)
               const allScheduledMedications = scheduled.flatMap(group => group.intakes);
-              
+
               const renderMedicationTable = (intakes: any[], title?: string) => {
                 if (!intakes || intakes.length === 0) return null;
-                
+
                 return (
                   <div className="space-y-3">
                     {title && (
@@ -743,7 +742,9 @@ export default function MedicationHistoryPage({
                       <Table>
                         <TableHeader className="bg-muted/30">
                           <TableRow>
+                            <TableHead>Time</TableHead>
                             <TableHead>Medication</TableHead>
+                            <TableHead>Qty</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Administered By</TableHead>
                             <TableHead>Notes</TableHead>
@@ -752,9 +753,15 @@ export default function MedicationHistoryPage({
                         <TableBody>
                           {intakes.map(intake => (
                             <TableRow key={intake.id}>
+                              <TableCell className="font-medium">
+                                {format(new Date(intake.scheduled_time), "HH:mm")}
+                              </TableCell>
                               <TableCell>
                                 <p className="font-medium">{intake.medication?.name || "N/A"}</p>
                                 <p className="text-xs text-muted-foreground">{intake.medication?.strength || ""} {intake.medication?.strength_unit || ""}</p>
+                              </TableCell>
+                              <TableCell>
+                                {intake.quantity || 1}
                               </TableCell>
                               <TableCell><Badge className={getStateBadgeStyle(intake.status || intake.state || "scheduled")} variant="outline">{intake.status || intake.state || "scheduled"}</Badge></TableCell>
                               <TableCell className="text-sm">
@@ -773,10 +780,10 @@ export default function MedicationHistoryPage({
 
               // Show all scheduled medications in a single table
               const scheduledElement = renderMedicationTable(allScheduledMedications, "Scheduled Medications");
-              
+
               // Show PRN medications
               const prnElement = renderMedicationTable(prn, "PRN (As Needed) Medications");
-              
+
               // Show Topical medications
               const topicalElement = renderMedicationTable(topical, "Topical Medications");
 
