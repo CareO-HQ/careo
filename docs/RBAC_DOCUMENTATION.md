@@ -138,7 +138,7 @@ The system defines **4 primary roles** plus an **admin** role:
 | - Edit | ✅ | ✅ | ✅ | ❌ |
 | **Health Monitoring** | ✅ | ✅ | ✅ | ❌ |
 | **Clinical** | ✅ | ✅ | ✅ | ❌ |
-| **Lifestyle & Social** | ✅ | ✅ | ✅ | ✅ |
+| **Lifestyle & Social** | ✅ | ✅ | ✅ | ✅ (Recording) |
 | **Hospital Transfer** | ✅ | ✅ | ✅ | ❌ |
 | **Multidisciplinary Notes** | ✅ | ✅ | ✅ | ❌ |
 
@@ -299,7 +299,7 @@ Permissions are also enforced at the database level through Supabase RLS policie
 ### Care Assistant Can:
 - ✅ Daily care logging
 - ✅ Food & fluid tracking
-- ✅ Lifestyle activities
+- ✅ Lifestyle activities (Logging & Recording)
 - ✅ Night check viewing
 - ❌ Clinical features
 - ❌ Medication access

@@ -181,6 +181,7 @@ export function ComprehensiveIncidentForm({
   const [nokDatePopoverOpen, setNokDatePopoverOpen] = React.useState(false);
   const [resident, setResident] = React.useState<any>(null);
   const [organizationData, setOrganizationData] = React.useState<any>(null);
+  const [careHomeData, setCareHomeData] = React.useState<any>(null);
   const [teamData, setTeamData] = React.useState<any>(null);
   const [isLoading, setIsLoading] = React.useState(true);
 
@@ -206,8 +207,20 @@ export function ComprehensiveIncidentForm({
             .single();
 
           if (homeError) throw homeError;
-          setTeamData(homeData);
+          setCareHomeData(homeData);
           setOrganizationData(homeData?.organizations);
+        }
+
+        if (resData?.team_id) {
+          const { data: tData, error: tError } = await supabase
+            .from("teams")
+            .select("*")
+            .eq("id", resData.team_id)
+            .single();
+
+          if (!tError) {
+            setTeamData(tData);
+          }
         }
       } catch (error) {
         console.error("Error fetching form data:", error);
@@ -285,7 +298,7 @@ export function ComprehensiveIncidentForm({
     return {
       date: new Date(),
       time: format(new Date(), "HH:mm"),
-      homeName: teamData?.name || "",
+      homeName: careHomeData?.name || "",
       unit: teamData?.name || "",
       injuredPersonFirstName: resident?.first_name || "",
       injuredPersonSurname: resident?.last_name || "",
@@ -330,7 +343,7 @@ export function ComprehensiveIncidentForm({
       completedBySignature: currentUserName,
       dateCompleted: new Date(),
     };
-  }, [existingIncident, resident, teamData, currentUserName]);
+  }, [existingIncident, resident, careHomeData, teamData, currentUserName]);
   // Only recompute when these change
 
   const form = useForm<z.infer<typeof ComprehensiveIncidentSchema>>({
@@ -512,6 +525,7 @@ export function ComprehensiveIncidentForm({
         // Metadata for filtering
         care_home_id: resident?.care_home_id,
         organization_id: resident?.organization_id,
+        team_id: resident?.team_id,
 
         // Status
         injured_person_status: values.injuredPersonStatus,
@@ -598,6 +612,8 @@ export function ComprehensiveIncidentForm({
           try {
             await supabase.from("notifications").insert({
               organization_id: resident.organization_id,
+              care_home_id: resident.care_home_id,
+              team_id: resident.team_id,
               // null user_id means it's for all managers/admins (based on AppSidebar logic)
               user_id: null,
               type: "incident",
@@ -609,6 +625,8 @@ export function ComprehensiveIncidentForm({
               metadata: {
                 incidentId: createdIncident.id,
                 residentId: residentId,
+                careHomeId: resident.care_home_id,
+                teamId: resident.team_id,
                 severity: values.incidentLevel,
                 types: values.incidentTypes
               }
@@ -792,26 +810,26 @@ export function ComprehensiveIncidentForm({
                       control={form.control}
                       name="time"
                       render={({ field }) => (
-                          <FormItem>
-                            <FormLabel required>Time of Incident</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger className="pl-10 relative">
-                                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                  <SelectValue placeholder="Select time" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent className="max-h-[200px]">
-                                {TIME_OPTIONS_15MIN.map((time) => (
-                                  <SelectItem key={time} value={time}>
-                                    {time}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        <FormItem>
+                          <FormLabel required>Time of Incident</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="pl-10 relative">
+                                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <SelectValue placeholder="Select time" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="max-h-[200px]">
+                              {TIME_OPTIONS_15MIN.map((time) => (
+                                <SelectItem key={time} value={time}>
+                                  {time}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
 
                     <FormField

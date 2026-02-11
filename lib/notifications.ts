@@ -8,6 +8,8 @@ const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
 export interface Notification {
     id: string;
     organization_id: string;
+    care_home_id: string | null;
+    team_id: string | null;
     user_id: string | null;
     title: string;
     message: string;
@@ -20,7 +22,7 @@ export interface Notification {
     isRead: boolean;
 }
 
-export const getNotifications = async (userId: string, limit = 50, onlyUnread = false) => {
+export const getNotifications = async (userId: string, limit = 50, onlyUnread = false, careHomeId?: string | null, teamId?: string | null) => {
     // 1. Fetch dismissals first to filter them out
     const { data: dismissals } = await supabase
         .from("notification_dismissals")
@@ -30,14 +32,22 @@ export const getNotifications = async (userId: string, limit = 50, onlyUnread = 
     const dismissedIds = new Set((dismissals || []).map(d => d.notification_id));
 
     // 2. Fetch notifications
-    const query = supabase
+    let query = supabase
         .from("notifications")
         .select("*")
-        .or(`user_id.eq.${userId},user_id.is.null`)
+        .or(`user_id.eq.${userId},user_id.is.null`);
+
+    if (careHomeId) {
+        query = query.eq("care_home_id", careHomeId);
+    }
+
+    if (teamId) {
+        query = query.eq("team_id", teamId);
+    }
+
+    const { data: notifications, error } = await query
         .order("created_at", { ascending: false })
         .limit(limit);
-
-    const { data: notifications, error } = await query;
 
     if (error) {
         console.error("Error fetching notifications:", error);
@@ -98,13 +108,19 @@ export const markNotificationAsRead = async (notificationId: string, userId: str
     return { success: true };
 };
 
-export const markAllNotificationsAsRead = async (userId: string) => {
+export const markAllNotificationsAsRead = async (userId: string, careHomeId?: string | null) => {
     // 1. Get all notification IDs for this user (including global once) that aren't read yet
     // We should technically exclude dismissed ones too, but marking a dismissed one as read doesn't hurt.
-    const { data: notifications } = await supabase
+    let query = supabase
         .from("notifications")
         .select("id")
         .or(`user_id.eq.${userId},user_id.is.null`);
+
+    if (careHomeId) {
+        query = query.eq("care_home_id", careHomeId);
+    }
+
+    const { data: notifications } = await query;
 
     if (!notifications || notifications.length === 0) return { success: true };
 
@@ -131,14 +147,19 @@ export const markAllNotificationsAsRead = async (userId: string) => {
     return { success: true };
 };
 
-export const markIncidentNotificationsAsRead = async (userId: string, organizationId: string) => {
-    // 1. Get all unread incident notification IDs for this user/organization
-    const { data: notifications } = await supabase
+export const markIncidentNotificationsAsRead = async (userId: string, organizationId: string, careHomeId?: string | null) => {
+    let query = supabase
         .from("notifications")
         .select("id")
         .eq("organization_id", organizationId)
         .eq("type", "incident")
         .or(`user_id.eq.${userId},user_id.is.null`);
+
+    if (careHomeId) {
+        query = query.eq("care_home_id", careHomeId);
+    }
+
+    const { data: notifications } = await query;
 
     if (!notifications || notifications.length === 0) return { success: true };
 
@@ -165,14 +186,19 @@ export const markIncidentNotificationsAsRead = async (userId: string, organizati
     return { success: true };
 };
 
-export const markActionPlanNotificationsAsRead = async (userId: string, organizationId: string) => {
-    // 1. Get all unread action plan notification IDs for this user/organization
-    const { data: notifications } = await supabase
+export const markActionPlanNotificationsAsRead = async (userId: string, organizationId: string, careHomeId?: string | null) => {
+    let query = supabase
         .from("notifications")
         .select("id")
         .eq("organization_id", organizationId)
         .in("type", ["action_plan", "action_plan_status"])
         .or(`user_id.eq.${userId},user_id.is.null`);
+
+    if (careHomeId) {
+        query = query.eq("care_home_id", careHomeId);
+    }
+
+    const { data: notifications } = await query;
 
     if (!notifications || notifications.length === 0) return { success: true };
 
@@ -199,16 +225,22 @@ export const markActionPlanNotificationsAsRead = async (userId: string, organiza
     return { success: true };
 };
 
-export const deleteAllNotifications = async (userId: string) => {
+export const deleteAllNotifications = async (userId: string, careHomeId?: string | null) => {
     // Instead of hard deleting, we verify specifically which notifications we see, 
     // and then insert into notification_dismissals for ALL of them.
     // This handles both personal and global notifications properly from the user's perspective.
 
     // 1. Fetch all visible notification IDs for this user
-    const { data: notifications } = await supabase
+    let query = supabase
         .from("notifications")
         .select("id")
         .or(`user_id.eq.${userId},user_id.is.null`);
+
+    if (careHomeId) {
+        query = query.eq("care_home_id", careHomeId);
+    }
+
+    const { data: notifications } = await query;
 
     if (!notifications || notifications.length === 0) return { deleted: 0 };
 

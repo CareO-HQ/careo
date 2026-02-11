@@ -44,7 +44,7 @@ function createSupabaseClient(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { supabase } = createSupabaseClient(request);
-    
+
     // Get user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
@@ -89,6 +89,30 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
+    }
+
+    // Also clear the corresponding sidebar notifications
+    try {
+      const { data: notifs } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("type", "appointment_created")
+        .in("metadata->>appointmentId", appointmentIds);
+
+      if (notifs && notifs.length > 0) {
+        const readEntries = notifs.map((n: any) => ({
+          notification_id: n.id,
+          user_id: user.id,
+        }));
+        await supabase.from("notification_read_status").upsert(readEntries, {
+          onConflict: "notification_id,user_id",
+          ignoreDuplicates: true,
+        });
+      }
+    } catch (notifErr) {
+      console.error("Error clearing sidebar notifications:", notifErr);
+      // Don't fail the main operation
     }
 
     return NextResponse.json({ success: true, marked: newIds.length }, { status: 200 });

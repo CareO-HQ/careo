@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Calendar, ArrowLeft, Filter, Check } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useProfile } from "@/hooks/use-profile";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { format } from "date-fns";
 import {
   Select,
@@ -28,49 +29,158 @@ export default function AppointmentPage() {
   const [appointmentsData, setAppointmentsData] = useState<any[] | null>(null);
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
 
-  // For managers, always use organization-based queries; for other roles, use team if available
-  const shouldUseOrganization = userRole === "manager";
+  // For managers and owners, always use organization-based queries with care home filter; for other roles, use team if available
+  const shouldUseOrganization = userRole === "manager" || userRole === "owner";
 
   // Fetch appointments from Supabase
-  useEffect(() => {
-    async function fetchAppointments() {
-      if (isTeamLoading) return;
-      
-      if (!activeOrganizationId && !activeTeamId) {
-        setAppointmentsData([]);
-        setAppointmentsLoading(false);
-        return;
+  const fetchAppointments = useCallback(async () => {
+    if (isTeamLoading) return;
+
+    if (!activeOrganizationId && !activeTeamId) {
+      setAppointmentsData([]);
+      setAppointmentsLoading(false);
+      return;
+    }
+
+    try {
+      setAppointmentsLoading(true);
+      const filters: {
+        organizationId?: string;
+        careHomeId?: string;
+        teamId?: string;
+        includeAll?: boolean;
+      } = {
+        includeAll: true,
+      };
+
+      if (shouldUseOrganization || !activeTeamId) {
+        filters.organizationId = activeOrganizationId ?? undefined;
+        // For owners/managers, filter by care home if selected
+        if (profile?.active_care_home_id) {
+          filters.careHomeId = profile.active_care_home_id;
+        }
+      } else {
+        filters.teamId = activeTeamId ?? undefined;
       }
 
-      try {
-        setAppointmentsLoading(true);
-        const filters: {
-          organizationId?: string;
-          teamId?: string;
-          includeAll?: boolean;
-        } = {
-          includeAll: true,
-        };
+      const result = await getAppointments(filters);
+      setAppointmentsData(result.appointments || []);
+    } catch (error) {
+      console.error("Error fetching appointments:", error);
+      toast.error("Failed to load appointments");
+      setAppointmentsData([]);
+    } finally {
+      setAppointmentsLoading(false);
+    }
+  }, [activeTeamId, activeOrganizationId, shouldUseOrganization, isTeamLoading]);
 
-        if (shouldUseOrganization || !activeTeamId) {
-          filters.organizationId = activeOrganizationId ?? undefined;
-        } else {
-          filters.teamId = activeTeamId ?? undefined;
+  useEffect(() => {
+    fetchAppointments();
+  }, [fetchAppointments]);
+
+  // Set up real-time subscription for appointments
+  const { supabase, user } = useSupabase();
+
+  useEffect(() => {
+    if (isTeamLoading || (!activeTeamId && !activeOrganizationId)) return;
+
+    let filterField: string;
+    let filterValue: string;
+
+    if (shouldUseOrganization || !activeTeamId) {
+      filterField = profile?.active_care_home_id ? "care_home_id" : "organization_id";
+      filterValue = profile?.active_care_home_id || activeOrganizationId!;
+    } else {
+      filterField = "team_id";
+      filterValue = activeTeamId!;
+    }
+
+    if (!filterValue) return;
+
+    const channel = supabase
+      .channel("appointments-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "appointments",
+          filter: `${filterField}=eq.${filterValue}`,
+        },
+        () => {
+          fetchAppointments();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeTeamId, activeOrganizationId, shouldUseOrganization, isTeamLoading, supabase, fetchAppointments]);
+
+  // Listen for custom 'appointments-updated' event
+  useEffect(() => {
+    const handleUpdate = () => {
+      fetchAppointments();
+    };
+
+    window.addEventListener("appointments-updated", handleUpdate);
+    return () => {
+      window.removeEventListener("appointments-updated", handleUpdate);
+    };
+  }, [fetchAppointments]);
+
+  // Auto-clear sidebar red badge when Appointments page is visited
+  useEffect(() => {
+    if (!user || !activeOrganizationId) return;
+
+    async function clearAppointmentBadge() {
+      try {
+        // Find all appointment notifications for this user/org/carehome
+        let query = supabase
+          .from("notifications")
+          .select("id")
+          .eq("organization_id", activeOrganizationId)
+          .like("type", "appointment_%")
+          .or(`user_id.eq.${user!.id},user_id.is.null`);
+
+        if (profile?.active_care_home_id) {
+          query = query.eq("care_home_id", profile.active_care_home_id);
         }
 
-        const result = await getAppointments(filters);
-        setAppointmentsData(result.appointments || []);
-      } catch (error) {
-        console.error("Error fetching appointments:", error);
-        toast.error("Failed to load appointments");
-        setAppointmentsData([]);
-      } finally {
-        setAppointmentsLoading(false);
+        const { data: notifs } = await query;
+
+        if (!notifs || notifs.length === 0) return;
+
+        const notifIds = notifs.map((n: any) => n.id);
+
+        // Check which are already read
+        const { data: alreadyRead } = await supabase
+          .from("notification_read_status")
+          .select("notification_id")
+          .eq("user_id", user!.id)
+          .in("notification_id", notifIds);
+
+        const alreadyReadIds = new Set((alreadyRead || []).map((r: any) => r.notification_id));
+        const unreadIds = notifIds.filter((id: string) => !alreadyReadIds.has(id));
+
+        if (unreadIds.length > 0) {
+          const readEntries = unreadIds.map((id: string) => ({
+            notification_id: id,
+            user_id: user!.id,
+          }));
+          await supabase.from("notification_read_status").insert(readEntries);
+
+          // Tell the sidebar to refresh its counts immediately
+          window.dispatchEvent(new CustomEvent("sidebar-counts-refresh"));
+        }
+      } catch (err) {
+        console.error("Error clearing appointment badge:", err);
       }
     }
 
-    fetchAppointments();
-  }, [activeTeamId, activeOrganizationId, shouldUseOrganization, isTeamLoading]);
+    clearAppointmentBadge();
+  }, [user, activeOrganizationId, supabase]);
 
   const isLoading = isTeamLoading || appointmentsLoading;
 

@@ -27,7 +27,7 @@ import {
   ListTodo
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { TeamSwitcher } from "./TeamSwitcher";
 import { useProfile } from "@/hooks/use-profile";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
@@ -61,89 +61,103 @@ export function AppSidebar() {
 
   // Map Supabase profile to variables used in the component
   const activeOrganizationId = profile?.active_organization_id || null;
+  const activeCareHomeId = profile?.active_care_home_id || null;
   const activeTeamId = profile?.active_team_id || null;
   const userRole = profile?.role;
   const effectiveRole = userRole;
 
-  // Fetch all counts and set up real-time subscription
+  // Fetch all sidebar counts
+  const fetchCounts = useCallback(async () => {
+    if (!user) return;
+    try {
+      // Fetch dismissals first
+      const { data: dismissals } = await supabase
+        .from("notification_dismissals")
+        .select("notification_id")
+        .eq("user_id", user.id);
+
+      const dismissedIds = new Set((dismissals || []).map(d => d.notification_id));
+
+      // 1. Unread Incidents (via notifications table with type incident)
+      const isPowerUser = userRole === "manager" || userRole === "owner" || userRole === "saas_admin";
+
+      let incidentQuery = supabase
+        .from("notifications")
+        .select("id")
+        .eq("organization_id", activeOrganizationId)
+        .eq("type", "incident")
+        .eq("care_home_id", activeCareHomeId);
+
+      if (!isPowerUser && activeTeamId) {
+        incidentQuery = incidentQuery.eq("team_id", activeTeamId);
+      }
+
+      const { data: allIncidentNotifs } = await incidentQuery
+        .or(`user_id.eq.${user.id},user_id.is.null`);
+
+      const { data: incidentReadStatuses } = await supabase
+        .from("notification_read_status")
+        .select("notification_id")
+        .eq("user_id", user.id);
+
+      const readIds = new Set((incidentReadStatuses || []).map(r => r.notification_id));
+
+      const unreadIncidentList = (allIncidentNotifs || []).filter(n =>
+        !readIds.has(n.id) && !dismissedIds.has(n.id)
+      );
+      setUnreadIncidentCount(unreadIncidentList.length);
+
+      // 2. Unread Appointments (via notifications table)
+      const { data: allAppointmentNotifs } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("organization_id", activeOrganizationId)
+        .eq("care_home_id", activeCareHomeId)
+        .like("type", "appointment_%")
+        .or(`user_id.eq.${user.id},user_id.is.null`);
+
+      const unreadAppointmentList = (allAppointmentNotifs || []).filter(n =>
+        !readIds.has(n.id) && !dismissedIds.has(n.id)
+      );
+      setUnreadAppointmentsCount(unreadAppointmentList.length);
+
+      // 3. System Notifications (exclude appointment and incident types — they have their own badges)
+      const { data: allNotifs } = await supabase
+        .from("notifications")
+        .select("id, type")
+        .eq("organization_id", activeOrganizationId)
+        .eq("care_home_id", activeCareHomeId)
+        .or(`user_id.eq.${user.id},user_id.is.null`);
+
+      const unreadNotifs = (allNotifs || []).filter(n =>
+        !readIds.has(n.id) &&
+        !dismissedIds.has(n.id) &&
+        n.type !== "incident" &&
+        !(n.type || "").startsWith("appointment_")
+      );
+      setUnreadNotificationCount(unreadNotifs.length);
+
+      // 4. Action Plans (via notifications table)
+      const { data: allActionPlanNotifs } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("organization_id", activeOrganizationId)
+        .eq("care_home_id", activeCareHomeId)
+        .in("type", ["action_plan", "action_plan_status"])
+        .or(`user_id.eq.${user.id},user_id.is.null`);
+
+      const unreadActionPlanList = (allActionPlanNotifs || []).filter(n =>
+        !readIds.has(n.id) && !dismissedIds.has(n.id)
+      );
+      setTotalNewActionPlansCount(unreadActionPlanList.length);
+    } catch (error) {
+      console.error("Error fetching sidebar counts:", error);
+    }
+  }, [user, activeOrganizationId, activeCareHomeId, supabase]);
+
+  // Initial fetch + real-time subscriptions
   useEffect(() => {
     if (!profile || !user) return;
-
-    async function fetchCounts() {
-      if (!user) return;
-      try {
-        // Fetch dismissals first
-        const { data: dismissals } = await supabase
-          .from("notification_dismissals")
-          .select("notification_id")
-          .eq("user_id", user.id);
-
-        const dismissedIds = new Set((dismissals || []).map(d => d.notification_id));
-
-        // 1. Unread Incidents (via notifications table with type incident)
-        // Check read status for incidents
-        const { data: allIncidentNotifs } = await supabase
-          .from("notifications")
-          .select("id")
-          .eq("organization_id", activeOrganizationId)
-          .eq("type", "incident")
-          .or(`user_id.eq.${user.id},user_id.is.null`);
-
-        const { data: incidentReadStatuses } = await supabase
-          .from("notification_read_status")
-          .select("notification_id")
-          .eq("user_id", user.id);
-
-        const incidentReadIds = new Set((incidentReadStatuses || []).map(r => r.notification_id));
-
-        // Filter out read AND dismissed
-        const unreadIncidentList = (allIncidentNotifs || []).filter(n =>
-          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
-        );
-        setUnreadIncidentCount(unreadIncidentList.length);
-
-        // 2. Unread Appointments (via notifications table)
-        const { data: allAppointmentNotifs } = await supabase
-          .from("notifications")
-          .select("id")
-          .eq("organization_id", activeOrganizationId)
-          .like("type", "appointment_%")
-          .or(`user_id.eq.${user.id},user_id.is.null`);
-
-        const unreadAppointmentList = (allAppointmentNotifs || []).filter(n =>
-          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
-        );
-        setUnreadAppointmentsCount(unreadAppointmentList.length);
-
-        // 3. System Notifications
-        const { data: allNotifs } = await supabase
-          .from("notifications")
-          .select("id")
-          .eq("organization_id", activeOrganizationId)
-          .or(`user_id.eq.${user.id},user_id.is.null`);
-
-        const unreadNotifs = (allNotifs || []).filter(n =>
-          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
-        );
-        setUnreadNotificationCount(unreadNotifs.length);
-
-        // 4. Action Plans (via notifications table)
-        // We now track "unread" updates instead of "total pending tasks" for the badge
-        const { data: allActionPlanNotifs } = await supabase
-          .from("notifications")
-          .select("id")
-          .eq("organization_id", activeOrganizationId)
-          .in("type", ["action_plan", "action_plan_status"])
-          .or(`user_id.eq.${user.id},user_id.is.null`);
-
-        const unreadActionPlanList = (allActionPlanNotifs || []).filter(n =>
-          !incidentReadIds.has(n.id) && !dismissedIds.has(n.id)
-        );
-        setTotalNewActionPlansCount(unreadActionPlanList.length);
-      } catch (error) {
-        console.error("Error fetching sidebar counts:", error);
-      }
-    }
 
     fetchCounts();
 
@@ -157,8 +171,11 @@ export function AppSidebar() {
           event: "*",
           schema: "public",
           table: "notifications",
-          // Only filter by org if we have one, otherwise listen to all (RLS will still protect)
-          ...(activeOrganizationId ? { filter: `organization_id=eq.${activeOrganizationId}` } : {}),
+          ...(activeCareHomeId
+            ? { filter: `care_home_id=eq.${activeCareHomeId}` }
+            : activeOrganizationId
+              ? { filter: `organization_id=eq.${activeOrganizationId}` }
+              : {}),
         },
         () => {
           fetchCounts();
@@ -213,7 +230,16 @@ export function AppSidebar() {
       supabase.removeChannel(channel);
       apChannels.forEach(ch => supabase.removeChannel(ch));
     };
-  }, [profile, user, activeOrganizationId, supabase]);
+  }, [profile, user, activeOrganizationId, activeCareHomeId, supabase, fetchCounts]);
+
+  // Listen for manual sidebar refresh events from other pages
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchCounts();
+    };
+    window.addEventListener("sidebar-counts-refresh", handleRefresh);
+    return () => window.removeEventListener("sidebar-counts-refresh", handleRefresh);
+  }, [fetchCounts]);
 
   const displayName = profile?.care_home_name || profile?.organization_name || "";
   const isStillLoading = isProfileLoading;

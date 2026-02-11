@@ -1,3 +1,3 @@
 export const FEATURES = {
-    SHOW_SIGNUP: false, // Set to true to show Sign Up/Create Account buttons
+    SHOW_SIGNUP: true, // Set to true to show Sign Up/Create Account buttons
 };

@@ -224,7 +224,7 @@ export function canViewLifestyleSocial(role?: string): boolean {
 }
 
 export function canAddLifestyleActivity(role?: string): boolean {
-  return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin";
+  return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin" || role === "care_assistant";
 }
 
 // Hospital Transfer

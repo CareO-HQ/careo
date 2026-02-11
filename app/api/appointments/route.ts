@@ -44,7 +44,7 @@ function createSupabaseClient(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { supabase, response } = createSupabaseClient(request);
-    
+
     // Get user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const residentId = searchParams.get("residentId");
     const teamId = searchParams.get("teamId");
+    const careHomeId = searchParams.get("careHomeId");
     const organizationId = searchParams.get("organizationId");
     const status = searchParams.get("status");
     const includeAll = searchParams.get("includeAll") === "true";
@@ -70,6 +71,9 @@ export async function GET(request: NextRequest) {
     }
     if (teamId) {
       query = query.eq("team_id", teamId);
+    }
+    if (careHomeId) {
+      query = query.eq("care_home_id", careHomeId);
     }
     if (organizationId) {
       query = query.eq("organization_id", organizationId);
@@ -94,14 +98,14 @@ export async function GET(request: NextRequest) {
     // Get read status for current user
     const appointmentIds = (appointments || []).map((apt: any) => apt.id);
     let readStatusMap: Record<string, boolean> = {};
-    
+
     if (appointmentIds.length > 0) {
       const { data: readStatuses } = await supabase
         .from("appointment_read_status")
         .select("appointment_id")
         .eq("user_id", user.id)
         .in("appointment_id", appointmentIds);
-      
+
       if (readStatuses) {
         readStatusMap = readStatuses.reduce((acc: Record<string, boolean>, status: any) => {
           acc[status.appointment_id] = true;
@@ -121,7 +125,7 @@ export async function GET(request: NextRequest) {
             .select("id, first_name, last_name, image_url")
             .eq("id", apt.resident_id)
             .single();
-          
+
           if (residentData) {
             resident = {
               id: residentData.id,
@@ -159,7 +163,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { supabase, response } = createSupabaseClient(request);
-    
+
     // Get user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
@@ -230,6 +234,7 @@ export async function POST(request: NextRequest) {
       .insert({
         resident_id: residentId,
         organization_id: organizationId,
+        care_home_id: resident.care_home_id,
         title,
         description: description || null,
         start_time: startTime,
@@ -259,71 +264,59 @@ export async function POST(request: NextRequest) {
       .single();
 
     const senderName = userData?.name || user.email || "System";
+    const creatorEmail = user.email || "";
 
     // Create notifications for managers and assigned staff
     try {
       const notificationRecipients: Array<{ userId: string; email: string }> = [];
 
-      // Get all managers for the care home
+      // 0. Add creator (self) to recipients so they also see the side bar badge
+      notificationRecipients.push({
+        userId: user.id,
+        email: creatorEmail,
+      });
+
+      // 1. Get all managers for the care home using the users table
       if (resident.care_home_id) {
         const { data: managers, error: managersError } = await supabase
-          .from("care_home_managers")
-          .select("user_id")
-          .eq("care_home_id", resident.care_home_id);
+          .from("users")
+          .select("id, email")
+          .eq("active_care_home_id", resident.care_home_id)
+          .eq("role", "manager");
 
         if (!managersError && managers) {
           for (const manager of managers) {
-            const managerUserId = manager.user_id;
-            // Get manager email from users table
-            const { data: managerUser } = await supabase
-              .from("users")
-              .select("email")
-              .eq("id", managerUserId)
-              .single();
-
-            if (managerUser?.email) {
+            // Check if already in recipients (e.g. if creator is also a manager)
+            const alreadyAdded = notificationRecipients.some(
+              (r) => r.userId === manager.id
+            );
+            if (!alreadyAdded && manager.email) {
               notificationRecipients.push({
-                userId: managerUserId,
-                email: managerUser.email,
+                userId: manager.id,
+                email: manager.email,
               });
             }
           }
         }
       }
 
-      // Add assigned staff if provided
-      if (staffId) {
-        // staffId might be an email or UUID - try both
-        let staffUser;
-        const { data: userById } = await supabase
-          .from("users")
-          .select("id, email")
-          .eq("id", staffId)
-          .single();
-        
-        if (userById) {
-          staffUser = userById;
-        } else {
-          // Try looking up by email
-          const { data: userByEmail } = await supabase
+      // Add assigned staff if resolved
+      if (staffUserId) {
+        // staffUserId was already resolved from staffId earlier
+        const alreadyAdded = notificationRecipients.some(
+          (r) => r.userId === staffUserId
+        );
+        if (!alreadyAdded) {
+          // Look up email for the resolved staff user
+          const { data: staffUserData } = await supabase
             .from("users")
-            .select("id, email")
-            .eq("email", staffId)
+            .select("email")
+            .eq("id", staffUserId)
             .single();
-          staffUser = userByEmail;
-        }
-
-        if (staffUser?.id) {
-          // Check if already in recipients (in case staff is also a manager)
-          const alreadyAdded = notificationRecipients.some(
-            (r) => r.userId === staffUser.id
-          );
-          if (!alreadyAdded) {
-            notificationRecipients.push({
-              userId: staffUser.id,
-              email: staffUser.email,
-            });
-          }
+          notificationRecipients.push({
+            userId: staffUserId,
+            email: staffUserData?.email || "",
+          });
         }
       }
 
@@ -333,6 +326,7 @@ export async function POST(request: NextRequest) {
 
       const notifications = notificationRecipients.map((recipient) => ({
         organization_id: organizationId,
+        care_home_id: resident.care_home_id,
         user_id: recipient.userId,
         title: "New Appointment Created",
         message: notificationMessage,
@@ -344,6 +338,7 @@ export async function POST(request: NextRequest) {
           appointmentId: appointment.id,
           residentId: residentId,
           residentName: `${resident.first_name} ${resident.last_name}`,
+          careHomeId: resident.care_home_id,
           startTime: startTime,
           location: location,
         },
