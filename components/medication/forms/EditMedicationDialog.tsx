@@ -90,7 +90,6 @@ const UpdateMedicationSchema = z.object({
   instructions: z.string().optional(),
   prescriberName: z.string().optional(),
   startDate: z.date().optional(),
-  endDate: z.date().optional(),
   status: z.enum(["active", "completed", "cancelled"]).optional()
 });
 
@@ -126,7 +125,6 @@ export default function EditMedicationDialog({
 }: EditMedicationDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
-  const [endDatePopoverOpen, setEndDatePopoverOpen] = useState(false);
 
   const form = useForm<z.infer<typeof UpdateMedicationSchema>>({
     resolver: zodResolver(UpdateMedicationSchema),
@@ -144,7 +142,6 @@ export default function EditMedicationDialog({
       instructions: medication.instructions || undefined,
       prescriberName: medication.prescriber_name,
       startDate: new Date(medication.start_date),
-      endDate: medication.end_date ? new Date(medication.end_date) : undefined,
       status: medication.status as "active" | "completed" | "cancelled"
     }
   });
@@ -167,7 +164,6 @@ export default function EditMedicationDialog({
       if (values.instructions !== undefined) updates.instructions = values.instructions;
       if (values.prescriberName !== undefined) updates.prescriber_name = values.prescriberName;
       if (values.startDate !== undefined) updates.start_date = values.startDate.toISOString();
-      if (values.endDate !== undefined) updates.end_date = values.endDate?.toISOString();
       if (values.status !== undefined) updates.status = values.status;
 
       const { error } = await supabase
@@ -523,7 +519,7 @@ export default function EditMedicationDialog({
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <FormField
                 control={form.control}
                 name="startDate"
@@ -560,52 +556,6 @@ export default function EditMedicationDialog({
                           onSelect={(date) => {
                             field.onChange(date);
                             setStartDatePopoverOpen(false);
-                          }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="endDate"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>End Date (Optional)</FormLabel>
-                    <Popover
-                      open={endDatePopoverOpen}
-                      onOpenChange={setEndDatePopoverOpen}
-                      modal={true}
-                    >
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "PPP")
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[9999]" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={(date) => {
-                            field.onChange(date);
-                            setEndDatePopoverOpen(false);
                           }}
                           initialFocus
                         />

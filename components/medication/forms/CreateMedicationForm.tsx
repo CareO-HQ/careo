@@ -55,7 +55,6 @@ export default function CreateMedicationForm({
   const [isLoading, startTransition] = useTransition();
   const [step, setStep] = useState(1);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
-  const [endDatePopoverOpen, setEndDatePopoverOpen] = useState(false);
 
   const form = useForm<z.infer<typeof CreateMedicationSchema>>({
     resolver: zodResolver(CreateMedicationSchema),
@@ -74,7 +73,6 @@ export default function CreateMedicationForm({
       instructions: undefined,
       prescriberName: "",
       startDate: toZonedTime(new Date(), "Europe/London"),
-      endDate: undefined,
       status: "active",
       isControlledDrug: false,
       controlledDrugSchedule: undefined,
@@ -118,7 +116,6 @@ export default function CreateMedicationForm({
             instructions: values.instructions,
             prescriber_name: values.prescriberName,
             start_date: values.startDate.toISOString(),
-            end_date: values.endDate?.toISOString(),
             status: values.status,
             is_controlled_drug: values.isControlledDrug,
             controlled_drug_schedule: values.controlledDrugSchedule,
@@ -146,13 +143,7 @@ export default function CreateMedicationForm({
           // We compare standard date strings to avoid time/timezone confusion
           const isStarted = startDateStr <= ukTodayStr;
 
-          let isEnded = false;
-          if (values.endDate) {
-            const endDateStr = format(values.endDate, "yyyy-MM-dd");
-            if (endDateStr < ukTodayStr) isEnded = true;
-          }
-
-          if (isStarted && !isEnded && values.status === 'active') {
+          if (isStarted && values.status === 'active') {
             const intakes = values.times.map((time) => {
               // Construct the datetime string for the UK time
               // e.g. "2024-01-29T08:00:00"
@@ -165,6 +156,7 @@ export default function CreateMedicationForm({
                 medication_id: newMedication.id,
                 resident_id: residentId,
                 scheduled_time: scheduledTimeUTC.toISOString(),
+                quantity: values.timeQuantities?.[time] || 1,
                 status: 'scheduled',
                 organization_id: organizationId,
                 care_home_id: profile?.active_care_home_id
@@ -640,7 +632,7 @@ export default function CreateMedicationForm({
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4 items-end">
+              <div className="grid grid-cols-1 gap-4 items-end">
                 <FormField
                   control={form.control}
                   name="startDate"
@@ -679,53 +671,6 @@ export default function CreateMedicationForm({
                             onSelect={(date) => {
                               if (date) field.onChange(date);
                               setStartDatePopoverOpen(false);
-                            }}
-                            captionLayout="dropdown"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="endDate"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>End date</FormLabel>
-                      <Popover
-                        open={endDatePopoverOpen}
-                        onOpenChange={setEndDatePopoverOpen}
-                        modal
-                      >
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                              onClick={() => setEndDatePopoverOpen((v) => !v)}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={(date) => {
-                              if (date) field.onChange(date);
-                              setEndDatePopoverOpen(false);
                             }}
                             captionLayout="dropdown"
                           />

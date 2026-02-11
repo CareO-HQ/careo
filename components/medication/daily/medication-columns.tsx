@@ -53,7 +53,7 @@ interface Medication {
 }
 
 export const createMedicationColumns = (
-  createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string) => Promise<any>,
+  createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string) => Promise<any>,
   showAdministrateButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string }
@@ -201,7 +201,9 @@ export const createMedicationColumns = (
                   await createAndAdministerMedicationIntake(
                     medication.id,
                     medication.resident_id,
-                    format(time, "HH:mm")
+                    format(time, "HH:mm"),
+                    units,
+                    notes
                   );
 
                   toast.success("Medication administered successfully");

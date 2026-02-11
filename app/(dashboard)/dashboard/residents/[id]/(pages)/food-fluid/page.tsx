@@ -90,6 +90,7 @@ const FoodFluidLogSchema = z.object({
   amountEaten: z.enum(["None", "1/4", "1/2", "3/4", "All"]),
   fluidConsumedMl: z.number().min(0, "Volume cannot be negative").max(2000, "Volume seems too high").optional().or(z.literal(0)),
   signature: z.string().min(1, "Signature is required").max(50, "Signature too long"),
+  time: z.string().min(1, "Time is required"),
 }).refine((data) => {
   // If it's a food entry (not in fluid list), portionServed should be required
   const fluidTypes = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk', 'Soup', 'Smoothie'];
@@ -99,6 +100,18 @@ const FoodFluidLogSchema = z.object({
   message: "Portion served is required for food entries",
   path: ["portionServed"]
 });
+
+const generateTimeOptions = () => {
+  const options: string[] = [];
+  for (let i = 0; i < 24; i++) {
+    for (let j = 0; j < 60; j += 5) {
+      const hour = i.toString().padStart(2, '0');
+      const minute = j.toString().padStart(2, '0');
+      options.push(`${hour}:${minute}`);
+    }
+  }
+  return options;
+};
 
 export default function FoodFluidPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
@@ -270,6 +283,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
       amountEaten: "All",
       fluidConsumedMl: undefined,
       signature: persistentStaffSignature,
+      time: formatInTimeZone(new Date(), UK_TIMEZONE, "HH:mm"),
     },
   });
 
@@ -469,7 +483,19 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           fluid_consumed_ml: values.fluidConsumedMl,
           signature: values.signature,
           date: getUKTodayDate(), // Use UK timezone date
-          timestamp: new Date().toISOString(), // Keep ISO timestamp for database
+          // Calculate timestamp from selected time
+          // Parse the time string (HH:mm)
+          timestamp: (() => {
+            const [hours, minutes] = values.time.split(':').map(Number);
+            const date = new Date();
+            // detailed time setting logic if needed, but for now we trust the UK date + time
+            // We need to create a timestamp that corresponds to today's date + selected time
+            // simpler approach:
+            const today = new Date();
+            // Adjust time
+            today.setHours(hours, minutes, 0, 0);
+            return today.toISOString();
+          })(),
           created_by: profile.id,
         });
 
@@ -489,6 +515,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         amountEaten: "All",
         fluidConsumedMl: undefined,
         signature: values.signature, // Keep the current signature
+        time: getCurrentTime().substring(0, 5), // Reset to current time
       });
 
       // Show quick actions for a few seconds
@@ -1515,6 +1542,32 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
             <Form {...logForm}>
               <form onSubmit={logForm.handleSubmit(onFoodFluidLogSubmit)} className="space-y-4">
+                {/* Time Selection */}
+                <FormField
+                  control={logForm.control}
+                  name="time"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Time</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select time..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="max-h-[200px]">
+                          {generateTimeOptions().map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 {/* Section */}
                 <FormField
                   control={logForm.control}

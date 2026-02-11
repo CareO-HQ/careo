@@ -129,15 +129,7 @@ export function CreateResidentForm({
         dressing: undefined,
         toileting: undefined,
       },
-      emergencyContacts: [
-        {
-          name: "",
-          phoneNumber: "",
-          relationship: "",
-          address: "",
-          isPrimary: true,
-        },
-      ],
+      emergencyContacts: [],
       gpDetails: {
         name: "",
         address: "",
@@ -1049,7 +1041,7 @@ export function CreateResidentForm({
                                   // Set all other contacts to false when this one is set to true
                                   const currentValues =
                                     form.getValues("emergencyContacts");
-                                  currentValues.forEach((_, i) => {
+                                  currentValues?.forEach((_, i) => {
                                     form.setValue(
                                       `emergencyContacts.${i}.isPrimary`,
                                       i === index

@@ -48,7 +48,6 @@ export const CreateMedicationSchema = z
     }),
     instructions: z.string().optional(),
     startDate: z.date(),
-    endDate: z.date().optional(),
     status: z.union([
       z.literal("active"),
       z.literal("completed"),

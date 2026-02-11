@@ -303,7 +303,7 @@ export function ComprehensiveIncidentForm({
       injuredPersonFirstName: resident?.first_name || "",
       injuredPersonSurname: resident?.last_name || "",
       injuredPersonDOB: resident?.date_of_birth ? new Date(resident.date_of_birth) : new Date(),
-      residentInternalId: resident?.internal_id || resident?.id || "",
+      residentInternalId: "",
       dateOfAdmission: resident?.admission_date ? new Date(resident.admission_date) : undefined,
       healthCareNumber: resident?.nhs_health_number || "",
       injuredPersonStatus: ["Resident"],

@@ -252,7 +252,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     return await updateMedicationIntakeStatus(args.intakeId, mappedState);
   };
 
-  const createAndAdministerMedicationIntake = async (medicationId: string, residentId: string, time: string) => {
+  const createAndAdministerMedicationIntake = async (medicationId: string, residentId: string, time: string, quantity: number = 1, notes?: string) => {
     const { data, error } = await supabase
       .from("medication_intakes")
       .insert({
@@ -260,6 +260,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         resident_id: residentId,
         scheduled_time: new Date().toISOString(),
         status: "given",
+        quantity: quantity,
+        comment: notes,
         administered_by_id: profile?.id,
         administered_at: new Date().toISOString(),
         organization_id: profile?.active_organization_id,
