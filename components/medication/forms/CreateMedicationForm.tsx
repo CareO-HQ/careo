@@ -130,20 +130,19 @@ export default function CreateMedicationForm({
 
         // Generate intakes for today if applicable
         if (newMedication && values.scheduleType !== "PRN (As Needed)" && values.times && values.times.length > 0) {
-          const UK_TIMEZONE = "Europe/London";
-          // Get current time in UK
-          const now = new Date();
-          const ukNow = toZonedTime(now, UK_TIMEZONE);
-          const ukTodayStr = format(ukNow, "yyyy-MM-dd");
+          const { getUKTodayDate } = await import("@/lib/date-utils");
+          const ukTodayStr = getUKTodayDate();
 
           // Get start date string (treat the selected date as that day in UK time)
           const startDateStr = format(values.startDate, "yyyy-MM-dd");
 
-          // Check if medication is active today based on dates
+          // Check if medication is active today
           // We compare standard date strings to avoid time/timezone confusion
           const isStarted = startDateStr <= ukTodayStr;
 
           if (isStarted && values.status === 'active') {
+            const UK_TIMEZONE = "Europe/London";
+
             const intakes = values.times.map((time) => {
               // Construct the datetime string for the UK time
               // e.g. "2024-01-29T08:00:00"
@@ -167,7 +166,6 @@ export default function CreateMedicationForm({
 
             if (intakeError) {
               console.error("Error creating initial intakes:", intakeError);
-              // We don't throw here to avoid failing the whole creation, just log it
               toast.error("Medication created but failed to generate today's schedule");
             }
           }
