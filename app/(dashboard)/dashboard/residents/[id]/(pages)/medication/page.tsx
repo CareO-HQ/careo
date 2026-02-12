@@ -98,8 +98,15 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       const rangeStart = fromZonedTime(`${startOfDayStr}T00:00:00`, UK_TIMEZONE);
       const rangeEnd = fromZonedTime(`${startOfDayStr}T23:59:59.999`, UK_TIMEZONE);
 
+      console.log("DEBUG: Fetching medication data for:", {
+        id,
+        selectedDate,
+        rangeStart: rangeStart.toISOString(),
+        rangeEnd: rangeEnd.toISOString()
+      });
+
       // Fetch intakes for selected date
-      const { data: intakes } = await supabase
+      const { data: intakes, error: intakesError } = await supabase
         .from("medication_intakes")
         .select(`
           *,
@@ -109,6 +116,12 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         .gte("scheduled_time", rangeStart.toISOString())
         .lte("scheduled_time", rangeEnd.toISOString());
 
+      if (intakesError) {
+        console.error("DEBUG: Error fetching intakes:", intakesError);
+      } else {
+        console.log("DEBUG: Raw intakes fetched:", intakes);
+      }
+
       setSelectedDateIntakes(intakes || []);
 
       // Fetch medications by group
@@ -116,6 +129,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         .from("medications")
         .select("*")
         .eq("resident_id", id);
+
+      console.log("DEBUG: All medications fetched:", meds);
 
       if (meds) {
         setAllActiveMedications(meds.filter(m => m.status === 'active'));
@@ -342,11 +357,21 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   );
 
   useEffect(() => {
+    console.log("DEBUG: Filtering intakes for time:", selectedTime);
     if (selectedTime && selectedDateIntakes) {
+      console.log("DEBUG: Total intakes to filter:", selectedDateIntakes.length);
       const filtered = selectedDateIntakes.filter((intake) => {
         const intakeTime = formatTimestampToUKTime(intake.scheduled_time);
-        return intakeTime === selectedTime;
+        const match = intakeTime === selectedTime;
+        console.log(`DEBUG: Checking intake ${intake.id}:`, {
+          scheduled_time: intake.scheduled_time,
+          formatted_time: intakeTime,
+          target_time: selectedTime,
+          match
+        });
+        return match;
       });
+      console.log("DEBUG: Filtered intakes count:", filtered.length);
       setFilteredIntakes(filtered);
     } else {
       setFilteredIntakes([]);
