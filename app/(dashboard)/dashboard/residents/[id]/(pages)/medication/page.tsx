@@ -98,12 +98,27 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       const rangeStart = fromZonedTime(`${startOfDayStr}T00:00:00`, UK_TIMEZONE);
       const rangeEnd = fromZonedTime(`${startOfDayStr}T23:59:59.999`, UK_TIMEZONE);
 
+      const startOfDayISO = rangeStart.toISOString();
+      const endOfDayISO = rangeEnd.toISOString();
+
       console.log("DEBUG: Fetching medication data for:", {
         id,
         selectedDate,
-        rangeStart: rangeStart.toISOString(),
-        rangeEnd: rangeEnd.toISOString()
+        startOfDayStr,
+        rangeStart: startOfDayISO,
+        rangeEnd: endOfDayISO,
+        browserTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        browserNow: new Date().toISOString()
       });
+
+      // --- DIAGNOSTIC: Fetch ALL intakes for this resident (no date filter) ---
+      const { data: allIntakes } = await supabase
+        .from("medication_intakes")
+        .select("id, scheduled_time, status, medication_id")
+        .eq("resident_id", id)
+        .order("scheduled_time", { ascending: false })
+        .limit(20);
+      console.log("DEBUG: ALL recent intakes (no date filter, last 20):", allIntakes);
 
       // Fetch intakes for selected date
       const { data: intakes, error: intakesError } = await supabase
@@ -113,16 +128,14 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           medication:medication_id (*)
         `)
         .eq("resident_id", id)
-        .gte("scheduled_time", rangeStart.toISOString())
-        .lte("scheduled_time", rangeEnd.toISOString());
+        .gte("scheduled_time", startOfDayISO)
+        .lte("scheduled_time", endOfDayISO);
 
       if (intakesError) {
         console.error("DEBUG: Error fetching intakes:", intakesError);
       } else {
-        console.log("DEBUG: Raw intakes fetched:", intakes);
+        console.log("DEBUG: Raw intakes fetched for today:", intakes?.length, intakes);
       }
-
-      setSelectedDateIntakes(intakes || []);
 
       // Fetch medications by group
       const { data: meds } = await supabase
@@ -131,6 +144,72 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         .eq("resident_id", id);
 
       console.log("DEBUG: All medications fetched:", meds);
+
+      // --- AUTO-GENERATE TODAY'S INTAKES if none exist ---
+      if ((!intakes || intakes.length === 0) && meds && meds.length > 0) {
+        console.log("DEBUG: No intakes found for today. Checking if we need to auto-generate...");
+
+        const activeScheduledMeds = meds.filter(m =>
+          m.status === 'active' &&
+          m.schedule_type !== 'PRN (As Needed)' &&
+          m.times && m.times.length > 0
+        );
+
+        console.log("DEBUG: Active scheduled medications to generate intakes for:", activeScheduledMeds.length);
+
+        if (activeScheduledMeds.length > 0) {
+          const intakesToInsert: any[] = [];
+
+          for (const med of activeScheduledMeds) {
+            // Check if the medication has started
+            const medStartDate = med.start_date?.split('T')[0] || med.start_date;
+            const isStarted = !medStartDate || medStartDate <= startOfDayStr;
+
+            console.log(`DEBUG: Medication "${med.name}" start_date=${medStartDate}, today=${startOfDayStr}, isStarted=${isStarted}`);
+
+            if (isStarted) {
+              for (const time of med.times) {
+                const dateTimeStr = `${startOfDayStr}T${time}:00`;
+                const scheduledTimeUTC = fromZonedTime(dateTimeStr, UK_TIMEZONE);
+
+                intakesToInsert.push({
+                  medication_id: med.id,
+                  resident_id: id,
+                  scheduled_time: scheduledTimeUTC.toISOString(),
+                  quantity: med.time_quantities?.[time] || 1,
+                  status: 'scheduled',
+                  organization_id: med.organization_id,
+                  care_home_id: profile?.active_care_home_id
+                });
+              }
+            }
+          }
+
+          console.log("DEBUG: Auto-generating intakes:", intakesToInsert.length, intakesToInsert);
+
+          if (intakesToInsert.length > 0) {
+            const { data: newIntakes, error: insertError } = await supabase
+              .from("medication_intakes")
+              .insert(intakesToInsert)
+              .select(`
+                *,
+                medication:medication_id (*)
+              `);
+
+            if (insertError) {
+              console.error("DEBUG: Error auto-generating intakes:", insertError);
+            } else {
+              console.log("DEBUG: Successfully auto-generated intakes:", newIntakes?.length);
+              // Use the newly created intakes
+              setSelectedDateIntakes(newIntakes || []);
+            }
+          }
+        }
+      }
+
+      if (intakes && intakes.length > 0) {
+        setSelectedDateIntakes(intakes);
+      }
 
       if (meds) {
         setAllActiveMedications(meds.filter(m => m.status === 'active'));
