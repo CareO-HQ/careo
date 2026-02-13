@@ -173,8 +173,51 @@ export default function EditMedicationDialog({
 
       if (error) throw error;
 
+      // Issue 4: If times were changed, delete existing 'scheduled' intakes for today (UK time)
+      // so they get regenerated with the new times
+      if (values.times !== undefined) {
+        const { fromZonedTime } = await import("date-fns-tz");
+        const UK_TIMEZONE = "Europe/London";
+        // Get today's date in UK timezone
+        const ukNow = new Date().toLocaleDateString("en-CA", { timeZone: UK_TIMEZONE }); // "YYYY-MM-DD"
+        const startOfDay = fromZonedTime(`${ukNow}T00:00:00`, UK_TIMEZONE).toISOString();
+        const endOfDay = fromZonedTime(`${ukNow}T23:59:59.999`, UK_TIMEZONE).toISOString();
+
+        console.log("DEBUG: Deleting intakes for:", {
+          medicationId: medication.id,
+          ukNow,
+          startOfDay,
+          endOfDay
+        });
+
+        const { data: foundIntakes } = await supabase
+          .from("medication_intakes")
+          .select("id, scheduled_time, status")
+          .eq("medication_id", medication.id)
+          .in("status", ["scheduled", "pending"])
+          .gte("scheduled_time", startOfDay);
+
+        console.log("DEBUG: Found intakes to delete:", foundIntakes);
+
+        const { error: deleteError } = await supabase
+          .from("medication_intakes")
+          .delete()
+          .eq("medication_id", medication.id)
+          .in("status", ["scheduled", "pending"])
+          .gte("scheduled_time", startOfDay);
+
+        if (deleteError) {
+          console.error("DEBUG: Delete failed:", deleteError);
+          toast.error("Failed to cleanup old scheduled intakes. You may see duplicates.");
+        } else {
+          console.log("DEBUG: Delete successful");
+        }
+      }
+
       toast.success("Medication updated successfully");
       onOpenChange(false);
+      // Force a page reload to regenerate intakes with new times
+      window.location.reload();
     } catch (error) {
       console.error("Error updating medication:", error);
       toast.error(
