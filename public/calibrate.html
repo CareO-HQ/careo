@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Body Map Calibration Tool</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --bg: #f8fafc;
+            --panel: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .main-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .map-section {
+            flex: 1;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            position: relative;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            padding: 20px;
+        }
+
+        #map-wrapper {
+            position: relative;
+            display: inline-block;
+            cursor: crosshair;
+            user-select: none;
+        }
+
+        #body-image {
+            display: block;
+            width: 577px;
+            /* Fixed width for consistent calibration */
+            height: 515px;
+            /* Based on 577/515 aspect ratio */
+            pointer-events: none;
+        }
+
+        .region-box {
+            position: absolute;
+            border: 2px solid var(--primary);
+            background-color: rgba(59, 130, 246, 0.2);
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .region-box.active {
+            border-color: #ef4444;
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            z-index: 10;
+        }
+
+        #selection-box {
+            position: absolute;
+            border: 2px dashed #ef4444;
+            background-color: rgba(239, 68, 68, 0.1);
+            display: none;
+            pointer-events: none;
+        }
+
+        .sidebar {
+            width: 350px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        input,
+        select,
+        textarea {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 10px 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+        }
+
+        button.outline {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
+
+        button.danger {
+            background: #ef4444;
+        }
+
+        .region-list {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+
+        .region-item {
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .region-item:hover {
+            background: #f1f5f9;
+        }
+
+        .region-item.selected {
+            background: #e0f2fe;
+            border-left: 3px solid var(--primary);
+        }
+
+        .coords-display {
+            font-family: monospace;
+            background: #1e293b;
+            color: #38bdf8;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 12px;
+            white-space: pre;
+            overflow-x: auto;
+            margin-top: 20px;
+            max-height: 200px;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Body Map Calibration Tool</h1>
+        <div style="display: flex; gap: 10px;">
+            <button class="outline" onclick="copyConfig()">Copy Config</button>
+            <button onclick="downloadJSON()">Download JSON</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="map-section">
+            <div id="map-wrapper">
+                <img id="body-image" src="/images/body_template_without_rectangular_boxes.png" alt="Body Template">
+                <div id="selection-box"></div>
+                <div id="regions-container"></div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="controls">
+                <label>Region ID</label>
+                <input type="text" id="region-id" placeholder="e.g. ANT_HEAD">
+                <label>Region Name</label>
+                <input type="text" id="region-name" placeholder="e.g. Head (Front)">
+                <div style="display: flex; gap: 10px;">
+                    <div style="flex: 1;">
+                        <label>View</label>
+                        <select id="region-view" style="width: 100%;">
+                            <option value="anterior">Anterior</option>
+                            <option value="posterior">Posterior</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Side</label>
+                        <select id="region-side" style="width: 100%;">
+                            <option value="midline">Midline</option>
+                            <option value="left">Left</option>
+                            <option value="right">Right</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 5px;">
+                    <div>
+                        <label style="font-size: 11px;">X (%)</label>
+                        <input type="number" id="coord-x" step="0.1" style="width: 100%;" oninput="manualUpdate()">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px;">Y (%)</label>
+                        <input type="number" id="coord-y" step="0.1" style="width: 100%;" oninput="manualUpdate()">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px;">Width (%)</label>
+                        <input type="number" id="coord-w" step="0.1" style="width: 100%;" oninput="manualUpdate()">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px;">Height (%)</label>
+                        <input type="number" id="coord-h" step="0.1" style="width: 100%;" oninput="manualUpdate()">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button style="flex: 1;" onclick="updateRegion()">Save Region</button>
+                    <button id="delete-btn" class="danger" style="display: none;"
+                        onclick="deleteSelected()">Delete</button>
+                </div>
+                <p class="hint">Click and drag to draw, or drag existing boxes to move.</p>
+            </div>
+
+            <div class="region-list" id="region-list">
+                <!-- List items added here -->
+            </div>
+
+            <div class="coords-display" id="config-output">
+                // Config will appear here
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const wrapper = document.getElementById('map-wrapper');
+        const selectionBox = document.getElementById('selection-box');
+        const regionsContainer = document.getElementById('regions-container');
+        const regionList = document.getElementById('region-list');
+        const output = document.getElementById('config-output');
+        const img = document.getElementById('body-image');
+
+        let isDrawing = false;
+        let isDragging = false;
+        let startX, startY;
+        let dragTarget = null;
+        let dragOffset = { x: 0, y: 0 };
+        let regions = [];
+        let selectedId = null;
+
+        // Load existing regions if any (from body-regions.ts format)
+        const initialData = [];
+
+        wrapper.onmousedown = (e) => {
+            if (e.target.classList.contains('region-box')) {
+                // Start dragging
+                isDragging = true;
+                const id = e.target.getAttribute('data-id');
+                selectRegion(id);
+                dragTarget = regions.find(r => r.region_id === id);
+
+                const rect = wrapper.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                // Calculate offset from top-left of the box in pixels
+                const boxX = (dragTarget.x / 100) * img.offsetWidth;
+                const boxY = (dragTarget.y / 100) * img.offsetHeight;
+
+                dragOffset.x = mouseX - boxX;
+                dragOffset.y = mouseY - boxY;
+
+                e.target.style.cursor = 'grabbing';
+                return;
+            }
+
+            if (e.target !== wrapper && e.target !== img && e.target.id !== 'selection-box') return;
+
+            isDrawing = true;
+            const rect = wrapper.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+
+            selectionBox.style.display = 'block';
+            selectionBox.style.left = startX + 'px';
+            selectionBox.style.top = startY + 'px';
+            selectionBox.style.width = '0px';
+            selectionBox.style.height = '0px';
+
+            deselectAll();
+        };
+
+        window.onmousemove = (e) => {
+            if (isDrawing) {
+                const rect = wrapper.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+
+                const x = Math.min(startX, currentX);
+                const y = Math.min(startY, currentY);
+                const w = Math.abs(currentX - startX);
+                const h = Math.abs(currentY - startY);
+
+                selectionBox.style.left = x + 'px';
+                selectionBox.style.top = y + 'px';
+                selectionBox.style.width = w + 'px';
+                selectionBox.style.height = h + 'px';
+
+                // Update inputs for visual feedback while drawing
+                document.getElementById('coord-x').value = (x / img.offsetWidth * 100).toFixed(1);
+                document.getElementById('coord-y').value = (y / img.offsetHeight * 100).toFixed(1);
+                document.getElementById('coord-w').value = (w / img.offsetWidth * 100).toFixed(1);
+                document.getElementById('coord-h').value = (h / img.offsetHeight * 100).toFixed(1);
+
+            } else if (isDragging && dragTarget) {
+                const rect = wrapper.getBoundingClientRect();
+                let currentX = e.clientX - rect.left - dragOffset.x;
+                let currentY = e.clientY - rect.top - dragOffset.y;
+
+                // Clamp to image bounds
+                currentX = Math.max(0, Math.min(currentX, img.offsetWidth - (dragTarget.width / 100 * img.offsetWidth)));
+                currentY = Math.max(0, Math.min(currentY, img.offsetHeight - (dragTarget.height / 100 * img.offsetHeight)));
+
+                dragTarget.x = parseFloat((currentX / img.offsetWidth * 100).toFixed(1));
+                dragTarget.y = parseFloat((currentY / img.offsetHeight * 100).toFixed(1));
+
+                // Update inputs
+                document.getElementById('coord-x').value = dragTarget.x;
+                document.getElementById('coord-y').value = dragTarget.y;
+
+                renderRegions();
+            }
+        };
+
+        window.onmouseup = () => {
+            if (isDrawing) {
+                isDrawing = false;
+                const w = parseInt(selectionBox.style.width);
+                const h = parseInt(selectionBox.style.height);
+
+                if (w > 5 && h > 5) {
+                    const x = parseInt(selectionBox.style.left);
+                    const y = parseInt(selectionBox.style.top);
+
+                    const xp = (x / img.offsetWidth * 100).toFixed(1);
+                    const yp = (y / img.offsetHeight * 100).toFixed(1);
+                    const wp = (w / img.offsetWidth * 100).toFixed(1);
+                    const hp = (h / img.offsetHeight * 100).toFixed(1);
+
+                    const newRegion = {
+                        region_id: 'NEW_' + Date.now(),
+                        region_name: 'New Region',
+                        view: document.getElementById('region-view').value,
+                        side: document.getElementById('region-side').value,
+                        x: parseFloat(xp),
+                        y: parseFloat(yp),
+                        width: parseFloat(wp),
+                        height: parseFloat(hp)
+                    };
+
+                    regions.push(newRegion);
+                    renderRegions();
+                    selectRegion(newRegion.region_id);
+                }
+                selectionBox.style.display = 'none';
+            }
+
+            if (isDragging) {
+                isDragging = false;
+                dragTarget = null;
+                const boxes = document.querySelectorAll('.region-box');
+                boxes.forEach(b => b.style.cursor = 'grab');
+            }
+        };
+
+        function renderRegions() {
+            regionsContainer.innerHTML = '';
+            regionList.innerHTML = '';
+
+            regions.forEach(r => {
+                // Map visualization
+                const div = document.createElement('div');
+                div.className = 'region-box' + (r.region_id === selectedId ? ' active' : '');
+                div.setAttribute('data-id', r.region_id);
+                div.style.left = r.x + '%';
+                div.style.top = r.y + '%';
+                div.style.width = r.width + '%';
+                div.style.height = r.height + '%';
+                div.style.cursor = 'grab';
+                div.innerHTML = r.region_id.replace('ANT_', '').replace('POST_', '');
+
+                regionsContainer.appendChild(div);
+
+                // List item
+                const item = document.createElement('div');
+                item.className = 'region-item' + (r.region_id === selectedId ? ' selected' : '');
+                item.innerHTML = `<span><strong>${r.region_id}</strong> - ${r.region_name}</span>`;
+                item.onclick = () => selectRegion(r.region_id);
+                regionList.appendChild(item);
+            });
+
+            updateConfigOutput();
+        }
+
+        function selectRegion(id) {
+            selectedId = id;
+            const region = regions.find(r => r.region_id === id);
+
+            if (region) {
+                document.getElementById('region-id').value = region.region_id;
+                document.getElementById('region-name').value = region.region_name;
+                document.getElementById('region-view').value = region.view;
+                document.getElementById('region-side').value = region.side;
+
+                document.getElementById('coord-x').value = region.x;
+                document.getElementById('coord-y').value = region.y;
+                document.getElementById('coord-w').value = region.width;
+                document.getElementById('coord-h').value = region.height;
+
+                document.getElementById('delete-btn').style.display = 'block';
+            }
+
+            renderRegions();
+        }
+
+        function deselectAll() {
+            selectedId = null;
+            document.getElementById('region-id').value = '';
+            document.getElementById('region-name').value = '';
+
+            document.getElementById('coord-x').value = '';
+            document.getElementById('coord-y').value = '';
+            document.getElementById('coord-w').value = '';
+            document.getElementById('coord-h').value = '';
+
+            document.getElementById('delete-btn').style.display = 'none';
+            renderRegions();
+        }
+
+        function updateRegion() {
+            if (!selectedId) return;
+            const index = regions.findIndex(r => r.region_id === selectedId);
+            if (index === -1) return;
+
+            const newId = document.getElementById('region-id').value;
+            regions[index].region_id = newId;
+            regions[index].region_name = document.getElementById('region-name').value;
+            regions[index].view = document.getElementById('region-view').value;
+            regions[index].side = document.getElementById('region-side').value;
+
+            regions[index].x = parseFloat(document.getElementById('coord-x').value) || 0;
+            regions[index].y = parseFloat(document.getElementById('coord-y').value) || 0;
+            regions[index].width = parseFloat(document.getElementById('coord-w').value) || 0;
+            regions[index].height = parseFloat(document.getElementById('coord-h').value) || 0;
+
+            selectedId = newId;
+            renderRegions();
+        }
+
+        function manualUpdate() {
+            if (!selectedId) return;
+            const index = regions.findIndex(r => r.region_id === selectedId);
+            if (index === -1) return;
+
+            regions[index].x = parseFloat(document.getElementById('coord-x').value) || 0;
+            regions[index].y = parseFloat(document.getElementById('coord-y').value) || 0;
+            regions[index].width = parseFloat(document.getElementById('coord-w').value) || 0;
+            regions[index].height = parseFloat(document.getElementById('coord-h').value) || 0;
+
+            renderRegions();
+        }
+
+        function deleteSelected() {
+            if (!selectedId) return;
+            regions = regions.filter(r => r.region_id !== selectedId);
+            deselectAll();
+        }
+
+        function updateConfigOutput() {
+            const lines = regions.map(r =>
+                `{ region_id: "${r.region_id}", region_name: "${r.region_name}", view: "${r.view}", side: "${r.side}", x: ${r.x}, y: ${r.y}, width: ${r.width}, height: ${r.height} },`
+            );
+            output.textContent = lines.join('\n');
+        }
+
+        function copyConfig() {
+            navigator.clipboard.writeText(output.textContent);
+            alert('Config copied to clipboard!');
+        }
+
+
+        function downloadJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(regions, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "body-regions-calibrated.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        // Initialize with real current regions
+        fetch('/api/regions-config').then(r => r.json()).catch(() => []).then(data => {
+            // Since we don't have an API yet, we'll manually seed it with the current config if possible
+            // For now, it starts empty unless we inject it here.
+        });
+    </script>
+</body>
+
+</html>
