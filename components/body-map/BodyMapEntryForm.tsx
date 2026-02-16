@@ -41,6 +41,7 @@ interface BodyMapEntryFormProps {
     onSubmit: (data: z.infer<typeof BodyMapEntrySchema>) => void;
     onCancel: () => void;
     onDelete?: () => void;
+    readOnly?: boolean;
 }
 
 export function BodyMapEntryForm({
@@ -49,6 +50,7 @@ export function BodyMapEntryForm({
     onSubmit,
     onCancel,
     onDelete,
+    readOnly = false,
 }: BodyMapEntryFormProps) {
     const form = useForm<z.infer<typeof BodyMapEntrySchema>>({
         resolver: zodResolver(BodyMapEntrySchema),
@@ -78,7 +80,7 @@ export function BodyMapEntryForm({
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Observation Type</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={readOnly}>
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select condition type" />
@@ -108,7 +110,7 @@ export function BodyMapEntryForm({
                             <FormItem>
                                 <FormLabel>Measurements (e.g. 2cm x 3cm)</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="Enter dimensions" {...field} />
+                                    <Input placeholder="Enter dimensions" {...field} disabled={readOnly} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -122,7 +124,7 @@ export function BodyMapEntryForm({
                             <FormItem>
                                 <FormLabel>Notes</FormLabel>
                                 <FormControl>
-                                    <Textarea placeholder="Additional details..." {...field} />
+                                    <Textarea placeholder="Additional details..." {...field} disabled={readOnly} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -139,6 +141,7 @@ export function BodyMapEntryForm({
                                     onChange={field.onChange}
                                     dateLabel="Observation Date"
                                     timeLabel="Observation Time"
+                                    disabled={readOnly}
                                 />
                                 <FormMessage />
                             </FormItem>
@@ -149,12 +152,12 @@ export function BodyMapEntryForm({
 
                     <div className="flex justify-between pt-4">
                         <div className="space-x-2">
-                            <Button type="submit">Save Entry</Button>
+                            {!readOnly && <Button type="submit">Save Entry</Button>}
                             <Button type="button" variant="outline" onClick={onCancel}>
-                                Cancel
+                                {readOnly ? "Close" : "Cancel"}
                             </Button>
                         </div>
-                        {onDelete && (
+                        {!readOnly && onDelete && (
                             <Button type="button" variant="destructive" onClick={onDelete}>
                                 Delete
                             </Button>

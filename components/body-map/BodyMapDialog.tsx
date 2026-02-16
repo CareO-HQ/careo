@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { BODY_REGIONS } from "@/lib/config/body-regions";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 interface BodyMapDialogProps {
     isOpen: boolean;
@@ -218,6 +219,7 @@ export function BodyMapDialog({
                                         setEditingEntry(null);
                                     }}
                                     onDelete={editingEntry ? handleDeleteEntry : undefined}
+                                    readOnly={viewMode}
                                 />
                             ) : (
                                 <div className="space-y-6">
@@ -242,15 +244,52 @@ export function BodyMapDialog({
                                                         }
                                                     }}
                                                 >
-                                                    <div className="flex justify-between items-start">
-                                                        <span className="font-medium text-sm">{entry.region_name}</span>
+                                                    <div className="flex justify-between items-center gap-2">
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-medium text-sm truncate">{entry.region_name}</span>
+                                                                <span className="text-[10px] text-muted-foreground capitalize border-l pl-2 leading-none">
+                                                                    {entry.condition_type}
+                                                                </span>
+                                                            </div>
+                                                            {entry.measurements && (
+                                                                <p className="text-[10px] mt-0.5 italic text-slate-500 truncate">{entry.measurements}</p>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex gap-1.5 shrink-0 ml-auto">
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-8 text-xs"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setViewMode(true);
+                                                                    const region = BODY_REGIONS.find(r => r.region_id === entry.region_id);
+                                                                    if (region) {
+                                                                        setSelectedRegion(region);
+                                                                        setEditingEntry(entry);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                View
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                className="h-8 text-xs"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setViewMode(false);
+                                                                    const region = BODY_REGIONS.find(r => r.region_id === entry.region_id);
+                                                                    if (region) {
+                                                                        setSelectedRegion(region);
+                                                                        setEditingEntry(entry);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Edit
+                                                            </Button>
+                                                        </div>
                                                     </div>
-                                                    <p className="text-xs text-muted-foreground capitalize mt-1">
-                                                        {entry.condition_type}
-                                                    </p>
-                                                    {entry.measurements && (
-                                                        <p className="text-xs mt-1 italic">{entry.measurements}</p>
-                                                    )}
                                                 </div>
                                             ))}
                                         </div>
