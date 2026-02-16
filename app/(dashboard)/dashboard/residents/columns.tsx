@@ -100,10 +100,13 @@ const AllergiesCell = ({ residentId }: { residentId: string }) => {
 // Component for displaying next medication intake
 const NextMedicationCell = ({ residentId }: { residentId: string }) => {
   const [nextIntakes, setNextIntakes] = useState<any[]>([]);
+  const [fallbackMeds, setFallbackMeds] = useState<any[]>([]);
+  const [fallbackTime, setFallbackTime] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchNextMedication() {
+      // First try: look for existing intakes
       const { data, error } = await supabase
         .from("medication_intakes")
         .select(`
@@ -117,11 +120,49 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
         .limit(10);
 
       if (!error && data && data.length > 0) {
-        // Find all intakes that share the same earliest scheduled time
         const earliestTime = data[0].scheduled_time;
         const matchingIntakes = data.filter(i => i.scheduled_time === earliestTime);
         setNextIntakes(matchingIntakes);
+        setIsLoading(false);
+        return;
       }
+
+      // Fallback: calculate from medication schedules
+      const { data: meds } = await supabase
+        .from("medications")
+        .select("*")
+        .eq("resident_id", residentId)
+        .eq("status", "active")
+        .not("schedule_type", "eq", "PRN (As Needed)");
+
+      if (meds && meds.length > 0) {
+        const now = new Date();
+        const ukNowStr = now.toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hour12: false });
+
+        // Find the next scheduled time across all medications
+        let nearestTime: string | null = null;
+        let nearestMeds: any[] = [];
+
+        for (const med of meds) {
+          if (!med.times || med.times.length === 0) continue;
+          for (const time of med.times) {
+            if (time > ukNowStr) {
+              if (!nearestTime || time < nearestTime) {
+                nearestTime = time;
+                nearestMeds = [med];
+              } else if (time === nearestTime) {
+                nearestMeds.push(med);
+              }
+            }
+          }
+        }
+
+        if (nearestTime && nearestMeds.length > 0) {
+          setFallbackTime(nearestTime);
+          setFallbackMeds(nearestMeds);
+        }
+      }
+
       setIsLoading(false);
     }
     fetchNextMedication();
@@ -131,59 +172,101 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
-  if (nextIntakes.length === 0) {
-    return <Badge variant="outline">None</Badge>;
+  // Render from intakes if available
+  if (nextIntakes.length > 0) {
+    const primaryIntake = nextIntakes[0];
+    const scheduledDateStr = formatTimestampToUKDate(primaryIntake.scheduled_time);
+    const timeString = formatTimestampToUKTime(primaryIntake.scheduled_time);
+    const today = getUKTodayDate();
+    const isToday = scheduledDateStr === today;
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            variant="table"
+            className={cn(
+              "flex items-center gap-1 text-primary cursor-help",
+              isToday && "bg-blue-50 text-blue-700 border-blue-300"
+            )}
+          >
+            <Clock className="w-3 h-3" />
+            <div className="flex items-center gap-1">
+              <span>{isToday ? `Today ${timeString}` : scheduledDateStr}</span>
+              {nextIntakes.length > 1 && (
+                <span className="bg-primary/10 text-[10px] px-1 rounded-sm">
+                  +{nextIntakes.length - 1}
+                </span>
+              )}
+            </div>
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent className="bg-white border p-3">
+          <div className="flex flex-col gap-3">
+            <p className="font-semibold text-xs text-muted-foreground border-b pb-1">
+              Scheduled for {timeString}
+            </p>
+            {nextIntakes.map((intake, index) => (
+              <div key={intake.id} className={cn("flex flex-col gap-0.5", index !== 0 && "pt-2 border-t border-dashed")}>
+                <p className="font-medium text-sm text-primary">
+                  {intake.medication?.name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {intake.medication?.strength}
+                  {intake.medication?.strength_unit} -{" "}
+                  {intake.medication?.dosage_form}
+                </p>
+              </div>
+            ))}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    );
   }
 
-  const primaryIntake = nextIntakes[0];
-  // Format times in UK timezone
-  const scheduledDateStr = formatTimestampToUKDate(primaryIntake.scheduled_time);
-  const timeString = formatTimestampToUKTime(primaryIntake.scheduled_time);
-  const today = getUKTodayDate();
-  const isToday = scheduledDateStr === today;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge
-          variant="table"
-          className={cn(
-            "flex items-center gap-1 text-primary cursor-help",
-            isToday && "bg-blue-50 text-blue-700 border-blue-300"
-          )}
-        >
-          <Clock className="w-3 h-3" />
-          <div className="flex items-center gap-1">
-            <span>{isToday ? `Today ${timeString}` : scheduledDateStr}</span>
-            {nextIntakes.length > 1 && (
-              <span className="bg-primary/10 text-[10px] px-1 rounded-sm">
-                +{nextIntakes.length - 1}
-              </span>
-            )}
-          </div>
-        </Badge>
-      </TooltipTrigger>
-      <TooltipContent className="bg-white border p-3">
-        <div className="flex flex-col gap-3">
-          <p className="font-semibold text-xs text-muted-foreground border-b pb-1">
-            Scheduled for {timeString}
-          </p>
-          {nextIntakes.map((intake, index) => (
-            <div key={intake.id} className={cn("flex flex-col gap-0.5", index !== 0 && "pt-2 border-t border-dashed")}>
-              <p className="font-medium text-sm text-primary">
-                {intake.medication?.name}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {intake.medication?.strength}
-                {intake.medication?.strength_unit} -{" "}
-                {intake.medication?.dosage_form}
-              </p>
+  // Render from fallback schedule
+  if (fallbackTime && fallbackMeds.length > 0) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            variant="table"
+            className="flex items-center gap-1 text-primary cursor-help bg-blue-50 text-blue-700 border-blue-300"
+          >
+            <Clock className="w-3 h-3" />
+            <div className="flex items-center gap-1">
+              <span>Today {fallbackTime}</span>
+              {fallbackMeds.length > 1 && (
+                <span className="bg-primary/10 text-[10px] px-1 rounded-sm">
+                  +{fallbackMeds.length - 1}
+                </span>
+              )}
             </div>
-          ))}
-        </div>
-      </TooltipContent>
-    </Tooltip>
-  );
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent className="bg-white border p-3">
+          <div className="flex flex-col gap-3">
+            <p className="font-semibold text-xs text-muted-foreground border-b pb-1">
+              Scheduled for {fallbackTime}
+            </p>
+            {fallbackMeds.map((med, index) => (
+              <div key={med.id} className={cn("flex flex-col gap-0.5", index !== 0 && "pt-2 border-t border-dashed")}>
+                <p className="font-medium text-sm text-primary">
+                  {med.name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {med.strength}
+                  {med.strength_unit} - {med.dosage_form}
+                </p>
+              </div>
+            ))}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return <Badge variant="outline">None</Badge>;
 };
 
 // Component for displaying alerts (real data from alerts system)

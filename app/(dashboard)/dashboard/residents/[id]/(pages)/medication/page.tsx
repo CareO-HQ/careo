@@ -63,12 +63,14 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const { profile } = useProfile();
+  const autoGenInProgress = React.useRef(false);
 
   const [resident, setResident] = useState<Resident | null>(null);
   const [selectedDateIntakes, setSelectedDateIntakes] = useState<any[]>([]);
   const [prnOrTopicalMedications, setPrnOrTopicalMedications] = useState<any[]>([]);
   const [allActiveMedications, setAllActiveMedications] = useState<any[]>([]);
   const [discontinuedMedications, setDiscontinuedMedications] = useState<any[]>([]);
+  const [completedCancelledMedications, setCompletedCancelledMedications] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [medicationRoundStatus, setMedicationRoundStatus] = useState<any>(null);
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
@@ -129,13 +131,11 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         `)
         .eq("resident_id", id)
         .gte("scheduled_time", startOfDayISO)
-        .lte("scheduled_time", endOfDayISO);
+        .lte("scheduled_time", endOfDayISO)
+        .order("scheduled_time", { ascending: true })
+        .order("id", { ascending: true }); // Improved position stability
 
-      if (intakesError) {
-        console.error("DEBUG: Error fetching intakes:", intakesError);
-      } else {
-        console.log("DEBUG: Raw intakes fetched for today:", intakes?.length, intakes);
-      }
+      if (intakesError) throw intakesError;
 
       // Fetch medications by group
       const { data: meds } = await supabase
@@ -145,69 +145,80 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
       console.log("DEBUG: All medications fetched:", meds);
 
-      // --- AUTO-GENERATE TODAY'S INTAKES if none exist ---
-      if ((!intakes || intakes.length === 0) && meds && meds.length > 0) {
-        console.log("DEBUG: No intakes found for today. Checking if we need to auto-generate...");
+      // --- AUTO-GENERATE TODAY'S INTAKES (per-medication, handles missing & time edits) ---
+      // Guard: Only auto-generate if we have a profile (need org_id/care_home_id)
+      // and not already in progress
+      let didAutoGenerate = false;
+      if (meds && meds.length > 0 && profile && !autoGenInProgress.current) {
+        autoGenInProgress.current = true;
+        try {
+          const activeScheduledMeds = meds.filter(m =>
+            m.status === 'active' &&
+            m.schedule_type !== 'PRN (As Needed)' &&
+            m.times && m.times.length > 0
+          );
 
-        const activeScheduledMeds = meds.filter(m =>
-          m.status === 'active' &&
-          m.schedule_type !== 'PRN (As Needed)' &&
-          m.times && m.times.length > 0
-        );
+          // Build a set of existing (medication_id + normalized_scheduled_time) combos
+          // Normalize timestamps via new Date().toISOString() to avoid format mismatches
+          // (DB may return "+00:00" while JS toISOString() uses ".000Z")
+          const existingIntakeKeys = new Set(
+            (intakes || []).map((i: any) => `${i.medication_id}_${new Date(i.scheduled_time).toISOString()}`)
+          );
 
-        console.log("DEBUG: Active scheduled medications to generate intakes for:", activeScheduledMeds.length);
-
-        if (activeScheduledMeds.length > 0) {
           const intakesToInsert: any[] = [];
 
           for (const med of activeScheduledMeds) {
-            // Check if the medication has started
             const medStartDate = med.start_date?.split('T')[0] || med.start_date;
             const isStarted = !medStartDate || medStartDate <= startOfDayStr;
-
-            console.log(`DEBUG: Medication "${med.name}" start_date=${medStartDate}, today=${startOfDayStr}, isStarted=${isStarted}`);
 
             if (isStarted) {
               for (const time of med.times) {
                 const dateTimeStr = `${startOfDayStr}T${time}:00`;
                 const scheduledTimeUTC = fromZonedTime(dateTimeStr, UK_TIMEZONE);
+                const normalizedISO = scheduledTimeUTC.toISOString();
+                const key = `${med.id}_${normalizedISO}`;
 
-                intakesToInsert.push({
-                  medication_id: med.id,
-                  resident_id: id,
-                  scheduled_time: scheduledTimeUTC.toISOString(),
-                  quantity: med.time_quantities?.[time] || 1,
-                  status: 'scheduled',
-                  organization_id: med.organization_id,
-                  care_home_id: profile?.active_care_home_id
-                });
+                if (!existingIntakeKeys.has(key)) {
+                  intakesToInsert.push({
+                    medication_id: med.id,
+                    resident_id: id,
+                    scheduled_time: normalizedISO,
+                    quantity: med.time_quantities?.[time] || 1,
+                    status: 'scheduled',
+                    organization_id: med.organization_id,
+                    // Fallback chain: medication -> resident -> profile
+                    care_home_id: med.care_home_id || residentData?.care_home_id || profile?.active_care_home_id
+                  });
+                  // Add to the set immediately to prevent duplicates within the same loop if any
+                  existingIntakeKeys.add(key);
+                }
               }
             }
           }
 
-          console.log("DEBUG: Auto-generating intakes:", intakesToInsert.length, intakesToInsert);
-
           if (intakesToInsert.length > 0) {
-            const { data: newIntakes, error: insertError } = await supabase
+            console.log("DEBUG: Auto-generating intakes:", intakesToInsert);
+            const { data: newIntakes, error: genError } = await supabase
               .from("medication_intakes")
               .insert(intakesToInsert)
-              .select(`
-                *,
-                medication:medication_id (*)
-              `);
+              .select("*, medication:medication_id (*)");
 
-            if (insertError) {
-              console.error("DEBUG: Error auto-generating intakes:", insertError);
+            if (genError) {
+              console.error("DEBUG: Error auto-generating intakes:", genError);
             } else {
-              console.log("DEBUG: Successfully auto-generated intakes:", newIntakes?.length);
-              // Use the newly created intakes
-              setSelectedDateIntakes(newIntakes || []);
+              didAutoGenerate = true;
+              // Merge new intakes with existing and sort stably
+              const allIntakesForDay = [...(intakes || []), ...(newIntakes || [])]
+                .sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time) || a.id.localeCompare(b.id));
+              setSelectedDateIntakes(allIntakesForDay);
             }
           }
+        } finally {
+          autoGenInProgress.current = false;
         }
       }
 
-      if (intakes && intakes.length > 0) {
+      if (!didAutoGenerate && intakes && intakes.length > 0) {
         setSelectedDateIntakes(intakes);
       }
 
@@ -218,6 +229,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           (m.schedule_type === 'PRN (As Needed)' || m.route === 'Topical')
         ));
         setDiscontinuedMedications(meds.filter(m => m.status === 'discontinued'));
+        setCompletedCancelledMedications(meds.filter(m => m.status === 'completed' || m.status === 'cancelled'));
       }
 
 
@@ -231,7 +243,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
       // Fetch round status
       if (selectedTime) {
-        const dateStr = selectedDate.toISOString().split("T")[0];
+        const dateStr = format(selectedDate, "yyyy-MM-dd");
         const { data: round } = await supabase
           .from("medication_rounds")
           .select("*")
@@ -371,7 +383,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const handleCompleteMedicationRound = async () => {
     if (!id || !selectedTime || !profile) return;
     try {
-      const dateStr = selectedDate.toISOString().split("T")[0];
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
       const { error } = await supabase
         .from("medication_rounds")
         .upsert({
@@ -436,26 +448,29 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   );
 
   useEffect(() => {
-    console.log("DEBUG: Filtering intakes for time:", selectedTime);
     if (selectedTime && selectedDateIntakes) {
-      console.log("DEBUG: Total intakes to filter:", selectedDateIntakes.length);
       const filtered = selectedDateIntakes.filter((intake) => {
         const intakeTime = formatTimestampToUKTime(intake.scheduled_time);
         const match = intakeTime === selectedTime;
-        console.log(`DEBUG: Checking intake ${intake.id}:`, {
-          scheduled_time: intake.scheduled_time,
-          formatted_time: intakeTime,
-          target_time: selectedTime,
-          match
-        });
+
+        // Issue 7: Show intakes even if parent medication is completed/cancelled IF:
+        // 1. The intake itself has been acted upon (not just scheduled/pending)
+        // 2. OR the entire medication round for this slot is already completed
+        const medStatus = intake.medication?.status;
+        const isActedUpon = intake.status !== 'scheduled' && intake.status !== 'pending';
+        const isRoundCompleted = medicationRoundStatus?.status === 'completed';
+
+        if ((medStatus === 'completed' || medStatus === 'cancelled') && !isActedUpon && !isRoundCompleted) {
+          return false;
+        }
+
         return match;
       });
-      console.log("DEBUG: Filtered intakes count:", filtered.length);
       setFilteredIntakes(filtered);
     } else {
       setFilteredIntakes([]);
     }
-  }, [selectedTime, selectedDateIntakes]);
+  }, [selectedTime, selectedDateIntakes, medicationRoundStatus]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><p>Loading...</p></div>;
@@ -562,6 +577,13 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         <p className="font-semibold">All Active Medications</p>
         <DataTable columns={allActiveMedicationColumns} data={allActiveMedications} />
       </div>
+
+      {completedCancelledMedications.length > 0 && (
+        <div className="flex flex-col gap-4 mt-8 p-6 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="font-semibold text-amber-800">Completed / Cancelled Medications</p>
+          <DataTable columns={allActiveMedicationColumns} data={completedCancelledMedications} />
+        </div>
+      )}
 
       {discontinuedMedications.length > 0 && (
         <div className="flex flex-col gap-4 mt-8 p-6 bg-red-50 border border-red-200 rounded-lg">
