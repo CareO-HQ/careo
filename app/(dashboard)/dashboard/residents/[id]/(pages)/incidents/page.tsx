@@ -60,6 +60,8 @@ import { NHSReportForm } from "./components/nhs-report-form";
 import { BHSCTReportForm } from "./components/bhsct-report-form";
 import { SEHSCTReportForm } from "./components/sehsct-report-form";
 import { generateIncidentPDF } from "./utils";
+import { BodyMapDialog } from "@/components/body-map/BodyMapDialog";
+import { BodyMapData } from "@/types/body-map";
 
 import {
   Dialog,
@@ -107,6 +109,25 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const [showRestrictivePracticeForm, setShowRestrictivePracticeForm] = React.useState(false);
   const [restrictivePracticeIncident, setRestrictivePracticeIncident] = React.useState<any>(null);
 
+  // Body Map State
+  const [showBodyMap, setShowBodyMap] = React.useState(false);
+  const [bodyMapIncidentId, setBodyMapIncidentId] = React.useState<string | null>(null);
+  const [bodyMapMetadata, setBodyMapMetadata] = React.useState<{
+    residentName?: string;
+    incidentDate?: string;
+    incidentType?: string;
+  }>({});
+  const [bodyMapInitialData, setBodyMapInitialData] = React.useState<BodyMapData | undefined>(undefined);
+
+  const handleBodyMap = (incidentId: string, residentName?: string, incidentDate?: string, incidentType?: string) => {
+    const incident = incidents?.find(i => i.id === incidentId);
+    if (incident) {
+      setBodyMapIncidentId(incidentId);
+      setBodyMapInitialData(incident.body_map_data);
+      setBodyMapMetadata({ residentName, incidentDate, incidentType });
+      setShowBodyMap(true);
+    }
+  };
   const [resident, setResident] = React.useState<any>(undefined);
   const fullName = resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : "";
   const initials = resident ? `${(resident.first_name || "R")[0]}${(resident.last_name || "E")[0]}`.toUpperCase() : "RE";
@@ -484,20 +505,6 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
       toast.error("Failed to generate NHS report PDF");
       console.error("PDF generation error:", error);
     }
-  };
-
-  const handleBodyMap = (incidentId: string) => {
-    const incident = incidents?.find(i => i.id === incidentId);
-    if (!incident) {
-      toast.error("Incident not found");
-      return;
-    }
-
-    // For now, we'll show a message. In production, this would open a body map interface
-    toast.info("Body map feature will open an interactive body diagram to mark injury locations");
-
-    // You could navigate to a body map page or open a dialog
-    // router.push(`/dashboard/residents/${id}/incidents/${incidentId}/body-map`);
   };
 
   const handlePS1Report = async (incidentId: string) => {
@@ -1452,6 +1459,16 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                               {report.trust_name}
                             </Badge>
                           ))}
+                          {incident.body_map_data?.entries?.length > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-purple-50 text-purple-700 border-purple-200 cursor-pointer hover:bg-purple-100 transition-colors"
+                              onClick={() => handleBodyMap(incident.id, fullName, formatDateForDisplay(incident.date), incident.incident_types?.join(", ") || "N/A")}
+                            >
+                              <MapIcon className="w-3 h-3 mr-1" />
+                              Body Map
+                            </Badge>
+                          )}
                         </div>
                       </div>
 
@@ -1508,7 +1525,11 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                               )}
                             </>
                           )}
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => {
+                            const incidentDate = incident.date ? formatDateForDisplay(incident.date) : "N/A";
+                            const incidentType = incident.incident_types?.join(", ") || "N/A";
+                            handleBodyMap(incident.id, fullName, incidentDate, incidentType);
+                          }}>
                             <User className="w-4 h-4 mr-2" />
                             <span>Body Map</span>
                           </DropdownMenuItem>
@@ -1654,6 +1675,22 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
             </div>
           </CardContent>
         </Card>
+
+        {/* Body Map Dialog */}
+        {bodyMapIncidentId && (
+          <BodyMapDialog
+            isOpen={showBodyMap}
+            onClose={() => setShowBodyMap(false)}
+            incidentId={bodyMapIncidentId!}
+            residentName={bodyMapMetadata.residentName}
+            incidentDate={bodyMapMetadata.incidentDate}
+            incidentType={bodyMapMetadata.incidentType}
+            initialData={bodyMapInitialData}
+            onSave={() => {
+              fetchData();
+            }}
+          />
+        )}
 
         {/* Report Incident Form */}
         {resident && (
