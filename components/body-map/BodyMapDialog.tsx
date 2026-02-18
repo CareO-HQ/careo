@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
     Dialog,
     DialogContent,
@@ -55,37 +57,159 @@ export function BodyMapDialog({
 
         setIsDownloading(true);
         try {
-            const response = await fetch("/api/pdf/body-map", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    entries: data.entries,
-                    residentName,
-                    incidentDate,
-                    incidentType,
-                }),
+            // Initialize jsPDF
+            const doc = new jsPDF();
+            const pageWidth = doc.internal.pageSize.width;
+            const margin = 14;
+
+            // --- Header ---
+            doc.setFillColor(0, 94, 184); // #005eb8 NHS Blue
+            doc.rect(0, 0, pageWidth, 20, 'F');
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(16);
+            doc.setFont("helvetica", "bold");
+            doc.text("Body Mapping Documentation", margin, 13);
+
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            const rightText = (text: string, y: number) => {
+                const textWidth = doc.getTextWidth(text);
+                doc.text(text, pageWidth - margin - textWidth, y);
+            };
+            rightText("Confidential Medical Record", 13);
+
+            // --- Resident & Incident Info ---
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(10);
+            let yPos = 30;
+            const lineHeight = 6;
+
+            doc.setFont("helvetica", "bold");
+            doc.text("Resident Information", margin, yPos);
+            yPos += lineHeight + 2;
+
+            doc.setFont("helvetica", "normal");
+            doc.text(`Resident: ${residentName || "N/A"}`, margin, yPos);
+            doc.text(`Incident Type: ${incidentType || "N/A"}`, pageWidth / 2, yPos);
+            yPos += lineHeight;
+            doc.text(`Incident Date: ${incidentDate || "N/A"}`, margin, yPos);
+            doc.text(`Report Date: ${new Date().toLocaleDateString("en-GB")}`, pageWidth / 2, yPos);
+            yPos += 10;
+
+            // --- Body Map Image & Markers ---
+            doc.setFont("helvetica", "bold");
+            doc.text("Anatomical Distribution", margin, yPos);
+            yPos += 5;
+
+            // Define map dimensions on PDF
+            const mapWidth = 140;
+            const mapHeight = (mapWidth * 515) / 577; // Maintain aspect ratio
+            const mapX = (pageWidth - mapWidth) / 2;
+            const mapY = yPos;
+
+            // Draw Background Rectangle for the map
+            doc.setDrawColor(226, 232, 240);
+            doc.rect(mapX, mapY, mapWidth, mapHeight);
+
+            // Add the image
+            const imgPath = "/images/body_template_without_rectangular_boxes.png";
+            // We need to use base64 or a loaded image for jsPDF
+            // Since this is client-side, we can fetch it or use the already loaded image in the DOM
+
+            const loadImage = (src: string): Promise<HTMLImageElement> => {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = src;
+                });
+            };
+
+            const img = await loadImage(imgPath);
+            doc.addImage(img, 'PNG', mapX, mapY, mapWidth, mapHeight);
+
+            // Draw Markers
+            data.entries.forEach(entry => {
+                const region = BODY_REGIONS.find(r => r.region_id === entry.region_id);
+                if (region) {
+                    const isResolved = String(entry.status).toLowerCase() === "resolved";
+
+                    // Convert percentage coordinates to PDF coordinates
+                    const rectX = mapX + (region.x * mapWidth) / 100;
+                    const rectY = mapY + (region.y * mapHeight) / 100;
+                    const rectW = (region.width * mapWidth) / 100;
+                    const rectH = (region.height * mapHeight) / 100;
+
+                    // Set marker style
+                    if (isResolved) {
+                        doc.setFillColor(34, 197, 94); // #22c55e Green
+                        doc.setDrawColor(34, 197, 94);
+                        doc.setGState(new (doc as any).GState({ opacity: 0.2 }));
+                    } else {
+                        doc.setFillColor(168, 85, 247); // #a855f7 Purple
+                        doc.setDrawColor(147, 51, 234);
+                        doc.setGState(new (doc as any).GState({ opacity: 0.4 }));
+                    }
+
+                    doc.rect(rectX, rectY, rectW, rectH, 'F');
+                    doc.setGState(new (doc as any).GState({ opacity: 1.0 }));
+                    doc.rect(rectX, rectY, rectW, rectH, 'S');
+                }
             });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.details || errorData.error || "Failed to generate PDF");
-            }
+            yPos = mapY + mapHeight + 15;
 
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `body-map-${residentName?.replace(/\s+/g, "-") || "report"}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            toast.success("PDF downloaded successfully");
+            // --- Clinical Observations Table ---
+            doc.setFont("helvetica", "bold");
+            doc.text("Clinical Observations", margin, yPos);
+            yPos += 5;
+
+            const tableData = data.entries.map(entry => [
+                entry.region_name,
+                entry.condition_type,
+                `${entry.notes || ""}${entry.measurements ? `\nSize: ${entry.measurements}` : ""}`,
+                entry.date_time ? new Date(entry.date_time).toLocaleDateString("en-GB") : "N/A"
+            ]);
+
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Region', 'Observation Type', 'Notes & Measurements', 'Recorded Date']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: {
+                    fillColor: [241, 245, 249],
+                    textColor: [51, 65, 85],
+                    fontStyle: 'bold',
+                    lineWidth: 0.1
+                },
+                styles: {
+                    fontSize: 9,
+                    cellPadding: 3
+                },
+                columnStyles: {
+                    0: { cellWidth: 35 },
+                    1: { cellWidth: 35 },
+                    2: { cellWidth: 'auto' },
+                    3: { cellWidth: 30 }
+                }
+            });
+
+            // --- Footer ---
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            doc.text(`Generated by CareO System on ${new Date().toLocaleString("en-GB")}`, margin, doc.internal.pageSize.height - 10);
+            doc.text(`Confidential Medical Record`, pageWidth - margin - doc.getTextWidth(`Confidential Medical Record`), doc.internal.pageSize.height - 10);
+
+            // Save the PDF
+            doc.save(`body-map-${residentName?.replace(/\s+/g, "-") || "report"}-${new Date().toISOString().split("T")[0]}.pdf`);
+
+            toast.success("PDF generated successfully");
         } catch (error) {
-            console.error("PDF download error:", error);
-            toast.error("Failed to download PDF");
+            console.error("PDF generation error:", error);
+            toast.error("Failed to generate PDF locally");
         } finally {
             setIsDownloading(false);
         }
