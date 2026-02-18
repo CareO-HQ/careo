@@ -324,6 +324,14 @@ export const config = {
       description: "Confidential records",
       carePlan: true,
       forms: []
+    },
+    {
+      type: "folder",
+      key: "moving-handling",
+      value: "Moving and Handling",
+      description: "Moving and Handling assessments and risk management.",
+      carePlan: true,
+      forms: []
     }
   ]
 };

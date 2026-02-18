@@ -11,35 +11,27 @@ export const admissionAssessmentSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   dateOfBirth: z.number(),
-  bedroomNumber: z.string().min(1, "Bedroom number is required"),
+  bedroomNumber: z.string().optional(),
   admittedFrom: z.string().optional(),
   religion: z.string().optional(),
   telephoneNumber: z.string().optional(),
   gender: z.enum(["MALE", "FEMALE"]).optional(),
-  NHSNumber: z.string().min(1, "NHS number is required"),
+  NHSNumber: z.string().optional(),
   ethnicity: z.string().optional(),
 
   // Next of kin
-  kinFirstName: z.string().min(1, "Next of kin first name is required"),
-  kinLastName: z.string().min(1, "Next of kin last name is required"),
-  kinRelationship: z.string().min(1, "Next of kin relationship is required"),
-  kinTelephoneNumber: z
-    .string()
-    .min(1, "Next of kin telephone number is required"),
-  kinAddress: z.string().min(1, "Next of kin address is required"),
-  kinEmail: z.string().email("Valid email is required"),
+  kinFirstName: z.string().optional(),
+  kinLastName: z.string().optional(),
+  kinRelationship: z.string().optional(),
+  kinTelephoneNumber: z.string().optional(),
+  kinAddress: z.string().optional(),
+  kinEmail: z.string().optional(),
 
   // Emergency contacts
-  emergencyContactName: z.string().min(1, "Emergency contact name is required"),
-  emergencyContactTelephoneNumber: z
-    .string()
-    .min(1, "Emergency contact telephone number is required"),
-  emergencyContactRelationship: z
-    .string()
-    .min(1, "Emergency contact relationship is required"),
-  emergencyContactPhoneNumber: z
-    .string()
-    .min(1, "Emergency contact phone number is required"),
+  emergencyContactName: z.string().optional(),
+  emergencyContactTelephoneNumber: z.string().optional(),
+  emergencyContactRelationship: z.string().optional(),
+  emergencyContactPhoneNumber: z.string().optional(),
 
   // Care manager
   careManagerName: z.string().optional(),
@@ -87,11 +79,11 @@ export const admissionAssessmentSchema = z.object({
   equipmentRequired: z.string().optional(),
 
   // Nutrition
-  weight: z.string().min(1, "Weight is required"),
-  height: z.string().min(1, "Height is required"),
-  iddsiFood: z.string().min(1, "IDDSI food level is required"),
-  iddsiFluid: z.string().min(1, "IDDSI fluid level is required"),
-  dietType: z.string().min(1, "Diet type is required"),
+  weight: z.string().optional(),
+  height: z.string().optional(),
+  iddsiFood: z.string().optional(),
+  iddsiFluid: z.string().optional(),
+  dietType: z.string().optional(),
   nutritionalSupplements: z.string().optional(),
   nutritionalAssistanceRequired: z.string().optional(),
   chockingRisk: z.boolean(),

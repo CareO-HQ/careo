@@ -42,7 +42,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       "diet-notification-form",
       "choking-risk-assessment-form",
       "cornell-depression-scale-form",
-      "best-interest-decision-form"
+      "best-interest-decision-form",
+      "moving-handling-care-plan",
+      "moving-handling-care-plan-evaluation"
     ];
 
     const tableMap: Record<CareFileFormKey, string> = {
@@ -69,7 +71,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       "choking-risk-assessment-form": "choking_risk_assessments",
       "cornell-depression-scale-form": "cornell_depression_scales",
       "best-interest-decision-form": "best_interest_decisions",
-      "care-plan-form": "care_plan_assessments" // Included for completeness
+      "care-plan-form": "care_plan_assessments",
+      "moving-handling-care-plan": "moving_handling_care_plans",
+      "moving-handling-care-plan-evaluation": "moving_handling_care_plan_evaluations"
     };
 
     const newState: CareFileFormsState = {};
@@ -164,6 +168,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     getFormState,
     canDownloadPdf,
     getCompletedFormsCount,
-    loading
+    loading,
+    refreshForms: fetchLatestForms
   };
 }

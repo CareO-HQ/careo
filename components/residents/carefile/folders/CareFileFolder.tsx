@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import EmailPDFWithStorageId from "../EmailPDFWithStorageId";
 import CarePlanViewDialog from "./CarePlanViewDialog";
 import RiskAssessmentViewDialog from "./RiskAssessmentViewDialog";
@@ -70,6 +71,12 @@ interface CareFileFolderProps {
   canFillForms: boolean;
 }
 
+// Folders migrated to full-page layout — clicking navigates instead of opening Sheet
+const MIGRATED_FOLDER_ROUTES: Record<string, string> = {
+  preAdmission: "pre-admission",
+  "moving-handling": "moving-handling",
+};
+
 export default function CareFileFolder({
   index,
   folderName,
@@ -80,6 +87,7 @@ export default function CareFileFolder({
   residentId,
   canFillForms
 }: CareFileFolderProps) {
+  const router = useRouter();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -487,6 +495,39 @@ export default function CareFileFolder({
       // For now, simplify and just close.
     }
   };
+
+  // If this folder has been migrated to the full-page layout, navigate instead of opening Sheet
+  const migratedRoute = MIGRATED_FOLDER_ROUTES[folderKey];
+  if (migratedRoute) {
+    return (
+      <div
+        className="w-full flex flex-row justify-between items-center gap-3 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded px-2 py-2 group"
+        onClick={
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          () => router.push(`/dashboard/residents/${residentId}/care-file/${migratedRoute}` as any)
+        }
+      >
+        <div className="flex flex-row items-center gap-3">
+          <FolderIcon className="size-6 text-muted-foreground/70 group-hover:text-primary" />
+          <p className="text-primary text-base font-medium">
+            {index + 1}. {folderName}
+          </p>
+          {forms && forms.length >= 1 && (
+            <p className="text-muted-foreground text-sm">
+              {forms?.length} {forms?.length === 1 ? "form" : "forms"}
+            </p>
+          )}
+        </div>
+        {totalCount > 0 && (
+          <FolderProgressIndicator
+            completedCount={completedCount}
+            totalCount={totalCount}
+            className="flex-shrink-0"
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>

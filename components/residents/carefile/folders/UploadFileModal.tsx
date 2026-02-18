@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useProfile } from "@/hooks/use-profile";
-import { FileIcon, Upload, X } from "lucide-react";
+import { FileIcon, Plus, Upload, X } from "lucide-react";
 import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -21,13 +21,15 @@ import { supabase } from "@/lib/supabase";
 interface UploadFileModalProps {
   folderName: string;
   residentId: string;
-  variant?: "text" | "button";
+  variant?: "text" | "button" | "icon";
+  onUploaded?: () => void;
 }
 
 export default function UploadFileModal({
   folderName,
   residentId,
-  variant = "text"
+  variant = "text",
+  onUploaded
 }: UploadFileModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -39,27 +41,22 @@ export default function UploadFileModal({
   const { profile } = useProfile();
   const activeOrgId = profile?.active_organization_id;
   const userEmail = profile?.email;
+  const userId = profile?.id;
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (file.type !== "application/pdf") {
-      toast.error("Only PDF files are allowed");
-      return;
-    }
-
-    // Validate file size (10MB limit)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    // Validate file size (25MB limit)
+    const maxSize = 25 * 1024 * 1024; // 25MB
     if (file.size > maxSize) {
-      toast.error("File size must be less than 10MB");
+      toast.error("File size must be less than 25MB");
       return;
     }
 
     setSelectedFile(file);
-    // Remove .pdf extension for default name
-    const nameWithoutExt = file.name.replace(/\.pdf$/i, "");
+    // Strip extension for default display name
+    const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
     setFileName(nameWithoutExt);
   };
 
@@ -77,9 +74,8 @@ export default function UploadFileModal({
 
     // Validate required context
     const missingInfo: string[] = [];
-    if (!activeTeamId) missingInfo.push("Active Team");
     if (!activeOrgId) missingInfo.push("Organization");
-    if (!userEmail) missingInfo.push("User Session");
+    if (!userId) missingInfo.push("User Session");
 
     if (missingInfo.length > 0) {
       toast.error(`Missing required information: ${missingInfo.join(", ")}. Please refresh the page and try again.`);
@@ -104,12 +100,16 @@ export default function UploadFileModal({
       console.log("Uploading file to Supabase storage...");
       const sanitizedFileName = fileName.trim().replace(/[^a-zA-Z0-9._-]/g, "_");
       const timestamp = Date.now();
-      const storagePath = `${residentId}/${folderName}/${timestamp}_${sanitizedFileName}.pdf`;
+      // Preserve the original file extension
+      const originalExt = selectedFile.name.includes(".")
+        ? selectedFile.name.split(".").pop()
+        : "";
+      const storagePath = `${residentId}/${folderName}/${timestamp}_${sanitizedFileName}${originalExt ? `.${originalExt}` : ""}`;
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("resident-files")
         .upload(storagePath, selectedFile, {
-          contentType: "application/pdf",
+          contentType: selectedFile.type || "application/octet-stream",
           upsert: false
         });
 
@@ -120,13 +120,6 @@ export default function UploadFileModal({
 
       console.log("File uploaded successfully:", uploadData);
 
-      // Get public URL
-      const { data: publicUrlData } = supabase.storage
-        .from("resident-files")
-        .getPublicUrl(storagePath);
-
-      const publicUrl = publicUrlData?.publicUrl || "";
-
       // Save file metadata to database
       console.log("Saving file metadata to database...");
       const { error: insertError } = await supabase
@@ -135,15 +128,14 @@ export default function UploadFileModal({
           {
             name: fileName.trim(),
             original_name: selectedFile.name,
-            file_type: selectedFile.type || "application/pdf",
+            file_type: selectedFile.type || "application/octet-stream",
             file_size: selectedFile.size,
             storage_path: storagePath,
-            public_url: publicUrl,
             resident_id: residentId,
             organization_id: activeOrgId,
             folder_name: folderName,
-            team_id: activeTeamId,
-            created_by: userEmail,
+            ...(activeTeamId ? { team_id: activeTeamId } : {}),
+            created_by: userId,
             created_at: new Date().toISOString()
           }
         ]);
@@ -156,7 +148,10 @@ export default function UploadFileModal({
       }
 
       console.log("File metadata saved successfully");
-      toast.success("PDF uploaded successfully");
+      toast.success("Document uploaded successfully");
+
+      // Notify parent of new upload
+      onUploaded?.();
 
       // Reset form and close modal
       setSelectedFile(null);
@@ -193,8 +188,15 @@ export default function UploadFileModal({
         {variant === "button" ? (
           <Button variant="outline" size="sm">
             <Upload className="h-4 w-4 mr-2" />
-            Upload PDF
+            Upload Document
           </Button>
+        ) : variant === "icon" ? (
+          <button
+            className="p-0.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            title="Upload document"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
         ) : (
           <p className="text-muted-foreground text-xs cursor-pointer hover:text-primary">
             Upload file
@@ -203,23 +205,22 @@ export default function UploadFileModal({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Upload PDF</DialogTitle>
+          <DialogTitle>Upload Document</DialogTitle>
           <DialogDescription>
-            Upload a PDF file to the {folderName} folder. Only PDF files are
-            allowed.
+            Upload a document to the {folderName} folder. PDF, Word, Excel, images and other formats are supported (max 25MB).
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* File Selection */}
           <div className="space-y-2">
-            <Label htmlFor="file-upload">Select PDF File</Label>
+            <Label htmlFor="file-upload">Select File</Label>
             <div className="flex items-center gap-2">
               <input
                 id="file-upload"
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,application/pdf"
+                accept="*/*"
                 onChange={handleFileSelect}
                 className="hidden"
               />
@@ -231,7 +232,7 @@ export default function UploadFileModal({
                 disabled={isUploading}
               >
                 <Upload className="w-4 h-4 mr-2" />
-                Choose PDF File
+                Choose File
               </Button>
             </div>
           </div>
@@ -283,20 +284,18 @@ export default function UploadFileModal({
                 className={!fileName.trim() ? "border-red-300" : ""}
               />
               <p className="text-xs text-muted-foreground">
-                The file will be saved as &ldquo;{fileName.trim() || "Untitled"}
-                .pdf&rdquo;
+                Original file: {selectedFile?.name}
               </p>
             </div>
           )}
 
           {/* Missing Context Warning */}
-          {(!activeTeamId || !activeOrgId || !userEmail) && (
+          {(!activeOrgId || !userId) && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
               <p className="text-sm text-yellow-800">
                 <strong>Warning:</strong> Missing required information.
-                {!activeTeamId && " Please select an active team."}
                 {!activeOrgId && " Organization not found."}
-                {!userEmail && " User session not found."}
+                {!userId && " User session not found."}
                 {" "}Please refresh the page and try again.
               </p>
             </div>
@@ -316,9 +315,9 @@ export default function UploadFileModal({
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={!selectedFile || !fileName.trim() || isUploading || !activeTeamId || !activeOrgId || !userEmail}
+            disabled={!selectedFile || !fileName.trim() || isUploading || !activeOrgId || !userId}
           >
-            {isUploading ? "Uploading..." : "Upload PDF"}
+            {isUploading ? "Uploading..." : "Upload"}
           </Button>
         </div>
       </DialogContent>

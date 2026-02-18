@@ -1,6 +1,43 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* ── Print styles ──────────────────────────────────────────────────────────── */
+@media print {
+  /* Hide everything by default */
+  body > * {
+    display: none !important;
+  }
+
+  /* Show only the document content area */
+  .print\:overflow-visible,
+  .print\:overflow-visible * {
+    display: revert !important;
+    overflow: visible !important;
+  }
+
+  /* Reset page chrome */
+  * {
+    box-shadow: none !important;
+    border-color: #e5e7eb !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Remove scroll constraints */
+  .print\:overflow-visible {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+
+  /* Ensure content fits the page */
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
