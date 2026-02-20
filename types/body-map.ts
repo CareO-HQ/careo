@@ -34,6 +34,15 @@ export interface BodyMapEntry {
     status: "active" | "resolved";
 }
 
-export interface BodyMapData {
+export interface BodyMapSession {
+    id: string;
+    date: string; // ISO date (YYYY-MM-DD)
+    label: string; // e.g., "Initial Record", "Follow-up"
     entries: BodyMapEntry[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface BodyMapData {
+    sessions: BodyMapSession[];
 }

@@ -237,6 +237,18 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
     return `${vital.value}${unitDisplay}`;
   };
 
+  // Helper to get effective "Care Day" (8 AM to 8 AM)
+  const getEffectiveCareDate = (dateStr: string, timeStr: string) => {
+    const [hours] = timeStr.split(':').map(Number);
+    if (hours < 8) {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
+      date.setDate(date.getDate() - 1);
+      return format(date, 'yyyy-MM-dd');
+    }
+    return dateStr;
+  };
+
   // Get unique years from vitals for filter
   const availableYears = useMemo(() => {
     if (!allVitals || allVitals.length === 0) return [];
@@ -299,11 +311,8 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
     const groups: Map<string, any[]> = new Map();
 
     filteredVitals.forEach(vital => {
-      // Create a date object from the record. Assuming recordDate is YYYY-MM-DD.
-      // We want to group by what the *user sees* as the date.
-      // Since recordDate is stored as a date string, it likely represents the date they entered.
-      // If we just use that string, it's simplest.
-      const dateKey = vital.recordDate;
+      // Use effective date for grouping (8 AM to 8 AM logic)
+      const dateKey = getEffectiveCareDate(vital.recordDate, vital.recordTime);
       if (!groups.has(dateKey)) {
         groups.set(dateKey, []);
       }
@@ -351,7 +360,9 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
 
   const generatePDF = (dateKey: string, vitals: any[]) => {
     const doc = new jsPDF();
-    const dateLabel = formatInTimeZone(new Date(dateKey), UK_TIMEZONE, "PPP");
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+    const dateLabel = format(dateObj, "PPP");
 
     doc.setFontSize(18);
     doc.text(`Health Monitoring: ${dateLabel}`, 14, 20);
@@ -446,13 +457,15 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
   const vitalStats = {
     total: allVitals.length,
     thisMonth: allVitals.filter(vital => {
-      const vitalDate = new Date(vital.recordDate);
+      const [year, month, day] = vital.recordDate.split('-').map(Number);
+      const vitalDate = new Date(year, month - 1, day);
       const now = new Date();
       return vitalDate.getMonth() === now.getMonth() && vitalDate.getFullYear() === now.getFullYear();
     }).length,
     uniqueTypes: new Set(allVitals.map(vital => vital.vitalType)).size,
     thisWeek: allVitals.filter(vital => {
-      const vitalDate = new Date(vital.recordDate);
+      const [year, month, day] = vital.recordDate.split('-').map(Number);
+      const vitalDate = new Date(year, month - 1, day);
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       return vitalDate >= weekAgo;
@@ -697,8 +710,9 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
                 });
 
                 // Format the date header
-                const dateObj = new Date(dateKey);
-                const dateLabel = formatInTimeZone(dateObj, UK_TIMEZONE, "EEEE, d MMMM yyyy");
+                const [year, month, day] = dateKey.split('-').map(Number);
+                const dateObj = new Date(year, month - 1, day);
+                const dateLabel = format(dateObj, "EEEE, d MMMM yyyy");
 
                 return (
                   <div key={dateKey} className="border rounded-md overflow-hidden hover:shadow-sm transition-shadow">
@@ -706,7 +720,10 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
                       <div className="flex items-center space-x-4">
                         <div className="flex items-center">
                           <Calendar className="w-4 h-4 mr-2 text-gray-500" />
-                          {dateLabel}
+                          <div className="flex flex-col">
+                            <span>{dateLabel}</span>
+                            <span className="text-[10px] text-gray-400 font-normal">Care Day: 08:00 to 07:59 (Next Day)</span>
+                          </div>
                         </div>
                         <Badge variant="outline" className="bg-white text-gray-600 font-normal">
                           {dayVitals.length} Records
@@ -799,7 +816,10 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
           <DialogHeader>
             <DialogTitle>Vital Record Details</DialogTitle>
             <DialogDescription>
-              Recorded on {selectedVital && formatInTimeZone(new Date(selectedVital.recordDate), UK_TIMEZONE, "PPP")}
+              Recorded on {selectedVital && (() => {
+                const [year, month, day] = selectedVital.recordDate.split('-').map(Number);
+                return format(new Date(year, month - 1, day), "PPP");
+              })()}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -843,7 +863,10 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center">
               <Calendar className="w-5 h-5 mr-2 text-primary" />
-              {selectedDayVitals && formatInTimeZone(new Date(selectedDayVitals.date), UK_TIMEZONE, "EEEE, d MMMM yyyy")}
+              {selectedDayVitals && (() => {
+                const [year, month, day] = selectedDayVitals.date.split('-').map(Number);
+                return format(new Date(year, month - 1, day), "EEEE, d MMMM yyyy");
+              })()}
             </DialogTitle>
             <DialogDescription>
               Full list of vitals recorded on this day.

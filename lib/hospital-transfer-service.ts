@@ -294,5 +294,76 @@ export const hospitalTransferService = {
         return {
             allergies: data.allergies
         };
+    },
+
+    // --- Resident Body Maps ---
+
+    async getBodyMapsByResidentId(residentId: string) {
+        const { data, error } = await supabase
+            .from('resident_body_maps')
+            .select('*')
+            .eq('resident_id', residentId)
+            .order('date', { ascending: false })
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        return data.map(bm => ({
+            _id: bm.id,
+            residentId: bm.resident_id,
+            date: bm.date,
+            label: bm.label,
+            bodyMapData: bm.body_map_data,
+            organizationId: bm.organization_id,
+            createdBy: bm.created_by,
+            createdAt: bm.created_at,
+            updatedAt: bm.updated_at
+        }));
+    },
+
+    async createBodyMap(bodyMap: any) {
+        const dbPayload = {
+            resident_id: bodyMap.residentId,
+            date: bodyMap.date,
+            label: bodyMap.label,
+            body_map_data: bodyMap.bodyMapData || { sessions: [] },
+            organization_id: bodyMap.organizationId,
+            created_by: bodyMap.createdBy
+        };
+
+        const { data, error } = await supabase
+            .from('resident_body_maps')
+            .insert(dbPayload)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    async updateBodyMap(id: string, updates: any) {
+        const dbPayload: any = {};
+        if (updates.date) dbPayload.date = updates.date;
+        if (updates.label) dbPayload.label = updates.label;
+        if (updates.bodyMapData) dbPayload.body_map_data = updates.bodyMapData;
+
+        const { data, error } = await supabase
+            .from('resident_body_maps')
+            .update(dbPayload)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    async deleteBodyMap(id: string) {
+        const { error } = await supabase
+            .from('resident_body_maps')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
     }
 };

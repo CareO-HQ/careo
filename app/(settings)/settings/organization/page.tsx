@@ -46,6 +46,7 @@ export default function OrganizationPage() {
         <OrganizationNameLogoForm
           isPending={isPending || !activeOrganization}
           name={activeOrganization?.name ?? ""}
+          logoUrl={activeOrganization?.logo_url ?? ""}
           onSuccess={handleFormSuccess}
         />
       </div>

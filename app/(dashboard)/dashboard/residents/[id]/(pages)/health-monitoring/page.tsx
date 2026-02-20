@@ -238,7 +238,7 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
         .limit(50);
 
       if (vData) {
-        setRecentVitals(vData.slice(0, 10)); // Just strict recent
+        setRecentVitals(vData.slice(0, 30)); // Show up to 30 recent records
 
         // Process Latest per Type
         const latest: Record<string, any> = {};
@@ -501,14 +501,14 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
                 <p>No vitals history available</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="max-h-[500px] overflow-y-auto pr-2 space-y-3">
                 {recentVitals.map((vital: any) => {
                   const vitalIcon = vitalTypeOptions[vital.vital_type as keyof typeof vitalTypeOptions];
                   const Icon = vitalIcon?.icon || Activity;
                   const color = vitalIcon?.color || "gray";
 
                   return (
-                    <div key={vital.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={vital.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="flex items-center space-x-4">
                         <div className="text-sm font-mono text-gray-600 min-w-[80px]">{vital.record_date}</div>
                         <div className="text-sm font-mono text-gray-500">{vital.record_time}</div>
@@ -520,12 +520,18 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
                             vitalType: vital.vital_type
                           })}</span>
                         </div>
-                        {vital.notes && <span className="text-sm text-gray-500 italic">Note: {vital.notes}</span>}
+                        {vital.notes && <span className="text-sm text-gray-500 italic truncate max-w-[200px]" title={vital.notes}>Note: {vital.notes}</span>}
                       </div>
-                      {/* Placeholder for recorded_by name resolution if needed, or use profile name from insertion time equivalent */}
                     </div>
                   );
                 })}
+                {recentVitals.length >= 20 && (
+                  <div className="text-center pt-2">
+                    <Button variant="ghost" size="sm" onClick={() => router.push(`/dashboard/residents/${id}/health-monitoring/documents`)} className="text-primary hover:text-primary/80">
+                      <Eye className="w-4 h-4 mr-2" /> View More History
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
