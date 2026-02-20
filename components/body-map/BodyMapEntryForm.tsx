@@ -136,6 +136,7 @@ export function BodyMapEntryForm({
                         name="date_time"
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
+                                <FormLabel>Observation Date & Time <span className="text-red-500">*</span></FormLabel>
                                 <FormDateTimePicker
                                     value={field.value}
                                     onChange={field.onChange}

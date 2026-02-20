@@ -90,6 +90,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const [selectedNHSReport, setSelectedNHSReport] = React.useState<any>(null);
   const [currentPage, setCurrentPage] = React.useState(1);
   const { profile } = useProfile();
+  const [orgLogoUrl, setOrgLogoUrl] = React.useState<string | undefined>(undefined);
 
   // Debug role access
   React.useEffect(() => {
@@ -97,6 +98,19 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
       console.log("Logged in role:", profile.role);
     }
   }, [profile]);
+
+  // Fetch org logo_url
+  React.useEffect(() => {
+    if (!profile?.active_organization_id) return;
+    supabase
+      .from('organizations')
+      .select('logo_url')
+      .eq('id', profile.active_organization_id)
+      .single()
+      .then(({ data }) => {
+        if (data?.logo_url) setOrgLogoUrl(data.logo_url);
+      });
+  }, [profile?.active_organization_id]);
 
   const itemsPerPage = 5;
 
@@ -1689,6 +1703,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
             onSave={() => {
               fetchData();
             }}
+            orgLogoUrl={orgLogoUrl}
           />
         )}
 

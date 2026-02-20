@@ -3,6 +3,7 @@
 import * as React from "react"
 import { CalendarIcon, ClockIcon, ChevronDownIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatTimestampToUKTime } from "@/lib/date-utils"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -44,12 +45,12 @@ export function TimePicker({
         const hourStr = hour.toString().padStart(2, "0")
         const minuteStr = minute.toString().padStart(2, "0")
         const timeValue = `${hourStr}:${minuteStr}`
-        
+
         // Format for display: "HH:MM AM/PM"
         const period = hour >= 12 ? "PM" : "AM"
         const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
         const label = `${displayHour.toString().padStart(2, "0")}:${minuteStr} ${period}`
-        
+
         options.push({ value: timeValue, label })
       }
     }
@@ -59,16 +60,16 @@ export function TimePicker({
   // Find the current value in options, or round to nearest 5-minute interval
   const selectedValue = React.useMemo(() => {
     if (!value) return undefined
-    
+
     const parts = value.split(":")
     const hour = parseInt(parts[0] || "9", 10)
     const minute = parseInt(parts[1] || "0", 10)
-    
+
     // Round minute to nearest 5-minute interval
     const roundedMinute = Math.round(minute / 5) * 5
     const hourStr = hour.toString().padStart(2, "0")
     const minuteStr = roundedMinute.toString().padStart(2, "0")
-    
+
     return `${hourStr}:${minuteStr}`
   }, [value])
 
@@ -128,7 +129,7 @@ export function DateTimePicker({
   onTimeChange,
   disabled = false,
   dateLabel = "Date",
-  timeLabel = "Time", 
+  timeLabel = "Time",
   className
 }: DateTimePickerProps) {
 
@@ -209,40 +210,40 @@ export function FormDateTimePicker({
   // Parse the ISO string into date and time components
   const { dateValue, timeValue } = React.useMemo(() => {
     if (!value) {
-      return { dateValue: undefined, timeValue: "" }
+      return { dateValue: undefined, timeValue: formatTimestampToUKTime(new Date()) }
     }
-    
+
     try {
       const date = new Date(value)
       if (isNaN(date.getTime())) {
         return { dateValue: undefined, timeValue: "" }
       }
-      
+
       // Format time as HH:mm
       const timeString = date.toTimeString().slice(0, 5)
-      
+
       return {
         dateValue: date,
         timeValue: timeString
       }
     } catch {
-      return { dateValue: undefined, timeValue: "" }
+      return { dateValue: undefined, timeValue: formatTimestampToUKTime(new Date()) }
     }
   }, [value])
 
   // Helper function to combine date and time into ISO string
   const combineDateTime = React.useCallback((date: Date | undefined, time: string) => {
     if (!date) return ""
-    
-    // If no time provided, use default to 09:00
-    const timeToUse = time || "09:00"
+
+    // If no time provided, use current UK time
+    const timeToUse = time || formatTimestampToUKTime(new Date())
     const timeParts = timeToUse.split(":")
     const hours = parseInt(timeParts[0] || "9", 10)
     const minutes = parseInt(timeParts[1] || "0", 10)
-    
+
     // Create new date object to avoid mutating the original
     const combined = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes, 0, 0)
-    
+
     return combined.toISOString()
   }, [])
 
@@ -252,9 +253,9 @@ export function FormDateTimePicker({
       onChange?.("")
       return
     }
-    
-    // Use existing time value or default
-    const currentTime = timeValue || "09:00"
+
+    // Use existing time value or current UK time
+    const currentTime = timeValue || formatTimestampToUKTime(new Date())
     const newIsoString = combineDateTime(newDate, currentTime)
     onChange?.(newIsoString)
   }, [combineDateTime, timeValue, onChange])
@@ -268,7 +269,7 @@ export function FormDateTimePicker({
       onChange?.(newIsoString)
       return
     }
-    
+
     const newIsoString = combineDateTime(dateValue, newTime)
     onChange?.(newIsoString)
   }, [combineDateTime, dateValue, onChange])
@@ -295,8 +296,8 @@ export function FormDateTimePicker({
             >
               <span className="flex items-center">
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateValue 
-                  ? dateValue.toLocaleDateString() 
+                {dateValue
+                  ? dateValue.toLocaleDateString()
                   : placeholder?.date || "Select date"
                 }
               </span>

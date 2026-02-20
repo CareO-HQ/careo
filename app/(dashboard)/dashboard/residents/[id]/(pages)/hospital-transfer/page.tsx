@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useProfile } from "@/hooks/use-profile";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ import {
   ChevronRight,
   ClipboardList,
   Cross,
+  Download,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +55,11 @@ import { ViewPassportDialog } from "./view-passport-dialog";
 import { TransferLogDialog } from "./transfer-log-dialog";
 import { ViewTransferLogDialog } from "./view-transfer-log-dialog";
 import { hospitalTransferService, HospitalPassport, HospitalTransferLog } from "@/lib/hospital-transfer-service";
+import { BodyMapDialog } from "@/components/body-map/BodyMapDialog";
+import { BodyMapData } from "@/types/body-map";
+import { generateBodyMapPDF } from "@/lib/body-map-pdf-utils";
+import { generatePassportPDF } from "@/lib/hospital-passport-pdf-utils";
+import { Map as MapIcon } from "lucide-react";
 
 type HospitalTransferPageProps = {
   params: Promise<{ id: string }>;
@@ -62,13 +69,29 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const { id } = React.use(params);
   const router = useRouter();
   const { profile, isLoading: isProfileLoading } = useProfile();
-  const { activeOrganization, activeOrganizationId } = useActiveTeam(); // Updated to actually use the hook
+  const { activeOrganization, activeOrganizationId } = useActiveTeam();
+  const { supabase } = useSupabase();
+  const [orgLogoUrl, setOrgLogoUrl] = React.useState<string | undefined>(undefined);
+
+  // Fetch org logo_url
+  React.useEffect(() => {
+    if (!activeOrganizationId || !supabase) return;
+    supabase
+      .from('organizations')
+      .select('logo_url')
+      .eq('id', activeOrganizationId)
+      .single()
+      .then(({ data }) => {
+        if (data?.logo_url) setOrgLogoUrl(data.logo_url);
+      });
+  }, [activeOrganizationId, supabase]);
 
   // State for data
   const [resident, setResident] = useState<any>(null);
   const [dietInformation, setDietInformation] = useState<any>(null);
   const [hospitalPassports, setHospitalPassports] = useState<any[]>([]);
   const [transferLogs, setTransferLogs] = useState<any[]>([]);
+  const [residentBodyMaps, setResidentBodyMaps] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch data on load
@@ -77,16 +100,18 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       if (!id) return;
       setIsLoading(true);
       try {
-        const [residentData, dietData, passportData, logData] = await Promise.all([
+        const [residentData, dietData, passportData, logData, bodyMapData] = await Promise.all([
           hospitalTransferService.getResidentWithContacts(id),
           hospitalTransferService.getDietInformation(id),
           hospitalTransferService.getPassportsByResidentId(id),
-          hospitalTransferService.getTransferLogsByResidentId(id)
+          hospitalTransferService.getTransferLogsByResidentId(id),
+          hospitalTransferService.getBodyMapsByResidentId(id)
         ]);
         setResident(residentData);
         setDietInformation(dietData);
         setHospitalPassports(passportData);
         setTransferLogs(logData);
+        setResidentBodyMaps(bodyMapData);
       } catch (error) {
         console.error("Error loading hospital transfer data:", error);
         toast.error("Failed to load resident data");
@@ -100,12 +125,14 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   // Refresh data helper
   const refreshData = async () => {
     try {
-      const [passportData, logData] = await Promise.all([
+      const [passportData, logData, bodyMapData] = await Promise.all([
         hospitalTransferService.getPassportsByResidentId(id),
-        hospitalTransferService.getTransferLogsByResidentId(id)
+        hospitalTransferService.getTransferLogsByResidentId(id),
+        hospitalTransferService.getBodyMapsByResidentId(id)
       ]);
       setHospitalPassports(passportData);
       setTransferLogs(logData);
+      setResidentBodyMaps(bodyMapData);
     } catch (error) {
       console.error("Error refreshing data:", error);
     }
@@ -293,6 +320,13 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [isEditingPassport, setIsEditingPassport] = React.useState(false);
 
+  // Body Map states
+  const [isBodyMapDialogOpen, setIsBodyMapDialogOpen] = React.useState(false);
+  const [selectedBodyMap, setSelectedBodyMap] = React.useState<any>(null);
+  const [currentBodyMapId, setCurrentBodyMapId] = React.useState<string | null>(null);
+  const [showDeleteBodyMapDialog, setShowDeleteBodyMapDialog] = React.useState(false);
+  const [bodyMapToDelete, setBodyMapToDelete] = React.useState<any>(null);
+
   // Edit form setup
   const editForm = useForm<HospitalPassportFormData>({
     resolver: zodResolver(HospitalPassportSchema),
@@ -456,195 +490,20 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     return level.charAt(0).toUpperCase() + level.slice(1);
   };
 
-  const handlePrintPassport = (passport: any) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error("Please allow popups to print");
-      return;
+  const handlePrintPassport = async (passport: any) => {
+    if (!passport) return;
+
+    try {
+      await generatePassportPDF({
+        passport,
+        resident,
+        orgLogoUrl
+      });
+      toast.success("Passport PDF generated");
+    } catch (error) {
+      console.error("Error generating passport PDF:", error);
+      toast.error("Failed to generate PDF");
     }
-
-    const formatDateUK = (date: string | number | Date) => {
-      if (!date) return "Not specified";
-      const d = new Date(date);
-      if (isNaN(d.getTime())) return String(date);
-      return d.toLocaleDateString('en-GB', { timeZone: 'Europe/London' });
-    };
-
-    const formatDateTimeUK = (date: string | number | Date) => {
-      if (!date) return "Not specified";
-      const d = new Date(date);
-      if (isNaN(d.getTime())) return String(date);
-      return d.toLocaleString('en-GB', { timeZone: 'Europe/London' });
-    };
-
-    const renderBoolean = (val: boolean) => val ? "✓ Yes" : "✗ No";
-
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Hospital Passport - ${passport.generalDetails.personName}</title>
-          <style>
-            @page { size: A4; margin: 15mm; }
-            body { font-family: 'Inter', -apple-system, sans-serif; line-height: 1.4; color: #1a1a1a; margin: 0; padding: 0; font-size: 11px; }
-            .header { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 20px; }
-            .header h1 { margin: 0; color: #1e40af; font-size: 20px; }
-            .header p { margin: 5px 0 0; color: #4b5563; font-size: 10px; }
-            
-            .section { margin-bottom: 15px; border: 1px solid #e5e7eb; border-radius: 4px; overflow: hidden; page-break-inside: avoid; }
-            .section-title { background: #f3f4f6; padding: 6px 10px; font-weight: bold; font-size: 12px; color: #1e40af; border-bottom: 1px solid #e5e7eb; border-left: 4px solid #2563eb; }
-            
-            .grid { display: grid; grid-template-columns: repeat(2, 1fr); padding: 8px; gap: 8px; }
-            .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); padding: 8px; gap: 8px; }
-            
-            .item { margin-bottom: 4px; }
-            .label { font-size: 9px; font-weight: bold; color: #6b7280; text-transform: uppercase; margin-bottom: 1px; }
-            .value { font-size: 11px; color: #111827; }
-            
-            .sub-section { padding: 8px; border-bottom: 1px solid #f3f4f6; }
-            .sub-section:last-child { border-bottom: none; }
-            .sub-title { font-weight: bold; color: #374151; font-size: 10px; margin-bottom: 5px; text-decoration: underline; }
-            
-            .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; padding: 8px; }
-            .checkbox { display: flex; items-center: center; gap: 4px; }
-            
-            .full-width { grid-column: 1 / -1; }
-            
-            .footer { margin-top: 30px; font-size: 9px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 10px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>HOSPITAL PASSPORT</h1>
-            <p>Confidentially shared medical information for better patient care</p>
-            <p>Resident: <strong>${passport.generalDetails.personName}</strong> | NHS: <strong>${passport.generalDetails.nhsNumber}</strong> | Generated: ${formatDateTimeUK(new Date())}</p>
-          </div>
-
-          <div class="section">
-            <div class="section-title">1. General & Transfer Details</div>
-            <div class="grid">
-              <div class="item"><div class="label">Full Name</div><div class="value">${passport.generalDetails.personName}</div></div>
-              <div class="item"><div class="label">Known As</div><div class="value">${passport.generalDetails.knownAs || "N/A"}</div></div>
-              <div class="item"><div class="label">Date of Birth</div><div class="value">${formatDateUK(passport.generalDetails.dateOfBirth)}</div></div>
-              <div class="item"><div class="label">NHS Number</div><div class="value">${passport.generalDetails.nhsNumber}</div></div>
-              <div class="item"><div class="label">Religion</div><div class="value">${passport.generalDetails.religion || "N/A"}</div></div>
-              <div class="item"><div class="label">Weight</div><div class="value">${passport.generalDetails.weightOnTransfer || "N/A"}</div></div>
-              <div class="item"><div class="label">Care Type</div><div class="value">${passport.generalDetails.careType || "N/A"}</div></div>
-              <div class="item"><div class="label">Transfer Time</div><div class="value">${formatDateTimeUK(passport.generalDetails.transferDateTime)}</div></div>
-              <div class="item"><div class="label">Accompanied By</div><div class="value">${passport.generalDetails.accompaniedBy || "N/A"}</div></div>
-              <div class="item"><div class="label">First Language</div><div class="value">${passport.generalDetails.englishFirstLanguage === "Yes" ? "English" : (passport.generalDetails.firstLanguage || "N/A")}</div></div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">2. Contact & Clinical Partners</div>
-            <div class="grid-3">
-              <div class="sub-section">
-                <div class="sub-title">Care Home</div>
-                <div class="item"><div class="label">Name</div><div class="value">${passport.generalDetails.careHomeName}</div></div>
-                <div class="item"><div class="label">Phone</div><div class="value">${passport.generalDetails.careHomePhone}</div></div>
-              </div>
-              <div class="sub-section">
-                <div class="sub-title">Hospital/Destination</div>
-                <div class="item"><div class="label">Name</div><div class="value">${passport.generalDetails.hospitalName}</div></div>
-                <div class="item"><div class="label">Phone</div><div class="value">${passport.generalDetails.hospitalPhone}</div></div>
-              </div>
-              <div class="sub-section">
-                <div class="sub-title">Next of Kin</div>
-                <div class="item"><div class="label">Name</div><div class="value">${passport.generalDetails.nextOfKinName}</div></div>
-                <div class="item"><div class="label">Phone</div><div class="value">${passport.generalDetails.nextOfKinPhone}</div></div>
-              </div>
-            </div>
-            <div class="grid">
-              <div class="sub-section">
-                <div class="sub-title">GP Details</div>
-                <div class="item"><div class="label">Name</div><div class="value">${passport.generalDetails.gpName}</div></div>
-                <div class="item"><div class="label">Address</div><div class="value">${passport.generalDetails.gpAddress}</div></div>
-              </div>
-              <div class="sub-section">
-                <div class="sub-title">Care Manager</div>
-                <div class="item"><div class="label">Name</div><div class="value">${passport.generalDetails.careManagerName}</div></div>
-                <div class="item"><div class="label">Phone</div><div class="value">${passport.generalDetails.careManagerPhone}</div></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">3. Medical Needs & SBAR Assessment</div>
-            <div class="sub-section">
-              <div class="sub-title">SBAR Assessment</div>
-              <div class="grid">
-                <div class="item"><div class="label">Situation</div><div class="value">${passport.medicalCareNeeds.situation || "N/A"}</div></div>
-                <div class="item"><div class="label">Background</div><div class="value">${passport.medicalCareNeeds.background || "N/A"}</div></div>
-                <div class="item"><div class="label">Assessment</div><div class="value">${passport.medicalCareNeeds.assessment || "N/A"}</div></div>
-                <div class="item"><div class="label">Recommendation</div><div class="value">${passport.medicalCareNeeds.recommendations || "N/A"}</div></div>
-              </div>
-            </div>
-            <div class="sub-section">
-              <div class="sub-title">Medical History & Allergies</div>
-              <div class="grid">
-                <div class="item"><div class="label">PMH</div><div class="value">${passport.medicalCareNeeds.pastMedicalHistory || "N/A"}</div></div>
-                <div class="item"><div class="label">Allergies</div><div class="value">${passport.medicalCareNeeds.knownAllergies || "N/A"}</div></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">4. Core Care Needs</div>
-            <div class="grid">
-              <div class="item"><div class="label">Mobility</div><div class="value">${passport.medicalCareNeeds.mobilityAssistance} (${passport.medicalCareNeeds.mobilityAids})</div></div>
-              <div class="item"><div class="label">Toileting</div><div class="value">${passport.medicalCareNeeds.toiletingAssistance} | ${passport.medicalCareNeeds.continenceStatus}</div></div>
-              <div class="item"><div class="label">Communication</div><div class="value">${passport.medicalCareNeeds.communicationIssues || "None"} ${passport.medicalCareNeeds.hearingAid ? "| Hearing Aid" : ""} ${passport.medicalCareNeeds.glasses ? "| Glasses" : ""}</div></div>
-              <div class="item"><div class="label">Nutrition</div><div class="value">${passport.medicalCareNeeds.dietType} | MUST Score: ${passport.medicalCareNeeds.mustScore}</div></div>
-              <div class="item"><div class="label">History of Falls</div><div class="value">${renderBoolean(passport.medicalCareNeeds.historyOfFalls)} (Last: ${passport.medicalCareNeeds.dateOfLastFall || "N/A"})</div></div>
-              <div class="item"><div class="label">Confusion History</div><div class="value">${passport.medicalCareNeeds.historyOfConfusion}</div></div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">5. Skin Care & Medication</div>
-            <div class="grid">
-              <div class="item"><div class="label">Braden Score</div><div class="value">${passport.skinMedicationAttachments.bradenScore || "N/A"}</div></div>
-              <div class="item"><div class="label">Skin Condition</div><div class="value">${passport.skinMedicationAttachments.skinStateOnTransfer || "Normal"}</div></div>
-              <div class="item full-width"><div class="label">Current Medication Regime</div><div class="value">${passport.skinMedicationAttachments.currentMedicationRegime || "N/A"}</div></div>
-              <div class="item"><div class="label">Last Medication Given</div><div class="value">${formatDateTimeUK(passport.skinMedicationAttachments.lastMedicationDateTime)}</div></div>
-              <div class="item"><div class="label">Last Meal/Drink</div><div class="value">${formatDateTimeUK(passport.skinMedicationAttachments.lastMealDrinkDateTime)}</div></div>
-            </div>
-            <div class="sub-section">
-              <div class="sub-title">Included Attachments</div>
-              <div class="checkbox-group">
-                <div class="checkbox">${renderBoolean(passport.skinMedicationAttachments.attachments.currentMedications)} Medications</div>
-                <div class="checkbox">${renderBoolean(passport.skinMedicationAttachments.attachments.bodyMap)} Body Map</div>
-                <div class="checkbox">${renderBoolean(passport.skinMedicationAttachments.attachments.observations)} Observations</div>
-                <div class="checkbox">${renderBoolean(passport.skinMedicationAttachments.attachments.dnacprForm)} DNACPR</div>
-                <div class="checkbox">${renderBoolean(passport.skinMedicationAttachments.attachments.enteralFeedingRegime)} Feeding</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">6. Authorization & Sign-off</div>
-            <div class="grid">
-              <div class="item"><div class="label">Signature</div><div class="value">${passport.signOff.signature}</div></div>
-              <div class="item"><div class="label">Printed Name</div><div class="value">${passport.signOff.printedName}</div></div>
-              <div class="item"><div class="label">Designation</div><div class="value">${passport.signOff.designation}</div></div>
-              <div class="item"><div class="label">Contact Phone</div><div class="value">${passport.signOff.contactPhone}</div></div>
-              <div class="item"><div class="label">Completion Date</div><div class="value">${formatDateUK(passport.signOff.completedDate)}</div></div>
-            </div>
-          </div>
-
-          <div class="footer">
-            This document contains sensitive medical data. Please handle in accordance with GDPR and patient confidentiality protocols.
-          </div>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.setTimeout(() => {
-      printWindow.print();
-    }, 500);
   };
 
   const handleTransferLogSubmit = async (data: any) => {
@@ -797,6 +656,113 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       toast.error("Failed to create passport");
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  // Body Map Handlers
+  const handleAddBodyMap = () => {
+    setSelectedBodyMap(null);
+    setCurrentBodyMapId(null);
+    setIsBodyMapDialogOpen(true);
+  };
+
+  const handleEditBodyMap = (bm: any) => {
+    setSelectedBodyMap(bm);
+    setCurrentBodyMapId(bm._id);
+    setIsBodyMapDialogOpen(true);
+  };
+
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadBodyMap = async (bm: any) => {
+    if (!bm.bodyMapData || !bm.bodyMapData.sessions || bm.bodyMapData.sessions.length === 0) {
+      toast.error("No data to download");
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      await generateBodyMapPDF({
+        residentName: fullName,
+        incidentDate: bm.date,
+        incidentType: "Hospital Passport Documentation",
+        currentSession: bm.bodyMapData.sessions[0],
+        orgLogoUrl
+      });
+      toast.success("PDF downloaded successfully");
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      toast.error("Failed to download PDF");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleDeleteBodyMap = (bm: any) => {
+    setBodyMapToDelete(bm);
+    setShowDeleteBodyMapDialog(true);
+  };
+
+  const confirmDeleteBodyMap = async () => {
+    if (!bodyMapToDelete) return;
+    setIsDeleting(true);
+    try {
+      await hospitalTransferService.deleteBodyMap(bodyMapToDelete._id);
+      toast.success("Body map deleted");
+      setShowDeleteBodyMapDialog(false);
+      setBodyMapToDelete(null);
+      refreshData();
+    } catch (error) {
+      console.error("Error deleting body map", error);
+      toast.error("Failed to delete body map");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleBodyMapSave = async (bodyMapData: BodyMapData) => {
+    if (!activeOrganizationId || !profile?.id) {
+      toast.error("Auth error: Missing organization or profile");
+      return;
+    }
+
+    try {
+      // Extract label from latest session if available
+      const sessions = bodyMapData.sessions || [];
+      const latestSession = sessions[sessions.length - 1];
+      const sessionLabel = latestSession?.label || `Body Map ${new Date().toLocaleDateString()}`;
+
+      if (selectedBodyMap) {
+        await hospitalTransferService.updateBodyMap(selectedBodyMap._id, {
+          bodyMapData,
+          label: sessionLabel
+        });
+      } else if (currentBodyMapId) {
+        // If we already created a record in this dialog session, update it instead of creating another
+        await hospitalTransferService.updateBodyMap(currentBodyMapId, {
+          bodyMapData,
+          label: sessionLabel
+        });
+      } else {
+        const today = new Date().toISOString().split('T')[0];
+        const newRecord = await hospitalTransferService.createBodyMap({
+          residentId: id,
+          date: today,
+          label: sessionLabel,
+          bodyMapData,
+          organizationId: activeOrganizationId,
+          createdBy: profile.id
+        });
+
+        // Store the ID so subsequent saves in this dialog session update this record
+        if (newRecord?.id) {
+          setCurrentBodyMapId(newRecord.id);
+        }
+      }
+      refreshData();
+    } catch (error) {
+      console.error("Error saving body map", error);
+      throw error;
     }
   };
 
@@ -1064,6 +1030,67 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           </CardContent>
         </Card>
 
+        {/* Recent Body Maps */}
+        <Card className="border-0">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center gap-3">
+                <div className="p-2 bg-gray-100 rounded-lg">
+                  <MapIcon className="w-5 h-5 text-gray-600" />
+                </div>
+                <span>Recent Body Maps</span>
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{residentBodyMaps.length} Total</Badge>
+                <Button size="sm" onClick={handleAddBodyMap} className="bg-blue-600 hover:bg-blue-700 h-8">
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add body map
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {residentBodyMaps.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">No body maps recorded</div>
+            ) : (
+              <div className="space-y-3">
+                {residentBodyMaps.slice(0, 5).map((bm: any) => (
+                  <div key={bm._id} className="flex flex-col md:flex-row justify-between p-4 rounded-lg border bg-white hover:border-primary/50 transition-colors">
+                    <div className="flex gap-3">
+                      <div className="p-2 bg-purple-50 rounded-lg h-fit">
+                        <MapIcon className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold">{bm.label || `Body Map ${formatDate(bm.date)}`}</h4>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Recorded on {formatDate(bm.date)} • {bm.bodyMapData?.sessions?.[0]?.entries?.length || 0} observations
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 mt-2 md:mt-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownloadBodyMap(bm)}
+                        disabled={isDownloading}
+                      >
+                        <Download className="w-3 h-3 mr-1" /> PDF
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleEditBodyMap(bm)}>
+                        <Edit className="w-3 h-3 mr-1" /> View / Edit
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleDeleteBodyMap(bm)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                        <Trash2 className="w-3 h-3 mr-1" /> Delete
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Dialogs */}
         <HospitalPassportDialog
           open={isTransferDialogOpen}
@@ -1147,6 +1174,31 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <AlertDialog open={showDeleteBodyMapDialog} onOpenChange={setShowDeleteBodyMapDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Body Map?</AlertDialogTitle>
+              <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDeleteBodyMap} className="bg-red-600">Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <BodyMapDialog
+          isOpen={isBodyMapDialogOpen}
+          onClose={() => setIsBodyMapDialogOpen(false)}
+          residentName={fullName}
+          initialData={selectedBodyMap?.bodyMapData}
+          onSave={handleBodyMapSave}
+          // We can optionally pass incidentType for PDF header
+          incidentType="Hospital Passport Documentation"
+          incidentDate={selectedBodyMap?.date}
+          orgLogoUrl={orgLogoUrl}
+        />
 
       </div>
     </div>
