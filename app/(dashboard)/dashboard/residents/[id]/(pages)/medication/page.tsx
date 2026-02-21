@@ -19,7 +19,7 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
-import { ArrowLeft, CalendarIcon, CheckCircle, Download, Eye, FileDown } from "lucide-react";
+import { ArrowLeft, CalendarIcon, CheckCircle, Download, Eye, FileDown, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import { config } from "@/config";
@@ -701,12 +701,21 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           <h1 className="text-xl sm:text-2xl font-bold">Medication</h1>
           <p className="text-muted-foreground text-sm">View and manage medication schedule for {fullName}.</p>
         </div>
-        <CreateResidentMedication
-          residentId={id}
-          residentName={fullName}
-          teamId={profile?.active_team_id || resident.team_id || undefined}
-          organizationId={profile?.active_organization_id || resident.organization_id || undefined}
-        />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/medication/docs`)}
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Docs
+          </Button>
+          <CreateResidentMedication
+            residentId={id}
+            residentName={fullName}
+            teamId={profile?.active_team_id || resident.team_id || undefined}
+            organizationId={profile?.active_organization_id || resident.organization_id || undefined}
+          />
+        </div>
       </div>
 
       <MedicationAlertBanner
