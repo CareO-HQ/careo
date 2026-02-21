@@ -55,6 +55,8 @@ import {
   Shield,
   Heart,
   Pill,
+  Plus,
+  Folder,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -81,11 +83,22 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   // Dialog state
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newIncidentName, setNewIncidentName] = useState("");
 
   // Data state
   const [resident, setResident] = useState<any>(null);
   const [allIncidents, setAllIncidents] = useState<any[]>([]);
+  const [incidentFolders, setIncidentFolders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Set default name when create dialog opens
+  useEffect(() => {
+    if (isCreateDialogOpen) {
+      const today = format(new Date(), "dd-MM-yyyy");
+      setNewIncidentName(today);
+    }
+  }, [isCreateDialogOpen]);
 
   // Fetch data from Supabase
   useEffect(() => {
@@ -114,6 +127,19 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
 
         if (incError) throw incError;
         setAllIncidents(incData || []);
+
+        // Fetch incident folders
+        const { data: foldersData, error: foldersError } = await supabase
+          .from("incident_folders")
+          .select("*")
+          .eq("resident_id", residentId)
+          .order("created_at", { ascending: false });
+
+        if (foldersError) {
+          console.error("Error fetching folders:", foldersError);
+        } else {
+          setIncidentFolders(foldersData || []);
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
         toast.error("Failed to load incidents data");
@@ -217,6 +243,34 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const paginatedIncidents = filteredIncidents.slice(startIndex, endIndex);
 
   // Handlers
+  const handleCreateIncidentFolder = async () => {
+    if (!newIncidentName.trim()) {
+      toast.error("Please enter a folder name");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("incident_folders")
+        .insert({
+          resident_id: residentId,
+          name: newIncidentName.trim(),
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setIncidentFolders([data, ...incidentFolders]);
+      setIsCreateDialogOpen(false);
+      toast.success("Incident folder created successfully");
+    } catch (error) {
+      console.error("Error creating folder:", error);
+      toast.error("Failed to create incident folder");
+    }
+  };
+
   const handleViewIncident = (incident: any) => {
     setSelectedIncident(incident);
     setIsViewDialogOpen(true);
@@ -574,17 +628,24 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
       {/* Incidents Table */}
       <Card className="border-0">
         <CardHeader>
-          <CardTitle>
-            Incident Records ({filteredIncidents.length})
+          <CardTitle className="flex items-center justify-between">
+            <span>Incident Records ({incidentFolders.length + filteredIncidents.length})</span>
+            <Button
+              onClick={() => setIsCreateDialogOpen(true)}
+              size="sm"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Incident
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredIncidents.length === 0 ? (
+          {filteredIncidents.length === 0 && incidentFolders.length === 0 ? (
             <div className="text-center py-12">
               <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 font-medium">No incidents found</p>
               <p className="text-gray-400 text-sm mt-1">
-                {searchQuery ? "Try adjusting your search criteria" : "No incidents recorded yet"}
+                {searchQuery ? "Try adjusting your search criteria" : "Click 'Create Incident' to get started"}
               </p>
             </div>
           ) : (
@@ -603,6 +664,21 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {/* Incident Folders */}
+                    {incidentFolders.map((folder) => (
+                      <TableRow key={folder.id} className="bg-blue-50/50 hover:bg-blue-100/50">
+                        <TableCell colSpan={7}>
+                          <div className="flex items-center gap-3 py-1">
+                            <Folder className="w-5 h-5 text-blue-600" />
+                            <span className="font-medium text-blue-900">{folder.name}</span>
+                            <Badge variant="outline" className="ml-auto text-xs">
+                              Folder
+                            </Badge>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {/* Incidents */}
                     {paginatedIncidents.map((incident) => (
                       <TableRow key={incident.id}>
                         <TableCell className="font-medium">
@@ -890,6 +966,48 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
             <Button onClick={() => handleDownloadIncident(selectedIncident.id)}>
               <Download className="w-4 h-4 mr-2" />
               Download Report
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Incident Folder Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Incident Folder</DialogTitle>
+            <DialogDescription>
+              Create a new incident folder for organizing reports
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Folder Name</label>
+              <Input
+                value={newIncidentName}
+                onChange={(e) => setNewIncidentName(e.target.value)}
+                placeholder="Enter folder name"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleCreateIncidentFolder();
+                  }
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Default: Today&apos;s date (dd-MM-yyyy format)
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsCreateDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreateIncidentFolder}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Folder
             </Button>
           </div>
         </DialogContent>
