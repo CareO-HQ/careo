@@ -436,81 +436,62 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-0 bg-gradient-to-br from-red-50 to-red-100">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-red-700">Total Incidents</p>
-                <p className="text-2xl font-bold text-red-900">{incidentStats.total}</p>
-              </div>
-              <div className="p-2 bg-white rounded-lg">
-                <FileText className="w-5 h-5 text-red-600" />
-              </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="border-0 bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-red-700">Total Incidents</p>
+              <p className="text-lg font-bold text-red-900 mt-0.5">{incidentStats.total}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="p-1 bg-white rounded-md">
+              <FileText className="w-4 h-4 text-red-600" />
+            </div>
+          </div>
+        </div>
 
-        <Card className="border-0 bg-gradient-to-br from-green-50 to-green-100">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-green-700">This Month</p>
-                <p className="text-2xl font-bold text-green-900">{incidentStats.thisMonth}</p>
-              </div>
-              <div className="p-2 bg-white rounded-lg">
-                <Calendar className="w-5 h-5 text-green-600" />
-              </div>
+        <div className="border-0 bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-green-700">This Month</p>
+              <p className="text-lg font-bold text-green-900 mt-0.5">{incidentStats.thisMonth}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="p-1 bg-white rounded-md">
+              <Calendar className="w-4 h-4 text-green-600" />
+            </div>
+          </div>
+        </div>
 
-        <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-700">This Week</p>
-                <p className="text-2xl font-bold text-blue-900">{incidentStats.thisWeek}</p>
-              </div>
-              <div className="p-2 bg-white rounded-lg">
-                <TrendingDown className="w-5 h-5 text-blue-600" />
-              </div>
+        <div className="border-0 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-blue-700">This Week</p>
+              <p className="text-lg font-bold text-blue-900 mt-0.5">{incidentStats.thisWeek}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="p-1 bg-white rounded-md">
+              <TrendingDown className="w-4 h-4 text-blue-600" />
+            </div>
+          </div>
+        </div>
 
-        <Card className="border-0 bg-gradient-to-br from-orange-50 to-orange-100">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-orange-700">Severe Incidents</p>
-                <p className="text-2xl font-bold text-orange-900">{incidentStats.severe}</p>
-              </div>
-              <div className="p-2 bg-white rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-orange-600" />
-              </div>
+        <div className="border-0 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-orange-700">Severe Incidents</p>
+              <p className="text-lg font-bold text-orange-900 mt-0.5">{incidentStats.severe}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="p-1 bg-white rounded-md">
+              <AlertTriangle className="w-4 h-4 text-orange-600" />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filters and Search */}
       <Card className="border-0">
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Filter className="w-5 h-5" />
-              <span>Filter Incidents</span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              disabled={filteredIncidents.length === 0}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
-            </Button>
+          <CardTitle className="flex items-center space-x-2">
+            <Filter className="w-5 h-5" />
+            <span>Filter Incidents</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -666,7 +647,11 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                   <TableBody>
                     {/* Incident Folders */}
                     {incidentFolders.map((folder) => (
-                      <TableRow key={folder.id} className="bg-blue-50/50 hover:bg-blue-100/50">
+                      <TableRow
+                        key={folder.id}
+                        className="bg-blue-50/50 hover:bg-blue-100/50 cursor-pointer"
+                        onClick={() => router.push(`/dashboard/residents/${residentId}/incidents/${folder.id}`)}
+                      >
                         <TableCell colSpan={7}>
                           <div className="flex items-center gap-3 py-1">
                             <Folder className="w-5 h-5 text-blue-600" />

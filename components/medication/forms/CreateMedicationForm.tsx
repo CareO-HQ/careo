@@ -53,8 +53,9 @@ export default function CreateMedicationForm({
 }) {
   const { profile } = useProfile();
   const [isLoading, startTransition] = useTransition();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
+  const [medicationType, setMedicationType] = useState<"Scheduled" | "PRN (As Needed)" | "Topical" | "Supplement" | null>(null);
 
   const form = useForm<z.infer<typeof CreateMedicationSchema>>({
     resolver: zodResolver(CreateMedicationSchema),
@@ -243,6 +244,74 @@ export default function CreateMedicationForm({
     <div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {step === 0 && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-semibold text-lg mb-2">Select Medication Type</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Choose the type of medication you want to add
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMedicationType("Scheduled");
+                    form.setValue("scheduleType", "Scheduled");
+                    setStep(1);
+                  }}
+                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                >
+                  <div className="font-semibold mb-1">Scheduled</div>
+                  <div className="text-xs text-muted-foreground">
+                    Regular medications with set times
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMedicationType("PRN (As Needed)");
+                    form.setValue("scheduleType", "PRN (As Needed)");
+                    setStep(1);
+                  }}
+                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                >
+                  <div className="font-semibold mb-1">PRN</div>
+                  <div className="text-xs text-muted-foreground">
+                    As needed medications
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMedicationType("Topical");
+                    form.setValue("scheduleType", "Topical");
+                    setStep(1);
+                  }}
+                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                >
+                  <div className="font-semibold mb-1">Topical</div>
+                  <div className="text-xs text-muted-foreground">
+                    Creams, ointments, patches
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMedicationType("Supplement");
+                    form.setValue("scheduleType", "Supplement");
+                    setStep(1);
+                  }}
+                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                >
+                  <div className="font-semibold mb-1">Supplement</div>
+                  <div className="text-xs text-muted-foreground">
+                    Vitamins and supplements
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
           {step === 1 && (
             <>
               <FormField
@@ -386,80 +455,59 @@ export default function CreateMedicationForm({
                   )}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="scheduleType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Schedule Type</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a schedule type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Scheduled">Scheduled</SelectItem>
-                          <SelectItem value="PRN (As Needed)">
-                            PRN (As Needed)
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="frequency"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Frequency</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        disabled={scheduleType === "PRN (As Needed)"}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a frequency" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Once daily (OD)">
-                            Once daily (OD)
-                          </SelectItem>
-                          <SelectItem value="Twice daily (BD)">
-                            Twice daily (BD)
-                          </SelectItem>
-                          <SelectItem value="Three times daily (TD)">
-                            Three times daily (TD)
-                          </SelectItem>
-                          <SelectItem value="Four times daily (QDS)">
-                            Four times daily (QDS)
-                          </SelectItem>
-                          <SelectItem value="Four times daily (QIS)">
-                            Four times daily (QIS)
-                          </SelectItem>
-                          <SelectItem value="As Needed (PRN)">
-                            As Needed (PRN)
-                          </SelectItem>
-                          <SelectItem value="One time (STAT)">
-                            One time (STAT)
-                          </SelectItem>
-                          <SelectItem value="Weekly">Weekly</SelectItem>
-                          <SelectItem value="Monthly">Monthly</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {/* Show selected medication type */}
+              <div className="p-3 bg-primary/10 rounded-lg mb-4">
+                <p className="text-sm font-medium">
+                  Medication Type: <span className="text-primary">{medicationType}</span>
+                </p>
               </div>
+
+              <FormField
+                control={form.control}
+                name="frequency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>Frequency</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      disabled={scheduleType === "PRN (As Needed)"}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a frequency" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Once daily (OD)">
+                          Once daily (OD)
+                        </SelectItem>
+                        <SelectItem value="Twice daily (BD)">
+                          Twice daily (BD)
+                        </SelectItem>
+                        <SelectItem value="Three times daily (TD)">
+                          Three times daily (TD)
+                        </SelectItem>
+                        <SelectItem value="Four times daily (QDS)">
+                          Four times daily (QDS)
+                        </SelectItem>
+                        <SelectItem value="Four times daily (QIS)">
+                          Four times daily (QIS)
+                        </SelectItem>
+                        <SelectItem value="As Needed (PRN)">
+                          As Needed (PRN)
+                        </SelectItem>
+                        <SelectItem value="One time (STAT)">
+                          One time (STAT)
+                        </SelectItem>
+                        <SelectItem value="Weekly">Weekly</SelectItem>
+                        <SelectItem value="Monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="flex justify-end">
                 <Button type="button" onClick={handleFirstStep}>
                   Continue
@@ -584,7 +632,7 @@ export default function CreateMedicationForm({
               <div className="flex justify-between items-center">
                 <Button
                   type="button"
-                  onClick={() => setStep(1)}
+                  onClick={() => setStep(0)}
                   variant="outline"
                 >
                   Back

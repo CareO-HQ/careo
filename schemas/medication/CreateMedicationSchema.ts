@@ -36,10 +36,12 @@ export const CreateMedicationSchema = z
       z.literal("One time (STAT)"),
       z.literal("Weekly"),
       z.literal("Monthly")
-    ]),
+    ]).optional(),
     scheduleType: z.union([
       z.literal("Scheduled"),
-      z.literal("PRN (As Needed)")
+      z.literal("PRN (As Needed)"),
+      z.literal("Topical"),
+      z.literal("Supplement")
     ]),
     times: z.array(z.string()).optional(),
     timeQuantities: z.record(z.string(), z.number().min(1)).optional(),
@@ -65,8 +67,12 @@ export const CreateMedicationSchema = z
   })
   .refine(
     (data) => {
-      // If scheduleType is "Scheduled", times must be provided and not empty
-      if (data.scheduleType === "Scheduled") {
+      // If scheduleType is "Scheduled", "Topical", or "Supplement", times must be provided
+      if (
+        data.scheduleType === "Scheduled" ||
+        data.scheduleType === "Topical" ||
+        data.scheduleType === "Supplement"
+      ) {
         return data.times && data.times.length > 0;
       }
       return true;
@@ -74,5 +80,18 @@ export const CreateMedicationSchema = z
     {
       message: "At least one time is required for scheduled medications",
       path: ["times"]
+    }
+  )
+  .refine(
+    (data) => {
+      // Frequency is required for non-PRN medications
+      if (data.scheduleType !== "PRN (As Needed)") {
+        return data.frequency !== undefined && data.frequency !== null;
+      }
+      return true;
+    },
+    {
+      message: "Frequency is required for scheduled medications",
+      path: ["frequency"]
     }
   );

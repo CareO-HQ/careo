@@ -96,6 +96,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const [resident, setResident] = useState<Resident | null>(null);
   const [selectedDateIntakes, setSelectedDateIntakes] = useState<any[]>([]);
   const [prnOrTopicalMedications, setPrnOrTopicalMedications] = useState<any[]>([]);
+  const [topicalMedications, setTopicalMedications] = useState<any[]>([]);
+  const [supplementMedications, setSupplementMedications] = useState<any[]>([]);
   const [allActiveMedications, setAllActiveMedications] = useState<any[]>([]);
   const [discontinuedMedications, setDiscontinuedMedications] = useState<any[]>([]);
   const [completedCancelledMedications, setCompletedCancelledMedications] = useState<any[]>([]);
@@ -262,8 +264,13 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       if (meds) {
         setAllActiveMedications(meds.filter(m => m.status === 'active'));
         setPrnOrTopicalMedications(meds.filter(m =>
-          m.status === 'active' &&
-          (m.schedule_type === 'PRN (As Needed)' || m.route === 'Topical')
+          m.status === 'active' && m.schedule_type === 'PRN (As Needed)'
+        ));
+        setTopicalMedications(meds.filter(m =>
+          m.status === 'active' && m.route === 'Topical'
+        ));
+        setSupplementMedications(meds.filter(m =>
+          m.status === 'active' && (m.type === 'Supplement' || m.category === 'Supplement')
         ));
         setDiscontinuedMedications(meds.filter(m => m.status === 'discontinued'));
         setCompletedCancelledMedications(meds.filter(m => m.status === 'completed' || m.status === 'cancelled'));
@@ -755,7 +762,6 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           </TabsTrigger>
           <TabsTrigger value="kardex">Kardex</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="incidents-falls">Incident and Falls</TabsTrigger>
         </TabsList>
 
         {/* ── Today's Medications ── */}
@@ -793,8 +799,39 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           )}
 
           <div className="flex flex-col gap-4 mt-4">
-            <p className="font-semibold">PRN &amp; Topical Medications</p>
-            <DataTable columns={prnTopicalColumns} data={prnOrTopicalMedications} />
+            <p className="font-semibold">PRN Medications</p>
+            {prnOrTopicalMedications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border rounded-lg">
+                <p className="text-sm font-medium text-muted-foreground">No PRN medications</p>
+                <p className="text-xs text-muted-foreground">PRN (as needed) medications will appear here.</p>
+              </div>
+            ) : (
+              <DataTable columns={prnTopicalColumns} data={prnOrTopicalMedications} />
+            )}
+          </div>
+
+          <div className="flex flex-col gap-4 mt-6">
+            <p className="font-semibold">Topical Medications</p>
+            {topicalMedications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border rounded-lg">
+                <p className="text-sm font-medium text-muted-foreground">No topical medications</p>
+                <p className="text-xs text-muted-foreground">Topical medications will appear here.</p>
+              </div>
+            ) : (
+              <DataTable columns={prnTopicalColumns} data={topicalMedications} />
+            )}
+          </div>
+
+          <div className="flex flex-col gap-4 mt-6">
+            <p className="font-semibold">Supplements</p>
+            {supplementMedications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border rounded-lg">
+                <p className="text-sm font-medium text-muted-foreground">No supplements</p>
+                <p className="text-xs text-muted-foreground">Supplements and vitamins will appear here.</p>
+              </div>
+            ) : (
+              <DataTable columns={prnTopicalColumns} data={supplementMedications} />
+            )}
           </div>
         </TabsContent>
 
@@ -892,14 +929,6 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               </Table>
             </div>
           )}
-        </TabsContent>
-
-        {/* ── Incident and Falls ── */}
-        <TabsContent value="incidents-falls" className="flex flex-col gap-4 mt-4">
-          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center border rounded-lg">
-            <p className="text-sm font-medium text-muted-foreground">Incident and Falls Tracking</p>
-            <p className="text-xs text-muted-foreground">Content coming soon</p>
-          </div>
         </TabsContent>
       </Tabs>
 

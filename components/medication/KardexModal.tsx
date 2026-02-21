@@ -70,10 +70,26 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
   const timeSlotEntries = Object.entries(TIME_SLOTS);
 
   const activeMeds = medications.filter((m) => m.status === "active");
-  const scheduled = activeMeds.filter(
-    (m) => m.schedule_type !== "PRN (As Needed)" && m.times && m.times.length > 0
-  );
+
+  // Filter by schedule_type or route for backwards compatibility
   const prn = activeMeds.filter((m) => m.schedule_type === "PRN (As Needed)");
+  const topical = activeMeds.filter((m) =>
+    m.schedule_type === "Topical" || m.route === "Topical"
+  );
+  const supplements = activeMeds.filter((m) =>
+    m.schedule_type === "Supplement"
+  );
+
+  // Scheduled medications are those that don't fall into other categories and have times
+  const scheduled = activeMeds.filter(
+    (m) =>
+      m.schedule_type !== "PRN (As Needed)" &&
+      m.schedule_type !== "Topical" &&
+      m.schedule_type !== "Supplement" &&
+      m.route !== "Topical" &&
+      m.times &&
+      m.times.length > 0
+  );
 
   return (
     <div className="kardex-print bg-white text-black font-sans text-[10px]" style={{ fontFamily: "Arial, sans-serif" }}>
@@ -339,6 +355,151 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
         </div>
       )}
 
+      {/* Topical Medications */}
+      {topical.length > 0 && (
+        <div className="mb-3">
+          <div className="bg-blue-700 text-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider mb-1">
+            Topical Medications
+          </div>
+          <table className="w-full border-collapse border border-black text-[8.5px]">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border border-black px-1 py-0.5 text-left w-[140px]" rowSpan={2}>Medication / Dose / Route</th>
+                <th className="border border-black px-1 py-0.5 text-left w-[80px]" rowSpan={2}>Application Area / Instructions</th>
+                <th className="border border-black px-1 py-0.5 text-left w-[60px]" rowSpan={2}>Frequency</th>
+                <th className="border border-black px-1 py-0.5 text-left w-[70px]" rowSpan={2}>Prescriber</th>
+                {timeSlotEntries.map(([period, times]) => (
+                  <th
+                    key={period}
+                    colSpan={times.length}
+                    className="border border-black text-center px-1 py-0.5 font-bold"
+                  >
+                    {period}
+                  </th>
+                ))}
+              </tr>
+              <tr className="bg-gray-100">
+                {timeSlotEntries.map(([period, times]) =>
+                  times.map((time) => (
+                    <th
+                      key={`${period}-${time}`}
+                      className="border border-black text-center px-0 py-0.5 font-medium"
+                      style={{ minWidth: "22px", fontSize: "7.5px" }}
+                    >
+                      {time}
+                    </th>
+                  ))
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {topical.map((med, idx) => (
+                <tr key={med.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <td className="border border-black px-1 py-0.5 align-top">
+                    <p className="font-bold leading-tight">{med.name}</p>
+                    <p className="text-gray-600">
+                      {med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""}{" "}
+                      {med.dosage_form}
+                    </p>
+                    {med.route && <p className="text-gray-500">Route: {med.route}</p>}
+                  </td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">
+                    {med.instructions || "—"}
+                  </td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight">
+                    <div>{med.frequency || "—"}</div>
+                  </td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">
+                    {med.prescriber_name || "—"}
+                  </td>
+                  {timeSlotEntries.map(([period, times]) =>
+                    times.map((time) => (
+                      <td
+                        key={`${period}-${time}`}
+                        className="border border-black text-center align-top"
+                        style={{ minWidth: "22px", height: "32px" }}
+                      />
+                    ))
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Supplements */}
+      {supplements.length > 0 && (
+        <div className="mb-3">
+          <div className="bg-green-700 text-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider mb-1">
+            Supplements
+          </div>
+          <table className="w-full border-collapse border border-black text-[8.5px]">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border border-black px-1 py-0.5 text-left w-[140px]" rowSpan={2}>Supplement / Dose</th>
+                <th className="border border-black px-1 py-0.5 text-left w-[80px]" rowSpan={2}>Instructions</th>
+                <th className="border border-black px-1 py-0.5 text-left w-[60px]" rowSpan={2}>Frequency</th>
+                <th className="border border-black px-1 py-0.5 text-left w-[70px]" rowSpan={2}>Prescriber</th>
+                {timeSlotEntries.map(([period, times]) => (
+                  <th
+                    key={period}
+                    colSpan={times.length}
+                    className="border border-black text-center px-1 py-0.5 font-bold"
+                  >
+                    {period}
+                  </th>
+                ))}
+              </tr>
+              <tr className="bg-gray-100">
+                {timeSlotEntries.map(([period, times]) =>
+                  times.map((time) => (
+                    <th
+                      key={`${period}-${time}`}
+                      className="border border-black text-center px-0 py-0.5 font-medium"
+                      style={{ minWidth: "22px", fontSize: "7.5px" }}
+                    >
+                      {time}
+                    </th>
+                  ))
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {supplements.map((med, idx) => (
+                <tr key={med.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <td className="border border-black px-1 py-0.5 align-top">
+                    <p className="font-bold leading-tight">{med.name}</p>
+                    <p className="text-gray-600">
+                      {med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""}{" "}
+                      {med.dosage_form}
+                    </p>
+                  </td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">
+                    {med.instructions || "—"}
+                  </td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight">
+                    <div>{med.frequency || "—"}</div>
+                  </td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">
+                    {med.prescriber_name || "—"}
+                  </td>
+                  {timeSlotEntries.map(([period, times]) =>
+                    times.map((time) => (
+                      <td
+                        key={`${period}-${time}`}
+                        className="border border-black text-center align-top"
+                        style={{ minWidth: "22px", height: "32px" }}
+                      />
+                    ))
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Administration Key */}
       <div className="border border-black mt-2">
         <div className="bg-gray-700 text-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">
@@ -490,21 +651,73 @@ export default function KardexModal({ medications, resident, inlineMode = false 
 
       <style>{`
         @media print {
-          body * { visibility: hidden; }
-          .kardex-content, .kardex-content * {
+          /* Hide everything except Kardex */
+          body * {
+            visibility: hidden;
+          }
+
+          .kardex-content,
+          .kardex-content * {
             visibility: visible !important;
           }
+
+          /* Position Kardex for print */
           .kardex-content {
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
             width: 100% !important;
-            padding: 1cm !important;
+            max-width: none !important;
+            padding: 0.5cm !important;
+            margin: 0 !important;
             box-shadow: none !important;
             border: none !important;
             overflow: visible !important;
+            background: white !important;
           }
-          @page { margin: 1cm; size: A4 landscape; }
+
+          /* Hide print button and other UI elements */
+          button {
+            display: none !important;
+          }
+
+          /* Ensure tables print properly */
+          .kardex-print table {
+            page-break-inside: auto;
+          }
+
+          .kardex-print tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+
+          .kardex-print thead {
+            display: table-header-group;
+          }
+
+          /* Page setup */
+          @page {
+            margin: 0.5cm;
+            size: A4 landscape;
+          }
+
+          /* Ensure black text prints */
+          .kardex-print * {
+            color: black !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          /* Preserve background colors for headers */
+          .kardex-print .bg-gray-800,
+          .kardex-print .bg-gray-700,
+          .kardex-print .bg-blue-700,
+          .kardex-print .bg-green-700,
+          .kardex-print .bg-gray-200,
+          .kardex-print .bg-gray-100 {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
         }
       `}</style>
     </>
