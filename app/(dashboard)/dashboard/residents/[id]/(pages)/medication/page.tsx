@@ -755,6 +755,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           </TabsTrigger>
           <TabsTrigger value="kardex">Kardex</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="incidents-falls">Incident and Falls</TabsTrigger>
         </TabsList>
 
         {/* ── Today's Medications ── */}
@@ -891,6 +892,14 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               </Table>
             </div>
           )}
+        </TabsContent>
+
+        {/* ── Incident and Falls ── */}
+        <TabsContent value="incidents-falls" className="flex flex-col gap-4 mt-4">
+          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center border rounded-lg">
+            <p className="text-sm font-medium text-muted-foreground">Incident and Falls Tracking</p>
+            <p className="text-xs text-muted-foreground">Content coming soon</p>
+          </div>
         </TabsContent>
       </Tabs>
 

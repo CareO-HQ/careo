@@ -1,28 +1,20 @@
 "use client";
 
-import React from "react";
-import { Badge } from "@/components/ui/badge";
+import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { useProfile } from "@/hooks/use-profile";
-import { formatDateForDisplay, formatTimestampToUKTime } from "@/lib/date-utils";
-import BestInterestDecisionDialog from "@/components/residents/carefile/dialogs/BestInterestDecisionDialog";
+import { useRouter } from "next/navigation";
+import { formatDateForDisplay } from "@/lib/date-utils";
+import { format } from "date-fns";
+import { generateIncidentPDF } from "./utils";
 import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle
+  CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -31,38 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ArrowLeft,
-  TrendingDown,
-  AlertTriangle,
-  FileText,
-  Calendar,
-  Clock,
-  User,
-  Plus,
-  Download,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  Map as MapIcon,
-  ClipboardCheck,
-  FileBarChart,
-  Send,
-  MoreVertical,
-  Pencil,
-  Shield,
-  Trash2,
-  ShieldAlert
-} from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useRouter } from "next/navigation";
-import { ComprehensiveIncidentForm } from "./components/comprehensive-incident-form";
-import { NHSReportForm } from "./components/nhs-report-form";
-import { BHSCTReportForm } from "./components/bhsct-report-form";
-import { SEHSCTReportForm } from "./components/sehsct-report-form";
-import { generateIncidentPDF } from "./utils";
-import { BodyMapDialog } from "@/components/body-map/BodyMapDialog";
-import { BodyMapData } from "@/types/body-map";
-
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -70,9 +37,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  ArrowLeft,
+  Search,
+  Calendar,
+  User,
+  FileText,
+  Filter,
+  Download,
+  Eye,
+  AlertTriangle,
+  Clock,
+  MapPin,
+  ChevronLeft,
+  ChevronRight,
+  TrendingDown,
+  Shield,
+  Heart,
+  Pill,
+} from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { canEditIncident, canCreateIncident, canForwardIncident } from "@/lib/permissions";
 
 type IncidentsPageProps = {
   params: Promise<{ id: string }>;
@@ -81,314 +66,178 @@ type IncidentsPageProps = {
 export default function IncidentsPage({ params }: IncidentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
-  const [showReportForm, setShowReportForm] = React.useState(false);
-  const [selectedIncident, setSelectedIncident] = React.useState<any>(null);
-  const [showViewDialog, setShowViewDialog] = React.useState(false);
-  const [showNHSReportForm, setShowNHSReportForm] = React.useState(false);
-  const [nhsReportIncident, setNhsReportIncident] = React.useState<any>(null);
-  const [showNHSReportView, setShowNHSReportView] = React.useState(false);
-  const [selectedNHSReport, setSelectedNHSReport] = React.useState<any>(null);
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const { profile } = useProfile();
+  const residentId = id;
 
-  // Debug role access
-  React.useEffect(() => {
-    if (profile) {
-      console.log("Logged in role:", profile.role);
-    }
-  }, [profile]);
+  // State for filters and search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedSeverity, setSelectedSeverity] = useState("all");
+  const [selectedType, setSelectedType] = useState("all");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  const itemsPerPage = 5;
+  // Dialog state
+  const [selectedIncident, setSelectedIncident] = useState<any>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
-  // NHS Trust Picker State
-  const [showTrustPicker, setShowTrustPicker] = React.useState(false);
-  const [trustPickerIncident, setTrustPickerIncident] = React.useState<any>(null);
-  const [selectedTrust, setSelectedTrust] = React.useState<string>("");
-  const [showTrustForm, setShowTrustForm] = React.useState(false);
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [showRestrictivePracticeForm, setShowRestrictivePracticeForm] = React.useState(false);
-  const [restrictivePracticeIncident, setRestrictivePracticeIncident] = React.useState<any>(null);
+  // Data state
+  const [resident, setResident] = useState<any>(null);
+  const [allIncidents, setAllIncidents] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Body Map State
-  const [showBodyMap, setShowBodyMap] = React.useState(false);
-  const [bodyMapIncidentId, setBodyMapIncidentId] = React.useState<string | null>(null);
-  const [bodyMapMetadata, setBodyMapMetadata] = React.useState<{
-    residentName?: string;
-    incidentDate?: string;
-    incidentType?: string;
-  }>({});
-  const [bodyMapInitialData, setBodyMapInitialData] = React.useState<BodyMapData | undefined>(undefined);
+  // Fetch data from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!residentId) return;
+      setIsLoading(true);
 
-  const handleBodyMap = (incidentId: string, residentName?: string, incidentDate?: string, incidentType?: string) => {
-    const incident = incidents?.find(i => i.id === incidentId);
-    if (incident) {
-      setBodyMapIncidentId(incidentId);
-      setBodyMapInitialData(incident.body_map_data);
-      setBodyMapMetadata({ residentName, incidentDate, incidentType });
-      setShowBodyMap(true);
-    }
-  };
-  const [resident, setResident] = React.useState<any>(undefined);
-  const fullName = resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : "";
-  const initials = resident ? `${(resident.first_name || "R")[0]}${(resident.last_name || "E")[0]}`.toUpperCase() : "RE";
+      try {
+        // Fetch resident
+        const { data: resData, error: resError } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", residentId)
+          .single();
 
-  const calculateAge = (dateOfBirth: string) => {
-    if (!dateOfBirth) return 0;
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (resError) throw resError;
+        setResident(resData);
 
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
+        // Fetch incidents
+        const { data: incData, error: incError } = await supabase
+          .from("incidents")
+          .select("*")
+          .eq("resident_id", residentId)
+          .order("date", { ascending: false })
+          .order("time", { ascending: false });
 
-    return age;
-  };
-  const [incidents, setIncidents] = React.useState<any[]>([]);
-  const [incidentStats, setIncidentStats] = React.useState<any>(null);
-  const [trustReports, setTrustReports] = React.useState<any[]>([]);
-  const [bhsctReports, setBhsctReports] = React.useState<any[]>([]);
-  const [sehsctReports, setSehsctReports] = React.useState<any[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
-
-  const fetchData = React.useCallback(async () => {
-    if (!id) return;
-    setIsLoading(true);
-    try {
-      // Fetch resident
-      const { data: resData } = await supabase
-        .from("residents")
-        .select("*")
-        .eq("id", id)
-        .single();
-      setResident(resData);
-
-      // Fetch incidents
-      const { data: incData } = await supabase
-        .from("incidents")
-        .select(`
-          *,
-          care_homes (
-            name
-          )
-        `)
-        .eq("resident_id", id)
-        .order("date", { ascending: false })
-        .order("time", { ascending: false });
-
-      const formattedIncData = incData?.map(inc => ({
-        ...inc,
-        home_name: (inc.care_homes as any)?.name
-      }));
-
-      setIncidents(formattedIncData || []);
-
-      // Fetch trust reports
-      const { data: trData } = await supabase
-        .from("trust_incident_reports")
-        .select("*")
-        .eq("resident_id", id);
-
-      const allTrustReports = trData || [];
-      setTrustReports(allTrustReports.filter(r => r.report_type === "nhs"));
-      setBhsctReports(allTrustReports.filter(r => r.report_type === "bhsct"));
-      setSehsctReports(allTrustReports.filter(r => r.report_type === "sehsct"));
-
-      // Calculate stats (simplified for now, can be improved)
-      if (incData) {
-        const total = incData.length;
-        const falls = incData.filter(i =>
-          i.incident_types?.some((t: string) => t.toLowerCase().includes("fall"))
-        ).length;
-
-        let daysSinceLast = 0;
-        if (incData.length > 0) {
-          const lastIncidentDate = new Date(incData[0].date);
-          const today = new Date();
-          const diffTime = Math.abs(today.getTime() - lastIncidentDate.getTime());
-          daysSinceLast = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        }
-
-        setIncidentStats({
-          totalIncidents: total,
-          fallsCount: falls,
-          daysSinceLastIncident: daysSinceLast
-        });
+        if (incError) throw incError;
+        setAllIncidents(incData || []);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        toast.error("Failed to load incidents data");
+      } finally {
+        setIsLoading(false);
       }
+    };
 
-    } catch (error) {
-      console.error("Error fetching incidents data:", error);
-      toast.error("Failed to load incidents data");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [id]);
-
-  React.useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [residentId]);
 
-  // Mutation for deleting incidents
-  const handleDeleteIncidentMutation = async (incidentId: string) => {
-    try {
-      // 1. Delete associated trust reports first to avoid foreign key constraints
-      const { error: trustReportsError } = await supabase
-        .from("trust_incident_reports")
-        .delete()
-        .eq("incident_id", incidentId);
+  // Calculate resident details
+  const fullName = useMemo(() => {
+    if (!resident?.first_name || !resident?.last_name) return "Unknown Resident";
+    return `${resident.first_name} ${resident.last_name}`;
+  }, [resident]);
 
-      if (trustReportsError) {
-        console.warn("Could not delete associated trust reports:", trustReportsError);
-        // We continue anyway, as the main delete might still work or have its own error
+
+  // Get unique years from incidents for filter
+  const availableYears = useMemo(() => {
+    if (!allIncidents || allIncidents.length === 0) return [];
+    const years = [...new Set(allIncidents.map(incident =>
+      new Date(incident.date).getFullYear()
+    ))];
+    return years.sort((a, b) => b - a);
+  }, [allIncidents]);
+
+  // Get unique incident types for filter
+  const availableTypes = useMemo(() => {
+    if (!allIncidents || allIncidents.length === 0) return [];
+    const types = new Set<string>();
+    allIncidents.forEach(incident => {
+      if (incident.incident_types) {
+        incident.incident_types.forEach((type: string) => types.add(type));
       }
+    });
+    return Array.from(types).sort();
+  }, [allIncidents]);
 
-      // 2. Delete the incident itself
-      const { error } = await supabase
-        .from("incidents")
-        .delete()
-        .eq("id", incidentId);
+  // Filter and sort incidents
+  const filteredIncidents = useMemo(() => {
+    if (!allIncidents) return [];
 
-      if (error) throw error;
+    let filtered = [...allIncidents];
 
-      toast.success("Incident report deleted successfully");
-      fetchData();
-    } catch (error) {
-      console.error("Error deleting incident:", error);
-      toast.error("Failed to delete incident report");
-      throw error; // Rethrow so the caller knows it failed
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filtered.filter(incident =>
+        incident.detailed_description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.incident_types?.some((type: string) => type.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        incident.completed_by_full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.injured_person_first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.injured_person_surname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.home_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incident.unit?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
     }
-  };
 
-  // Memoize NHS report existence check to avoid repeated .some() calls
-  // MUST be before any early returns to maintain hook order
-  const nhsReportExistsMap = React.useMemo(() => {
-    const map = new Map<string, boolean>();
+    // Apply month filter
+    if (selectedMonth !== "all") {
+      filtered = filtered.filter(incident => {
+        const incidentMonth = new Date(incident.date).getMonth() + 1;
+        return incidentMonth === parseInt(selectedMonth);
+      });
+    }
 
-    bhsctReports?.forEach(report => {
-      map.set(report.incident_id, true);
+    // Apply year filter
+    if (selectedYear !== "all") {
+      filtered = filtered.filter(incident => {
+        const incidentYear = new Date(incident.date).getFullYear();
+        return incidentYear === parseInt(selectedYear);
+      });
+    }
+
+    // Apply severity filter
+    if (selectedSeverity !== "all") {
+      filtered = filtered.filter(incident => incident.incident_level === selectedSeverity);
+    }
+
+    // Apply type filter
+    if (selectedType !== "all") {
+      filtered = filtered.filter(incident =>
+        incident.incident_types?.includes(selectedType)
+      );
+    }
+
+    // Sort by date and time
+    filtered.sort((a, b) => {
+      const dateA = new Date(`${a.date} ${a.time}`).getTime();
+      const dateB = new Date(`${b.date} ${b.time}`).getTime();
+      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
     });
 
-    sehsctReports?.forEach(report => {
-      map.set(report.incident_id, true);
-    });
+    return filtered;
+  }, [allIncidents, searchQuery, selectedMonth, selectedYear, selectedSeverity, selectedType, sortOrder]);
 
-    trustReports?.forEach(report => {
-      map.set(report.incident_id, true);
-    });
+  // Pagination
+  const totalPages = Math.ceil(filteredIncidents.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedIncidents = filteredIncidents.slice(startIndex, endIndex);
 
-    return map;
-  }, [bhsctReports, sehsctReports, trustReports]);
-
-  // Get trust reports for a specific incident (including BHSCT and SEHSCT reports)
-  const getTrustReportsForIncident = React.useCallback((incidentId: string) => {
-    const oldTrustReportsRaw = trustReports?.filter(report => report.incident_id === incidentId) || [];
-    const bhsctReportsForIncident = bhsctReports?.filter(report => report.incident_id === incidentId) || [];
-    const sehsctReportsForIncident = sehsctReports?.filter(report => report.incident_id === incidentId) || [];
-
-    // Format NHS reports with trust_name fallback
-    const formattedOldTrustReports = oldTrustReportsRaw.map(report => ({
-      ...report,
-      trust_name: report.trust_name || "NHS",
-      report_type: report.report_type || "nhs",
-    }));
-
-    // Convert BHSCT reports to the same format as trust reports
-    const formattedBhsctReports = bhsctReportsForIncident.map(report => ({
-      ...report,
-      trust_name: report.trust_name || "BHSCT",
-      report_type: "bhsct",
-    }));
-
-    // Convert SEHSCT reports to the same format as trust reports
-    const formattedSehsctReports = sehsctReportsForIncident.map(report => ({
-      ...report,
-      trust_name: report.trust_name || "SEHSCT",
-      report_type: "sehsct",
-    }));
-
-    return [...formattedOldTrustReports, ...formattedBhsctReports, ...formattedSehsctReports];
-  }, [trustReports, bhsctReports, sehsctReports]);
-
-  // No longer need manual getUser effect
-
-  if (resident === undefined) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading resident...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (resident === null) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-lg font-semibold">Resident not found</p>
-          <p className="text-muted-foreground">
-            The resident you&apos;re looking for doesn&apos;t exist.
-          </p>
-          <Button
-            variant="outline"
-            className="mt-4"
-            onClick={() => router.back()}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Go Back
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Placeholder removed
-  const handleViewIncident = (incidentId: string) => {
-    const incident = incidents?.find(i => i.id === incidentId);
-    if (incident) {
-      setSelectedIncident(JSON.parse(JSON.stringify(incident)));
-      setShowViewDialog(true);
-    }
-  };
-
-  const handleEditIncident = (incidentId: string) => {
-    const incident = incidents?.find(i => i.id === incidentId);
-    if (incident) {
-      setSelectedIncident(JSON.parse(JSON.stringify(incident)));
-      setShowReportForm(true);
-    }
-  };
-
-  const handleDeleteIncident = async (incidentId: string) => {
-    if (!confirm("Are you sure you want to delete this incident report? This action cannot be undone.")) {
-      return;
-    }
-
-    try {
-      await handleDeleteIncidentMutation(incidentId);
-      // Success toast is handled in the mutation
-    } catch (error) {
-      // Error toast is handled in the mutation
-    }
+  // Handlers
+  const handleViewIncident = (incident: any) => {
+    setSelectedIncident(incident);
+    setIsViewDialogOpen(true);
   };
 
   const handleDownloadIncident = async (incidentId: string) => {
     try {
-      const incident = incidents?.find(i => i.id === incidentId);
+      const incident = allIncidents?.find((i) => i.id === incidentId);
       if (!incident) {
         toast.error("Incident not found");
         return;
       }
 
+      const fullName = `${resident?.first_name} ${resident?.last_name}`;
       // Generate PDF content
       const pdfContent = generateIncidentPDF(incident, fullName);
 
       // Create a blob and download
-      const blob = new Blob([pdfContent], { type: 'text/html' });
+      const blob = new Blob([pdfContent], { type: "text/html" });
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `incident-report-${incident.date}-${incidentId.slice(-6)}.html`;
       document.body.appendChild(a);
@@ -403,2732 +252,648 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     }
   };
 
-  const handleNHSReport = (incidentId: string) => {
-    const incident = incidents?.find(i => i.id === incidentId);
-    if (!incident) {
-      toast.error("Incident not found");
-      return;
+  const handleExport = () => {
+    if (!filteredIncidents || filteredIncidents.length === 0) return;
+
+    // Create CSV content
+    const headers = ["Date", "Time", "Type", "Severity", "Location", "Description", "Injured Person", "Reported By"];
+    const rows = filteredIncidents.map(incident => [
+      incident.date,
+      incident.time,
+      incident.incident_types?.join("; ") || "",
+      incident.incident_level?.replace("_", " ") || "",
+      `${incident.home_name} - ${incident.unit}`,
+      incident.detailed_description || "",
+      `${incident.injured_person_first_name} ${incident.injured_person_surname}`,
+      incident.completed_by_full_name
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `incidents-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const getSeverityIcon = (severity: string) => {
+    switch (severity) {
+      case "death":
+        return <Heart className="w-4 h-4" />;
+      case "permanent_harm":
+        return <Shield className="w-4 h-4" />;
+      case "minor_injury":
+        return <AlertTriangle className="w-4 h-4" />;
+      case "no_harm":
+        return <Shield className="w-4 h-4" />;
+      default:
+        return <AlertTriangle className="w-4 h-4" />;
     }
-
-    // Open trust picker dialog instead of going directly to form
-    setTrustPickerIncident(incident);
-    setShowTrustPicker(true);
-  };
-
-  const handleTrustSelected = (trust: string) => {
-    setSelectedTrust(trust);
-    setShowTrustPicker(false);
-    setShowTrustForm(true);
-  };
-
-  const handleCloseTrustForm = () => {
-    setShowTrustForm(false);
-    setSelectedTrust("");
-    setTrustPickerIncident(null);
-    // Refresh data to show newly created trust reports
-    fetchData();
-  };
-
-  const handleNHSReportCreated = async (reportId: string) => {
-    // Refresh the UI list
-    fetchData();
-
-    // Fetch the newly created report directly for immediate download
-    try {
-      const { data: report, error } = await supabase
-        .from('trust_incident_reports')
-        .select('*')
-        .eq('id', reportId)
-        .single();
-
-      if (error) {
-        console.error("Error fetching new report for download:", error);
-        return;
-      }
-
-      if (report && nhsReportIncident) {
-        generateAndDownloadNHSReport(nhsReportIncident, report);
-      }
-    } catch (err) {
-      console.error("Failed to handle new report creation:", err);
-    }
-  };
-
-  const generateAndDownloadNHSReport = async (incident: any, trustReport: any) => {
-    try {
-      // Check report type
-      const isBHSCT = trustReport.report_type === "bhsct";
-      const isSEHSCT = trustReport.report_type === "sehsct";
-
-      const reportLabel = isBHSCT ? 'BHSCT' : isSEHSCT ? 'SEHSCT' : 'NHS';
-      toast.loading(`Generating ${reportLabel} report PDF...`);
-
-      // Call the PDF generation API
-      const response = await fetch('/api/pdf/nhs-report', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          incident,
-          trustReport,
-          resident,
-          isBHSCT,
-          isSEHSCT
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate PDF');
-      }
-
-      // Get the PDF blob from the response
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const fileName = isBHSCT
-        ? `BHSCT-Report-${incident.date}-${incident.id.slice(-6)}.pdf`
-        : isSEHSCT
-          ? `SEHSCT-Report-${incident.date}-${incident.id.slice(-6)}.pdf`
-          : `NHS-Report-${incident.date}-${incident.id.slice(-6)}.pdf`;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.dismiss();
-      toast.success(`${reportLabel} report downloaded successfully`);
-    } catch (error) {
-      toast.dismiss();
-      toast.error("Failed to generate NHS report PDF");
-      console.error("PDF generation error:", error);
-    }
-  };
-
-  const handlePS1Report = async (incidentId: string) => {
-    try {
-      const incident = incidents?.find(i => i.id === incidentId);
-      if (!incident) {
-        toast.error("Incident not found");
-        return;
-      }
-
-      // Generate PS1 (Patient Safety Incident) report content
-      const ps1Content = generatePS1Report(incident);
-
-      // Create a blob and download
-      const blob = new Blob([ps1Content], { type: 'text/html' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ps1-report-${incident.date}-${incidentId.slice(-6)}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      toast.success("PS1 report generated successfully");
-    } catch (error) {
-      console.error("Error generating PS1 report:", error);
-      toast.error("Failed to generate PS1 report");
-    }
-  };
-
-
-
-  const generateBHSCTReportPDF = (incident: any, report: any) => {
-    // BHSCT Official Logo (simplified SVG version based on official branding)
-    const bhsctLogo = `<svg width="280" height="80" viewBox="0 0 280 80" xmlns="http://www.w3.org/2000/svg">
-      <!-- HSC Box with teal background -->
-      <rect x="0" y="10" width="80" height="60" fill="#00A3A1" rx="4"/>
-      <text x="40" y="35" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="white" text-anchor="middle">HSC</text>
-      <g transform="translate(15, 48)">
-        <circle cx="8" cy="0" r="2" fill="white" opacity="0.8"/>
-        <circle cx="14" cy="0" r="2" fill="white" opacity="0.8"/>
-        <circle cx="20" cy="0" r="2" fill="white" opacity="0.8"/>
-        <path d="M 5 0 Q 8 3 11 0" stroke="white" stroke-width="1.5" fill="none" opacity="0.8"/>
-        <path d="M 11 0 Q 14 3 17 0" stroke="white" stroke-width="1.5" fill="none" opacity="0.8"/>
-        <path d="M 17 0 Q 20 3 23 0" stroke="white" stroke-width="1.5" fill="none" opacity="0.8"/>
-      </g>
-      <!-- Trust Name Text -->
-      <text x="90" y="35" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#2C3E50">Belfast Health and</text>
-      <text x="90" y="55" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#2C3E50">Social Care Trust</text>
-    </svg>`;
-
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>BHSCT Incident Report - ${incident.date}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Arial', sans-serif; padding: 40px; max-width: 900px; margin: 0 auto; color: #333; line-height: 1.6; }
-            .header { display: flex; align-items: center; justify-content: space-between; padding: 25px 20px; background: white; border-bottom: 4px solid #00A3A1; margin: -40px -40px 30px -40px; }
-            .logo-section { display: flex; align-items: center; }
-            .trust-badge { background: #00A3A1; color: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-            .section { margin-bottom: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background: white; page-break-inside: avoid; }
-            .section-title { font-size: 18px; font-weight: bold; color: #00A3A1; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #00A3A1; }
-            .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
-            .field { margin-bottom: 15px; }
-            .field-label { font-weight: 600; color: #2C3E50; font-size: 13px; margin-bottom: 5px; display: block; }
-            .field-value { color: #333; font-size: 14px; padding: 8px; background: #f8f9fa; border-radius: 4px; display: block; min-height: 20px; }
-            .field-value.textarea { white-space: pre-wrap; min-height: 60px; }
-            .info-box { background: #E6F7F7; padding: 15px; border-left: 4px solid #00A3A1; margin: 20px 0; border-radius: 4px; }
-            .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #e0e0e0; text-align: center; font-size: 11px; color: #666; }
-            .report-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
-            .meta-item { background: #f8f9fa; padding: 12px; border-radius: 6px; text-align: center; }
-            .meta-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
-            .meta-value { font-size: 14px; font-weight: bold; color: #00A3A1; margin-top: 5px; }
-            @media print {
-              body { padding: 20px; }
-              .section { page-break-inside: avoid; }
-              .header { margin: -20px -20px 20px -20px; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo-section">
-              ${bhsctLogo}
-            </div>
-            <div class="trust-badge">OFFICIAL REPORT</div>
-          </div>
-
-          <div style="text-align: center; margin: 20px 0 30px 0;">
-            <h1 style="color: #2C3E50; font-size: 26px; margin-bottom: 5px;">Incident Report Form</h1>
-            <p style="color: #666; font-size: 14px;">Confidential Document</p>
-          </div>
-
-          <div class="report-meta">
-            <div class="meta-item">
-              <div class="meta-label">Report ID</div>
-              <div class="meta-value">#${report.id.slice(-8).toUpperCase()}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">Report Date</div>
-              <div class="meta-value">${new Date(report.createdAt).toLocaleDateString()}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">Status</div>
-              <div class="meta-value">${report.status.toUpperCase()}</div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Provider and Service User Information</div>
-            <div class="field-row">
-              <div class="field">
-                <span class="field-label">Provider Name</span>
-                <span class="field-value">${report.providerName}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Service User Name</span>
-                <span class="field-value">${report.serviceUserName}</span>
-              </div>
-            </div>
-            <div class="field-row">
-              <div class="field">
-                <span class="field-label">Date of Birth</span>
-                <span class="field-value">${report.serviceUserDOB}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Gender</span>
-                <span class="field-value">${report.serviceUserGender}</span>
-              </div>
-            </div>
-            <div class="field">
-              <span class="field-label">Care Manager</span>
-              <span class="field-value">${report.careManager}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Incident Location</div>
-            <div class="field">
-              <span class="field-label">Address (including postcode) where incident occurred</span>
-              <span class="field-value textarea">${report.incidentAddress}</span>
-            </div>
-            <div class="field">
-              <span class="field-label">Exact location where incident occurred</span>
-              <span class="field-value">${report.exactLocation}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Incident Details</div>
-            <div class="field-row">
-              <div class="field">
-                <span class="field-label">Date of Incident</span>
-                <span class="field-value">${report.incidentDate}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Time of Incident</span>
-                <span class="field-value">${report.incidentTime}</span>
-              </div>
-            </div>
-            <div class="field">
-              <span class="field-label">Brief, factual description of incident</span>
-              <span class="field-value textarea">${report.incidentDescription}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Injury and Treatment</div>
-            <div class="field">
-              <span class="field-label">Nature of Injury Sustained</span>
-              <span class="field-value textarea">${report.natureOfInjury}</span>
-            </div>
-            <div class="field">
-              <span class="field-label">Details of immediate action taken and treatment given</span>
-              <span class="field-value textarea">${report.immediateActionTaken}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Notifications and Witnesses</div>
-            <div class="field">
-              <span class="field-label">Persons notified including designation/relationship to Service User</span>
-              <span class="field-value textarea">${report.personsNotified}</span>
-            </div>
-            ${report.witnesses ? `
-            <div class="field">
-              <span class="field-label">Name and designation of any witnesses</span>
-              <span class="field-value textarea">${report.witnesses}</span>
-            </div>
-            ` : ''}
-            ${report.staffInvolved ? `
-            <div class="field">
-              <span class="field-label">Name and designation of any staff member involved</span>
-              <span class="field-value textarea">${report.staffInvolved}</span>
-            </div>
-            ` : ''}
-            ${report.otherServiceUsersInvolved ? `
-            <div class="field">
-              <span class="field-label">Other Service User(s) involved (include DOB)</span>
-              <span class="field-value textarea">${report.otherServiceUsersInvolved}</span>
-            </div>
-            ` : ''}
-          </div>
-
-          <div class="section">
-            <div class="section-title">Reporter Information</div>
-            <div class="field-row">
-              <div class="field">
-                <span class="field-label">Name of person reporting the incident</span>
-                <span class="field-value">${report.reporterName}</span>
-              </div>
-              <div class="field">
-                <span class="field-label">Designation</span>
-                <span class="field-value">${report.reporterDesignation}</span>
-              </div>
-            </div>
-            <div class="field">
-              <span class="field-label">Date reported</span>
-              <span class="field-value">${report.dateReported}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Follow-up Actions</div>
-            <div class="field">
-              <span class="field-label">Actions taken to prevent recurrence</span>
-              <span class="field-value textarea">${report.preventionActions}</span>
-            </div>
-            ${report.riskAssessmentUpdateDate ? `
-            <div class="field">
-              <span class="field-label">Date Service User's risk assessment and care plan updated following this incident</span>
-              <span class="field-value">${report.riskAssessmentUpdateDate}</span>
-            </div>
-            ` : ''}
-            ${report.otherComments ? `
-            <div class="field">
-              <span class="field-label">Other Comments</span>
-              <span class="field-value textarea">${report.otherComments}</span>
-            </div>
-            ` : ''}
-          </div>
-
-          ${report.reviewerName || report.reviewerDesignation || report.reviewDate ? `
-          <div class="section">
-            <div class="section-title">Senior Staff / Service Manager Review</div>
-            ${report.reviewerName ? `
-            <div class="field">
-              <span class="field-label">Name (of senior staff / service manager)</span>
-              <span class="field-value">${report.reviewerName}</span>
-            </div>
-            ` : ''}
-            ${report.reviewerDesignation ? `
-            <div class="field">
-              <span class="field-label">Designation</span>
-              <span class="field-value">${report.reviewerDesignation}</span>
-            </div>
-            ` : ''}
-            ${report.reviewDate ? `
-            <div class="field">
-              <span class="field-label">Date</span>
-              <span class="field-value">${report.reviewDate}</span>
-            </div>
-            ` : ''}
-          </div>
-          ` : ''}
-
-          <div class="info-box">
-            <strong>Important:</strong> This report has been generated by Belfast Health and Social Care Trust (BHSCT) for incident reporting purposes.
-            Ensure this report is kept confidential and filed according to BHSCT policies and procedures.
-          </div>
-
-          <div class="footer">
-            <p><strong>Generated by CareO System</strong></p>
-            <p>Report ID: ${report.id} | Generated on: ${new Date().toLocaleString()}</p>
-            <p>Reported by: ${report.reportedByName} | Original Report Date: ${new Date(report.createdAt).toLocaleDateString()}</p>
-            <p style="margin-top: 10px;">© ${new Date().getFullYear()} Belfast Health and Social Care Trust. All rights reserved.</p>
-          </div>
-        </body>
-      </html>
-    `;
-  };
-
-  const generateNHSReportWithTrust = (incident: any, trustReport: any) => {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>NHS Incident Report - ${incident.date}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-            h1 { color: #005eb8; border-bottom: 3px solid #005eb8; padding-bottom: 10px; }
-            h2 { color: #003087; margin-top: 25px; background: #e8f4fd; padding: 8px; }
-            .header { background: #005eb8; color: white; padding: 20px; margin: -20px -20px 20px -20px; }
-            .section { margin-bottom: 25px; padding: 15px; border: 1px solid #d4e4f1; }
-            .field { margin-bottom: 12px; }
-            .label { font-weight: bold; color: #003087; display: inline-block; width: 180px; }
-            .value { margin-left: 10px; }
-            .nhs-logo { font-size: 24px; font-weight: bold; }
-            .critical { background: #fee; padding: 10px; border-left: 4px solid #d5281b; }
-            .trust-header { background: #e8f4fd; padding: 15px; margin-bottom: 20px; border-left: 4px solid #005eb8; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="nhs-logo">NHS</div>
-            <h1 style="color: white; border: none;">Patient Safety Incident Report</h1>
-          </div>
-          
-          <div class="trust-header">
-            <h2 style="margin: 0; background: none; color: #003087;">Trust Information</h2>
-            <div class="field" style="margin-top: 10px;">
-              <span class="label">NHS Trust:</span>
-              <span class="value" style="font-weight: bold; font-size: 16px;">${trustReport.trustName}</span>
-            </div>
-            <div class="field">
-              <span class="label">Report Generated:</span>
-              <span class="value">${new Date(trustReport.createdAt).toLocaleString()}</span>
-            </div>
-            <div class="field">
-              <span class="label">Generated By:</span>
-              <span class="value">${trustReport.createdByName}</span>
-            </div>
-          </div>
-          
-          <div class="section">
-            <h2>Incident Information</h2>
-            <div class="field">
-              <span class="label">NHS Number:</span>
-              <span class="value">${resident?.nhsHealthNumber || "Not Available"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Patient Name:</span>
-              <span class="value">${fullName}</span>
-            </div>
-            <div class="field">
-              <span class="label">Date of Birth:</span>
-              <span class="value">${incident.injuredPersonDOB}</span>
-            </div>
-            <div class="field">
-              <span class="label">Incident Date/Time:</span>
-              <span class="value">${incident.date} ${incident.time}</span>
-            </div>
-            <div class="field">
-              <span class="label">Location:</span>
-              <span class="value">${incident.homeName} - ${incident.unit}</span>
-            </div>
-          </div>
-          
-          <div class="section">
-            <h2>Incident Classification</h2>
-            <div class="field">
-              <span class="label">Incident Type:</span>
-              <span class="value">${incident.incidentTypes?.join(", ") || "Unspecified"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Severity Level:</span>
-              <span class="value">${incident.incidentLevel?.replace("_", " ").toUpperCase() || "Not Assessed"}</span>
-            </div>
-            ${incident.incidentLevel === "death" || incident.incidentLevel === "permanent_harm" ? `
-            <div class="critical">
-              <strong>CRITICAL INCIDENT:</strong> This incident requires immediate escalation and reporting to NHS England.
-            </div>
-            ` : ''}
-          </div>
-
-          <div class="section">
-            <h2>Clinical Details</h2>
-            <div class="field">
-              <span class="label">Injuries Sustained:</span>
-              <span class="value">${incident.injuryTypes?.join(", ") || "None recorded"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Treatment Provided:</span>
-              <span class="value">${incident.treatmentTypes?.join(", ") || "None recorded"}</span>
-            </div>
-            ${incident.treatmentDetails ? `
-            <div class="field">
-              <span class="label">Treatment Details:</span>
-              <span class="value">${incident.treatmentDetails}</span>
-            </div>
-            ` : ''}
-            <div class="field">
-              <span class="label">Medical Professional Notified:</span>
-              <span class="value">${incident.medicalProfessionalNotified || "Yes"}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>Incident Description</h2>
-            <p>${incident.detailedDescription || "No description provided"}</p>
-          </div>
-
-          ${trustReport.additionalNotes ? `
-          <div class="section">
-            <h2>Additional NHS Trust Notes</h2>
-            <p>${trustReport.additionalNotes}</p>
-          </div>
-          ` : ''}
-
-          <div class="section">
-            <h2>Reporting Information</h2>
-            <div class="field">
-              <span class="label">Incident Reported By:</span>
-              <span class="value">${incident.completedByFullName}</span>
-            </div>
-            <div class="field">
-              <span class="label">Job Title:</span>
-              <span class="value">${incident.completedByJobTitle}</span>
-            </div>
-            <div class="field">
-              <span class="label">Incident Date Reported:</span>
-              <span class="value">${incident.dateCompleted}</span>
-            </div>
-            <div class="field">
-              <span class="label">NHS Report Created By:</span>
-              <span class="value">${trustReport.createdByName}</span>
-            </div>
-            <div class="field">
-              <span class="label">NHS Report Date:</span>
-              <span class="value">${new Date(trustReport.createdAt).toLocaleDateString()}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <p style="font-size: 12px; color: #666;">
-              This report has been generated by <strong>${trustReport.trustName}</strong> for NHS reporting purposes. 
-              Please ensure all serious incidents are reported through the appropriate NHS reporting channels including NRLS (National Reporting and Learning System).
-            </p>
-          </div>
-        </body>
-      </html>
-    `;
-  };
-
-  const generateNHSReport = (incident: any) => {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>NHS Incident Report - ${incident.date}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-            h1 { color: #005eb8; border-bottom: 3px solid #005eb8; padding-bottom: 10px; }
-            h2 { color: #003087; margin-top: 25px; background: #e8f4fd; padding: 8px; }
-            .header { background: #005eb8; color: white; padding: 20px; margin: -20px -20px 20px -20px; }
-            .section { margin-bottom: 25px; padding: 15px; border: 1px solid #d4e4f1; }
-            .field { margin-bottom: 12px; }
-            .label { font-weight: bold; color: #003087; display: inline-block; width: 180px; }
-            .value { margin-left: 10px; }
-            .nhs-logo { font-size: 24px; font-weight: bold; }
-            .critical { background: #fee; padding: 10px; border-left: 4px solid #d5281b; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="nhs-logo">NHS</div>
-            <h1 style="color: white; border: none;">Patient Safety Incident Report</h1>
-          </div>
-          
-          <div class="section">
-            <h2>Incident Information</h2>
-            <div class="field">
-              <span class="label">NHS Number:</span>
-              <span class="value">${resident?.nhsHealthNumber || "Not Available"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Patient Name:</span>
-              <span class="value">${fullName}</span>
-            </div>
-            <div class="field">
-              <span class="label">Date of Birth:</span>
-              <span class="value">${incident.injuredPersonDOB}</span>
-            </div>
-            <div class="field">
-              <span class="label">Incident Date/Time:</span>
-              <span class="value">${incident.date} ${incident.time}</span>
-            </div>
-            <div class="field">
-              <span class="label">Location:</span>
-              <span class="value">${incident.homeName} - ${incident.unit}</span>
-            </div>
-          </div>
-          
-          <div class="section">
-            <h2>Incident Classification</h2>
-            <div class="field">
-              <span class="label">Incident Type:</span>
-              <span class="value">${incident.incidentTypes?.join(", ") || "Unspecified"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Severity Level:</span>
-              <span class="value">${incident.incidentLevel?.replace("_", " ").toUpperCase() || "Not Assessed"}</span>
-            </div>
-            ${incident.incidentLevel === "death" || incident.incidentLevel === "permanent_harm" ? `
-            <div class="critical">
-              <strong>CRITICAL INCIDENT:</strong> This incident requires immediate escalation and reporting to NHS England.
-            </div>
-            ` : ''}
-          </div>
-
-          <div class="section">
-            <h2>Clinical Details</h2>
-            <div class="field">
-              <span class="label">Injuries Sustained:</span>
-              <span class="value">${incident.injuryTypes?.join(", ") || "None recorded"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Treatment Provided:</span>
-              <span class="value">${incident.treatmentTypes?.join(", ") || "None recorded"}</span>
-            </div>
-            ${incident.treatmentDetails ? `
-            <div class="field">
-              <span class="label">Treatment Details:</span>
-              <span class="value">${incident.treatmentDetails}</span>
-            </div>
-            ` : ''}
-            <div class="field">
-              <span class="label">Medical Professional Notified:</span>
-              <span class="value">${incident.medicalProfessionalNotified || "Yes"}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>Incident Description</h2>
-            <p>${incident.detailedDescription || "No description provided"}</p>
-          </div>
-
-          <div class="section">
-            <h2>Reporting Information</h2>
-            <div class="field">
-              <span class="label">Reported By:</span>
-              <span class="value">${incident.completedByFullName}</span>
-            </div>
-            <div class="field">
-              <span class="label">Job Title:</span>
-              <span class="value">${incident.completedByJobTitle}</span>
-            </div>
-            <div class="field">
-              <span class="label">Date Reported:</span>
-              <span class="value">${incident.dateCompleted}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <p style="font-size: 12px; color: #666;">
-              This report has been generated for NHS reporting purposes. 
-              Please ensure all serious incidents are reported through the appropriate NHS reporting channels including NRLS (National Reporting and Learning System).
-            </p>
-          </div>
-        </body>
-      </html>
-    `;
-  };
-
-  const generatePS1Report = (incident: any) => {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>PS1 Report - ${incident.date}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-            h1 { color: #1d70b8; border-bottom: 2px solid #1d70b8; padding-bottom: 10px; }
-            h2 { color: #003078; margin-top: 20px; }
-            .section { margin-bottom: 20px; padding: 15px; background: #f3f5f6; }
-            .field { margin-bottom: 10px; display: flex; }
-            .label { font-weight: bold; color: #003078; min-width: 200px; }
-            .value { flex: 1; }
-            .header-info { background: #1d70b8; color: white; padding: 15px; margin: -20px -20px 20px -20px; }
-            table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-            th, td { border: 1px solid #b1b4b6; padding: 8px; text-align: left; }
-            th { background: #dee0e2; font-weight: bold; }
-            .severity-high { color: #d4351c; font-weight: bold; }
-            .severity-medium { color: #f47738; font-weight: bold; }
-            .severity-low { color: #00703c; }
-          </style>
-        </head>
-        <body>
-          <div class="header-info">
-            <h1 style="color: white; border: none; margin: 0;">Patient Safety Incident Report (PS1)</h1>
-            <p style="margin: 5px 0;">Care Quality Commission Notification</p>
-          </div>
-          
-          <div class="section">
-            <h2>1. Organisation & Location Details</h2>
-            <div class="field">
-              <span class="label">Organisation:</span>
-              <span class="value">${incident.homeName}</span>
-            </div>
-            <div class="field">
-              <span class="label">Unit/Ward:</span>
-              <span class="value">${incident.unit}</span>
-            </div>
-            <div class="field">
-              <span class="label">Date of Incident:</span>
-              <span class="value">${incident.date}</span>
-            </div>
-            <div class="field">
-              <span class="label">Time of Incident:</span>
-              <span class="value">${incident.time}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>2. Person Affected</h2>
-            <div class="field">
-              <span class="label">Name:</span>
-              <span class="value">${incident.injuredPersonFirstName} ${incident.injuredPersonSurname}</span>
-            </div>
-            <div class="field">
-              <span class="label">Date of Birth:</span>
-              <span class="value">${incident.injuredPersonDOB}</span>
-            </div>
-            <div class="field">
-              <span class="label">NHS Number:</span>
-              <span class="value">${resident?.nhsHealthNumber || "Not Available"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Person Status:</span>
-              <span class="value">${incident.injuredPersonStatus?.join(", ") || "Resident"}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>3. Incident Details</h2>
-            <table>
-              <tr>
-                <th>Category</th>
-                <th>Details</th>
-              </tr>
-              <tr>
-                <td>Incident Type(s)</td>
-                <td>${incident.incidentTypes?.join(", ") || "Not specified"}</td>
-              </tr>
-              <tr>
-                <td>Severity Level</td>
-                <td class="${incident.incidentLevel === "death" || incident.incidentLevel === "permanent_harm" ? "severity-high" :
-        incident.incidentLevel === "minor_injury" ? "severity-medium" : "severity-low"
-      }">${incident.incidentLevel?.replace("_", " ").toUpperCase() || "Not Assessed"}</td>
-              </tr>
-              <tr>
-                <td>Injuries</td>
-                <td>${incident.injuryTypes?.join(", ") || "None"}</td>
-              </tr>
-              <tr>
-                <td>Body Parts Affected</td>
-                <td>${incident.bodyPartsInjured?.join(", ") || "Not specified"}</td>
-              </tr>
-            </table>
-          </div>
-
-          <div class="section">
-            <h2>4. Incident Description</h2>
-            <p style="background: white; padding: 10px; border: 1px solid #b1b4b6;">
-              ${incident.detailedDescription || "No description provided"}
-            </p>
-          </div>
-
-          <div class="section">
-            <h2>5. Immediate Action Taken</h2>
-            <div class="field">
-              <span class="label">Treatment Provided:</span>
-              <span class="value">${incident.treatmentTypes?.join(", ") || "None"}</span>
-            </div>
-            ${incident.treatmentDetails ? `
-            <div class="field">
-              <span class="label">Treatment Details:</span>
-              <span class="value">${incident.treatmentDetails}</span>
-            </div>
-            ` : ''}
-            <div class="field">
-              <span class="label">Medical Professional Notified:</span>
-              <span class="value">${incident.medicalProfessionalNotified || "Yes"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Family Notified:</span>
-              <span class="value">${incident.familyNotified || "Yes"}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>6. Contributing Factors</h2>
-            <div class="field">
-              <span class="label">Environmental Factors:</span>
-              <span class="value">${incident.environmentalFactors?.join(", ") || "None identified"}</span>
-            </div>
-            <div class="field">
-              <span class="label">Other Factors:</span>
-              <span class="value">${incident.contributingFactors || "None identified"}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>7. Report Details</h2>
-            <div class="field">
-              <span class="label">Report Completed By:</span>
-              <span class="value">${incident.completedByFullName}</span>
-            </div>
-            <div class="field">
-              <span class="label">Job Title:</span>
-              <span class="value">${incident.completedByJobTitle}</span>
-            </div>
-            <div class="field">
-              <span class="label">Date Completed:</span>
-              <span class="value">${incident.dateCompleted}</span>
-            </div>
-            <div class="field">
-              <span class="label">Time Completed:</span>
-              <span class="value">${incident.timeCompleted || "Not recorded"}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>8. Regulatory Requirements</h2>
-            <p>☐ CQC Notification Required (for serious injuries/deaths)</p>
-            <p>☐ Safeguarding Referral Made</p>
-            <p>☐ RIDDOR Report Submitted (if applicable)</p>
-            <p>☐ Insurance Company Notified</p>
-            <p>☐ Root Cause Analysis Initiated</p>
-          </div>
-
-          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #b1b4b6; font-size: 12px; color: #666;">
-            <p><strong>PS1 Report Generated:</strong> ${new Date().toLocaleString()}</p>
-            <p>This report should be submitted to the CQC within the required timeframe. Serious injuries and deaths must be reported immediately.</p>
-          </div>
-        </body>
-      </html>
-    `;
-  };
-
-  // Pagination logic
-  const totalIncidents = incidents?.length || 0;
-  const totalPages = Math.ceil(totalIncidents / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedIncidents = incidents?.slice(startIndex, endIndex) || [];
-  const showPagination = totalIncidents > 0; // Always show pagination when there are incidents
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  const handlePrevious = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  const handleNext = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  // Format incident data for display
-  const formattedIncidents = incidents?.map(incident => ({
-    id: incident._id,
-    date: incident.date,
-    time: incident.time,
-    type: incident.type,
-    severity: incident.severity,
-    location: incident.location,
-    description: incident.description,
-    reportedBy: incident.reportedBy,
-    actionTaken: incident.immediateAction,
-    followUp: incident.followUpRequired || "No follow-up required"
-  })) || [];
-
-  const mockFallsRiskAssessment = {
-    lastAssessment: "2024-02-01",
-    riskLevel: "Medium",
-    score: 6,
-    maxScore: 10,
-    factors: [
-      { factor: "Previous falls", present: true, points: 2 },
-      { factor: "Mobility impairment", present: true, points: 2 },
-      { factor: "Medication effects", present: true, points: 1 },
-      { factor: "Cognitive impairment", present: false, points: 0 },
-      { factor: "Environmental hazards", present: true, points: 1 }
-    ]
   };
 
   const getSeverityColor = (severity: string) => {
-    switch (severity.toLowerCase()) {
-      case 'high':
-      case 'severe':
-        return { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700' };
-      case 'medium':
-      case 'moderate':
-        return { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700' };
-      case 'low':
-      case 'minor':
-        return { bg: 'bg-yellow-100', border: 'border-yellow-200', text: 'text-yellow-700' };
+    switch (severity) {
+      case "death":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "permanent_harm":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "minor_injury":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "no_harm":
+        return "bg-green-100 text-green-800 border-green-200";
       default:
-        return { bg: 'bg-gray-100', border: 'border-gray-200', text: 'text-gray-700' };
+        return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
 
-  const getTypeColor = (type: string) => {
+  const getTypeIcon = (type: string) => {
     switch (type.toLowerCase()) {
-      case 'fall':
-        return { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700' };
-      case 'medication_error':
-        return { bg: 'bg-purple-100', border: 'border-purple-200', text: 'text-purple-700' };
-      case 'injury':
-        return { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700' };
-      case 'behavioral':
-        return { bg: 'bg-yellow-100', border: 'border-yellow-200', text: 'text-yellow-700' };
-      case 'skin_integrity':
-        return { bg: 'bg-pink-100', border: 'border-pink-200', text: 'text-pink-700' };
+      case "fall":
+        return <TrendingDown className="w-4 h-4" />;
+      case "medication_error":
+        return <Pill className="w-4 h-4" />;
       default:
-        return { bg: 'bg-blue-100', border: 'border-blue-200', text: 'text-blue-700' };
+        return <AlertTriangle className="w-4 h-4" />;
     }
   };
 
-  const formatTypeLabel = (type: string) => {
-    return type.split('_').map(word =>
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
-  };
+  // Loading state
+  if (isLoading || !resident || allIncidents.length === 0 && isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading incidents...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const formatSeverityLabel = (severity: string) => {
-    return severity.charAt(0).toUpperCase() + severity.slice(1);
-  };
-
-  const handleViewNHSReport = (report: any, incident: any) => {
-    setSelectedNHSReport({ report, incident });
-    setShowNHSReportView(true);
-  };
-
-  const handleDownloadNHSReportFromBadge = (report: any) => {
-    const incident = incidents?.find(i => i.id === report.incident_id);
-    if (incident) {
-      generateAndDownloadNHSReport(incident, report);
-    }
+  // Calculate stats
+  const incidentStats = {
+    total: allIncidents.length,
+    thisMonth: allIncidents.filter(incident => {
+      const incidentDate = new Date(incident.date);
+      const now = new Date();
+      return incidentDate.getMonth() === now.getMonth() && incidentDate.getFullYear() === now.getFullYear();
+    }).length,
+    thisWeek: allIncidents.filter(incident => {
+      const incidentDate = new Date(incident.date);
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return incidentDate >= weekAgo;
+    }).length,
+    severe: allIncidents.filter(incident =>
+      incident.incident_level === "death" || incident.incident_level === "permanent_harm"
+    ).length,
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      <div className="flex flex-col gap-6">
-        {/* Header with Back Button */}
-        <div className="flex items-center space-x-4 mb-6">
-          <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <Avatar className="w-10 h-10">
-            <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
-            <AvatarFallback className="text-sm bg-primary/10 text-primary">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1">
+    <div className="container mx-auto p-6 space-y-6 max-w-7xl">
+      {/* Header */}
+      <div className="flex items-center space-x-4 mb-6">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => router.push(`/dashboard/residents/${id}`)}
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-red-100 rounded-lg">
+            <AlertTriangle className="w-6 h-6 text-red-600" />
+          </div>
+          <div>
             <h1 className="text-xl sm:text-2xl font-bold">Incidents & Falls</h1>
             <p className="text-muted-foreground text-sm">
-              View and manage incident reports for {resident.first_name} {resident.last_name}.
+              Complete history of incidents and safety reports for {fullName}
             </p>
           </div>
-          <div className="flex flex-row gap-2">
-            {canCreateIncident(profile?.role as any) && (
-              <Button
-                onClick={() => setShowReportForm(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Report Incident
-              </Button>
-            )}
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-0 bg-gradient-to-br from-red-50 to-red-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-red-700">Total Incidents</p>
+                <p className="text-2xl font-bold text-red-900">{incidentStats.total}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <FileText className="w-5 h-5 text-red-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 bg-gradient-to-br from-green-50 to-green-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-700">This Month</p>
+                <p className="text-2xl font-bold text-green-900">{incidentStats.thisMonth}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <Calendar className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-700">This Week</p>
+                <p className="text-2xl font-bold text-blue-900">{incidentStats.thisWeek}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <TrendingDown className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 bg-gradient-to-br from-orange-50 to-orange-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-orange-700">Severe Incidents</p>
+                <p className="text-2xl font-bold text-orange-900">{incidentStats.severe}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters and Search */}
+      <Card className="border-0">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Filter className="w-5 h-5" />
+              <span>Filter Incidents</span>
+            </div>
             <Button
               variant="outline"
-              onClick={() => router.push(`/dashboard/residents/${id}/incidents/documents`)}
+              size="sm"
+              onClick={handleExport}
+              disabled={filteredIncidents.length === 0}
             >
-              <Eye className="w-4 h-4 mr-2" />
-              See All Records
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
             </Button>
-          </div>
-        </div>
-
-        {/* Incidents List */}
-        <Card className="border-0">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Shield className="w-5 h-5" />
-              <span>Recent Incidents</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            {!incidents || incidents.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-500 font-medium">No incidents recorded</p>
-                <p className="text-gray-400 text-sm mt-1">
-                  Click the Report New Incident button to add the first incident
-                </p>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search by description, type, location, or person..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="pl-10"
+                />
               </div>
-            ) : (
-              <div className="space-y-3">
-                {paginatedIncidents.map((incident) => (
-                  <div
-                    key={incident.id}
-                    className="flex flex-col md:flex-row md:items-center md:justify-between p-4 rounded-lg border"
-                  >
-                    <div className="flex items-start space-x-3 flex-1">
-                      <div className="p-2 bg-gray-100 rounded-lg flex-shrink-0">
-                        <FileText className="w-4 h-4 text-gray-600" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <h4 className="font-semibold text-gray-900">
-                            {incident.incident_types?.join(", ") || "Incident"}
-                          </h4>
-                          <Badge
-                            className={`text-xs border-0 ${incident.incident_level === "death" ? "bg-red-100 text-red-800" :
-                              incident.incident_level === "permanent_harm" ? "bg-red-100 text-red-800" :
-                                incident.incident_level === "minor_injury" ? "bg-yellow-100 text-yellow-800" :
-                                  incident.incident_level === "no_harm" ? "bg-green-100 text-green-800" :
-                                    "bg-gray-100 text-gray-800"
-                              }`}
-                          >
-                            {incident.incident_level
-                              ?.replace("_", " ")
-                              .toLowerCase()
-                              .replace(/\b\w/g, (c) => c.toUpperCase())}
-
-                          </Badge>
-
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-
-                          <div className="flex items-center space-x-2 text-xs text-muted-foreground mb-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{formatDateForDisplay(incident.date)}</span>
-                            <span>at</span>
-                            <span>{incident.time ? formatTimestampToUKTime(incident.date + 'T' + incident.time) : '--'}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <User className="w-3 h-3" />
-                            <span>{incident.completed_by_full_name}</span>
-                          </div>
-                          {/* Trust Report Indicators - inline with metadata */}
-                          {getTrustReportsForIncident(incident.id).map((report) => (
-                            <Badge
-                              key={report.id}
-                              variant="outline"
-                              className="text-xs bg-blue-50 text-blue-700 border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors"
-                              title={`${report.trust_name} Report - Click to view`}
-                              onClick={() => handleViewNHSReport(report, incident)}
-                            >
-                              <FileBarChart className="w-3 h-3 mr-1" />
-                              {report.trust_name}
-                            </Badge>
-                          ))}
-                          {incident.body_map_data?.entries?.length > 0 && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-purple-50 text-purple-700 border-purple-200 cursor-pointer hover:bg-purple-100 transition-colors"
-                              onClick={() => handleBodyMap(incident.id, fullName, formatDateForDisplay(incident.date), incident.incident_types?.join(", ") || "N/A")}
-                            >
-                              <MapIcon className="w-3 h-3 mr-1" />
-                              Body Map
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-
-                    </div>
-
-                    <div className="flex items-center mt-3 md:mt-0 md:ml-4">
-                      <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={() => handleViewIncident(incident.id)}>
-                            <Eye className="w-4 h-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          {canEditIncident(profile?.role as any) && (
-                            <DropdownMenuItem onClick={() => handleEditIncident(incident.id)}>
-                              <Pencil className="w-4 h-4 mr-2" />
-                              Edit Incident
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => handleDownloadIncident(incident.id)}>
-                            <Download className="w-4 h-4 mr-2" />
-                            Download PDF
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {canForwardIncident(profile?.role as any) && (
-                            <>
-                              <DropdownMenuItem
-                                onClick={() => handleNHSReport(incident.id)}
-                              >
-                                <FileBarChart className="w-4 h-4 mr-2" />
-                                <span>{nhsReportExistsMap.get(incident.id) ? "Generate Another NHS Report" : "Generate NHS Report"}</span>
-                              </DropdownMenuItem>
-
-                              {nhsReportExistsMap.get(incident.id) && (
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    const reports = getTrustReportsForIncident(incident.id);
-                                    if (reports.length > 0) {
-                                      handleViewNHSReport(reports[0], incident);
-                                    }
-                                  }}
-                                >
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  <span>View NHS Report(s)</span>
-                                </DropdownMenuItem>
-                              )}
-                            </>
-                          )}
-                          <DropdownMenuItem onClick={() => {
-                            const incidentDate = incident.date ? formatDateForDisplay(incident.date) : "N/A";
-                            const incidentType = incident.incident_types?.join(", ") || "N/A";
-                            handleBodyMap(incident.id, fullName, incidentDate, incidentType);
-                          }}>
-                            <User className="w-4 h-4 mr-2" />
-                            <span>Body Map</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => {
-                            setRestrictivePracticeIncident(incident);
-                            setShowRestrictivePracticeForm(true);
-                          }}>
-                            <ShieldAlert className="w-4 h-4 mr-2" />
-                            <span>Restrictive Practice Form</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <ClipboardCheck className="w-4 h-4 mr-2" />
-                            <span>Generate APP1 Report</span>
-                          </DropdownMenuItem>
-                          {canEditIncident(profile?.role as any) && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteIncident(incident.id)}
-                                className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                <span>Delete Incident</span>
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
+            </div>
+            <Select
+              value={selectedType}
+              onValueChange={(value) => {
+                setSelectedType(value);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {availableTypes.map(type => (
+                  <SelectItem key={type} value={type}>
+                    {type.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
+                  </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={selectedSeverity}
+              onValueChange={(value) => {
+                setSelectedSeverity(value);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Severity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Severities</SelectItem>
+                <SelectItem value="no_harm">No Harm</SelectItem>
+                <SelectItem value="minor_injury">Minor Injury</SelectItem>
+                <SelectItem value="permanent_harm">Permanent Harm</SelectItem>
+                <SelectItem value="death">Death</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={selectedMonth}
+              onValueChange={(value) => {
+                setSelectedMonth(value);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                <SelectItem value="1">January</SelectItem>
+                <SelectItem value="2">February</SelectItem>
+                <SelectItem value="3">March</SelectItem>
+                <SelectItem value="4">April</SelectItem>
+                <SelectItem value="5">May</SelectItem>
+                <SelectItem value="6">June</SelectItem>
+                <SelectItem value="7">July</SelectItem>
+                <SelectItem value="8">August</SelectItem>
+                <SelectItem value="9">September</SelectItem>
+                <SelectItem value="10">October</SelectItem>
+                <SelectItem value="11">November</SelectItem>
+                <SelectItem value="12">December</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={selectedYear}
+              onValueChange={(value) => {
+                setSelectedYear(value);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Year" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Years</SelectItem>
+                {availableYears.map(year => (
+                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={sortOrder}
+              onValueChange={(value: "asc" | "desc") => setSortOrder(value)}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="desc">Newest First</SelectItem>
+                <SelectItem value="asc">Oldest First</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
-                {/* Pagination Controls */}
-                {showPagination && (
-                  <div className="flex items-center justify-between pt-4 border-t">
-                    <div className="text-sm text-gray-500">
-                      Showing {startIndex + 1}-{Math.min(endIndex, totalIncidents)} of {totalIncidents} incidents
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handlePrevious}
-                        disabled={currentPage === 1}
-                        className="h-8 w-8 p-0"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </Button>
-                      <div className="flex items-center space-x-1">
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                          <Button
-                            key={page}
-                            variant={currentPage === page ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => handlePageChange(page)}
-                            className="h-8 w-8 p-0"
-                          >
-                            {page}
-                          </Button>
-                        ))}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleNext}
-                        disabled={currentPage === totalPages}
-                        className="h-8 w-8 p-0"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-
-        {/* Incident Summary */}
-        <Card className="border-0">
-          <CardHeader className="">
-            <CardTitle className="flex items-center space-x-3">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <FileText className="w-5 h-5 text-gray-600" />
-              </div>
-              <span className="text-gray-900">Incident Summary</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 p-4 border border-orange-200">
-                <div className="relative z-10">
-                  <div className="text-3xl font-bold text-orange-600 mb-1">
-                    {incidentStats?.totalIncidents || 0}
-                  </div>
-                  <p className="text-sm font-medium text-orange-700">Total Incidents</p>
-                </div>
-                <div className="absolute -right-2 -bottom-2 opacity-10">
-                  <AlertTriangle className="w-16 h-16 text-orange-600" />
-                </div>
-              </div>
-
-              <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-red-50 to-red-100 p-4 border border-red-200">
-                <div className="relative z-10">
-                  <div className="text-3xl font-bold text-red-600 mb-1">
-                    {incidentStats?.fallsCount || 0}
-                  </div>
-                  <p className="text-sm font-medium text-red-700">Falls Recorded</p>
-                </div>
-                <div className="absolute -right-2 -bottom-2 opacity-10">
-                  <TrendingDown className="w-16 h-16 text-red-600" />
-                </div>
-              </div>
-
-              <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 p-4 border border-blue-200">
-                <div className="relative z-10">
-                  <div className="text-3xl font-bold text-blue-600 mb-1">
-                    {mockFallsRiskAssessment.score}/10
-                  </div>
-                  <p className="text-sm font-medium text-blue-700">Risk Score</p>
-                </div>
-                <div className="absolute -right-2 -bottom-2 opacity-10">
-                  <svg className="w-16 h-16 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-green-50 to-green-100 p-4 border border-green-200">
-                <div className="relative z-10">
-                  <div className="text-3xl font-bold text-green-600 mb-1">
-                    {incidentStats?.daysSinceLastIncident || 0}
-                  </div>
-                  <p className="text-sm font-medium text-green-700">Days Incident-Free</p>
-                </div>
-                <div className="absolute -right-2 -bottom-2 opacity-10">
-                  <svg className="w-16 h-16 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-              </div>
+      {/* Incidents Table */}
+      <Card className="border-0">
+        <CardHeader>
+          <CardTitle>
+            Incident Records ({filteredIncidents.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredIncidents.length === 0 ? (
+            <div className="text-center py-12">
+              <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No incidents found</p>
+              <p className="text-gray-400 text-sm mt-1">
+                {searchQuery ? "Try adjusting your search criteria" : "No incidents recorded yet"}
+              </p>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Body Map Dialog */}
-        {bodyMapIncidentId && (
-          <BodyMapDialog
-            isOpen={showBodyMap}
-            onClose={() => setShowBodyMap(false)}
-            incidentId={bodyMapIncidentId!}
-            residentName={bodyMapMetadata.residentName}
-            incidentDate={bodyMapMetadata.incidentDate}
-            incidentType={bodyMapMetadata.incidentType}
-            initialData={bodyMapInitialData}
-            onSave={() => {
-              fetchData();
-            }}
-          />
-        )}
-
-        {/* Report Incident Form */}
-        {resident && (
-          <ComprehensiveIncidentForm
-            residentId={id}
-            residentName={`${resident.first_name} ${resident.last_name}`}
-            isOpen={showReportForm}
-            onClose={() => {
-              setShowReportForm(false);
-              setSelectedIncident(null);
-            }}
-            onSuccess={() => {
-              // Refresh incidents data when a new report is submitted
-              setShowReportForm(false);
-              setSelectedIncident(null);
-              fetchData();
-            }}
-            existingIncident={selectedIncident}
-          />
-        )}
-
-        {/* View Incident Dialog */}
-        <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
-            <DialogHeader>
-              <DialogTitle>Incident Report Details</DialogTitle>
-              <DialogDescription>
-                Complete incident report for {fullName}
-              </DialogDescription>
-            </DialogHeader>
-            <ScrollArea className="h-[60vh] pr-4">
-              {selectedIncident && (
-                <div className="space-y-6">
-                  {/* Incident Overview */}
-                  <div className="border-b pb-4">
-                    <h3 className="font-semibold text-lg mb-3">Incident Overview</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Date & Time</p>
-                        <p className="font-medium">{selectedIncident.date} at {selectedIncident.time}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Incident Level</p>
-                        <Badge
-                          variant={
-                            selectedIncident.incident_level === "death" ? "destructive" :
-                              selectedIncident.incident_level === "permanent_harm" ? "destructive" :
-                                selectedIncident.incident_level === "minor_injury" ? "secondary" :
-                                  "outline"
-                          }
-                        >
-                          {selectedIncident.incident_level?.replace("_", " ").toUpperCase()}
-                        </Badge>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Location</p>
-                        <p className="font-medium">{selectedIncident.home_name} - {selectedIncident.unit}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Incident Types</p>
-                        <p className="font-medium">{selectedIncident.incident_types?.join(", ") || "N/A"}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Description */}
-                  <div className="border-b pb-4">
-                    <h3 className="font-semibold text-lg mb-3">Detailed Description</h3>
-                    <p className="text-gray-700 whitespace-pre-wrap">{selectedIncident.detailed_description}</p>
-                  </div>
-
-                  {/* Injured Person Details */}
-                  <div className="border-b pb-4">
-                    <h3 className="font-semibold text-lg mb-3">Injured Person Details</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Name</p>
-                        <p className="font-medium">{selectedIncident.injured_person_first_name} {selectedIncident.injured_person_surname}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Date of Birth</p>
-                        <p className="font-medium">{selectedIncident.injured_person_dob}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Status</p>
-                        <p className="font-medium">{selectedIncident.injured_person_status?.join(", ") || "N/A"}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Health Care Number</p>
-                        <p className="font-medium">{selectedIncident.health_care_number || "N/A"}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Injury Details */}
-                  {(selectedIncident.injury_description || selectedIncident.body_part_injured) && (
-                    <div className="border-b pb-4">
-                      <h3 className="font-semibold text-lg mb-3">Injury Details</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        {selectedIncident.injury_description && (
-                          <div>
-                            <p className="text-sm text-gray-500">Injury Description</p>
-                            <p className="font-medium">{selectedIncident.injury_description}</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Severity</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Injured Person</TableHead>
+                      <TableHead>Reported By</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedIncidents.map((incident) => (
+                      <TableRow key={incident.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex flex-col">
+                            <span>{formatDateForDisplay(incident.date)}</span>
+                            <span className="text-xs text-gray-500">{incident.time}</span>
                           </div>
-                        )}
-                        {selectedIncident.body_part_injured && (
-                          <div>
-                            <p className="text-sm text-gray-500">Body Part Injured</p>
-                            <p className="font-medium">{selectedIncident.body_part_injured}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Treatment */}
-                  {(selectedIncident.treatment_types?.length > 0 || selectedIncident.treatment_details) && (
-                    <div className="border-b pb-4">
-                      <h3 className="font-semibold text-lg mb-3">Treatment</h3>
-                      <div className="space-y-3">
-                        {selectedIncident.treatment_types?.length > 0 && (
-                          <div>
-                            <p className="text-sm text-gray-500">Treatment Types</p>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {selectedIncident.treatment_types.map((type: string, index: number) => (
-                                <Badge key={index} variant="secondary">{type}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {selectedIncident.treatment_details && (
-                          <div>
-                            <p className="text-sm text-gray-500">Treatment Details</p>
-                            <p className="font-medium">{selectedIncident.treatment_details}</p>
-                          </div>
-                        )}
-                        {selectedIncident.vital_signs && (
-                          <div>
-                            <p className="text-sm text-gray-500">Vital Signs</p>
-                            <p className="font-medium">{selectedIncident.vital_signs}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Witnesses */}
-                  {(selectedIncident.witness1_name || selectedIncident.witness2_name) && (
-                    <div className="border-b pb-4">
-                      <h3 className="font-semibold text-lg mb-3">Witnesses</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        {selectedIncident.witness1_name && (
-                          <div>
-                            <p className="text-sm text-gray-500">Witness 1</p>
-                            <p className="font-medium">{selectedIncident.witness1_name}</p>
-                            {selectedIncident.witness1_contact && (
-                              <p className="text-sm text-gray-600">{selectedIncident.witness1_contact}</p>
-                            )}
-                          </div>
-                        )}
-                        {selectedIncident.witness2_name && (
-                          <div>
-                            <p className="text-sm text-gray-500">Witness 2</p>
-                            <p className="font-medium">{selectedIncident.witness2_name}</p>
-                            {selectedIncident.witness2_contact && (
-                              <p className="text-sm text-gray-600">{selectedIncident.witness2_contact}</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Actions Taken */}
-                  {selectedIncident.nurseActions?.length > 0 && (
-                    <div className="border-b pb-4">
-                      <h3 className="font-semibold text-lg mb-3">Nurse Actions Taken</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedIncident.nurseActions.map((action: string, index: number) => (
-                          <Badge key={index} variant="outline">{action}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Report Completion */}
-                  <div>
-                    <h3 className="font-semibold text-lg mb-3">Report Completion</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Completed By</p>
-                        <p className="font-medium">{selectedIncident.completedByFullName}</p>
-                        <p className="text-sm text-gray-600">{selectedIncident.completedByJobTitle}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Date Completed</p>
-                        <p className="font-medium">{selectedIncident.dateCompleted}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </ScrollArea>
-            <div className="flex justify-end space-x-2 pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => setShowViewDialog(false)}
-              >
-                Close
-              </Button>
-              <Button
-                onClick={() => handleDownloadIncident(selectedIncident._id)}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download Report
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* NHS Report Form */}
-        {nhsReportIncident && (
-          <NHSReportForm
-            isOpen={showNHSReportForm}
-            onClose={() => {
-              setShowNHSReportForm(false);
-              setNhsReportIncident(null);
-            }}
-            incidentId={nhsReportIncident._id}
-            residentId={id}
-            incident={nhsReportIncident}
-            user={profile as any}
-            onReportCreated={handleNHSReportCreated}
-          />
-        )}
-
-        {/* NHS Report View Dialog */}
-        <Dialog open={showNHSReportView} onOpenChange={setShowNHSReportView}>
-          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <FileBarChart className="w-5 h-5 text-blue-600" />
-                </div>
-                {selectedNHSReport?.report?.reportType === "bhsct"
-                  ? "BHSCT Report Details"
-                  : selectedNHSReport?.report?.reportType === "sehsct"
-                    ? "SEHSCT Report Details"
-                    : "NHS Trust Report Details"}
-              </DialogTitle>
-              <DialogDescription>
-                {selectedNHSReport?.report?.reportType === "bhsct"
-                  ? "View the saved BHSCT incident report information"
-                  : selectedNHSReport?.report?.reportType === "sehsct"
-                    ? "View the saved SEHSCT incident report information"
-                    : "View the saved NHS trust incident report information"}
-              </DialogDescription>
-            </DialogHeader>
-
-            {selectedNHSReport && (
-              <div className="space-y-6">
-                {/* Trust Information Section */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                    Trust Information
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-blue-700">NHS Trust Name</p>
-                      <p className="text-blue-900 font-semibold text-lg">
-                        {selectedNHSReport.report.trustName}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-blue-700">Report Generated</p>
-                      <p className="text-blue-900">
-                        {new Date(selectedNHSReport.report.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-blue-700">Created By</p>
-                      <p className="text-blue-900">
-                        {selectedNHSReport.report.reportedByName || selectedNHSReport.report.createdByName}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-blue-700">Report Type</p>
-                      <Badge className="bg-blue-600 text-white">
-                        {selectedNHSReport.report.reportType === "bhsct" ? "BHSCT Report" : "NHS Report"}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Incident Summary */}
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">Associated Incident</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-gray-500">Date & Time</p>
-                      <p className="font-medium">
-                        {selectedNHSReport.incident.date} {selectedNHSReport.incident.time}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Incident Type</p>
-                      <p className="font-medium">
-                        {selectedNHSReport.incident.incidentTypes?.join(", ") || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Severity Level</p>
-                      <Badge
-                        className={`text-xs ${selectedNHSReport.incident.incidentLevel === "death" ||
-                          selectedNHSReport.incident.incidentLevel === "permanent_harm"
-                          ? "bg-red-100 text-red-800" :
-                          selectedNHSReport.incident.incidentLevel === "minor_injury"
-                            ? "bg-yellow-100 text-yellow-800" :
-                            "bg-green-100 text-green-800"
-                          }`}
-                      >
-                        {selectedNHSReport.incident.incidentLevel?.replace("_", " ").toUpperCase()}
-                      </Badge>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Location</p>
-                      <p className="font-medium">
-                        {selectedNHSReport.incident.homeName} - {selectedNHSReport.incident.unit}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* BHSCT Report Details */}
-                {selectedNHSReport.report.reportType === "bhsct" && (
-                  <div className="space-y-4">
-                    {/* Provider and Service User Information */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Provider and Service User Information</h3>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-500">Provider Name</p>
-                          <p className="font-medium">{selectedNHSReport.report.providerName}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Service User Name</p>
-                          <p className="font-medium">{selectedNHSReport.report.serviceUserName}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Date of Birth</p>
-                          <p className="font-medium">{selectedNHSReport.report.serviceUserDOB}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Gender</p>
-                          <p className="font-medium">{selectedNHSReport.report.serviceUserGender}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-gray-500">Care Manager</p>
-                          <p className="font-medium">{selectedNHSReport.report.careManager}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Incident Location */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Incident Location</h3>
-                      <div className="space-y-3 text-sm">
-                        <div>
-                          <p className="text-gray-500">Address (including postcode)</p>
-                          <p className="font-medium">{selectedNHSReport.report.incidentAddress}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Exact location where incident occurred</p>
-                          <p className="font-medium">{selectedNHSReport.report.exactLocation}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Incident Details */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Incident Details</h3>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-500">Date of Incident</p>
-                          <p className="font-medium">{selectedNHSReport.report.incidentDate}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Time of Incident</p>
-                          <p className="font-medium">{selectedNHSReport.report.incidentTime}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-gray-500">Description of Incident</p>
-                          <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.incidentDescription}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Injury and Treatment */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Injury and Treatment</h3>
-                      <div className="space-y-3 text-sm">
-                        <div>
-                          <p className="text-gray-500">Nature of Injury Sustained</p>
-                          <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.natureOfInjury}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Immediate Action Taken and Treatment Given</p>
-                          <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.immediateActionTaken}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Notifications and Witnesses */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Notifications and Witnesses</h3>
-                      <div className="space-y-3 text-sm">
-                        <div>
-                          <p className="text-gray-500">Persons Notified</p>
-                          <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.personsNotified}</p>
-                        </div>
-                        {selectedNHSReport.report.witnesses && (
-                          <div>
-                            <p className="text-gray-500">Witnesses</p>
-                            <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.witnesses}</p>
-                          </div>
-                        )}
-                        {selectedNHSReport.report.staffInvolved && (
-                          <div>
-                            <p className="text-gray-500">Staff Involved</p>
-                            <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.staffInvolved}</p>
-                          </div>
-                        )}
-                        {selectedNHSReport.report.otherServiceUsersInvolved && (
-                          <div>
-                            <p className="text-gray-500">Other Service Users Involved</p>
-                            <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.otherServiceUsersInvolved}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Reporter Information */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Reporter Information</h3>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-500">Reporter Name</p>
-                          <p className="font-medium">{selectedNHSReport.report.reporterName}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Designation</p>
-                          <p className="font-medium">{selectedNHSReport.report.reporterDesignation}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Date Reported</p>
-                          <p className="font-medium">{selectedNHSReport.report.dateReported}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Follow-up Actions */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Follow-up Actions</h3>
-                      <div className="space-y-3 text-sm">
-                        <div>
-                          <p className="text-gray-500">Actions Taken to Prevent Recurrence</p>
-                          <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.preventionActions}</p>
-                        </div>
-                        {selectedNHSReport.report.riskAssessmentUpdateDate && (
-                          <div>
-                            <p className="text-gray-500">Risk Assessment Update Date</p>
-                            <p className="font-medium">{selectedNHSReport.report.riskAssessmentUpdateDate}</p>
-                          </div>
-                        )}
-                        {selectedNHSReport.report.otherComments && (
-                          <div>
-                            <p className="text-gray-500">Other Comments</p>
-                            <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.otherComments}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Senior Staff / Manager Review */}
-                    {(selectedNHSReport.report.reviewerName || selectedNHSReport.report.reviewerDesignation || selectedNHSReport.report.reviewDate) && (
-                      <div className="border rounded-lg p-4">
-                        <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Senior Staff / Service Manager Review</h3>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          {selectedNHSReport.report.reviewerName && (
-                            <div>
-                              <p className="text-gray-500">Reviewer Name</p>
-                              <p className="font-medium">{selectedNHSReport.report.reviewerName}</p>
-                            </div>
-                          )}
-                          {selectedNHSReport.report.reviewerDesignation && (
-                            <div>
-                              <p className="text-gray-500">Designation</p>
-                              <p className="font-medium">{selectedNHSReport.report.reviewerDesignation}</p>
-                            </div>
-                          )}
-                          {selectedNHSReport.report.reviewDate && (
-                            <div>
-                              <p className="text-gray-500">Review Date</p>
-                              <p className="font-medium">{selectedNHSReport.report.reviewDate}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* SEHSCT Report Details */}
-                {selectedNHSReport.report.reportType === "sehsct" && (
-                  <div className="space-y-4">
-                    {/* Administrative Section */}
-                    {selectedNHSReport.report.datixRef && (
-                      <div className="border rounded-lg p-4 bg-blue-50">
-                        <h3 className="font-semibold text-blue-900 mb-3 border-b border-blue-200 pb-2">Administrative</h3>
-                        <div className="text-sm">
-                          <p className="text-blue-700">For Office Use Only - DATIX Ref</p>
-                          <p className="font-medium text-blue-900">{selectedNHSReport.report.datixRef}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Section 1 & 2 - Where and When */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Section 1 & 2 - Where and When</h3>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-500">Date of Incident</p>
-                          <p className="font-medium">{selectedNHSReport.report.incidentDate}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Time of Incident</p>
-                          <p className="font-medium">{selectedNHSReport.report.incidentTime}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Primary Location</p>
-                          <p className="font-medium">{selectedNHSReport.report.primaryLocation}</p>
-                        </div>
-                        {selectedNHSReport.report.exactLocation && (
-                          <div>
-                            <p className="text-gray-500">Exact Location</p>
-                            <p className="font-medium">{selectedNHSReport.report.exactLocation}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Incident Description */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Incident Description</h3>
-                      <div className="text-sm">
-                        <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.incidentDescription}</p>
-                      </div>
-                    </div>
-
-                    {/* Contributory Factors & Circumstances */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Contributory Factors & Circumstances</h3>
-                      <div className="space-y-3 text-sm">
-                        {selectedNHSReport.report.contributoryFactors && (
-                          <div>
-                            <p className="text-gray-500">Contributory Factors</p>
-                            <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.contributoryFactors}</p>
-                          </div>
-                        )}
-                        {selectedNHSReport.report.propertyEquipmentMedication && (
-                          <div>
-                            <p className="text-gray-500">Property/Equipment/Medication Involved</p>
-                            <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.propertyEquipmentMedication}</p>
-                          </div>
-                        )}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-gray-500">Caused by Behaviors of Concern</p>
-                            <Badge variant={selectedNHSReport.report.causedByBehaviorsOfConcern ? "default" : "outline"}>
-                              {selectedNHSReport.report.causedByBehaviorsOfConcern ? "Yes" : "No"}
-                            </Badge>
-                          </div>
-                          <div>
-                            <p className="text-gray-500">Documented in Care Plan</p>
-                            <Badge variant={selectedNHSReport.report.documentedInCarePlan ? "default" : "outline"}>
-                              {selectedNHSReport.report.documentedInCarePlan ? "Yes" : "No"}
-                            </Badge>
-                          </div>
-                        </div>
-                        {selectedNHSReport.report.apparentCauseOfInjury && (
-                          <div>
-                            <p className="text-gray-500">Apparent Cause of Injury</p>
-                            <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.apparentCauseOfInjury}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions Taken */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Actions Taken</h3>
-                      <div className="space-y-3 text-sm">
-                        {selectedNHSReport.report.remedialActionTaken && (
-                          <div>
-                            <p className="text-gray-500">Remedial Action Taken</p>
-                            <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.remedialActionTaken}</p>
-                          </div>
-                        )}
-                        {selectedNHSReport.report.actionsTakenToPreventRecurrence && (
-                          <div>
-                            <p className="text-gray-500">Actions Taken to Prevent Recurrence</p>
-                            <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.actionsTakenToPreventRecurrence}</p>
-                          </div>
-                        )}
-                        {selectedNHSReport.report.riskAssessmentUpdateDate && (
-                          <div>
-                            <p className="text-gray-500">Risk Assessment Update Date</p>
-                            <p className="font-medium">{selectedNHSReport.report.riskAssessmentUpdateDate}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Equipment or Property */}
-                    {(selectedNHSReport.report.equipmentInvolved || selectedNHSReport.report.propertyInvolved) && (
-                      <div className="border rounded-lg p-4">
-                        <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Equipment or Property</h3>
-                        <div className="space-y-3 text-sm">
-                          {selectedNHSReport.report.equipmentInvolved && (
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <Badge variant="default">Equipment Involved</Badge>
-                                {selectedNHSReport.report.reportedToNIAC && (
-                                  <Badge variant="outline" className="bg-blue-50">Reported to NIAC</Badge>
-                                )}
-                              </div>
-                              {selectedNHSReport.report.equipmentDetails && (
-                                <div>
-                                  <p className="text-gray-500">Equipment Details</p>
-                                  <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.equipmentDetails}</p>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {selectedNHSReport.report.propertyInvolved && (
-                            <div>
-                              <Badge variant="default" className="mb-2">Property Involved</Badge>
-                              {selectedNHSReport.report.propertyDetails && (
-                                <div>
-                                  <p className="text-gray-500">Property Details</p>
-                                  <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.propertyDetails}</p>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Persons Notified */}
-                    {selectedNHSReport.report.personsNotified && (
-                      <div className="border rounded-lg p-4">
-                        <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Persons Notified</h3>
-                        <div className="text-sm">
-                          <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.personsNotified}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Section F - Individual Involved */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Section F - Individual Involved</h3>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-500">Service User Full Name</p>
-                          <p className="font-medium">{selectedNHSReport.report.serviceUserFullName}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Date of Birth</p>
-                          <p className="font-medium">{selectedNHSReport.report.dateOfBirth}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Gender</p>
-                          <p className="font-medium">{selectedNHSReport.report.gender}</p>
-                        </div>
-                        {selectedNHSReport.report.hcNumber && (
-                          <div>
-                            <p className="text-gray-500">H&C Number</p>
-                            <p className="font-medium">{selectedNHSReport.report.hcNumber}</p>
-                          </div>
-                        )}
-                        {selectedNHSReport.report.serviceUserAddress && (
-                          <div className="col-span-2">
-                            <p className="text-gray-500">Address</p>
-                            <p className="font-medium">{selectedNHSReport.report.serviceUserAddress}</p>
-                          </div>
-                        )}
-                        {selectedNHSReport.report.trustKeyWorkerName && (
-                          <>
-                            <div>
-                              <p className="text-gray-500">Trust Key Worker Name</p>
-                              <p className="font-medium">{selectedNHSReport.report.trustKeyWorkerName}</p>
-                            </div>
-                            {selectedNHSReport.report.trustKeyWorkerDesignation && (
-                              <div>
-                                <p className="text-gray-500">Trust Key Worker Designation</p>
-                                <p className="font-medium">{selectedNHSReport.report.trustKeyWorkerDesignation}</p>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Section G - Injury Details */}
-                    {selectedNHSReport.report.personSufferedInjury && (
-                      <div className="border rounded-lg p-4">
-                        <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Section G - Injury Details</h3>
-                        <div className="space-y-3 text-sm">
-                          <Badge variant="default" className="mb-2">Person Suffered Injury</Badge>
-                          {selectedNHSReport.report.partOfBodyAffected && (
-                            <div>
-                              <p className="text-gray-500">Part of Body Affected</p>
-                              <p className="font-medium">{selectedNHSReport.report.partOfBodyAffected}</p>
-                            </div>
-                          )}
-                          {selectedNHSReport.report.natureOfInjury && (
-                            <div>
-                              <p className="text-gray-500">Nature of Injury</p>
-                              <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.natureOfInjury}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Section H - Attention Received */}
-                    {selectedNHSReport.report.attentionReceived && selectedNHSReport.report.attentionReceived.length > 0 && (
-                      <div className="border rounded-lg p-4">
-                        <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Section H - Attention Received</h3>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex flex-wrap gap-2">
-                            {selectedNHSReport.report.attentionReceived.map((attention: string, idx: number) => (
-                              <Badge key={idx} variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                {attention}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {incident.incident_types?.map((type: string, index: number) => (
+                              <Badge
+                                key={index}
+                                className="text-xs bg-blue-100 text-blue-800 border-0"
+                              >
+                                {getTypeIcon(type)}
+                                <span className="ml-1">{type.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</span>
                               </Badge>
                             ))}
                           </div>
-                          {selectedNHSReport.report.attentionReceivedOther && (
-                            <div>
-                              <p className="text-gray-500">Other Attention Details</p>
-                              <p className="font-medium">{selectedNHSReport.report.attentionReceivedOther}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Section 3 - Staff/Service Users & Witnesses */}
-                    {(selectedNHSReport.report.staffMembersInvolved || selectedNHSReport.report.otherServiceUsersInvolved || selectedNHSReport.report.witnessDetails) && (
-                      <div className="border rounded-lg p-4">
-                        <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Section 3 - Staff/Service Users & Witnesses</h3>
-                        <div className="space-y-3 text-sm">
-                          {selectedNHSReport.report.staffMembersInvolved && (
-                            <div>
-                              <p className="text-gray-500">Staff Members Involved</p>
-                              <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.staffMembersInvolved}</p>
-                            </div>
-                          )}
-                          {selectedNHSReport.report.otherServiceUsersInvolved && (
-                            <div>
-                              <p className="text-gray-500">Other Service Users Involved</p>
-                              <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.otherServiceUsersInvolved}</p>
-                            </div>
-                          )}
-                          {selectedNHSReport.report.witnessDetails && (
-                            <div>
-                              <p className="text-gray-500">Witness Details</p>
-                              <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.witnessDetails}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Section 4 - Provider Information */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Section 4 - Provider Information</h3>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-500">Provider Name</p>
-                          <p className="font-medium">{selectedNHSReport.report.providerName}</p>
-                        </div>
-                        {selectedNHSReport.report.providerAddress && (
-                          <div>
-                            <p className="text-gray-500">Provider Address</p>
-                            <p className="font-medium">{selectedNHSReport.report.providerAddress}</p>
-                          </div>
-                        )}
-                        {selectedNHSReport.report.groupName && (
-                          <div>
-                            <p className="text-gray-500">Group Name</p>
-                            <p className="font-medium">{selectedNHSReport.report.groupName}</p>
-                          </div>
-                        )}
-                        {selectedNHSReport.report.serviceName && (
-                          <div>
-                            <p className="text-gray-500">Service Name</p>
-                            <p className="font-medium">{selectedNHSReport.report.serviceName}</p>
-                          </div>
-                        )}
-                        {selectedNHSReport.report.typeOfService && (
-                          <div>
-                            <p className="text-gray-500">Type of Service</p>
-                            <p className="font-medium">{selectedNHSReport.report.typeOfService}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Section 5 - Medication */}
-                    {(selectedNHSReport.report.medicationNames || selectedNHSReport.report.pharmacyDetails) && (
-                      <div className="border rounded-lg p-4">
-                        <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Section 5 - Medication</h3>
-                        <div className="space-y-3 text-sm">
-                          {selectedNHSReport.report.medicationNames && (
-                            <div>
-                              <p className="text-gray-500">Medication Names</p>
-                              <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.medicationNames}</p>
-                            </div>
-                          )}
-                          {selectedNHSReport.report.pharmacyDetails && (
-                            <div>
-                              <p className="text-gray-500">Pharmacy Details</p>
-                              <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.pharmacyDetails}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Section 6 - Identification and Contact */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Section 6 - Identification and Contact</h3>
-                      <div className="space-y-4 text-sm">
-                        <div>
-                          <p className="text-gray-500 mb-2">Identified By</p>
-                          <Badge variant="default">{selectedNHSReport.report.identifiedBy}</Badge>
-                        </div>
-                        {selectedNHSReport.report.identifiedBy === "Provider" && (
-                          <div className="grid grid-cols-2 gap-4">
-                            {selectedNHSReport.report.identifierName && (
-                              <div>
-                                <p className="text-gray-500">Name</p>
-                                <p className="font-medium">{selectedNHSReport.report.identifierName}</p>
-                              </div>
-                            )}
-                            {selectedNHSReport.report.identifierJobTitle && (
-                              <div>
-                                <p className="text-gray-500">Job Title</p>
-                                <p className="font-medium">{selectedNHSReport.report.identifierJobTitle}</p>
-                              </div>
-                            )}
-                            {selectedNHSReport.report.identifierTelephone && (
-                              <div>
-                                <p className="text-gray-500">Telephone</p>
-                                <p className="font-medium">{selectedNHSReport.report.identifierTelephone}</p>
-                              </div>
-                            )}
-                            {selectedNHSReport.report.identifierEmail && (
-                              <div>
-                                <p className="text-gray-500">Email</p>
-                                <p className="font-medium">{selectedNHSReport.report.identifierEmail}</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {selectedNHSReport.report.identifiedBy === "Trust Staff" && (
-                          <div className="grid grid-cols-2 gap-4">
-                            {selectedNHSReport.report.trustStaffName && (
-                              <div>
-                                <p className="text-gray-500">Name</p>
-                                <p className="font-medium">{selectedNHSReport.report.trustStaffName}</p>
-                              </div>
-                            )}
-                            {selectedNHSReport.report.trustStaffJobTitle && (
-                              <div>
-                                <p className="text-gray-500">Job Title</p>
-                                <p className="font-medium">{selectedNHSReport.report.trustStaffJobTitle}</p>
-                              </div>
-                            )}
-                            {selectedNHSReport.report.trustStaffTelephone && (
-                              <div>
-                                <p className="text-gray-500">Telephone</p>
-                                <p className="font-medium">{selectedNHSReport.report.trustStaffTelephone}</p>
-                              </div>
-                            )}
-                            {selectedNHSReport.report.trustStaffEmail && (
-                              <div>
-                                <p className="text-gray-500">Email</p>
-                                <p className="font-medium">{selectedNHSReport.report.trustStaffEmail}</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {selectedNHSReport.report.returnEmail && (
-                          <div>
-                            <p className="text-gray-500">Return Email Address</p>
-                            <p className="font-medium">{selectedNHSReport.report.returnEmail}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Section 7 - Trust Key Worker Review */}
-                    {(selectedNHSReport.report.outcomeComments || selectedNHSReport.report.reviewOutcome || selectedNHSReport.report.lessonsLearned) && (
-                      <div className="border rounded-lg p-4">
-                        <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Section 7 - Trust Key Worker Review</h3>
-                        <div className="space-y-3 text-sm">
-                          {selectedNHSReport.report.outcomeComments && (
-                            <div>
-                              <p className="text-gray-500">Outcome Comments</p>
-                              <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.outcomeComments}</p>
-                            </div>
-                          )}
-                          {selectedNHSReport.report.reviewOutcome && (
-                            <div>
-                              <p className="text-gray-500">Review Outcome</p>
-                              <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.reviewOutcome}</p>
-                            </div>
-                          )}
-                          {selectedNHSReport.report.furtherActionByProvider && (
-                            <div className="border-l-4 border-blue-500 pl-3">
-                              <p className="text-gray-500 font-semibold mb-1">Further Action by Provider</p>
-                              <p className="font-medium whitespace-pre-wrap mb-2">{selectedNHSReport.report.furtherActionByProvider}</p>
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                {selectedNHSReport.report.furtherActionByProviderDate && (
-                                  <div>
-                                    <span className="text-gray-500">Date: </span>
-                                    <span className="font-medium">{selectedNHSReport.report.furtherActionByProviderDate}</span>
-                                  </div>
-                                )}
-                                {selectedNHSReport.report.furtherActionByProviderActionBy && (
-                                  <div>
-                                    <span className="text-gray-500">Action By: </span>
-                                    <span className="font-medium">{selectedNHSReport.report.furtherActionByProviderActionBy}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                          {selectedNHSReport.report.furtherActionByTrust && (
-                            <div className="border-l-4 border-green-500 pl-3">
-                              <p className="text-gray-500 font-semibold mb-1">Further Action by Trust</p>
-                              <p className="font-medium whitespace-pre-wrap mb-2">{selectedNHSReport.report.furtherActionByTrust}</p>
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                {selectedNHSReport.report.furtherActionByTrustDate && (
-                                  <div>
-                                    <span className="text-gray-500">Date: </span>
-                                    <span className="font-medium">{selectedNHSReport.report.furtherActionByTrustDate}</span>
-                                  </div>
-                                )}
-                                {selectedNHSReport.report.furtherActionByTrustActionBy && (
-                                  <div>
-                                    <span className="text-gray-500">Action By: </span>
-                                    <span className="font-medium">{selectedNHSReport.report.furtherActionByTrustActionBy}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                          {selectedNHSReport.report.lessonsLearned && (
-                            <div>
-                              <p className="text-gray-500">Lessons Learned</p>
-                              <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.lessonsLearned}</p>
-                            </div>
-                          )}
-                          {selectedNHSReport.report.finalReviewAndOutcome && (
-                            <div>
-                              <p className="text-gray-500">Final Review and Outcome</p>
-                              <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.finalReviewAndOutcome}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Review Questions */}
-                    <div className="border rounded-lg p-4 bg-gray-50">
-                      <h3 className="font-semibold text-gray-900 mb-3 border-b border-gray-200 pb-2">Review Questions</h3>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-700">All issues satisfactorily dealt with?</span>
-                          <Badge variant={selectedNHSReport.report.allIssuesSatisfactorilyDealt ? "default" : "outline"}>
-                            {selectedNHSReport.report.allIssuesSatisfactorilyDealt ? "Yes" : "No"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={`text-xs border-0 ${getSeverityColor(incident.incident_level)}`}>
+                            {getSeverityIcon(incident.incident_level)}
+                            <span className="ml-1">
+                              {incident.incident_level?.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
+                            </span>
                           </Badge>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-700">Client/Family satisfied?</span>
-                          <Badge variant={selectedNHSReport.report.clientFamilySatisfied ? "default" : "outline"}>
-                            {selectedNHSReport.report.clientFamilySatisfied ? "Yes" : "No"}
-                          </Badge>
-                        </div>
-                        {selectedNHSReport.report.allRecommendationsImplemented && (
-                          <div>
-                            <p className="text-gray-500">All Recommendations Implemented</p>
-                            <p className="font-medium">{selectedNHSReport.report.allRecommendationsImplemented}</p>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-700">Case ready for closure?</span>
-                          <Badge variant={selectedNHSReport.report.caseReadyForClosure ? "default" : "outline"}>
-                            {selectedNHSReport.report.caseReadyForClosure ? "Yes" : "No"}
-                          </Badge>
-                        </div>
-                        {!selectedNHSReport.report.caseReadyForClosure && selectedNHSReport.report.caseNotReadyReason && (
-                          <div>
-                            <p className="text-gray-500">Reason Case Not Ready</p>
-                            <p className="font-medium whitespace-pre-wrap">{selectedNHSReport.report.caseNotReadyReason}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Signatures */}
-                    {(selectedNHSReport.report.keyWorkerNameDesignation || selectedNHSReport.report.lineManagerNameDesignation) && (
-                      <div className="border rounded-lg p-4">
-                        <h3 className="font-semibold text-gray-900 mb-3 border-b pb-2">Signatures</h3>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          {selectedNHSReport.report.keyWorkerNameDesignation && (
-                            <>
-                              <div>
-                                <p className="text-gray-500">Key Worker Name & Designation</p>
-                                <p className="font-medium">{selectedNHSReport.report.keyWorkerNameDesignation}</p>
+                        </TableCell>
+                        <TableCell>
+                          {incident.home_name && incident.unit ? (
+                            <div className="flex items-center space-x-2">
+                              <MapPin className="w-4 h-4 text-gray-400" />
+                              <div className="text-sm">
+                                <p className="font-medium">{incident.home_name}</p>
+                                <p className="text-gray-500">{incident.unit}</p>
                               </div>
-                              {selectedNHSReport.report.dateClosed && (
-                                <div>
-                                  <p className="text-gray-500">Date Closed</p>
-                                  <p className="font-medium">{selectedNHSReport.report.dateClosed}</p>
-                                </div>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {incident.injured_person_first_name && incident.injured_person_surname ? (
+                            <div className="text-sm">
+                              <p className="font-medium">
+                                {incident.injured_person_first_name} {incident.injured_person_surname}
+                              </p>
+                              {incident.injured_person_dob && (
+                                <p className="text-gray-500">DOB: {incident.injured_person_dob}</p>
                               )}
-                            </>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
                           )}
-                          {selectedNHSReport.report.lineManagerNameDesignation && (
-                            <>
-                              <div>
-                                <p className="text-gray-500">Line Manager Name & Designation</p>
-                                <p className="font-medium">{selectedNHSReport.report.lineManagerNameDesignation}</p>
+                        </TableCell>
+                        <TableCell>
+                          {incident.completed_by_full_name ? (
+                            <div className="flex items-center space-x-2">
+                              <User className="w-4 h-4 text-gray-400" />
+                              <div className="text-sm">
+                                <p className="font-medium">{incident.completed_by_full_name}</p>
+                                {incident.completed_by_job_title && (
+                                  <p className="text-gray-500">{incident.completed_by_job_title}</p>
+                                )}
                               </div>
-                              {selectedNHSReport.report.dateApproved && (
-                                <div>
-                                  <p className="text-gray-500">Date Approved</p>
-                                  <p className="font-medium">{selectedNHSReport.report.dateApproved}</p>
-                                </div>
-                              )}
-                            </>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
                           )}
-                        </div>
-                      </div>
-                    )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewIncident(incident)}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
-                    {/* Report Status */}
-                    <div className="border rounded-lg p-4 bg-gray-50">
-                      <h3 className="font-semibold text-gray-900 mb-3">Report Status</h3>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">Status:</span>
-                        <Badge variant={selectedNHSReport.report.status === "completed" ? "default" : "outline"}>
-                          {selectedNHSReport.report.status?.toUpperCase() || "DRAFT"}
-                        </Badge>
-                        <span className="text-sm text-gray-600 ml-4">Created by:</span>
-                        <span className="text-sm font-medium">{selectedNHSReport.report.reportedByName}</span>
-                      </div>
-                    </div>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <div className="text-sm text-gray-500">
+                    Showing {startIndex + 1}-{Math.min(endIndex, filteredIncidents.length)} of {filteredIncidents.length} incidents
                   </div>
-                )}
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className="h-8 w-8 p-0"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-                {/* Additional Notes for non-BHSCT reports */}
-                {selectedNHSReport.report.reportType !== "bhsct" && selectedNHSReport.report.reportType !== "sehsct" && selectedNHSReport.report.additionalNotes && (
-                  <div className="border rounded-lg p-4">
-                    <h3 className="font-semibold text-gray-900 mb-3">Additional NHS Trust Notes</h3>
-                    <div className="bg-gray-50 p-3 rounded border-l-4 border-blue-500">
-                      <p className="text-gray-700 whitespace-pre-wrap">
-                        {selectedNHSReport.report.additionalNotes}
+      {/* View Incident Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Incident Report Details</DialogTitle>
+            <DialogDescription>
+              Complete incident report for {fullName}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            {selectedIncident && (
+              <div className="space-y-6">
+                {/* Incident Overview */}
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold text-lg mb-3">Incident Overview</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Date & Time</p>
+                      <p className="font-medium">
+                        {formatDateForDisplay(selectedIncident.date)} at {selectedIncident.time}
                       </p>
                     </div>
-                  </div>
-                )}
-
-                {/* Report Data */}
-                {selectedNHSReport.report.reportData && (
-                  <div className="border rounded-lg p-4">
-                    <h3 className="font-semibold text-gray-900 mb-3">Report Metadata</h3>
-                    <div className="bg-gray-50 p-3 rounded text-sm">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <span className="text-gray-500">Report ID:</span>
-                          <span className="ml-2 font-mono text-xs">
-                            {selectedNHSReport.report._id.slice(-8)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Status:</span>
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            Generated
-                          </Badge>
-                        </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Incident Level</p>
+                      <Badge className={`${getSeverityColor(selectedIncident.incident_level)} border-0`}>
+                        {getSeverityIcon(selectedIncident.incident_level)}
+                        <span className="ml-1">
+                          {selectedIncident.incident_level?.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
+                        </span>
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Location</p>
+                      <div className="flex items-center space-x-2">
+                        <MapPin className="w-4 h-4 text-gray-400" />
+                        <p className="font-medium">{selectedIncident.home_name} - {selectedIncident.unit}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Incident Types</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {selectedIncident.incident_types?.map((type: string, index: number) => (
+                          <Badge key={index} variant="secondary">{type.replace("_", " ")}</Badge>
+                        ))}
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Injured Person Details */}
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold text-lg mb-3">Injured Person Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Name</p>
+                      <p className="font-medium">
+                        {selectedIncident.injured_person_first_name} {selectedIncident.injured_person_surname}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Date of Birth</p>
+                      <p className="font-medium">{selectedIncident.injured_person_dob}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Status</p>
+                      <p className="font-medium">{selectedIncident.injured_person_status?.join(", ") || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Health Care Number</p>
+                      <p className="font-medium">{selectedIncident.health_care_number || "N/A"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold text-lg mb-3">Detailed Description</h3>
+                  <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
+                    {selectedIncident.detailed_description || "No description provided"}
+                  </p>
+                </div>
+
+                {/* Treatment Information */}
+                {(selectedIncident.treatment_types?.length > 0 || selectedIncident.treatment_details) && (
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold text-lg mb-3">Treatment Information</h3>
+                    {selectedIncident.treatment_types?.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-sm text-gray-500 mb-2">Treatment Types</p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedIncident.treatment_types.map((type: string, index: number) => (
+                            <Badge key={index} variant="outline">{type}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedIncident.treatment_details && (
+                      <div>
+                        <p className="text-sm text-gray-500 mb-2">Treatment Details</p>
+                        <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">
+                          {selectedIncident.treatment_details}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 )}
 
-                {/* Regulatory Information */}
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <div className="flex items-start space-x-2">
-                    <div className="w-2 h-2 bg-amber-600 rounded-full mt-2 flex-shrink-0"></div>
-                    <div className="text-sm">
-                      <p className="font-medium text-amber-800 mb-1">NHS Reporting Compliance</p>
-                      <p className="text-amber-700">
-                        This report has been generated for NHS trust reporting purposes and contains
-                        all necessary information for regulatory compliance. Ensure this report is
-                        submitted through appropriate NHS channels including NRLS if required.
-                      </p>
+                {/* Record Information */}
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">Report Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Completed By</p>
+                      <div className="flex items-center space-x-2">
+                        <User className="w-4 h-4 text-gray-400" />
+                        <div>
+                          <p className="font-medium">{selectedIncident.completed_by_full_name}</p>
+                          <p className="text-sm text-gray-600">{selectedIncident.completed_by_job_title}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Date Completed</p>
+                      <div className="flex items-center space-x-2">
+                        <Clock className="w-4 h-4 text-gray-400" />
+                        <p className="font-medium">{selectedIncident.date_completed}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             )}
-
-            <div className="flex justify-end items-center pt-4 border-t">
-              <div className="flex space-x-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    // TODO: Implement forward functionality
-                    toast.success("Forward functionality coming soon");
-                  }}
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  Forward
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (selectedNHSReport) {
-                      handleDownloadNHSReportFromBadge(selectedNHSReport.report);
-                    }
-                  }}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Report
-                </Button>
-                <Button onClick={() => setShowNHSReportView(false)}>
-                  Close
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* NHS Trust Picker Dialog */}
-        <Dialog open={showTrustPicker} onOpenChange={setShowTrustPicker}>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>Select NHS Trust</DialogTitle>
-              <DialogDescription>
-                Choose the NHS Trust for this incident report. Each trust has specific reporting requirements.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3 py-4">
-              {[
-                { code: "BHSCT", name: "Belfast Health and Social Care Trust", color: "blue" },
-                { code: "SEHSCT", name: "South Eastern Health and Social Care Trust", color: "green" },
-                { code: "NHS", name: "Generic NHS Trust Report", color: "gray" },
-                { code: "WHSCT", name: "Western Health and Social Care Trust", color: "purple" },
-                { code: "SHSCT", name: "Southern Health and Social Care Trust", color: "orange" },
-                { code: "NHSCT", name: "Northern Health and Social Care Trust", color: "red" }
-              ].map((trust) => (
-                <Button
-                  key={trust.code}
-                  variant="outline"
-                  className="w-full justify-start h-auto p-4 hover:bg-gray-50"
-                  onClick={() => handleTrustSelected(trust.code)}
-                >
-                  <div className="flex items-start space-x-3 w-full">
-                    <div className={`p-2 bg-${trust.color}-100 rounded-lg flex-shrink-0`}>
-                      <FileBarChart className={`w-5 h-5 text-${trust.color}-600`} />
-                    </div>
-                    <div className="text-left flex-1">
-                      <p className="font-semibold text-sm">{trust.code}</p>
-                      <p className="text-xs text-muted-foreground">{trust.name}</p>
-                    </div>
-                  </div>
-                </Button>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Trust-Specific Form Dialog */}
-        {selectedTrust === "BHSCT" ? (
-          <BHSCTReportForm
-            incident={trustPickerIncident}
-            resident={resident}
-            user={profile as any}
-            open={showTrustForm}
-            onClose={handleCloseTrustForm}
-          />
-        ) : selectedTrust === "SEHSCT" ? (
-          <SEHSCTReportForm
-            incident={trustPickerIncident}
-            resident={resident}
-            user={profile as any}
-            open={showTrustForm}
-            onClose={handleCloseTrustForm}
-          />
-        ) : selectedTrust === "NHS" ? (
-          <NHSReportForm
-            isOpen={showTrustForm}
-            onClose={handleCloseTrustForm}
-            incidentId={trustPickerIncident?.id || ""}
-            residentId={id}
-            incident={trustPickerIncident}
-            user={profile}
-            onReportCreated={(reportId) => {
-              handleCloseTrustForm();
-              fetchData();
-            }}
-          />
-        ) : (
-          <Dialog open={showTrustForm} onOpenChange={handleCloseTrustForm}>
-            <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
-              <DialogHeader>
-                <DialogTitle>{selectedTrust} Incident Report Form</DialogTitle>
-                <DialogDescription>
-                  Complete the {selectedTrust} specific incident report form
-                </DialogDescription>
-              </DialogHeader>
-              <ScrollArea className="max-h-[60vh] pr-4">
-                <div className="space-y-4 py-4">
-                  {/* Other trust forms with dummy fields */}
-                  {selectedTrust === "SEHSCT" && (
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-sm">South Eastern Health and Social Care Trust - Incident Report</h3>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="text-sm font-medium">SEHSCT Incident ID</label>
-                          <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="SEH-IR-XXXX" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Service Area</label>
-                          <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="Enter service area" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Severity Rating (SEHSCT)</label>
-                          <select className="w-full mt-1 px-3 py-2 border rounded-md">
-                            <option>Select severity</option>
-                            <option>Low</option>
-                            <option>Moderate</option>
-                            <option>High</option>
-                            <option>Critical</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Immediate Actions Taken</label>
-                          <textarea className="w-full mt-1 px-3 py-2 border rounded-md" rows={3} placeholder="Describe actions" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Outcome Status</label>
-                          <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="Enter outcome" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedTrust === "WHSCT" && (
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-sm">Western Health and Social Care Trust - Incident Report</h3>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="text-sm font-medium">WHSCT Report Number</label>
-                          <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="WH-2024-XXXX" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Directorate</label>
-                          <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="Enter directorate" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Investigation Required</label>
-                          <select className="w-full mt-1 px-3 py-2 border rounded-md">
-                            <option>Select option</option>
-                            <option>Yes - Full Investigation</option>
-                            <option>Yes - Review Required</option>
-                            <option>No</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Contributing Factors</label>
-                          <textarea className="w-full mt-1 px-3 py-2 border rounded-md" rows={3} placeholder="Identify factors" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Preventive Measures</label>
-                          <textarea className="w-full mt-1 px-3 py-2 border rounded-md" rows={3} placeholder="Recommended actions" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedTrust === "SHSCT" && (
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-sm">Southern Health and Social Care Trust - Incident Report</h3>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="text-sm font-medium">SHSCT Reference</label>
-                          <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="SH-INC-XXXX" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Care Setting</label>
-                          <select className="w-full mt-1 px-3 py-2 border rounded-md">
-                            <option>Select setting</option>
-                            <option>Residential Care</option>
-                            <option>Nursing Home</option>
-                            <option>Day Care</option>
-                            <option>Community</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Incident Classification</label>
-                          <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="Enter classification" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Witness Statements</label>
-                          <textarea className="w-full mt-1 px-3 py-2 border rounded-md" rows={4} placeholder="Record witness information" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Follow-up Required</label>
-                          <select className="w-full mt-1 px-3 py-2 border rounded-md">
-                            <option>Yes</option>
-                            <option>No</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedTrust === "NHSCT" && (
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-sm">Northern Health and Social Care Trust - Incident Report</h3>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="text-sm font-medium">NHSCT Case Number</label>
-                          <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="NH-CASE-XXXX" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Program of Care</label>
-                          <input type="text" className="w-full mt-1 px-3 py-2 border rounded-md" placeholder="Enter program" />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Root Cause Analysis Required</label>
-                          <select className="w-full mt-1 px-3 py-2 border rounded-md">
-                            <option>Select option</option>
-                            <option>Yes - RCA Required</option>
-                            <option>No - Review Only</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Duty of Candour Applied</label>
-                          <select className="w-full mt-1 px-3 py-2 border rounded-md">
-                            <option>Yes</option>
-                            <option>No</option>
-                            <option>Not Applicable</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Additional Information</label>
-                          <textarea className="w-full mt-1 px-3 py-2 border rounded-md" rows={4} placeholder="NHSCT specific details" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-              <div className="flex justify-end space-x-2 pt-4 border-t">
-                <Button variant="outline" onClick={handleCloseTrustForm} disabled={isSubmitting}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => {
-                    // For other trusts (not BHSCT), show demo message
-                    toast.success(`${selectedTrust} report form submitted (Demo)`);
-                    handleCloseTrustForm();
-                  }}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Submitting..." : "Submit Report"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
-
-        {/* Restrictive Practice Form Dialog */}
-        {showRestrictivePracticeForm && restrictivePracticeIncident && resident && profile && (
-          <Dialog open={showRestrictivePracticeForm} onOpenChange={(open) => {
-            if (!open) {
-              setShowRestrictivePracticeForm(false);
-              setRestrictivePracticeIncident(null);
-            }
-          }}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Restrictive Practice Form</DialogTitle>
-                <DialogDescription>
-                  Complete restrictive practice documentation for incident on {restrictivePracticeIncident.date}
-                </DialogDescription>
-              </DialogHeader>
-              <BestInterestDecisionDialog
-                residentId={id}
-                teamId={resident.team_id || ""}
-                organizationId={resident.organization_id || ""}
-                userId={profile.id || ""}
-                userName={profile.name || ""}
-                resident={resident}
-                onClose={() => {
-                  setShowRestrictivePracticeForm(false);
-                  setRestrictivePracticeIncident(null);
-                  fetchData();
-                }}
-                initialData={{
-                  typeOfDecision: ["Restraint / Restrictive practice"],
-                  detailsOfDecision: restrictivePracticeIncident.detailed_description || "",
-                  dateOfDecision: restrictivePracticeIncident.date || "",
-                }}
-              />
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
+          </ScrollArea>
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setIsViewDialogOpen(false)}
+            >
+              Close
+            </Button>
+            <Button onClick={() => handleDownloadIncident(selectedIncident.id)}>
+              <Download className="w-4 h-4 mr-2" />
+              Download Report
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

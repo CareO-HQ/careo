@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   Activity,
+  AlertTriangle,
   Ambulance,
   ArrowLeft,
   Bell,
@@ -409,6 +410,30 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
 
+          {/* Incidents Card */}
+          {canViewResidentSection("incidents", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("incidents")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-orange-50 rounded-lg">
+                      <AlertTriangle className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Incidents</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Incident reports
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
           {/* Documents Card */}
           {canViewResidentSection("documents", userRole) && (
             <Card
