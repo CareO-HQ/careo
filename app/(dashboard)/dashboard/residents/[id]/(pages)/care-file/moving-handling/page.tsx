@@ -3,6 +3,7 @@
 import AdmissionAssessmentForm from "@/components/residents/carefile/page-forms/AdmissionAssessmentForm";
 import MovingHandlingCarePlanEvaluationForm from "@/components/residents/carefile/page-forms/MovingHandlingCarePlanEvaluationForm";
 import MovingHandlingCarePlanForm from "@/components/residents/carefile/page-forms/MovingHandlingCarePlanForm";
+import MobilityFallCarePlanForm from "@/components/residents/carefile/page-forms/MobilityFallCarePlanForm";
 import PhotographyConsentForm from "@/components/residents/carefile/page-forms/PhotographyConsentForm";
 import FormStatusIndicator, { FormStatusBadge } from "@/components/residents/carefile/FormStatusIndicator";
 import UploadFileModal from "@/components/residents/carefile/folders/UploadFileModal";
@@ -63,6 +64,7 @@ const SIDEBAR_SECTIONS: { title: string; forms: { key: CareFileFormKey; label: s
     forms: [
       { key: "moving-handling-care-plan", label: "Moving and Handling Care Plan" },
       { key: "moving-handling-care-plan-evaluation", label: "Care Plan Evaluation" },
+      { key: "care-plan-form", label: "Mobility & Fall Care Plan" },
     ],
   },
 ];
@@ -330,6 +332,16 @@ export default function MovingHandlingPage() {
             />
           ) : activeFormKey === "moving-handling-care-plan-evaluation" && resident ? (
             <MovingHandlingCarePlanEvaluationForm
+              residentId={residentId}
+              resident={resident}
+              teamId={activeTeamId ?? ""}
+              organizationId={profile?.active_organization_id ?? ""}
+              userId={profile?.id ?? ""}
+              userName={profile?.name || profile?.email || ""}
+              onSaved={() => { refreshForms(); }}
+            />
+          ) : activeFormKey === "care-plan-form" && resident ? (
+            <MobilityFallCarePlanForm
               residentId={residentId}
               resident={resident}
               teamId={activeTeamId ?? ""}
