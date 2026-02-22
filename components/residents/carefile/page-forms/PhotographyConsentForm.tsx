@@ -106,109 +106,115 @@ function PhotographyDocumentView({
 
       {/* Document body */}
       <ScrollArea className="flex-1 print:overflow-visible">
-        <div className="px-6 py-6 max-w-2xl mx-auto space-y-8 print:px-0 print:py-0">
+        <div className="p-12 pb-30">
+          <div className="max-w-4xl mx-auto">
+            <div className="border rounded-lg bg-white shadow-sm p-8 print:border-0 print:shadow-none print:p-0">
+              <div className="space-y-8 divide-y divide-border">
 
-          {/* Resident Information */}
-          <div>
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3 pb-1.5 border-b">
-              Resident Information
-            </p>
-            <div className="space-y-3">
-              <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
-                <p className="text-xs text-muted-foreground">Resident Name</p>
-                <p className="text-sm font-medium text-foreground">{String(data.residentName || "—")}</p>
-              </div>
-              <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
-                <p className="text-xs text-muted-foreground">Room Number</p>
-                <p className="text-sm font-medium text-foreground">{String(data.bedroomNumber || "—")}</p>
-              </div>
-              <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
-                <p className="text-xs text-muted-foreground">Date of Birth</p>
-                <p className="text-sm font-medium text-foreground">{safeDate(data.dateOfBirth)}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Consent Permissions */}
-          <div>
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3 pb-1.5 border-b">
-              Consent Permissions
-            </p>
-            <div className="space-y-3">
-              {consentItems.map(({ key, label, description }) => {
-                const granted = !!data[key];
-                return (
-                  <div key={key} className="flex items-start gap-3 p-3 rounded-md border bg-muted/10">
-                    <div className={`w-4 h-4 mt-0.5 flex-shrink-0 rounded-sm border-2 flex items-center justify-center ${granted ? "bg-green-500 border-green-500" : "border-muted-foreground"}`}>
-                      {granted && (
-                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 12 12">
-                          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
+                {/* Resident Information */}
+                <div className="pt-0">
+                  <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-4">
+                    Resident Information
+                  </p>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
+                      <p className="text-sm font-bold text-foreground">Resident Name</p>
+                      <p className="text-sm">{String(data.residentName || "—")}</p>
                     </div>
-                    <div>
-                      <p className={`text-sm font-medium ${granted ? "text-foreground" : "text-muted-foreground"}`}>{label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-                      <p className={`text-xs mt-1 font-medium ${granted ? "text-green-600" : "text-red-500"}`}>
-                        {granted ? "Consent granted" : "Not consented"}
-                      </p>
+                    <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
+                      <p className="text-sm font-bold text-foreground">Room Number</p>
+                      <p className="text-sm">{String(data.bedroomNumber || "—")}</p>
+                    </div>
+                    <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
+                      <p className="text-sm font-bold text-foreground">Date of Birth</p>
+                      <p className="text-sm">{safeDate(data.dateOfBirth)}</p>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+
+                {/* Consent Permissions */}
+                <div className="pt-8">
+                  <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-4">
+                    Consent Permissions
+                  </p>
+                  <div className="space-y-3">
+                    {consentItems.map(({ key, label, description }) => {
+                      const granted = !!data[key];
+                      return (
+                        <div key={key} className="flex items-start gap-3 p-3 rounded-md border bg-muted/10">
+                          <div className={`w-4 h-4 mt-0.5 flex-shrink-0 rounded-sm border-2 flex items-center justify-center ${granted ? "bg-green-500 border-green-500" : "border-muted-foreground"}`}>
+                            {granted && (
+                              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 12 12">
+                                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </div>
+                          <div>
+                            <p className={`text-sm font-bold ${granted ? "text-foreground" : "text-muted-foreground"}`}>{label}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+                            <p className={`text-xs mt-1 font-medium ${granted ? "text-green-600" : "text-red-500"}`}>
+                              {granted ? "Consent granted" : "Not consented"}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="pt-8">
+                  <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-4">
+                    Signatures
+                  </p>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
+                      <p className="text-sm font-bold text-foreground">Resident Signature</p>
+                      <p className="text-sm">{String(data.residentSignature || "—")}</p>
+                    </div>
+                    {data.representativeName && (
+                      <>
+                        <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
+                          <p className="text-sm font-bold text-foreground">Representative Name</p>
+                          <p className="text-sm">{String(data.representativeName)}</p>
+                        </div>
+                        <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
+                          <p className="text-sm font-bold text-foreground">Relationship</p>
+                          <p className="text-sm">{String(data.representativeRelationship || "—")}</p>
+                        </div>
+                        <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
+                          <p className="text-sm font-bold text-foreground">Representative Signature</p>
+                          <p className="text-sm">{String(data.representativeSignature || "—")}</p>
+                        </div>
+                        <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
+                          <p className="text-sm font-bold text-foreground">Date Signed</p>
+                          <p className="text-sm">{safeDate(data.representativeDate)}</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Staff Verification */}
+                <div className="pt-8">
+                  <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-4">
+                    Staff Verification
+                  </p>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
+                      <p className="text-sm font-bold text-foreground">Staff Name</p>
+                      <p className="text-sm">{String(data.nameStaff || "—")}</p>
+                    </div>
+                    <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
+                      <p className="text-sm font-bold text-foreground">Date Completed</p>
+                      <p className="text-sm">{safeDate(data.date)}</p>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
             </div>
           </div>
-
-          {/* Signatures */}
-          <div>
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3 pb-1.5 border-b">
-              Signatures
-            </p>
-            <div className="space-y-3">
-              <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
-                <p className="text-xs text-muted-foreground">Resident Signature</p>
-                <p className="text-sm font-medium text-foreground">{String(data.residentSignature || "—")}</p>
-              </div>
-              {data.representativeName && (
-                <>
-                  <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
-                    <p className="text-xs text-muted-foreground">Representative Name</p>
-                    <p className="text-sm font-medium text-foreground">{String(data.representativeName)}</p>
-                  </div>
-                  <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
-                    <p className="text-xs text-muted-foreground">Relationship</p>
-                    <p className="text-sm font-medium text-foreground">{String(data.representativeRelationship || "—")}</p>
-                  </div>
-                  <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
-                    <p className="text-xs text-muted-foreground">Representative Signature</p>
-                    <p className="text-sm font-medium text-foreground">{String(data.representativeSignature || "—")}</p>
-                  </div>
-                  <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
-                    <p className="text-xs text-muted-foreground">Date Signed</p>
-                    <p className="text-sm font-medium text-foreground">{safeDate(data.representativeDate)}</p>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Staff Verification */}
-          <div>
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3 pb-1.5 border-b">
-              Staff Verification
-            </p>
-            <div className="space-y-3">
-              <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
-                <p className="text-xs text-muted-foreground">Staff Name</p>
-                <p className="text-sm font-medium text-foreground">{String(data.nameStaff || "—")}</p>
-              </div>
-              <div className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
-                <p className="text-xs text-muted-foreground">Date Completed</p>
-                <p className="text-sm font-medium text-foreground">{safeDate(data.date)}</p>
-              </div>
-            </div>
-          </div>
-
         </div>
       </ScrollArea>
     </div>

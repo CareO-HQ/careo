@@ -5,6 +5,13 @@
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Form,
   FormControl,
   FormField,
@@ -19,13 +26,31 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { carePlanAssessmentSchema } from "@/schemas/residents/care-file/carePlanSchema";
+
+// Evaluation schema
+const evaluationSchema = z.object({
+  evaluationDate: z.string().min(1, "Date is required"),
+  evaluationTime: z.string().optional(),
+  comments: z.string().min(1, "Comments are required"),
+  carePlanOutcome: z.enum(["reviewed-remain-valid", "care-plan-change"]),
+  reviewedStaff: z.string().min(1, "Reviewed staff is required"),
+  position: z.string().optional(),
+  nextReviewDate: z.string().optional(),
+});
 import { supabase } from "@/lib/supabase";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { CalendarIcon, CheckCircle2, Loader2, Pencil, Plus, Printer, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarIcon, CheckCircle2, Clock, Loader2, Pencil, Plus, Printer, Save, Trash2 } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -51,6 +76,13 @@ interface MobilityFallCarePlanFormProps {
   onSaved: () => void;
 }
 
+// ─── Options ──────────────────────────────────────────────────────────────────
+
+const OUTCOME_OPTIONS = [
+  { value: "reviewed-remain-valid", label: "Reviewed Remain Valid", colour: "text-green-600 bg-green-50 border-green-200" },
+  { value: "care-plan-change", label: "Care Plan Change", colour: "text-orange-600 bg-orange-50 border-orange-200" },
+];
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function safeDate(val: unknown): string {
@@ -69,14 +101,78 @@ function textVal(val: unknown): string {
   return String(val);
 }
 
+// ─── Evaluation Entry Component ──────────────────────────────────────────────
+
+function EvaluationEntry({
+  entry,
+  index,
+}: {
+  entry: Record<string, unknown>;
+  index: number;
+}) {
+  const outcome = OUTCOME_OPTIONS.find((o) => o.value === entry.carePlanOutcome);
+
+  return (
+    <div className="border rounded-lg overflow-hidden bg-white">
+      {/* Entry header */}
+      <div className="px-4 py-2.5 bg-muted/30 border-b flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold text-muted-foreground">Evaluation {index + 1}</span>
+          {outcome && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-semibold uppercase ${outcome.colour}`}>
+              {outcome.label}
+            </span>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {safeDate(entry.evaluationDate)}
+          {entry.evaluationTime && <span className="ml-1">{String(entry.evaluationTime)}</span>}
+        </div>
+      </div>
+
+      {/* Entry body */}
+      <div className="px-4 py-3 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Reviewed Staff</p>
+            <p className="text-sm font-medium">{textVal(entry.reviewedStaff)}</p>
+            {entry.position && (
+              <p className="text-xs text-muted-foreground">{String(entry.position)}</p>
+            )}
+          </div>
+          {entry.nextReviewDate && (
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Next Review</p>
+              <p className="text-sm font-medium">{safeDate(entry.nextReviewDate)}</p>
+            </div>
+          )}
+        </div>
+
+        {entry.comments && (
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Comments</p>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{String(entry.comments)}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 // ─── Document View ────────────────────────────────────────────────────────────
 
 function MobilityFallDocumentView({
   data,
   onEdit,
+  evaluations,
+  onAddEvaluation,
 }: {
   data: Record<string, unknown>;
   onEdit: () => void;
+  evaluations: Record<string, unknown>[];
+  onAddEvaluation: () => void;
 }) {
   const goals = (data.goals as Record<string, unknown>) || {};
   const interventions = (data.interventions as any[]) || [];
@@ -108,87 +204,88 @@ function MobilityFallDocumentView({
 
       {/* Document body */}
       <ScrollArea className="flex-1 print:overflow-visible">
-        <div className="p-6">
-
-          <div className="max-w-2xl mx-auto border rounded-lg bg-white shadow-sm p-8 print:border-0 print:shadow-none print:p-0">
-          <div className="space-y-8 divide-y divide-border">
+        <div className="p-12 pb-30">
+          <div className="max-w-4xl mx-auto space-y-8">
+            {/* Care Plan Document */}
+            <div className="border rounded-lg bg-white shadow-sm p-8 print:border-0 print:shadow-none print:p-0">
+              <div className="space-y-8 divide-y divide-border">
           {/* Basic Information */}
           <div className="pt-0">
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+            <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-4">
               Basic Information
             </p>
             <div className="space-y-3">
               <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                <p className="text-xs text-muted-foreground">Resident Name</p>
-                <p className="text-sm font-medium">{textVal(goals.residentName)}</p>
+                <p className="text-sm font-bold text-foreground">Resident Name</p>
+                <p className="text-sm">{textVal(goals.residentName)}</p>
               </div>
               <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                <p className="text-xs text-muted-foreground">Room Number</p>
-                <p className="text-sm font-medium">{textVal(goals.bedroomNumber)}</p>
+                <p className="text-sm font-bold text-foreground">Room Number</p>
+                <p className="text-sm">{textVal(goals.bedroomNumber)}</p>
               </div>
               <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                <p className="text-xs text-muted-foreground">Date of Birth</p>
-                <p className="text-sm font-medium">{safeDate(goals.dob)}</p>
+                <p className="text-sm font-bold text-foreground">Date of Birth</p>
+                <p className="text-sm">{safeDate(goals.dob)}</p>
               </div>
               <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                <p className="text-xs text-muted-foreground">Care Plan Number</p>
-                <p className="text-sm font-medium">{textVal(goals.carePlanNumber)}</p>
+                <p className="text-sm font-bold text-foreground">Care Plan Number</p>
+                <p className="text-sm">{textVal(goals.carePlanNumber)}</p>
               </div>
               <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                <p className="text-xs text-muted-foreground">Written By</p>
-                <p className="text-sm font-medium">{textVal(goals.writtenBy)}</p>
+                <p className="text-sm font-bold text-foreground">Written By</p>
+                <p className="text-sm">{textVal(goals.writtenBy)}</p>
               </div>
               <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                <p className="text-xs text-muted-foreground">Date Written</p>
-                <p className="text-sm font-medium">{safeDate(goals.dateWritten)}</p>
+                <p className="text-sm font-bold text-foreground">Date Written</p>
+                <p className="text-sm">{safeDate(goals.dateWritten)}</p>
               </div>
             </div>
           </div>
 
           {/* Care Plan Details */}
           <div className="pt-8">
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+            <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-4">
               Care Plan Details
             </p>
             <div className="space-y-4">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Identified Needs / Problem Statement</p>
-                <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{textVal(data.need_identified)}</p>
+              <div className="space-y-2">
+                <p className="text-sm font-bold text-foreground">Identified Needs / Problem Statement</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{textVal(data.need_identified)}</p>
               </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Goals / Aims</p>
-                <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{textVal(goals.aims)}</p>
+              <div className="space-y-2">
+                <p className="text-sm font-bold text-foreground">Goals / Aims</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{textVal(goals.aims)}</p>
               </div>
             </div>
           </div>
 
           {/* Planned Care / Interventions */}
           <div className="pt-8">
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+            <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-4">
               Planned Care / Interventions
             </p>
             <div className="space-y-3">
               {interventions.map((entry: any, index: number) => (
                 <div key={index} className="p-3 border rounded bg-muted/20">
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">Entry #{index + 1}</p>
+                  <p className="text-xs font-bold text-foreground mb-3">Entry #{index + 1}</p>
                   <div className="space-y-2">
                     <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                      <p className="text-xs text-muted-foreground">Date</p>
-                      <p className="text-sm font-medium">{safeDate(entry.date)}</p>
+                      <p className="text-sm font-bold text-foreground">Date</p>
+                      <p className="text-sm">{safeDate(entry.date)}</p>
                     </div>
                     {entry.time && (
                       <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                        <p className="text-xs text-muted-foreground">Time</p>
-                        <p className="text-sm font-medium">{entry.time}</p>
+                        <p className="text-sm font-bold text-foreground">Time</p>
+                        <p className="text-sm">{entry.time}</p>
                       </div>
                     )}
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Care Details / Actions</p>
-                      <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{textVal(entry.details)}</p>
+                    <div className="space-y-2">
+                      <p className="text-sm font-bold text-foreground">Care Details / Actions</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{textVal(entry.details)}</p>
                     </div>
                     <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                      <p className="text-xs text-muted-foreground">Staff Signature</p>
-                      <p className="text-sm font-medium">{textVal(entry.signature)}</p>
+                      <p className="text-sm font-bold text-foreground">Staff Signature</p>
+                      <p className="text-sm">{textVal(entry.signature)}</p>
                     </div>
                   </div>
                 </div>
@@ -198,31 +295,57 @@ function MobilityFallDocumentView({
 
           {/* Review Section */}
           <div className="pt-8">
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+            <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-4">
               Review of Patient or Representative
             </p>
             <div className="space-y-3">
               {String(goals.discussedWith || "") && (
                 <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                  <p className="text-xs text-muted-foreground">Discussed With</p>
-                  <p className="text-sm font-medium">{textVal(goals.discussedWith)}</p>
+                  <p className="text-sm font-bold text-foreground">Discussed With</p>
+                  <p className="text-sm">{textVal(goals.discussedWith)}</p>
                 </div>
               )}
               {String(goals.signature || "") && (
                 <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                  <p className="text-xs text-muted-foreground">Patient/Representative Signature</p>
-                  <p className="text-sm font-medium">{textVal(goals.signature)}</p>
+                  <p className="text-sm font-bold text-foreground">Patient/Representative Signature</p>
+                  <p className="text-sm">{textVal(goals.signature)}</p>
                 </div>
               )}
               {String(goals.staffSignature || "") && (
                 <div className="grid grid-cols-[1fr_1.5fr] gap-2">
-                  <p className="text-xs text-muted-foreground">Staff Signature</p>
-                  <p className="text-sm font-medium">{textVal(goals.staffSignature)}</p>
+                  <p className="text-sm font-bold text-foreground">Staff Signature</p>
+                  <p className="text-sm">{textVal(goals.staffSignature)}</p>
                 </div>
               )}
             </div>
           </div>
-          </div>
+
+              </div>
+            </div>
+
+            {/* Evaluations Section */}
+            <div className="space-y-6">
+              {/* Add Evaluation Button */}
+              <div className="flex justify-center">
+                <Button
+                  size="sm"
+                  className="h-8 px-4 text-xs gap-1.5"
+                  onClick={onAddEvaluation}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Evaluation
+                </Button>
+              </div>
+
+              {/* Evaluations Timeline */}
+              {evaluations.length > 0 && (
+                <div className="max-w-2xl mx-auto space-y-4">
+                  {[...evaluations].reverse().map((entry, index) => (
+                    <EvaluationEntry key={index} entry={entry} index={evaluations.length - index - 1} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </ScrollArea>
@@ -244,6 +367,8 @@ export default function MobilityFallCarePlanForm({
   const [isPending, startTransition] = useTransition();
   const [existingData, setExistingData] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [evaluations, setEvaluations] = useState<any[]>([]);
+  const [showEvaluationDialog, setShowEvaluationDialog] = useState(false);
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
   const [dateWrittenPopoverOpen, setDateWrittenPopoverOpen] = useState(false);
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -282,6 +407,19 @@ export default function MobilityFallCarePlanForm({
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "plannedCareDate",
+  });
+
+  const evaluationForm = useForm<z.infer<typeof evaluationSchema>>({
+    resolver: zodResolver(evaluationSchema),
+    defaultValues: {
+      evaluationDate: format(new Date(), "yyyy-MM-dd"),
+      evaluationTime: "",
+      comments: "",
+      carePlanOutcome: undefined,
+      reviewedStaff: userName || "",
+      position: "",
+      nextReviewDate: "",
+    },
   });
 
   // Fetch existing care plan
@@ -331,6 +469,88 @@ export default function MobilityFallCarePlanForm({
 
     fetchExistingCarePlan();
   }, [residentId, resident, userName, userId, form]);
+
+  // Fetch evaluations from the care plan's goals.evaluations array
+  useEffect(() => {
+    if (existingData) {
+      const goals = existingData.goals || {};
+      const evals = goals.evaluations || [];
+      setEvaluations(evals);
+    }
+  }, [existingData]);
+
+  const handleAddEvaluation = () => {
+    evaluationForm.reset({
+      evaluationDate: format(new Date(), "yyyy-MM-dd"),
+      evaluationTime: "",
+      comments: "",
+      carePlanOutcome: undefined,
+      reviewedStaff: userName || "",
+      position: "",
+      nextReviewDate: "",
+    });
+    setShowEvaluationDialog(true);
+  };
+
+  const onEvaluationSubmit = async (values: z.infer<typeof evaluationSchema>) => {
+    if (!existingData?.id) return;
+
+    startTransition(async () => {
+      try {
+        // Create new evaluation entry
+        const newEvaluation = {
+          evaluationDate: values.evaluationDate,
+          evaluationTime: values.evaluationTime,
+          comments: values.comments,
+          carePlanOutcome: values.carePlanOutcome,
+          reviewedStaff: values.reviewedStaff,
+          position: values.position,
+          nextReviewDate: values.nextReviewDate,
+          createdBy: userId,
+          createdAt: new Date().toISOString(),
+        };
+
+        // Get existing goals and evaluations
+        const currentGoals = existingData.goals || {};
+        const currentEvaluations = currentGoals.evaluations || [];
+        const updatedEvaluations = [...currentEvaluations, newEvaluation];
+
+        // Update the goals object with the new evaluations array
+        const updatedGoals = {
+          ...currentGoals,
+          evaluations: updatedEvaluations,
+        };
+
+        // Update the care plan record
+        const { error } = await supabase
+          .from("care_plan_assessments")
+          .update({ goals: updatedGoals })
+          .eq("id", existingData.id);
+
+        if (error) {
+          console.error("Evaluation update error:", error);
+          throw error;
+        }
+
+        toast.success("Evaluation added successfully");
+        setShowEvaluationDialog(false);
+
+        // Refresh the care plan data
+        const { data } = await supabase
+          .from("care_plan_assessments")
+          .select("*")
+          .eq("id", existingData.id)
+          .single();
+
+        if (data) {
+          setExistingData(data);
+        }
+      } catch (error) {
+        console.error("Error saving evaluation:", error);
+        toast.error("Failed to save evaluation. Please try again.");
+      }
+    });
+  };
 
   const onSubmit = async (values: z.infer<typeof carePlanAssessmentSchema>) => {
     startTransition(async () => {
@@ -430,8 +650,15 @@ export default function MobilityFallCarePlanForm({
   };
 
   // Show completed document view when data exists and not editing
-  if (existingData && !isEditing) {
-    return <MobilityFallDocumentView data={existingData} onEdit={() => setIsEditing(true)} />;
+  if (existingData && !isEditing && !showEvaluationDialog) {
+    return (
+      <MobilityFallDocumentView
+        data={existingData}
+        onEdit={() => setIsEditing(true)}
+        evaluations={evaluations}
+        onAddEvaluation={handleAddEvaluation}
+      />
+    );
   }
 
   return (
@@ -872,6 +1099,147 @@ export default function MobilityFallCarePlanForm({
           ) : existingData ? "Save Changes" : "Submit Care Plan"}
         </Button>
       </div>
+
+      {/* Evaluation Dialog */}
+      <Dialog open={showEvaluationDialog} onOpenChange={setShowEvaluationDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Care Plan Evaluation</DialogTitle>
+            <DialogDescription>
+              Record evaluation for this care plan
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...evaluationForm}>
+            <form onSubmit={evaluationForm.handleSubmit(onEvaluationSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={evaluationForm.control}
+                  name="evaluationDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={evaluationForm.control}
+                  name="evaluationTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Time (Optional)</FormLabel>
+                      <FormControl>
+                        <Input type="time" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={evaluationForm.control}
+                name="comments"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Comments</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} rows={4} placeholder="Enter evaluation comments..." />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={evaluationForm.control}
+                name="carePlanOutcome"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Care Plan Outcome</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select outcome" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {OUTCOME_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={evaluationForm.control}
+                  name="reviewedStaff"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Reviewed Staff</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={evaluationForm.control}
+                  name="position"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Position (Optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="e.g., Care Manager" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={evaluationForm.control}
+                name="nextReviewDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Next Review Date (Optional)</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowEvaluationDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isPending}>
+                  {isPending ? (
+                    <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving...</>
+                  ) : "Save Evaluation"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -181,26 +181,32 @@ function AdmissionDocumentView({
 
       {/* Document body */}
       <ScrollArea className="flex-1 print:overflow-visible">
-        <div className="px-6 py-6 max-w-2xl mx-auto space-y-8 print:px-0 print:py-0">
-          {Object.entries(sections).map(([sectionName, questions]) => (
-            <div key={sectionName}>
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3 pb-1.5 border-b">
-                {sectionName}
-              </p>
-              <div className="space-y-3">
-                {questions.map((q) => (
-                  <div key={q.field} className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
-                    <p className="text-xs text-muted-foreground leading-relaxed pt-0.5">
-                      <span className="mr-1">{q.number}.</span>{q.label}
+        <div className="p-12 pb-30">
+          <div className="max-w-4xl mx-auto">
+            <div className="border rounded-lg bg-white shadow-sm p-8 print:border-0 print:shadow-none print:p-0">
+              <div className="space-y-8 divide-y divide-border">
+                {Object.entries(sections).map(([sectionName, questions]) => (
+                  <div key={sectionName} className="pt-8 first:pt-0">
+                    <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-4">
+                      {sectionName}
                     </p>
-                    <p className="text-sm font-medium text-foreground leading-relaxed break-words">
-                      {fieldDisplayValue(q, data)}
-                    </p>
+                    <div className="space-y-3">
+                      {questions.map((q) => (
+                        <div key={q.field} className="grid grid-cols-[1fr_1.5fr] gap-2 items-start">
+                          <p className="text-sm font-bold text-foreground leading-relaxed pt-0.5">
+                            <span className="mr-1">{q.number}.</span>{q.label}
+                          </p>
+                          <p className="text-sm text-foreground leading-relaxed break-words">
+                            {fieldDisplayValue(q, data)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
-          ))}
+          </div>
         </div>
       </ScrollArea>
     </div>

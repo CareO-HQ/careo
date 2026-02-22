@@ -13,9 +13,18 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 import { canFillCareFileForms } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { CareFileFormKey } from "@/types/care-files";
-import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
+
+import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,26 +60,45 @@ type UploadedFile = {
   signedUrl?: string;
 };
 
-const SIDEBAR_SECTIONS: { title: string; forms: { key: CareFileFormKey; label: string }[] }[] = [
+type FormOption = {
+  key: CareFileFormKey;
+  label: string;
+  description: string;
+};
+
+const FORM_OPTIONS: FormOption[] = [
   {
-    title: "Forms",
-    forms: [
-      { key: "admission-form", label: "Admission Assessment Form" },
-      { key: "photography-consent", label: "Photography Consent Form" },
-    ],
+    key: "admission-form",
+    label: "Admission Assessment Form",
+    description: "Initial resident admission assessment",
   },
   {
-    title: "Care Plan",
-    forms: [
-      { key: "moving-handling-care-plan", label: "Moving and Handling Care Plan" },
-      { key: "moving-handling-care-plan-evaluation", label: "Care Plan Evaluation" },
-      { key: "care-plan-form", label: "Mobility & Fall Care Plan" },
-    ],
+    key: "photography-consent",
+    label: "Photography Consent Form",
+    description: "Photography and image consent",
   },
 ];
 
-// Flat list for breadcrumb lookup
-const ALL_SIDEBAR_FORMS = SIDEBAR_SECTIONS.flatMap((s) => s.forms);
+const CARE_PLAN_OPTIONS: FormOption[] = [
+  {
+    key: "general-care-plan",
+    label: "General Care Plan",
+    description: "General care plan documentation",
+  },
+];
+
+const SPECIFIC_CARE_PLAN_OPTIONS: FormOption[] = [
+  {
+    key: "care-plan-form",
+    label: "Mobility & Fall Care Plan",
+    description: "Mobility and fall prevention care plan",
+  },
+  {
+    key: "moving-handling-care-plan",
+    label: "Moving and Handling Care Plan",
+    description: "Moving and handling care plan documentation",
+  },
+];
 
 // ─── File Viewer ──────────────────────────────────────────────────────────────
 
@@ -179,6 +207,10 @@ export default function MovingHandlingPage() {
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
+  const [addedForms, setAddedForms] = useState<CareFileFormKey[]>([]);
+  const [addedCarePlans, setAddedCarePlans] = useState<CareFileFormKey[]>([]);
+  const [isFormSelectionOpen, setIsFormSelectionOpen] = useState(false);
+  const [isCarePlanSelectionOpen, setIsCarePlanSelectionOpen] = useState(false);
 
   const activeFile = uploadedFiles.find((f) => f.id === activeFileId) ?? null;
 
@@ -217,6 +249,23 @@ export default function MovingHandlingPage() {
   useEffect(() => {
     fetchUploadedFiles();
   }, [fetchUploadedFiles]);
+
+  // Auto-add care plans that have data
+  useEffect(() => {
+    if (loading) return;
+
+    const carePlansToAdd: CareFileFormKey[] = [];
+
+    // Check if Mobility & Fall Care Plan has data
+    const carePlanFormState = getFormState("care-plan-form");
+    if (carePlanFormState.hasData && !addedCarePlans.includes("care-plan-form")) {
+      carePlansToAdd.push("care-plan-form");
+    }
+
+    if (carePlansToAdd.length > 0) {
+      setAddedCarePlans((prev) => [...prev, ...carePlansToAdd]);
+    }
+  }, [loading, getFormState, addedCarePlans]);
 
   const handleFormClick = (key: CareFileFormKey) => {
     if (!canFillForms) return;
@@ -262,6 +311,54 @@ export default function MovingHandlingPage() {
     }
   };
 
+  const handleFormSelect = (formKey: CareFileFormKey) => {
+    // Add to list if not already added
+    if (!addedForms.includes(formKey)) {
+      setAddedForms([...addedForms, formKey]);
+    }
+    // Set as active form
+    setActiveFileId(null); // Clear any active file
+    setActiveFormKey(formKey);
+    setIsFormSelectionOpen(false);
+  };
+
+  const handleRemoveForm = (formKey: CareFileFormKey, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Remove this form? Any unsaved data will be lost.")) return;
+
+    // Remove from added forms list
+    setAddedForms(addedForms.filter((f) => f !== formKey));
+
+    // If this was the active form, clear it
+    if (activeFormKey === formKey) {
+      setActiveFormKey(null);
+    }
+  };
+
+  const handleCarePlanSelect = (formKey: CareFileFormKey) => {
+    // Add to list if not already added
+    if (!addedCarePlans.includes(formKey)) {
+      setAddedCarePlans([...addedCarePlans, formKey]);
+    }
+    // Set as active form
+    setActiveFileId(null); // Clear any active file
+    setActiveFormKey(formKey);
+    setIsCarePlanSelectionOpen(false);
+  };
+
+  const handleRemoveCarePlan = (formKey: CareFileFormKey, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Remove this care plan? Any unsaved data will be lost.")) return;
+
+    // Remove from added care plans list
+    setAddedCarePlans(addedCarePlans.filter((f) => f !== formKey));
+
+    // If this was the active form, clear it
+    if (activeFormKey === formKey) {
+      setActiveFormKey(null);
+    }
+  };
+
   return (
     <div className="flex flex-col -mx-16 -mt-16 -mb-6 h-screen overflow-hidden">
       {/* Top Bar */}
@@ -281,7 +378,7 @@ export default function MovingHandlingPage() {
             <>
               <span className="text-muted-foreground">/</span>
               <span className="text-muted-foreground">
-                {ALL_SIDEBAR_FORMS.find((f) => f.key === activeFormKey)?.label}
+                {[...FORM_OPTIONS, ...CARE_PLAN_OPTIONS, ...SPECIFIC_CARE_PLAN_OPTIONS].find((f) => f.key === activeFormKey)?.label}
               </span>
             </>
           )}
@@ -350,6 +447,22 @@ export default function MovingHandlingPage() {
               userName={profile?.name || profile?.email || ""}
               onSaved={() => { refreshForms(); }}
             />
+          ) : activeFormKey === "general-care-plan" && resident ? (
+            <div className="flex-1 overflow-auto p-6">
+              <div className="max-w-4xl mx-auto">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <p className="text-sm text-blue-900">
+                    <strong>Form Type:</strong> General Care Plan
+                  </p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    General care plan documentation
+                  </p>
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  General Care Plan form component coming soon.
+                </p>
+              </div>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-8">
               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -367,48 +480,143 @@ export default function MovingHandlingPage() {
         {/* Right Sidebar */}
         <aside className="w-[200px] flex-shrink-0 border-l bg-background h-full p-3 overflow-y-auto">
           <div className="flex flex-col gap-4">
-            {SIDEBAR_SECTIONS.map(({ title, forms }) => (
-              <div key={title}>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 px-1.5">
-                  {title}
+            {/* Forms section */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5 px-1.5">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                  Forms
                 </p>
+                <button
+                  onClick={() => setIsFormSelectionOpen(true)}
+                  className="p-1 rounded-md hover:bg-muted transition-colors"
+                  title="Add form"
+                >
+                  <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              </div>
+              {addedForms.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground px-1.5 py-1">
+                  No forms added
+                </p>
+              ) : (
                 <div className="flex flex-col gap-0.5">
-                  {forms.map(({ key, label }) => {
+                  {addedForms.map((formKey) => {
+                    const isActive = activeFormKey === formKey;
+                    const formOption = FORM_OPTIONS.find((f) => f.key === formKey);
                     const formState = loading
                       ? { status: "not-started" as const, hasData: false, isAudited: false }
-                      : getFormState(key);
-                    const isActive = activeFormKey === key;
+                      : getFormState(formKey);
 
                     return (
-                      <button
-                        key={key}
-                        onClick={() => handleFormClick(key)}
-                        disabled={!canFillForms}
-                        className={`w-full text-left flex items-start gap-2 px-1.5 py-2 rounded-md transition-colors ${
+                      <div
+                        key={formKey}
+                        className={`group flex items-start gap-1.5 px-1.5 py-2 rounded-md transition-colors ${
                           isActive
                             ? "bg-primary/10 text-primary"
-                            : canFillForms
-                            ? "hover:bg-muted/60 text-foreground"
-                            : "opacity-60 cursor-not-allowed"
+                            : "hover:bg-muted/60 text-foreground"
                         }`}
                       >
-                        <FormStatusIndicator
-                          status={formState.status}
-                          className="h-4 w-4 flex-shrink-0 mt-0.5"
-                        />
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium leading-snug">{label}</p>
-                          <FormStatusBadge
+                        <button
+                          onClick={() => handleFormClick(formKey)}
+                          disabled={!canFillForms}
+                          className="flex items-start gap-2 flex-1 min-w-0 text-left"
+                        >
+                          <FormStatusIndicator
                             status={formState.status}
-                            isAudited={formState.isAudited}
+                            className={`h-3.5 w-3.5 flex-shrink-0 mt-0.5`}
                           />
-                        </div>
-                      </button>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium leading-snug truncate">
+                              {formOption?.label}
+                            </p>
+                            <FormStatusBadge
+                              status={formState.status}
+                              isAudited={formState.isAudited}
+                            />
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => handleRemoveForm(formKey, e)}
+                          className="flex-shrink-0 mt-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                          title="Remove form"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
+              )}
+            </div>
+
+            {/* Care Plan section */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5 px-1.5">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                  Care Plan
+                </p>
+                <button
+                  onClick={() => setIsCarePlanSelectionOpen(true)}
+                  className="p-1 rounded-md hover:bg-muted transition-colors"
+                  title="Add care plan"
+                >
+                  <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
               </div>
-            ))}
+              {addedCarePlans.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground px-1.5 py-1">
+                  No care plans added
+                </p>
+              ) : (
+                <div className="flex flex-col gap-0.5">
+                  {addedCarePlans.map((formKey) => {
+                    const isActive = activeFormKey === formKey;
+                    const formOption = [...CARE_PLAN_OPTIONS, ...SPECIFIC_CARE_PLAN_OPTIONS].find((f) => f.key === formKey);
+                    const formState = loading
+                      ? { status: "not-started" as const, hasData: false, isAudited: false }
+                      : getFormState(formKey);
+
+                    return (
+                      <div
+                        key={formKey}
+                        className={`group flex items-start gap-1.5 px-1.5 py-2 rounded-md transition-colors ${
+                          isActive
+                            ? "bg-primary/10 text-primary"
+                            : "hover:bg-muted/60 text-foreground"
+                        }`}
+                      >
+                        <button
+                          onClick={() => handleFormClick(formKey)}
+                          disabled={!canFillForms}
+                          className="flex items-start gap-2 flex-1 min-w-0 text-left"
+                        >
+                          <FormStatusIndicator
+                            status={formState.status}
+                            className={`h-3.5 w-3.5 flex-shrink-0 mt-0.5`}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium leading-snug truncate">
+                              {formOption?.label}
+                            </p>
+                            <FormStatusBadge
+                              status={formState.status}
+                              isAudited={formState.isAudited}
+                            />
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => handleRemoveCarePlan(formKey, e)}
+                          className="flex-shrink-0 mt-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                          title="Remove care plan"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Documents section */}
             <div>
@@ -473,6 +681,128 @@ export default function MovingHandlingPage() {
           </div>
         </aside>
       </div>
+
+      {/* Form Selection Dialog */}
+      <Dialog open={isFormSelectionOpen} onOpenChange={setIsFormSelectionOpen}>
+        <DialogContent className="max-w-md sm:max-w-md">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-sm font-semibold">Select Form Type</DialogTitle>
+            <DialogDescription className="text-[10px]">
+              Choose a form to add
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-1.5 max-h-[45vh] overflow-y-auto pr-1">
+            {FORM_OPTIONS.map((option, index) => {
+              const colors = [
+                "bg-blue-100 text-blue-600",
+                "bg-green-100 text-green-600",
+              ];
+              return (
+                <Card
+                  key={option.key}
+                  className="cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors border bg-white"
+                  onClick={() => handleFormSelect(option.key)}
+                >
+                  <CardContent className="p-2.5">
+                    <div className="flex items-start gap-2">
+                      <div className={`p-1.5 rounded-md ${colors[index]}`}>
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-xs">{option.label}</h3>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                          {option.description}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Care Plan Selection Dialog */}
+      <Dialog open={isCarePlanSelectionOpen} onOpenChange={setIsCarePlanSelectionOpen}>
+        <DialogContent className="max-w-md sm:max-w-md">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-sm font-semibold">Select Care Plan Type</DialogTitle>
+            <DialogDescription className="text-[10px]">
+              Choose a care plan to add
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 max-h-[45vh] overflow-y-auto pr-1">
+            {/* General Care Plan */}
+            <div className="grid grid-cols-2 gap-1.5">
+              {CARE_PLAN_OPTIONS.map((option) => {
+                return (
+                  <Card
+                    key={option.key}
+                    className="cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors border bg-white"
+                    onClick={() => handleCarePlanSelect(option.key)}
+                  >
+                    <CardContent className="p-2.5">
+                      <div className="flex items-start gap-2">
+                        <div className="p-1.5 rounded-md bg-blue-100 text-blue-600">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-xs">{option.label}</h3>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                            {option.description}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-muted"></div>
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Specific Plans</span>
+              </div>
+            </div>
+
+            {/* Specific Care Plans */}
+            <div className="grid grid-cols-2 gap-1.5">
+              {SPECIFIC_CARE_PLAN_OPTIONS.map((option, index) => {
+                const colors = [
+                  "bg-green-100 text-green-600",
+                  "bg-purple-100 text-purple-600",
+                ];
+                return (
+                  <Card
+                    key={option.key}
+                    className="cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors border bg-white"
+                    onClick={() => handleCarePlanSelect(option.key)}
+                  >
+                    <CardContent className="p-2.5">
+                      <div className="flex items-start gap-2">
+                        <div className={`p-1.5 rounded-md ${colors[index]}`}>
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-xs">{option.label}</h3>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                            {option.description}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

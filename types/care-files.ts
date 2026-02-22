@@ -9,6 +9,7 @@ export type CareFileFormKey =
   | "bed-rails-risk-assessment-form"
   | "best-interest-decision-form"
   | "care-plan-form"
+  | "general-care-plan"
   | "photography-consent"
   | "dnacpr"
   | "peep"
