@@ -776,6 +776,7 @@ export function useFolderForms({
     latestCarePlanForm: filteredLatestCarePlanMapped,
     archivedCarePlans: filteredArchivedCarePlansMapped,
     getAllPdfFiles,
+    isLoading,
     refetch: handleRefetch // Expose combined refetch method
   };
 }

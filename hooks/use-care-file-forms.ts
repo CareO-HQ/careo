@@ -164,6 +164,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
     getFormState,
     canDownloadPdf,
     getCompletedFormsCount,
-    loading
+    loading,
+    refreshForms: fetchLatestForms
   };
 }

@@ -21,13 +21,15 @@ import { supabase } from "@/lib/supabase";
 interface UploadFileModalProps {
   folderName: string;
   residentId: string;
-  variant?: "text" | "button";
+  variant?: "text" | "button" | "icon";
+  onUploaded?: () => void;
 }
 
 export default function UploadFileModal({
   folderName,
   residentId,
-  variant = "text"
+  variant = "text",
+  onUploaded
 }: UploadFileModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -162,6 +164,7 @@ export default function UploadFileModal({
       setSelectedFile(null);
       setFileName("");
       setIsOpen(false);
+      onUploaded?.();
 
       // Clear file input
       if (fileInputRef.current) {
@@ -194,6 +197,15 @@ export default function UploadFileModal({
           <Button variant="outline" size="sm">
             <Upload className="h-4 w-4 mr-2" />
             Upload PDF
+          </Button>
+        ) : variant === "icon" ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 hover:bg-muted"
+            title="Upload PDF"
+          >
+            <Upload className="h-3 w-3" />
           </Button>
         ) : (
           <p className="text-muted-foreground text-xs cursor-pointer hover:text-primary">

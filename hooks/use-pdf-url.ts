@@ -13,5 +13,5 @@ interface UsePdfUrlProps {
  */
 export function usePdfUrl({ formKey, formId, organizationId }: UsePdfUrlProps) {
   // TODO: Implement PDF retrieval from Supabase Storage or Edge Function generation
-  return null;
+  return { pdfUrl: null, loading: false };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
@@ -10,6 +10,7 @@ import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -31,6 +32,12 @@ import {
   type BedRailsRiskAssessmentFormData,
 } from "@/schemas/residents/care-file/bedRailsRiskAssessmentSchema";
 import { format } from "date-fns";
+import {
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
 
 interface BedRailsRiskAssessmentDialogProps {
   residentId: string;
@@ -53,13 +60,12 @@ export default function BedRailsRiskAssessmentDialog({
   onClose,
   initialData,
 }: BedRailsRiskAssessmentDialogProps) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const [isLoading, startTransition] = useTransition();
   const { supabase } = useSupabase();
 
   const form = useForm<BedRailsRiskAssessmentFormData>({
     resolver: zodResolver(bedRailsRiskAssessmentSchema) as any,
+    mode: "onChange",
     defaultValues: initialData ? {
       residentId: initialData.residentId,
       teamId: initialData.teamId,
@@ -145,915 +151,331 @@ export default function BedRailsRiskAssessmentDialog({
   const watchSafetyChecklist = form.watch("safetyChecklist");
   const watchTypeOfBedrails = form.watch("typeOfBedrails");
 
-  // Auto-calculate anyExclusionChecked
   const checkExclusions = () => {
     const exclusions = form.getValues("exclusionCriteria");
-    const anyChecked =
-      exclusions.residentRefuses ||
-      exclusions.climbingRisk ||
-      exclusions.entrapmentRisk ||
-      exclusions.abnormalBodySize ||
-      exclusions.restraintPurpose ||
-      exclusions.freedomLimitation;
+    const anyChecked = Object.values(exclusions).some(val => val === true);
     form.setValue("anyExclusionChecked", anyChecked);
+    return anyChecked;
   };
 
-  // Auto-calculate anySafetyCheckFailed
   const checkSafety = () => {
     const checks = form.getValues("safetyChecklist");
-    const anyFailed =
-      checks.gapBetweenRailAndMattress === "YES" ||
-      checks.mattressCompressesEasily === "YES" ||
-      checks.gapMoreThan60mm === "YES" ||
-      checks.bedRailInsecure === "YES" ||
-      checks.bedAgainstWall === "YES";
+    const anyFailed = Object.values(checks).some(val => val === "YES");
     form.setValue("anySafetyCheckFailed", anyFailed);
-  };
-
-  // Auto-set hasExtendedHeightRails
-  const checkExtendedRails = () => {
-    const bedrailType = form.getValues("typeOfBedrails");
-    const hasExtended =
-      bedrailType === "EXTENDED_HEIGHT_INTEGRAL" ||
-      bedrailType === "EXTENDED_HEIGHT_NON_INTEGRAL";
-    form.setValue("hasExtendedHeightRails", hasExtended);
-
-    if (hasExtended && !form.getValues("extendedHeightChecks")) {
-      form.setValue("extendedHeightChecks", {
-        positionedCorrectly: "NO",
-        securelyFastened: "NO",
-        correctBumpersInstalled: "NO",
-        mattressBelowPlimsollLine: "NO",
-        staffTrained: "NO",
-        checkedForDamage: "NO",
-      });
-    } else if (!hasExtended) {
-      form.setValue("extendedHeightChecks", undefined);
-    }
+    return anyFailed;
   };
 
   const onSubmit = async (data: BedRailsRiskAssessmentFormData) => {
-    try {
-      setIsSubmitting(true);
-      checkExclusions();
-      checkSafety();
-      checkExtendedRails();
+    startTransition(async () => {
+      try {
+        const anyExclusion = checkExclusions();
+        const anySafetyFailed = checkSafety();
 
-      const formData = form.getValues();
+        const payload = {
+          resident_id: residentId,
+          organization_id: organizationId,
+          risks_identified: data.exclusionCriteria,
+          benefits_identified: data.authorizationRationale,
+          alternatives_considered: {
+            considered: data.alternativeEquipmentConsidered,
+            reasons: data.reasonsAlternativesNotSuccessful
+          },
+          decision: {
+            typeOfBed: data.typeOfBed,
+            typeOfMattress: data.typeOfMattress,
+            typeOfBedrails: data.typeOfBedrails,
+            safetyChecklist: data.safetyChecklist,
+            anySafetyCheckFailed: anySafetyFailed,
+            hasExtendedHeightRails: data.hasExtendedHeightRails,
+            extendedHeightChecks: data.extendedHeightChecks,
+            consentObtained: data.consentObtained,
+            carePlanCompleted: data.carePlanCompleted
+          },
+          completed_by: data.assessmentCompletedBy,
+          assessment_date: data.assessmentDate,
+          created_by: userId
+        };
 
-      const payload = {
-        resident_id: residentId,
-        organization_id: organizationId,
-        risks_identified: formData.exclusionCriteria,
-        benefits_identified: formData.authorizationRationale,
-        alternatives_considered: {
-          considered: formData.alternativeEquipmentConsidered,
-          reasons: formData.reasonsAlternativesNotSuccessful
-        },
-        decision: {
-          typeOfBed: formData.typeOfBed,
-          typeOfMattress: formData.typeOfMattress,
-          typeOfBedrails: formData.typeOfBedrails,
-          safetyChecklist: formData.safetyChecklist,
-          anySafetyCheckFailed: formData.anySafetyCheckFailed,
-          hasExtendedHeightRails: formData.hasExtendedHeightRails,
-          extendedHeightChecks: formData.extendedHeightChecks,
-          consentObtained: formData.consentObtained,
-          carePlanCompleted: formData.carePlanCompleted
-        },
-        completed_by: formData.assessmentCompletedBy,
-        assessment_date: formData.assessmentDate,
-        created_by: userId
-      };
+        await submitAssessmentWithVersioning(
+          'bedrails_risk_assessments',
+          payload,
+          initialData,
+          !!initialData
+        );
 
-      await submitAssessmentWithVersioning(
-        'bedrails_risk_assessments',
-        payload,
-        initialData,
-        !!initialData // Handled by initialData check in the helper
-      );
-
-      toast.success("Risk assessment submitted successfully");
-      onClose?.();
-    } catch (error) {
-      console.error("Error submitting assessment:", error);
-      toast.error("Failed to submit assessment");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleNext = async () => {
-    let fieldsToValidate: any[] = [];
-
-    if (currentStep === 1) {
-      fieldsToValidate = [
-        "residentName",
-        "bedroomNumber",
-        "dateOfBirth",
-        "assessmentCompletedBy",
-        "jobRole",
-        "assessmentDate",
-        "alternativeEquipmentConsidered",
-        "reasonsAlternativesNotSuccessful",
-      ];
-    } else if (currentStep === 2) {
-      fieldsToValidate = [
-        "reasonExplainedToResident",
-        "typeOfBed",
-        "typeOfMattress",
-        "typeOfBedrails",
-      ];
-    }
-
-    const result = await form.trigger(fieldsToValidate as any);
-    if (result) {
-      if (currentStep === 1) checkExclusions();
-      if (currentStep === 2) {
-        checkSafety();
-        checkExtendedRails();
+        toast.success("Risk assessment saved successfully");
+        onClose?.();
+      } catch (error: any) {
+        console.error("Error submitting assessment:", error);
+        toast.error(error.message || "Failed to submit assessment");
       }
-      setCurrentStep(currentStep + 1);
-    }
+    });
   };
 
-  const handleBack = () => {
-    setCurrentStep(currentStep - 1);
-  };
+  const exclusionAlert = watchExclusionCriteria && Object.values(watchExclusionCriteria).some(v => v === true);
+  const safetyAlert = watchSafetyChecklist && Object.values(watchSafetyChecklist).some(v => v === "YES");
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Risk Assessment for Use of Bed Rails</h2>
-        <div className="text-sm text-muted-foreground">
-          Step {currentStep} of 3
-        </div>
-      </div>
+    <div className="flex flex-col space-y-8">
+      <DialogHeader>
+        <DialogTitle className="text-2xl font-bold">Bed Rails Risk Assessment</DialogTitle>
+        <DialogDescription>
+          Identify risks and necessity for bed rail usage to ensure resident safety.
+        </DialogDescription>
+      </DialogHeader>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* Page 1: Resident & Initial Assessment */}
-          {currentStep === 1 && (
+      <div className="space-y-12 pb-20">
+        <Form {...form}>
+          <form className="space-y-12">
+
+            {/* Section 1: Administrative */}
             <div className="space-y-6">
-              <div className="space-y-4">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
                 <h3 className="text-lg font-semibold">Administrative Details</h3>
-
-                <FormField
-                  control={form.control}
-                  name="residentName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Resident&apos;s Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} className="bg-muted" disabled />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="bedroomNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Bedroom Number</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="dateOfBirth"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date of Birth</FormLabel>
-                      <FormControl>
-                        <Input
-                          value={
-                            field.value
-                              ? format(new Date(field.value), "dd MMM yyyy")
-                              : ""
-                          }
-                          className="bg-muted"
-                          disabled
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="assessmentCompletedBy"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Assessment Completed By</FormLabel>
-                      <FormControl>
-                        <Input {...field} className="bg-muted" disabled />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="jobRole"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Job Role</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="e.g., Senior Care Assistant" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="assessmentDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date of Assessment</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
-
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Trial & Rationale</h3>
-
-                <FormField
-                  control={form.control}
-                  name="alternativeEquipmentConsidered"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Alternative Equipment Considered/Trialled</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          placeholder="e.g., low bed, fall out mats, alert mats"
-                          rows={3}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="reasonsAlternativesNotSuccessful"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Reasons Why Alternatives Have Not Been Successful</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          placeholder="e.g., trip hazard"
-                          rows={3}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-red-600">
-                  Bedrails CANNOT BE USED if - tick applicable rationale
-                </h3>
-
-                <div className="space-y-3 border-l-4 border-red-500 pl-4">
-                  <FormField
-                    control={form.control}
-                    name="exclusionCriteria.residentRefuses"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Resident with capacity refuses
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="exclusionCriteria.climbingRisk"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Resident may be at risk of climbing over the bedrails and falling from a greater height
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="exclusionCriteria.entrapmentRisk"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          The risk of head or limb entrapment in bedrails outweighs the risk of falling
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="exclusionCriteria.abnormalBodySize"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Resident with an abnormally small head or body as this could result in entrapment
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="exclusionCriteria.restraintPurpose"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          If the purpose is to restrain Residents who may display erratic, repetitive, or violent movements
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="exclusionCriteria.freedomLimitation"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          If the purpose is to limit the freedom of Residents by preventing them from intentionally leaving their bed
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {watchExclusionCriteria &&
-                  (watchExclusionCriteria.residentRefuses ||
-                    watchExclusionCriteria.climbingRisk ||
-                    watchExclusionCriteria.entrapmentRisk ||
-                    watchExclusionCriteria.abnormalBodySize ||
-                    watchExclusionCriteria.restraintPurpose ||
-                    watchExclusionCriteria.freedomLimitation) && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-                      <p className="text-sm font-medium text-red-800">
-                        ⚠️ If any of the above are highlighted, then bedrails cannot be used and the following sections do not need to be completed.
-                      </p>
-                      <p className="text-sm text-red-700 mt-2">
-                        Please proceed to the signature section if you wish to document this assessment.
-                      </p>
-                    </div>
-                  )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField control={form.control} name="residentName" render={({ field }) => (
+                  <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly /></FormControl></FormItem>
+                )} />
+                <FormField control={form.control} name="bedroomNumber" render={({ field }) => (
+                  <FormItem><FormLabel>Bedroom Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                )} />
+                <FormField control={form.control} name="assessmentCompletedBy" render={({ field }) => (
+                  <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly /></FormControl></FormItem>
+                )} />
+                <FormField control={form.control} name="jobRole" render={({ field }) => (
+                  <FormItem><FormLabel required>Job Role</FormLabel><FormControl><Input {...field} placeholder="e.g. Registered Nurse" /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="assessmentDate" render={({ field }) => (
+                  <FormItem><FormLabel required>Date of Assessment</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
               </div>
             </div>
-          )}
 
-          {/* Page 2: Equipment & Safety Check */}
-          {currentStep === 2 && (
+            {/* Section 2: Trials & Alternatives */}
             <div className="space-y-6">
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-green-600">
-                  Bedrails CAN BE USED if - tick applicable rationale
-                </h3>
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Trial & Rationale</h3>
+              </div>
+              <div className="space-y-6">
+                <FormField control={form.control} name="alternativeEquipmentConsidered" render={({ field }) => (
+                  <FormItem><FormLabel required>Alternative Equipment Considered/Trialled</FormLabel><FormControl><Textarea {...field} placeholder="e.g., low bed, fall out mats, alert mats" rows={3} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="reasonsAlternativesNotSuccessful" render={({ field }) => (
+                  <FormItem><FormLabel required>Reasons Why Alternatives Have Not Been Successful</FormLabel><FormControl><Textarea {...field} placeholder="e.g., trip hazard, resident preference" rows={3} /></FormControl><FormMessage /></FormItem>
+                )} />
+              </div>
+            </div>
 
-                <div className="space-y-3 border-l-4 border-green-500 pl-4">
-                  <FormField
-                    control={form.control}
-                    name="authorizationRationale.residentRequests"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Resident with capacity requests bedrails
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="authorizationRationale.mdtMeetingCompleted"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          MDT meeting has taken place and all parties understand the risks involved with bedrails
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="authorizationRationale.riskOutweighsBenefit"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          The risk of injury, falling from bed outweighs the risk of bedrails
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="authorizationRationale.alternativesExplored"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          All other alternatives have been explored and have been unsuccessful
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="authorizationRationale.bestInterestDecision"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Residents who lack capacity have a best interest decision completed
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
+            {/* Section 3: Exclusion Criteria */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-red-600 rounded-full" />
+                <h3 className="text-lg font-semibold text-red-600">Exclusion Criteria (When Rails CANNOT Be Used)</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-l-4 border-red-500 pl-6 py-2 bg-red-50/30 rounded-r-xl">
+                {[
+                  { name: "residentRefuses", label: "Resident with capacity refuses" },
+                  { name: "climbingRisk", label: "Risk of climbing over rails" },
+                  { name: "entrapmentRisk", label: "Risk of head/limb entrapment" },
+                  { name: "abnormalBodySize", label: "Abnormally small body size" },
+                  { name: "restraintPurpose", label: "Used for restraint of violent movement" },
+                  { name: "freedomLimitation", label: "Used solely to prevent leaving bed" }
+                ].map((crit) => (
+                  <FormField key={crit.name} control={form.control} name={`exclusionCriteria.${crit.name}` as any} render={({ field }) => (
+                    <FormItem className="flex items-center space-x-3 space-y-0 p-2 hover:bg-red-100/50 rounded-lg transition-colors">
+                      <FormControl><Checkbox checked={!!field.value} onCheckedChange={field.onChange} /></FormControl>
+                      <FormLabel className="font-normal cursor-pointer">{crit.label}</FormLabel>
+                    </FormItem>
+                  )} />
+                ))}
+              </div>
+              {exclusionAlert && (
+                <div className="p-4 bg-red-100 border border-red-200 rounded-xl text-red-800 text-sm">
+                  ⚠️ <strong>Stop:</strong> One or more exclusion criteria are met. Bed rails should <strong>not</strong> be used. You may still save this form to document the decision.
                 </div>
+              )}
+            </div>
+
+            {/* Section 4: Benefits & Authorization */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-green-600 rounded-full" />
+                <h3 className="text-lg font-semibold text-green-700">Benefits & Authorization (When Rails CAN Be Used)</h3>
               </div>
-
-              <FormField
-                control={form.control}
-                name="reasonExplainedToResident"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      Has the reason for using bed rails been explained to the Resident, where appropriate?
-                    </FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        className="flex gap-4"
-                      >
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="YES" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Yes</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="NO" />
-                          </FormControl>
-                          <FormLabel className="font-normal">No</FormLabel>
-                        </FormItem>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">1. Equipment Details</h3>
-
-                <FormField
-                  control={form.control}
-                  name="typeOfBed"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type of Bed</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="DIVAN">Divan</SelectItem>
-                          <SelectItem value="PROFILING_BED">Profiling bed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-l-4 border-green-500 pl-6 py-2 bg-green-50/30 rounded-r-xl">
+                {[
+                  { name: "residentRequests", label: "Resident with capacity requests" },
+                  { name: "mdtMeetingCompleted", label: "MDT meeting understands risks" },
+                  { name: "riskOutweighsBenefit", label: "Falling risk outweighs rail risk" },
+                  { name: "alternativesExplored", label: "All other alternatives unsuccessful" },
+                  { name: "bestInterestDecision", label: "Best interest decision (if no capacity)" }
+                ].map((auth) => (
+                  <FormField key={auth.name} control={form.control} name={`authorizationRationale.${auth.name}` as any} render={({ field }) => (
+                    <FormItem className="flex items-center space-x-3 space-y-0 p-2 hover:bg-green-100/50 rounded-lg transition-colors">
+                      <FormControl><Checkbox checked={!!field.value} onCheckedChange={field.onChange} /></FormControl>
+                      <FormLabel className="font-normal cursor-pointer">{auth.label}</FormLabel>
                     </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="typeOfMattress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type of Mattress</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="STANDARD">Standard</SelectItem>
-                          <SelectItem value="LIGHTWEIGHT_FOAM">Lightweight foam</SelectItem>
-                          <SelectItem value="STANDARD_WITH_OVERLAY">Standard mattress with overlay</SelectItem>
-                          <SelectItem value="FULL_REPLACEMENT">Full replacement</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="typeOfBedrails"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type of Bedrails</FormLabel>
-                      <Select
-                        onValueChange={(value) => {
-                          field.onChange(value);
-                          checkExtendedRails();
-                        }}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="INTEGRAL_FIXED">Integral – fixed to bed</SelectItem>
-                          <SelectItem value="EXTENDED_HEIGHT_INTEGRAL">Extended height (integral)</SelectItem>
-                          <SelectItem value="EXTENDED_HEIGHT_NON_INTEGRAL">Extended height (non-integral)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  )} />
+                ))}
               </div>
+              <FormField control={form.control} name="reasonExplainedToResident" render={({ field }) => (
+                <FormItem className="space-y-3 p-4 bg-muted/20 rounded-xl">
+                  <FormLabel>Has the reason for using bed rails been explained to the Resident?</FormLabel>
+                  <FormControl>
+                    <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-6">
+                      <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="YES" /></FormControl><FormLabel className="font-normal">Yes</FormLabel></FormItem>
+                      <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="NO" /></FormControl><FormLabel className="font-normal">No</FormLabel></FormItem>
+                    </RadioGroup>
+                  </FormControl>
+                </FormItem>
+              )} />
+            </div>
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">2. Safety Checklist (Risk of Entrapment)</h3>
-                <p className="text-sm text-muted-foreground">
-                  If any answer is &quot;Yes&quot;, bed rails should not be used.
-                </p>
+            {/* Section 5: Equipment */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Equipment Specification</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <FormField control={form.control} name="typeOfBed" render={({ field }) => (
+                  <FormItem><FormLabel>Type of Bed</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="DIVAN">Divan</SelectItem><SelectItem value="PROFILING_BED">Profiling bed</SelectItem></SelectContent></Select></FormItem>
+                )} />
+                <FormField control={form.control} name="typeOfMattress" render={({ field }) => (
+                  <FormItem><FormLabel>Type of Mattress</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="STANDARD">Standard</SelectItem><SelectItem value="LIGHTWEIGHT_FOAM">Lightweight foam</SelectItem><SelectItem value="STANDARD_WITH_OVERLAY">Standard with overlay</SelectItem><SelectItem value="FULL_REPLACEMENT">Full replacement</SelectItem></SelectContent></Select></FormItem>
+                )} />
+                <FormField control={form.control} name="typeOfBedrails" render={({ field }) => (
+                  <FormItem><FormLabel>Type of Bedrails</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="INTEGRAL_FIXED">Integral – fixed to bed</SelectItem><SelectItem value="EXTENDED_HEIGHT_INTEGRAL">Extended height (integral)</SelectItem><SelectItem value="EXTENDED_HEIGHT_NON_INTEGRAL">Extended height (non-integral)</SelectItem></SelectContent></Select></FormItem>
+                )} />
+              </div>
+            </div>
 
-                <div className="space-y-3">
+            {/* Section 6: Safety Checklist */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-yellow-500 rounded-full" />
+                <h3 className="text-lg font-semibold">Safety Checklist (Entrapment Risk)</h3>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                {[
+                  { name: "gapBetweenRailAndMattress", label: "Gap between lower bar and top of mattress?" },
+                  { name: "mattressCompressesEasily", label: "Does mattress compress easily at edge?" },
+                  { name: "gapMoreThan60mm", label: "Gap >60mm between rail and headboard/wall?" },
+                  { name: "bedRailInsecure", label: "Is the bed rail insecure?" },
+                  { name: "bedAgainstWall", label: "Is the bed positioned against a wall?" }
+                ].map((item) => (
+                  <FormField key={item.name} control={form.control} name={`safetyChecklist.${item.name}` as any} render={({ field }) => (
+                    <FormItem className="flex items-center justify-between p-3 border rounded-lg bg-card">
+                      <FormLabel className="max-w-[70%]">{item.label}</FormLabel>
+                      <FormControl>
+                        <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-4">
+                          <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="YES" /></FormControl><FormLabel className="font-normal">Yes</FormLabel></FormItem>
+                          <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="NO" /></FormControl><FormLabel className="font-normal">No</FormLabel></FormItem>
+                        </RadioGroup>
+                      </FormControl>
+                    </FormItem>
+                  )} />
+                ))}
+              </div>
+              {safetyAlert && (
+                <div className="p-4 bg-red-100 border border-red-200 rounded-xl text-red-800 text-sm">
+                  ⚠️ <strong>Warning:</strong> One or more safety checks failed. Bed rails <strong>not</strong> recommended.
+                </div>
+              )}
+            </div>
+
+            {/* Section 7: Extended Height Checks (Conditional) */}
+            {(watchTypeOfBedrails?.includes("EXTENDED")) && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-blue-500 rounded-full" />
+                  <h3 className="text-lg font-semibold">Extended Height Checklist</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
-                    {
-                      name: "gapBetweenRailAndMattress" as const,
-                      label: "Is there a gap between the lower bar of the bed rail and the top of the mattress?"
-                    },
-                    {
-                      name: "mattressCompressesEasily" as const,
-                      label: "Does the mattress compress easily at its edge?"
-                    },
-                    {
-                      name: "gapMoreThan60mm" as const,
-                      label: "Is there a gap of more than 60mm between the end of the bed rail and headboard or wall?"
-                    },
-                    {
-                      name: "bedRailInsecure" as const,
-                      label: "Is the bed rail insecure?"
-                    },
-                    {
-                      name: "bedAgainstWall" as const,
-                      label: "Is the bed positioned against a wall?"
-                    }
+                    { name: "positionedCorrectly", label: "Positioned with gap <60mm to head?" },
+                    { name: "securelyFastened", label: "Securely fastened to integral rail?" },
+                    { name: "correctBumpersInstalled", label: "Correct bumpers installed?" },
+                    { name: "mattressBelowPlimsollLine", label: "Below plimsoll line on bumper?" },
+                    { name: "staffTrained", label: "Staff trained on removal/attachment?" },
+                    { name: "checkedForDamage", label: "Checked for damage/wear?" }
                   ].map((item) => (
-                    <FormField
-                      key={item.name}
-                      control={form.control}
-                      name={`safetyChecklist.${item.name}`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{item.label}</FormLabel>
-                          <FormControl>
-                            <RadioGroup
-                              onValueChange={field.onChange}
-                              value={field.value}
-                              className="flex gap-4"
-                            >
-                              <FormItem className="flex items-center space-x-2 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value="YES" />
-                                </FormControl>
-                                <FormLabel className="font-normal">Yes</FormLabel>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-2 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value="NO" />
-                                </FormControl>
-                                <FormLabel className="font-normal">No</FormLabel>
-                              </FormItem>
-                            </RadioGroup>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <FormField key={item.name} control={form.control} name={`extendedHeightChecks.${item.name}` as any} render={({ field }) => (
+                      <FormItem className="flex items-center justify-between p-3 border rounded-lg bg-blue-50/20">
+                        <FormLabel className="max-w-[70%] text-sm">{item.label}</FormLabel>
+                        <FormControl>
+                          <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-3">
+                            <FormItem className="flex items-center space-x-1 space-y-0"><FormControl><RadioGroupItem value="YES" /></FormControl><FormLabel className="font-normal">Yes</FormLabel></FormItem>
+                            <FormItem className="flex items-center space-x-1 space-y-0"><FormControl><RadioGroupItem value="NO" /></FormControl><FormLabel className="font-normal">No</FormLabel></FormItem>
+                          </RadioGroup>
+                        </FormControl>
+                      </FormItem>
+                    )} />
                   ))}
                 </div>
-
-                {watchSafetyChecklist &&
-                  (watchSafetyChecklist.gapBetweenRailAndMattress === "YES" ||
-                    watchSafetyChecklist.mattressCompressesEasily === "YES" ||
-                    watchSafetyChecklist.gapMoreThan60mm === "YES" ||
-                    watchSafetyChecklist.bedRailInsecure === "YES" ||
-                    watchSafetyChecklist.bedAgainstWall === "YES") && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-                      <p className="text-sm font-medium text-red-800">
-                        ⚠️ One or more safety checks have failed. Bed rails should NOT be used.
-                      </p>
-                    </div>
-                  )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Page 3: Extended Rails & Finalization */}
-          {currentStep === 3 && (
+            {/* Section 8: Finalization */}
             <div className="space-y-6">
-              {(watchTypeOfBedrails === "EXTENDED_HEIGHT_INTEGRAL" ||
-                watchTypeOfBedrails === "EXTENDED_HEIGHT_NON_INTEGRAL") && (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">3. Extended Height Bed Rails</h3>
-
-                    <div className="space-y-3">
-                      {[
-                        {
-                          name: "positionedCorrectly" as const,
-                          label: "Is the extended bed rail positioned as far to the head of the bed as possible with a gap of less than 60mm?"
-                        },
-                        {
-                          name: "securelyFastened" as const,
-                          label: "Is the extended height bed rail securely fastened to the integrated bed rail?"
-                        },
-                        {
-                          name: "correctBumpersInstalled" as const,
-                          label: "Are the correct bumpers installed?"
-                        },
-                        {
-                          name: "mattressBelowPlimsollLine" as const,
-                          label: "Does the mattress come below the plimsoll line on the bumper?"
-                        },
-                        {
-                          name: "staffTrained" as const,
-                          label: "Have staff been trained how to attach and remove the extended bed rail?"
-                        },
-                        {
-                          name: "checkedForDamage" as const,
-                          label: "Has the bed and bed rails been checked for any signs of damage or wear and tear?"
-                        }
-                      ].map((item) => (
-                        <FormField
-                          key={item.name}
-                          control={form.control}
-                          name={`extendedHeightChecks.${item.name}`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{item.label}</FormLabel>
-                              <FormControl>
-                                <RadioGroup
-                                  onValueChange={field.onChange}
-                                  value={field.value}
-                                  className="flex gap-4"
-                                >
-                                  <FormItem className="flex items-center space-x-2 space-y-0">
-                                    <FormControl>
-                                      <RadioGroupItem value="YES" />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">Yes</FormLabel>
-                                  </FormItem>
-                                  <FormItem className="flex items-center space-x-2 space-y-0">
-                                    <FormControl>
-                                      <RadioGroupItem value="NO" />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">No</FormLabel>
-                                  </FormItem>
-                                </RadioGroup>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">4. General</h3>
-
-                <FormField
-                  control={form.control}
-                  name="consentObtained"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Have you obtained consent from the Resident or consulted the NOK as part of the &quot;best interest&quot; decision?
-                      </FormLabel>
-                      <FormControl>
-                        <RadioGroup
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          className="flex gap-4"
-                        >
-                          <FormItem className="flex items-center space-x-2 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="YES" />
-                            </FormControl>
-                            <FormLabel className="font-normal">Yes</FormLabel>
-                          </FormItem>
-                          <FormItem className="flex items-center space-x-2 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="NO" />
-                            </FormControl>
-                            <FormLabel className="font-normal">No</FormLabel>
-                          </FormItem>
-                        </RadioGroup>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="carePlanCompleted"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Have you completed a care plan?</FormLabel>
-                      <FormControl>
-                        <RadioGroup
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          className="flex gap-4"
-                        >
-                          <FormItem className="flex items-center space-x-2 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="YES" />
-                            </FormControl>
-                            <FormLabel className="font-normal">Yes</FormLabel>
-                          </FormItem>
-                          <FormItem className="flex items-center space-x-2 space-y-0">
-                            <FormControl>
-                              <RadioGroupItem value="NO" />
-                            </FormControl>
-                            <FormLabel className="font-normal">No</FormLabel>
-                          </FormItem>
-                        </RadioGroup>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">General & Sign-off</h3>
               </div>
-
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Sign-off</h3>
-
-                <FormField
-                  control={form.control}
-                  name="signatureOfAssessor"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Signature of Person Completing Assessment</FormLabel>
-                      <FormControl>
-                        <Input {...field} className="bg-muted" disabled />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="signatureDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Signature Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <FormField control={form.control} name="consentObtained" render={({ field }) => (
+                  <FormItem className="p-4 rounded-xl border bg-muted/10">
+                    <FormLabel>Obtained consent from Resident or consulted NOK?</FormLabel>
+                    <FormControl>
+                      <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-6 mt-2">
+                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="YES" /></FormControl><FormLabel className="font-normal">Yes</FormLabel></FormItem>
+                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="NO" /></FormControl><FormLabel className="font-normal">No</FormLabel></FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="carePlanCompleted" render={({ field }) => (
+                  <FormItem className="p-4 rounded-xl border bg-muted/10">
+                    <FormLabel>Have you completed a care plan?</FormLabel>
+                    <FormControl>
+                      <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-6 mt-2">
+                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="YES" /></FormControl><FormLabel className="font-normal">Yes</FormLabel></FormItem>
+                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="NO" /></FormControl><FormLabel className="font-normal">No</FormLabel></FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="signatureOfAssessor" render={({ field }) => (
+                  <FormItem><FormLabel>Digital Signature (Assessor)</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly /></FormControl></FormItem>
+                )} />
+                <FormField control={form.control} name="signatureDate" render={({ field }) => (
+                  <FormItem><FormLabel required>Signature Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
               </div>
             </div>
+
+          </form>
+        </Form>
+      </div>
+
+      <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
+        <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
+          Cancel
+        </Button>
+        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            !!initialData ? "Save Changes" : "Save Assessment"
           )}
-
-          {/* Navigation Buttons */}
-          <div className="flex justify-between pt-6 border-t">
-            <div>
-              {currentStep > 1 && (
-                <Button type="button" variant="outline" onClick={handleBack}>
-                  Back
-                </Button>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {currentStep < 3 ? (
-                <Button type="button" onClick={handleNext}>
-                  Next
-                </Button>
-              ) : (
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Submit Assessment"}
-                </Button>
-              )}
-            </div>
-          </div>
-        </form>
-      </Form>
+        </Button>
+      </div>
     </div>
   );
 }

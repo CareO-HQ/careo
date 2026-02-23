@@ -274,7 +274,7 @@ export default function NutritionalAssessmentDialog({
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button type="button" variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                          {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                          {field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
                       </FormControl>
@@ -291,7 +291,7 @@ export default function NutritionalAssessmentDialog({
         </Form>
       </div>
       <DialogFooter>
-        <Button onClick={onClose} variant="outline" disabled={isLoading}>Cancel</Button>
+        <Button onClick={() => onClose?.()} variant="outline" disabled={isLoading}>Cancel</Button>
         <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} type="submit">{isLoading ? "Saving..." : "Save Assessment"}</Button>
       </DialogFooter>
     </>

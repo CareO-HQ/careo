@@ -209,7 +209,7 @@ export default function OralAssessmentDialog({
         </Form>
       </div>
       <DialogFooter>
-        <Button onClick={onClose} variant="outline" disabled={isLoading}>Cancel</Button>
+        <Button onClick={() => onClose?.()} variant="outline" disabled={isLoading}>Cancel</Button>
         <Button onClick={form.handleSubmit(onSubmit, onValidationError)} disabled={isLoading}>{isLoading ? "Saving..." : "Save"}</Button>
       </DialogFooter>
     </>

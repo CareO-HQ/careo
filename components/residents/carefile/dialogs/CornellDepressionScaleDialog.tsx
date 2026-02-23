@@ -222,7 +222,7 @@ export default function CornellDepressionScaleDialog({
         </ScrollArea>
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-background">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
+          <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isSubmitting}>Cancel</Button>
           <Button
             type="submit"
             onClick={() => {

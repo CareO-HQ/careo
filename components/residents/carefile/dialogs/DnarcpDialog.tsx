@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
@@ -34,7 +33,7 @@ import { DnacprSchema } from "@/schemas/residents/care-file/dnacprSchema";
 import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { cn } from "@/lib/utils";
@@ -64,7 +63,6 @@ export default function DnacprDialog({
   initialData,
   isEditMode = false
 }: DnacprDialogProps) {
-  const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -75,7 +73,6 @@ export default function DnacprDialog({
 
   const { supabase } = useSupabase();
 
-  // Helper function to safely convert date to timestamp
   const getDateOfBirthTimestamp = (): number => {
     if (typeof resident.date_of_birth === "number") {
       return resident.date_of_birth;
@@ -95,7 +92,6 @@ export default function DnacprDialog({
     mode: "onChange",
     defaultValues: initialData
       ? {
-        // Use existing data for editing
         residentId: residentId,
         teamId,
         organizationId,
@@ -130,7 +126,6 @@ export default function DnacprDialog({
         registeredNurseSignature: initialData.registeredNurseSignature ?? ""
       }
       : {
-        // Default values for new forms
         residentId: residentId,
         teamId,
         organizationId,
@@ -159,119 +154,32 @@ export default function DnacprDialog({
       }
   });
 
-  const totalSteps = 7;
-
-  const handleNext = async () => {
-    let isValid = false;
-
-    // Close all date popovers when moving between steps
-    setDobPopoverOpen(false);
-    setDatePopoverOpen(false);
-    setResidentDatePopoverOpen(false);
-    setRelativeDatePopoverOpen(false);
-    setNokDatePopoverOpen(false);
-    setGpDatePopoverOpen(false);
-
-    if (step === 1) {
-      const fieldsToValidate = [
-        "residentName",
-        "bedroomNumber",
-        "dateOfBirth"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 2) {
-      const fieldsToValidate = ["dnacpr", "reason", "date"] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 3) {
-      const fieldsToValidate = ["discussedResident"] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 4) {
-      const fieldsToValidate = ["discussedRelatives"] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 5) {
-      const fieldsToValidate = ["discussedNOKs"] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 6) {
-      // Additional comments - no validation required
-      isValid = true;
-    } else if (step === 7) {
-      const fieldsToValidate = [
-        "gpDate",
-        "gpSignature",
-        "residentNokSignature",
-        "registeredNurseSignature"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    }
-
-    if (isValid || step === totalSteps) {
-      if (step < totalSteps) {
-        setStep(step + 1);
-      } else {
-        await handleSubmit();
-      }
-    }
-  };
-
-  const handlePrevious = () => {
-    // Close all date popovers when moving between steps
-    setDobPopoverOpen(false);
-    setDatePopoverOpen(false);
-    setResidentDatePopoverOpen(false);
-    setRelativeDatePopoverOpen(false);
-    setNokDatePopoverOpen(false);
-    setGpDatePopoverOpen(false);
-
-    if (step > 1) {
-      setStep(step - 1);
-    }
-  };
-
-  const handleSubmit = async () => {
+  const onSubmit = async (values: z.infer<typeof DnacprSchema>) => {
     startTransition(async () => {
       try {
-        // Validate all required fields before submission
-        const isValid = await form.trigger();
-        if (!isValid) {
-          toast.error("Please fill in all required fields");
-          return;
-        }
-
-        const formData = form.getValues();
-
-        // Check required signature fields specifically
-        if (
-          !formData.gpSignature ||
-          !formData.residentNokSignature ||
-          !formData.registeredNurseSignature
-        ) {
-          toast.error("All signature fields are required");
-          return;
-        }
-
         const payload = {
           resident_id: residentId,
           organization_id: organizationId,
-          dnacpr_active: formData.dnacpr,
-          reason: formData.reason,
+          dnacpr_active: values.dnacpr,
+          reason: values.reason,
           discussion_history: {
-            discussedResident: formData.discussedResident,
-            discussedResidentComments: formData.discussedResidentComments,
-            discussedResidentDate: formData.discussedResidentDate,
-            discussedRelatives: formData.discussedRelatives,
-            discussedRelativesComments: formData.discussedRelativesComments,
-            discussedRelativeDate: formData.discussedRelativeDate,
-            discussedNOKs: formData.discussedNOKs,
-            discussedNOKsComments: formData.discussedNOKsComments,
-            discussedNOKsDate: formData.discussedNOKsDate,
-            comments: formData.comments,
-            residentNokSignature: formData.residentNokSignature,
-            registeredNurseSignature: formData.registeredNurseSignature
+            discussedResident: values.discussedResident,
+            discussedResidentComments: values.discussedResidentComments,
+            discussedResidentDate: values.discussedResidentDate,
+            discussedRelatives: values.discussedRelatives,
+            discussedRelativesComments: values.discussedRelativesComments,
+            discussedRelativeDate: values.discussedRelativeDate,
+            discussedNOKs: values.discussedNOKs,
+            discussedNOKsComments: values.discussedNOKsComments,
+            discussedNOKsDate: values.discussedNOKsDate,
+            comments: values.comments,
+            residentNokSignature: values.residentNokSignature,
+            registeredNurseSignature: values.registeredNurseSignature
           },
-          gp_signature: formData.gpSignature,
-          gp_date: format(new Date(formData.gpDate), "yyyy-MM-dd"),
-          assessment_date: format(new Date(formData.date), "yyyy-MM-dd"),
-          completed_by: formData.registeredNurseSignature,
+          gp_signature: values.gpSignature,
+          gp_date: format(new Date(values.gpDate), "yyyy-MM-dd"),
+          assessment_date: format(new Date(values.date), "yyyy-MM-dd"),
+          completed_by: values.registeredNurseSignature,
           created_by: userId,
           status: "completed"
         };
@@ -284,7 +192,6 @@ export default function DnacprDialog({
         );
 
         toast.success(isEditMode ? "DNACPR form updated successfully" : "DNACPR form saved successfully");
-
         onClose?.();
       } catch (error) {
         console.error("Error submitting DNACPR form:", error);
@@ -293,752 +200,260 @@ export default function DnacprDialog({
     });
   };
 
-  const renderStepContent = () => {
-    switch (step) {
-      case 1:
-        return (
-          <div className="space-y-4" key="step-1">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="residentName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Resident Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="bedroomNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Bedroom Number</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            <FormField
-              control={form.control}
-              name="dateOfBirth"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>Date of Birth</FormLabel>
-                  <Popover
-                    open={dobPopoverOpen}
-                    onOpenChange={setDobPopoverOpen}
-                    modal
-                  >
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(new Date(field.value), "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        captionLayout="dropdown"
-                        mode="single"
-                        selected={
-                          field.value ? new Date(field.value) : undefined
-                        }
-                        onSelect={(date) => {
-                          if (date) {
-                            field.onChange(date.getTime());
-                            setDobPopoverOpen(false);
-                          }
-                        }}
-                        disabled={(date) =>
-                          date > new Date() || date < new Date("1900-01-01")
-                        }
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="space-y-4" key="step-2">
-            <FormField
-              control={form.control}
-              name="dnacpr"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>
-                    DNACPR (Do Not Attempt Cardiopulmonary Resuscitation)
-                  </FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(value === "true")}
-                    value={field.value ? "true" : "false"}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select DNACPR decision" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="false">
-                        CPR should be attempted
-                      </SelectItem>
-                      <SelectItem value="true">
-                        DNACPR - Do not attempt CPR
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="dnacprComments"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>DNACPR Comments</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Additional comments regarding DNACPR decision..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="reason"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>Reason for DNACPR</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select reason" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="TERMINAL-PROGRESSIVE">
-                        Terminal Progressive Illness
-                      </SelectItem>
-                      <SelectItem value="UNSUCCESSFUL-CPR">
-                        Unsuccessful CPR Likely
-                      </SelectItem>
-                      <SelectItem value="OTHER">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>Date of Decision</FormLabel>
-                  <Popover
-                    open={datePopoverOpen}
-                    onOpenChange={setDatePopoverOpen}
-                    modal
-                  >
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(new Date(field.value), "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        captionLayout="dropdown"
-                        selected={
-                          field.value ? new Date(field.value) : undefined
-                        }
-                        onSelect={(date) => {
-                          if (date) {
-                            field.onChange(date.getTime());
-                            setDatePopoverOpen(false);
-                          }
-                        }}
-                        disabled={(date) =>
-                          date > new Date() || date < new Date("2000-01-01")
-                        }
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="space-y-4" key="step-3">
-            <h4 className="text-md font-medium">Discussion with Resident</h4>
-            <FormField
-              control={form.control}
-              name="discussedResident"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>
-                    Was this discussed with the resident?
-                  </FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(value === "true")}
-                    value={field.value ? "true" : "false"}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select option" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="false">
-                        No - Not discussed with resident
-                      </SelectItem>
-                      <SelectItem value="true">
-                        Yes - Discussed with resident
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="discussedResidentComments"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Comments</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Comments about discussion with resident..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="discussedResidentDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>Date of Discussion</FormLabel>
-                  <Popover
-                    modal
-                    open={residentDatePopoverOpen}
-                    onOpenChange={setResidentDatePopoverOpen}
-                  >
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(new Date(field.value), "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        captionLayout="dropdown"
-                        mode="single"
-                        selected={
-                          field.value ? new Date(field.value) : undefined
-                        }
-                        onSelect={(date) => {
-                          if (date) {
-                            field.onChange(date.getTime());
-                            setResidentDatePopoverOpen(false);
-                          }
-                        }}
-                        disabled={(date) =>
-                          date > new Date() || date < new Date("2000-01-01")
-                        }
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        );
-
-      case 4:
-        return (
-          <div className="space-y-4" key="step-4">
-            <h4 className="text-md font-medium">Discussion with Relatives</h4>
-            <FormField
-              control={form.control}
-              name="discussedRelatives"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Was this discussed with relatives?</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(value === "true")}
-                    value={field.value ? "true" : "false"}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select option" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="false">
-                        No - Not discussed with relatives
-                      </SelectItem>
-                      <SelectItem value="true">
-                        Yes - Discussed with relatives
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="discussedRelativesComments"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Comments</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Comments about discussion with relatives..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="discussedRelativeDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Date of Discussion</FormLabel>
-                  <Popover
-                    modal
-                    open={relativeDatePopoverOpen}
-                    onOpenChange={setRelativeDatePopoverOpen}
-                  >
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(new Date(field.value), "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        captionLayout="dropdown"
-                        mode="single"
-                        selected={
-                          field.value ? new Date(field.value) : undefined
-                        }
-                        onSelect={(date) => {
-                          if (date) {
-                            field.onChange(date.getTime());
-                            setRelativeDatePopoverOpen(false);
-                          }
-                        }}
-                        disabled={(date) =>
-                          date > new Date() || date < new Date("2000-01-01")
-                        }
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        );
-
-      case 5:
-        return (
-          <div className="space-y-4" key="step-5">
-            <h4 className="text-md font-medium">Discussion with Next of Kin</h4>
-            <FormField
-              control={form.control}
-              name="discussedNOKs"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Was this discussed with next of kin?</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(value === "true")}
-                    value={field.value ? "true" : "false"}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select option" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="false">
-                        No - Not discussed with next of kin
-                      </SelectItem>
-                      <SelectItem value="true">
-                        Yes - Discussed with next of kin
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="discussedNOKsComments"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Comments</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Comments about discussion with next of kin..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="discussedNOKsDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Date of Discussion</FormLabel>
-                  <Popover
-                    modal
-                    open={nokDatePopoverOpen}
-                    onOpenChange={setNokDatePopoverOpen}
-                  >
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(new Date(field.value), "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={
-                          field.value ? new Date(field.value) : undefined
-                        }
-                        onSelect={(date) => {
-                          if (date) {
-                            field.onChange(date.getTime());
-                            setNokDatePopoverOpen(false);
-                          }
-                        }}
-                        disabled={(date) =>
-                          date > new Date() || date < new Date("2000-01-01")
-                        }
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        );
-
-      case 6:
-        return (
-          <div className="space-y-4" key="step-6">
-            <FormField
-              control={form.control}
-              name="comments"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Additional Comments</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Any additional comments about the DNACPR decision..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        );
-
-      case 7:
-        return (
-          <div className="space-y-4" key="step-7">
-            <FormField
-              control={form.control}
-              name="gpDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>GP Date</FormLabel>
-                  <Popover
-                    modal
-                    open={gpDatePopoverOpen}
-                    onOpenChange={setGpDatePopoverOpen}
-                  >
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(new Date(field.value), "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        captionLayout="dropdown"
-                        mode="single"
-                        selected={
-                          field.value ? new Date(field.value) : undefined
-                        }
-                        onSelect={(date) => {
-                          if (date) {
-                            field.onChange(date.getTime());
-                            setGpDatePopoverOpen(false);
-                          }
-                        }}
-                        disabled={(date) =>
-                          date > new Date() || date < new Date("2000-01-01")
-                        }
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="gpSignature"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>GP Signature</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="GP signature or name" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="residentNokSignature"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>Resident/Next of Kin Signature</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="Resident or next of kin signature"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="registeredNurseSignature"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>Registered Nurse Signature</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="Registered nurse signature or name"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
   return (
-    <>
+    <div className="flex flex-col space-y-8">
       <DialogHeader>
-        <DialogTitle>
-          {isEditMode
-            ? "Review DNACPR Form"
-            : step === 1
-              ? "DNACPR Form - Resident Information"
-              : step === 2
-                ? "DNACPR Form - Decision Details"
-                : step === 3
-                  ? "DNACPR Form - Discussion with Resident"
-                  : step === 4
-                    ? "DNACPR Form - Discussion with Relatives"
-                    : step === 5
-                      ? "DNACPR Form - Discussion with Next of Kin"
-                      : step === 6
-                        ? "DNACPR Form - Additional Comments"
-                        : step === 7
-                          ? "DNACPR Form - Signatures"
-                          : "DNACPR Form"}
-        </DialogTitle>
+        <DialogTitle className="text-2xl font-bold text-red-600">DNACPR Decision Form</DialogTitle>
         <DialogDescription>
-          {isEditMode
-            ? "Review and update the DNACPR form details"
-            : step === 1
-              ? "Enter the resident's basic information for the DNACPR form"
-              : step === 2
-                ? "Complete the DNACPR decision details and reasoning"
-                : step === 3
-                  ? "Record discussion held with the resident"
-                  : step === 4
-                    ? "Record discussion held with relatives"
-                    : step === 5
-                      ? "Record discussion held with next of kin"
-                      : step === 6
-                        ? "Add any additional comments about the DNACPR decision"
-                        : step === 7
-                          ? "Obtain required signatures to complete the DNACPR form"
-                          : "Complete the Do Not Attempt Cardiopulmonary Resuscitation form"}
+          Do Not Attempt Cardiopulmonary Resuscitation (DNACPR) decision and discussion record.
         </DialogDescription>
       </DialogHeader>
 
-      <Form {...form}>
-        <form
-          onSubmit={(e) => e.preventDefault()}
-          className="space-y-6"
-          autoComplete="off"
-        >
-          <div className="max-h-[60vh] overflow-y-auto px-1">
-            {renderStepContent()}
-          </div>
+      <div className="space-y-12 pb-20">
+        <Form {...form}>
+          <form className="space-y-12">
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={step === 1 ? onClose : handlePrevious}
-              disabled={step === 1 || isLoading}
-            >
-              {step === 1 ? "Cancel" : "Back"}
-            </Button>
-            <Button
-              type="button"
-              onClick={step === totalSteps ? handleSubmit : handleNext}
-              disabled={isLoading}
-            >
-              {isLoading
-                ? "Saving..."
-                : step === totalSteps
-                  ? "Save DNACPR Form"
-                  : "Next"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </Form>
-    </>
+            {/* Section 1: Resident & Decision */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">1. Resident Information & Decision</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField control={form.control} name="residentName" render={({ field }) => (
+                  <FormItem><FormLabel required>Resident Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="bedroomNumber" render={({ field }) => (
+                  <FormItem><FormLabel required>Bedroom Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="dateOfBirth" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>Date of Birth</FormLabel>
+                    <Popover open={dobPopoverOpen} onOpenChange={setDobPopoverOpen} modal>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                            {field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar captionLayout="dropdown" mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDobPopoverOpen(false); } }} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="date" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>Date of Decision</FormLabel>
+                    <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen} modal>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                            {field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" captionLayout="dropdown" selected={field.value ? new Date(field.value) : undefined} onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDatePopoverOpen(false); } }} />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-red-50/50 rounded-xl border border-red-100">
+                <FormField control={form.control} name="dnacpr" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required className="text-red-700">DNACPR Decision</FormLabel>
+                    <Select onValueChange={(value) => field.onChange(value === "true")} value={field.value ? "true" : "false"}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="false">CPR should be attempted</SelectItem>
+                        <SelectItem value="true">DNACPR - Do not attempt CPR</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="reason" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required className="text-red-700">Primary Reason</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="TERMINAL-PROGRESSIVE">Terminal Progressive Illness</SelectItem>
+                        <SelectItem value="UNSUCCESSFUL-CPR">Unsuccessful CPR Likely</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <div className="md:col-span-2">
+                  <FormField control={form.control} name="dnacprComments" render={({ field }) => (
+                    <FormItem><FormLabel>Decision Comments</FormLabel><FormControl><Textarea {...field} placeholder="Details regarding the decision..." rows={2} /></FormControl></FormItem>
+                  )} />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Discussion Record */}
+            <div className="space-y-8">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-blue-500 rounded-full" />
+                <h3 className="text-lg font-semibold">2. Discussion Record</h3>
+              </div>
+
+              <div className="space-y-8">
+                {/* Resident Discussion */}
+                <div className="p-6 bg-muted/20 rounded-xl space-y-4 border">
+                  <FormField control={form.control} name="discussedResident" render={({ field }) => (
+                    <FormItem className="flex items-center justify-between">
+                      <FormLabel className="text-base">Discussed with resident?</FormLabel>
+                      <FormControl>
+                        <Select onValueChange={(value) => field.onChange(value === "true")} value={field.value ? "true" : "false"}>
+                          <FormControl><SelectTrigger className="w-40"><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent>
+                        </Select>
+                      </FormControl>
+                    </FormItem>
+                  )} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="discussedResidentDate" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Discussion Date</FormLabel>
+                        <Popover open={residentDatePopoverOpen} onOpenChange={setResidentDatePopoverOpen} modal>
+                          <PopoverTrigger asChild>
+                            <FormControl><Button variant="outline" className="w-full text-left font-normal">{field.value ? format(new Date(field.value), "PPP") : "Pick date"}</Button></FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(d) => { if (d) field.onChange(d.getTime()); setResidentDatePopoverOpen(false); }} /></PopoverContent>
+                        </Popover>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="discussedResidentComments" render={({ field }) => (
+                      <FormItem><FormLabel>Comments</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem>
+                    )} />
+                  </div>
+                </div>
+
+                {/* Relatives Discussion */}
+                <div className="p-6 bg-muted/20 rounded-xl space-y-4 border">
+                  <FormField control={form.control} name="discussedRelatives" render={({ field }) => (
+                    <FormItem className="flex items-center justify-between">
+                      <FormLabel className="text-base">Discussed with relatives?</FormLabel>
+                      <FormControl>
+                        <Select onValueChange={(value) => field.onChange(value === "true")} value={field.value ? "true" : "false"}>
+                          <FormControl><SelectTrigger className="w-40"><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent>
+                        </Select>
+                      </FormControl>
+                    </FormItem>
+                  )} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="discussedRelativeDate" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Discussion Date</FormLabel>
+                        <Popover open={relativeDatePopoverOpen} onOpenChange={setRelativeDatePopoverOpen} modal>
+                          <PopoverTrigger asChild>
+                            <FormControl><Button variant="outline" className="w-full text-left font-normal">{field.value ? format(new Date(field.value), "PPP") : "Pick date"}</Button></FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(d) => { if (d) field.onChange(d.getTime()); setRelativeDatePopoverOpen(false); }} /></PopoverContent>
+                        </Popover>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="discussedRelativesComments" render={({ field }) => (
+                      <FormItem><FormLabel>Comments</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem>
+                    )} />
+                  </div>
+                </div>
+
+                {/* Next of Kin Discussion */}
+                <div className="p-6 bg-muted/20 rounded-xl space-y-4 border">
+                  <FormField control={form.control} name="discussedNOKs" render={({ field }) => (
+                    <FormItem className="flex items-center justify-between">
+                      <FormLabel className="text-base">Discussed with next of kin?</FormLabel>
+                      <FormControl>
+                        <Select onValueChange={(value) => field.onChange(value === "true")} value={field.value ? "true" : "false"}>
+                          <FormControl><SelectTrigger className="w-40"><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent>
+                        </Select>
+                      </FormControl>
+                    </FormItem>
+                  )} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="discussedNOKsDate" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Discussion Date</FormLabel>
+                        <Popover open={nokDatePopoverOpen} onOpenChange={setNokDatePopoverOpen} modal>
+                          <PopoverTrigger asChild>
+                            <FormControl><Button variant="outline" className="w-full text-left font-normal">{field.value ? format(new Date(field.value), "PPP") : "Pick date"}</Button></FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(d) => { if (d) field.onChange(d.getTime()); setNokDatePopoverOpen(false); }} /></PopoverContent>
+                        </Popover>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="discussedNOKsComments" render={({ field }) => (
+                      <FormItem><FormLabel>Comments</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem>
+                    )} />
+                  </div>
+                </div>
+              </div>
+
+              <FormField control={form.control} name="comments" render={({ field }) => (
+                <FormItem><FormLabel>General Discussion Comments</FormLabel><FormControl><Textarea {...field} placeholder="Summary of outcomes and consensus..." rows={3} /></FormControl></FormItem>
+              )} />
+            </div>
+
+            {/* Section 3: Sign-off */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-green-500 rounded-full" />
+                <h3 className="text-lg font-semibold">3. Final Sign-off</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <FormField control={form.control} name="gpSignature" render={({ field }) => (
+                  <FormItem><FormLabel required>GP Signature</FormLabel><FormControl><Input {...field} placeholder="Full name of GP" /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="gpDate" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>GP Signing Date</FormLabel>
+                    <Popover open={gpDatePopoverOpen} onOpenChange={setGpDatePopoverOpen} modal>
+                      <PopoverTrigger asChild>
+                        <FormControl><Button variant="outline" className="w-full text-left font-normal">{field.value ? format(new Date(field.value), "PPP") : "Pick date"}</Button></FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(d) => { if (d) field.onChange(d.getTime()); setGpDatePopoverOpen(false); }} /></PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="residentNokSignature" render={({ field }) => (
+                  <FormItem><FormLabel required>Resident / NOK / Proxy Signature</FormLabel><FormControl><Input {...field} placeholder="Full name" /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="registeredNurseSignature" render={({ field }) => (
+                  <FormItem><FormLabel required>Registered Nurse Signature</FormLabel><FormControl><Input {...field} placeholder="Full name" /></FormControl><FormMessage /></FormItem>
+                )} />
+              </div>
+            </div>
+
+          </form>
+        </Form>
+      </div>
+
+      <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
+        <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">Cancel</Button>
+        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
+          {isLoading ? (
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+          ) : (
+            isEditMode ? "Save Changes" : "Save Form"
+          )}
+        </Button>
+      </div>
+    </div>
   );
 }

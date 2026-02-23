@@ -187,7 +187,7 @@ export default function PainAssessmentDialog({
         </Form>
       </div>
       <DialogFooter>
-        <Button onClick={onClose} variant="outline" disabled={isLoading}>Cancel</Button>
+        <Button onClick={() => onClose?.()} variant="outline" disabled={isLoading}>Cancel</Button>
         <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>{isLoading ? "Saving..." : "Save"}</Button>
       </DialogFooter>
     </>
