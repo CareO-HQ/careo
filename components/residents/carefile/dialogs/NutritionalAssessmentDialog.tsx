@@ -49,6 +49,7 @@ interface NutritionalAssessmentDialogProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function NutritionalAssessmentDialog({
@@ -61,7 +62,8 @@ export default function NutritionalAssessmentDialog({
   careHomeName = "",
   onClose,
   initialData,
-  isEditMode = false
+  isEditMode = false,
+  isInline = false
 }: NutritionalAssessmentDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [assessmentDatePopoverOpen, setAssessmentDatePopoverOpen] = useState(false);
@@ -193,13 +195,16 @@ export default function NutritionalAssessmentDialog({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>Nutritional Assessment</DialogTitle>
-        <DialogDescription>Complete the nutritional assessment for the resident</DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle>Nutritional Assessment</DialogTitle>
+          <DialogDescription>Complete the nutritional assessment for the resident</DialogDescription>
+        </DialogHeader>
+      )}
       <div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
             {/* Section 1: Resident Information */}
             <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
               <h3 className="text-sm font-semibold">1. Resident Information</h3>
@@ -290,10 +295,12 @@ export default function NutritionalAssessmentDialog({
           </form>
         </Form>
       </div>
-      <DialogFooter>
-        <Button onClick={() => onClose?.()} variant="outline" disabled={isLoading}>Cancel</Button>
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} type="submit">{isLoading ? "Saving..." : "Save Assessment"}</Button>
-      </DialogFooter>
+      {!isInline && (
+        <DialogFooter>
+          <Button onClick={() => onClose?.()} variant="outline" disabled={isLoading}>Cancel</Button>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} type="submit">{isLoading ? "Saving..." : "Save Assessment"}</Button>
+        </DialogFooter>
+      )}
     </>
   );
 }

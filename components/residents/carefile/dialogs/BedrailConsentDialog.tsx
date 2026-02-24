@@ -40,6 +40,7 @@ interface BedrailConsentDialogProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function BedrailConsentDialog({
@@ -51,7 +52,8 @@ export default function BedrailConsentDialog({
   resident,
   onClose,
   initialData,
-  isEditMode = false
+  isEditMode = false,
+  isInline = false
 }: BedrailConsentDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [loadingState, setLoadingState] = useState<string>("");
@@ -195,17 +197,20 @@ export default function BedrailConsentDialog({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>
-          {isEditMode ? "Review" : "Complete"} Bedrails Consent / Agreement
-        </DialogTitle>
-        <DialogDescription>
-          Complete all sections below for the bedrail consent form
-        </DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle>
+            {isEditMode ? "Review" : "Complete"} Bedrails Consent / Agreement
+          </DialogTitle>
+          <DialogDescription>
+            Complete all sections below for the bedrail consent form
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
       <Form {...form}>
-        <form className="space-y-6">
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+          <button type="submit" id="care-file-submit-btn" className="hidden" />
           <div className="space-y-8 px-1">
 
             {/* Section 1: Header Information */}
@@ -622,30 +627,32 @@ export default function BedrailConsentDialog({
           </div>
 
           {/* Sticky Footer */}
-          <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onClose?.()}
-              disabled={isLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {loadingState || "Submitting..."}
-                </>
-              ) : (
-                "Save"
-              )}
-            </Button>
-          </DialogFooter>
+          {!isInline && (
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onClose?.()}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={form.handleSubmit(handleSubmit)}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {loadingState || "Submitting..."}
+                  </>
+                ) : (
+                  "Save"
+                )}
+              </Button>
+            </DialogFooter>
+          )}
         </form>
       </Form>
     </>

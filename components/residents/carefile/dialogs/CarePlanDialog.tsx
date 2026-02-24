@@ -55,6 +55,7 @@ interface CarePlanDialogProps {
   onClose?: () => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  isInline?: boolean;
 }
 
 const generateTimeOptions = () => {
@@ -80,6 +81,7 @@ export default function CarePlanDialog({
   initialData,
   isEditMode = false,
   onClose,
+  isInline = false,
 }: CarePlanDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
@@ -237,16 +239,19 @@ export default function CarePlanDialog({
 
   return (
     <div className="flex flex-col space-y-8">
-      <DialogHeader>
-        <DialogTitle className="text-2xl font-bold">Care Plan</DialogTitle>
-        <DialogDescription>
-          Record and update the personalized care plan for the resident.
-        </DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold">Care Plan</DialogTitle>
+          <DialogDescription>
+            Record and update the personalized care plan for the resident.
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
       <div className="space-y-12 pb-20">
         <Form {...form}>
-          <form className="space-y-12">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
             {/* Section 1: Basic Information */}
             <div className="space-y-6">
               <div className="flex items-center gap-2 border-b pb-2">
@@ -382,21 +387,23 @@ export default function CarePlanDialog({
         </Form>
       </div>
 
-      <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
-        <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
-          Cancel
-        </Button>
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            isEditMode ? "Save Changes" : "Save Care Plan"
-          )}
-        </Button>
-      </div>
+      {!isInline && (
+        <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
+          <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
+            Cancel
+          </Button>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              isEditMode ? "Save Changes" : "Save Care Plan"
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

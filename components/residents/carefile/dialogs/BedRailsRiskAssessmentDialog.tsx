@@ -48,6 +48,7 @@ interface BedRailsRiskAssessmentDialogProps {
   resident: any;
   onClose?: () => void;
   initialData?: any;
+  isInline?: boolean;
 }
 
 export default function BedRailsRiskAssessmentDialog({
@@ -59,6 +60,7 @@ export default function BedRailsRiskAssessmentDialog({
   resident,
   onClose,
   initialData,
+  isInline = false,
 }: BedRailsRiskAssessmentDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const { supabase } = useSupabase();
@@ -217,16 +219,19 @@ export default function BedRailsRiskAssessmentDialog({
 
   return (
     <div className="flex flex-col space-y-8">
-      <DialogHeader>
-        <DialogTitle className="text-2xl font-bold">Bed Rails Risk Assessment</DialogTitle>
-        <DialogDescription>
-          Identify risks and necessity for bed rail usage to ensure resident safety.
-        </DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold">Bed Rails Risk Assessment</DialogTitle>
+          <DialogDescription>
+            Identify risks and necessity for bed rail usage to ensure resident safety.
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
       <div className="space-y-12 pb-20">
         <Form {...form}>
-          <form className="space-y-12">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
 
             {/* Section 1: Administrative */}
             <div className="space-y-6">
@@ -461,21 +466,23 @@ export default function BedRailsRiskAssessmentDialog({
         </Form>
       </div>
 
-      <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
-        <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
-          Cancel
-        </Button>
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            !!initialData ? "Save Changes" : "Save Assessment"
-          )}
-        </Button>
-      </div>
+      {!isInline && (
+        <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
+          <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
+            Cancel
+          </Button>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              !!initialData ? "Save Changes" : "Save Assessment"
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

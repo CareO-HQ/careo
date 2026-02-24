@@ -43,6 +43,7 @@ interface CareFileDialogRendererProps extends BaseDialogProps {
   folderKey?: string;
   formDataForEdit: any;
   isReviewMode: boolean;
+  isInline?: boolean;
 }
 
 /**
@@ -61,6 +62,7 @@ export function CareFileDialogRenderer({
   folderKey,
   formDataForEdit,
   isReviewMode,
+  isInline,
   onClose
 }: CareFileDialogRendererProps) {
   const editData = isReviewMode ? formDataForEdit : null;
@@ -87,6 +89,7 @@ export function CareFileDialogRenderer({
     userName,
     userRole,
     isEditMode: isReviewMode,
+    isInline,
     onClose
   };
 

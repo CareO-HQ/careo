@@ -46,11 +46,12 @@ interface ResidentHandlingProfileProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function ResidentHandlingProfile({
   teamId, residentId, organizationId, userId, userName, resident,
-  onClose, initialData, isEditMode = false
+  onClose, initialData, isEditMode = false, isInline = false
 }: ResidentHandlingProfileProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -214,17 +215,20 @@ export default function ResidentHandlingProfile({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>
-          {isEditMode ? "Review" : "Complete"} Resident Handling Profile
-        </DialogTitle>
-        <DialogDescription>
-          Complete all sections below for the handling profile
-        </DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle>
+            {isEditMode ? "Review" : "Complete"} Resident Handling Profile
+          </DialogTitle>
+          <DialogDescription>
+            Complete all sections below for the handling profile
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
       <Form {...form}>
-        <form onSubmit={e => e.preventDefault()} className="space-y-6" autoComplete="off">
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6" autoComplete="off">
+          <button type="submit" id="care-file-submit-btn" className="hidden" />
           <div className="space-y-8 px-1">
             {/* Completed By */}
             <div className="space-y-4">
@@ -317,15 +321,17 @@ export default function ResidentHandlingProfile({
             {renderActivityFields("outdoorMobility", "Outdoor Mobility")}
           </div>
 
-          <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => onClose?.()}
-              disabled={isLoading}>Cancel</Button>
-            <Button type="button" onClick={handleSubmit} disabled={isLoading}>
-              {isLoading ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-              ) : "Save Profile"}
-            </Button>
-          </DialogFooter>
+          {!isInline && (
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => onClose?.()}
+                disabled={isLoading}>Cancel</Button>
+              <Button type="button" onClick={form.handleSubmit(handleSubmit)} disabled={isLoading}>
+                {isLoading ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                ) : "Save Profile"}
+              </Button>
+            </DialogFooter>
+          )}
         </form>
       </Form>
     </>

@@ -26,11 +26,12 @@ interface ChokingRiskAssessmentDialogProps {
   isEditMode?: boolean;
   initialData?: any;
   onClose: () => void;
+  isInline?: boolean;
 }
 
 export default function ChokingRiskAssessmentDialog({
   teamId, residentId, organizationId, userId, userName, resident,
-  isEditMode = false, initialData, onClose
+  isEditMode = false, initialData, onClose, isInline = false
 }: ChokingRiskAssessmentDialogProps) {
   const [currentScore, setCurrentScore] = useState(0);
   const [currentRiskLevel, setCurrentRiskLevel] = useState("No Risk");
@@ -183,10 +184,12 @@ export default function ChokingRiskAssessmentDialog({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle className="text-xl">Choking Risk Assessment</DialogTitle>
-        <DialogDescription>Complete the assessment by checking all applicable risk factors</DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle className="text-xl">Choking Risk Assessment</DialogTitle>
+          <DialogDescription>Complete the assessment by checking all applicable risk factors</DialogDescription>
+        </DialogHeader>
+      )}
 
       <div className="mb-4 p-4 border-2 rounded-lg bg-muted/30">
         <div className="flex items-center justify-between">
@@ -198,6 +201,7 @@ export default function ChokingRiskAssessmentDialog({
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
+        <button type="submit" id="care-file-submit-btn" className="hidden" />
         <div className="space-y-4 p-4 border rounded-lg bg-card">
           <h3 className="font-semibold text-sm border-b pb-2">Administrative Information</h3>
           <div className="grid grid-cols-2 gap-4">
@@ -252,20 +256,22 @@ export default function ChokingRiskAssessmentDialog({
         </div>
       </form>
 
-      <div className="flex items-center justify-end gap-3 pt-6 border-t sticky bottom-0 bg-background/80 backdrop-blur-sm py-4">
-        <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isSubmitting}>Cancel</Button>
-        <Button
-          onClick={() => {
-            form.handleSubmit(onSubmit, (errors) => {
-              console.error("Form errors:", errors);
-              toast.error("Please fill in all required fields");
-            })();
-          }}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}
-        </Button>
-      </div>
+      {!isInline && (
+        <div className="flex items-center justify-end gap-3 pt-6 border-t sticky bottom-0 bg-background/80 backdrop-blur-sm py-4 pb-2">
+          <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isSubmitting}>Cancel</Button>
+          <Button
+            onClick={() => {
+              form.handleSubmit(onSubmit, (errors) => {
+                console.error("Form errors:", errors);
+                toast.error("Please fill in all required fields");
+              })();
+            }}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}
+          </Button>
+        </div>
+      )}
     </>
   );
 }

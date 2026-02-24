@@ -52,6 +52,7 @@ interface PeepDialogProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function PeepDialog({
@@ -63,7 +64,8 @@ export default function PeepDialog({
   resident,
   onClose,
   initialData,
-  isEditMode = false
+  isEditMode = false,
+  isInline = false,
 }: PeepDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
@@ -190,16 +192,19 @@ export default function PeepDialog({
 
   return (
     <div className="flex flex-col space-y-8">
-      <DialogHeader>
-        <DialogTitle className="text-2xl font-bold">Personal Emergency Evacuation Plan (PEEP)</DialogTitle>
-        <DialogDescription>
-          Record evacuation procedures and safety requirements for the resident.
-        </DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold">Personal Emergency Evacuation Plan (PEEP)</DialogTitle>
+          <DialogDescription>
+            Record evacuation procedures and safety requirements for the resident.
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
       <div className="space-y-12 pb-20">
         <Form {...form}>
-          <form className="space-y-12">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
 
             {/* Section 1: Resident Info */}
             <div className="space-y-6">
@@ -374,16 +379,18 @@ export default function PeepDialog({
         </Form>
       </div>
 
-      <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
-        <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">Cancel</Button>
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
-          {isLoading ? (
-            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-          ) : (
-            isEditMode ? "Save Changes" : "Save PEEP"
-          )}
-        </Button>
-      </div>
+      {!isInline && (
+        <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
+          <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">Cancel</Button>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
+            {isLoading ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+            ) : (
+              isEditMode ? "Save Changes" : "Save PEEP"
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

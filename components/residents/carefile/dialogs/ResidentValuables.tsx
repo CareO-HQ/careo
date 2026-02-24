@@ -46,11 +46,12 @@ interface ResidentValuablesProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function ResidentValuables({
   teamId, residentId, organizationId, userId, userName, resident,
-  onClose, initialData, isEditMode = false
+  onClose, initialData, isEditMode = false, isInline = false
 }: ResidentValuablesProps) {
   const [isLoading, startTransition] = useTransition();
 
@@ -151,17 +152,20 @@ export default function ResidentValuables({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>
-          {isEditMode ? "Review" : "Complete"} Resident Valuables Assessment
-        </DialogTitle>
-        <DialogDescription>
-          Complete all sections below for the valuables inventory
-        </DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle>
+            {isEditMode ? "Review" : "Complete"} Resident Valuables Assessment
+          </DialogTitle>
+          <DialogDescription>
+            Complete all sections below for the valuables inventory
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
       <Form {...form}>
-        <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+          <button type="submit" id="care-file-submit-btn" className="hidden" />
           <div className="space-y-8 px-1">
 
             {/* Section 1: Resident Information */}
@@ -401,15 +405,17 @@ export default function ResidentValuables({
             </div>
           </div>
 
-          <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => onClose?.()}
-              disabled={isLoading}>Cancel</Button>
-            <Button type="button" onClick={handleSubmit} disabled={isLoading}>
-              {isLoading ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-              ) : "Save Assessment"}
-            </Button>
-          </DialogFooter>
+          {!isInline && (
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => onClose?.()}
+                disabled={isLoading}>Cancel</Button>
+              <Button type="button" onClick={handleSubmit} disabled={isLoading}>
+                {isLoading ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                ) : "Save Assessment"}
+              </Button>
+            </DialogFooter>
+          )}
         </form>
       </Form>
     </>

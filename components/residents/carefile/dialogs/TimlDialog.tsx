@@ -47,6 +47,7 @@ interface TimlDialogProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function TimlDialog({
@@ -58,7 +59,8 @@ export default function TimlDialog({
   resident,
   onClose,
   initialData,
-  isEditMode = false
+  isEditMode = false,
+  isInline = false,
 }: TimlDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [dateOfBirthPopoverOpen, setDateOfBirthPopoverOpen] = useState(false);
@@ -196,21 +198,24 @@ export default function TimlDialog({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>
-          {isEditMode ? "Review" : "Complete"} This Is My Life Assessment
-        </DialogTitle>
-        <DialogDescription>
-          Complete all sections below to record the resident&apos;s life story
-        </DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle>
+            {isEditMode ? "Review" : "Complete"} This Is My Life Assessment
+          </DialogTitle>
+          <DialogDescription>
+            Complete all sections below to record the resident&apos;s life story
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
       <Form {...form}>
         <form
-          onSubmit={(e) => e.preventDefault()}
+          onSubmit={form.handleSubmit(handleSubmit)}
           className="space-y-6"
           autoComplete="off"
         >
+          <button type="submit" id="care-file-submit-btn" className="hidden" />
           <div className="space-y-8 px-1">
 
             {/* Section 1: Basic Information */}

@@ -23,6 +23,9 @@ import FormStatusIndicator, { FormStatusBadge } from "@/components/residents/car
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Resident } from "@/types";
+import { RiskAssessmentViewer } from "@/components/residents/carefile/folders/RiskAssessmentViewDialog";
+import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
+import { Printer, Edit3 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -163,8 +166,11 @@ export default function GenericFolderPage() {
     const [filesLoading, setFilesLoading] = useState(false);
     const [formDataForEdit, setFormDataForEdit] = useState<any>(undefined);
     const [isReviewMode, setIsReviewMode] = useState(false);
+    const [isViewOnly, setIsViewOnly] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [isCarePlanSelectionOpen, setIsCarePlanSelectionOpen] = useState(false);
     const [addedCarePlans, setAddedCarePlans] = useState<CareFileFormKey[]>([]);
+    const [activeOrganization, setActiveOrganization] = useState<any>(null);
 
     // HELPER MAPPING for Deletes/Fetches
     const TABLE_MAP: Record<string, string> = {
@@ -218,7 +224,18 @@ export default function GenericFolderPage() {
             .then(({ data, error }) => {
                 if (!error) setResident(data as Resident);
             });
-    }, [residentId]);
+
+        if (profile?.active_organization_id) {
+            supabase
+                .from("organizations")
+                .select("*")
+                .eq("id", profile.active_organization_id)
+                .single()
+                .then(({ data, error }) => {
+                    if (!error) setActiveOrganization(data);
+                });
+        }
+    }, [residentId, profile?.active_organization_id]);
 
     const fetchUploadedFiles = useCallback(async () => {
         if (!residentId) return;
@@ -245,15 +262,30 @@ export default function GenericFolderPage() {
             setActiveFormKey(null);
             setFormDataForEdit(undefined);
             setIsReviewMode(false);
+            setIsViewOnly(false);
             return;
         }
 
         setActiveFormKey(key);
 
         // Check if there is existing data for this form
+        if (key === "care-plan-form") {
+            if (latestCarePlanForm) {
+                setIsViewOnly(true);
+                setIsReviewMode(false);
+                setFormDataForEdit(latestCarePlanForm);
+            } else {
+                setIsViewOnly(false);
+                setIsReviewMode(false);
+                setFormDataForEdit(null);
+            }
+            return;
+        }
+
         const formState = getFormState(key);
         if (formState.hasData) {
-            setIsReviewMode(true);
+            setIsViewOnly(true); // Default to view-only for filled forms
+            setIsReviewMode(false);
             setFormDataForEdit(undefined); // Show loading
 
             const table = TABLE_MAP[key];
@@ -273,6 +305,7 @@ export default function GenericFolderPage() {
                 }
             }
         } else {
+            setIsViewOnly(false);
             setIsReviewMode(false);
             setFormDataForEdit(null);
         }
@@ -307,6 +340,7 @@ export default function GenericFolderPage() {
         setActiveFormKey(null);
         setFormDataForEdit(undefined);
         setIsReviewMode(false);
+        setIsViewOnly(false);
         refreshForms();
         refetchFolderForms();
     };
@@ -315,8 +349,39 @@ export default function GenericFolderPage() {
         setActiveFileId(null);
         setFormDataForEdit({ nameOfCarePlan: name });
         setIsReviewMode(false); // Ensure we are in create mode
+        setIsViewOnly(false);
         setActiveFormKey("care-plan-form" as CareFileFormKey);
         setIsCarePlanSelectionOpen(false);
+    };
+
+    const handlePrint = async () => {
+        if (!activeFormKey || !formDataForEdit || !resident) return;
+
+        const formName = activeFormKey === "care-plan-form"
+            ? (formDataForEdit.care_plan_type || "Care Plan")
+            : (folderForms.find(f => f.key === activeFormKey)?.value || "Form");
+
+        toast.info(`Generating PDF for ${formName}...`);
+
+        await generateCareFilePDF({
+            formName,
+            data: formDataForEdit,
+            resident,
+            orgLogoUrl: activeOrganization?.logo_url,
+            careHomeName: activeOrganization?.name || profile?.care_home_name
+        });
+
+        toast.success("PDF generated successfully");
+    };
+
+    const handleExternalSubmit = () => {
+        // Trigger a click on the hidden submit button in the form
+        const submitBtn = document.getElementById('care-file-submit-btn');
+        if (submitBtn) {
+            submitBtn.click();
+        } else {
+            toast.error("Form submission button not found");
+        }
     };
 
     const handleDeleteFile = async (file: UploadedFile, e: React.MouseEvent) => {
@@ -382,30 +447,120 @@ export default function GenericFolderPage() {
                     {activeFile ? (
                         <FileViewer file={activeFile} />
                     ) : activeFormKey && resident ? (
-                        <div className="flex-1 overflow-auto p-4 sm:p-8 scrollbar-thin flex flex-col items-center">
-                            <div className="w-full max-w-4xl bg-background rounded-xl border shadow-sm p-6 sm:p-10 mb-8">
-                                <Dialog open={true} modal={false}>
-                                    {/* We use the primitive Content here to satisfy the Dialog context requirement for DialogTitle/Description without triggering modal behavior */}
-                                    <DialogPrimitive.Content asChild>
-                                        <div className="relative">
-                                            <CareFileDialogRenderer
-                                                formKey={activeFormKey}
-                                                residentId={residentId}
-                                                teamId={activeTeamId ?? ""}
-                                                organizationId={profile?.active_organization_id ?? ""}
-                                                userId={profile?.id ?? ""}
-                                                userName={profile?.name || profile?.email || "User"}
-                                                userRole={profile?.role ?? ""}
-                                                resident={resident}
-                                                careHomeName={profile?.care_home_name ?? ""}
-                                                folderKey={folderKey}
-                                                formDataForEdit={formDataForEdit}
-                                                isReviewMode={isReviewMode}
-                                                onClose={handleCloseForm}
-                                            />
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-8 scrollbar-thin">
+                            <div className="mx-auto w-full max-w-4xl bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
+                                {/* Form Header with Edit/Print */}
+                                <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-primary/10 rounded-lg">
+                                            <FileText className="w-5 h-5 text-primary" />
                                         </div>
-                                    </DialogPrimitive.Content>
-                                </Dialog>
+                                        <div>
+                                            <h2 className="text-lg font-bold leading-none">
+                                                {activeFormKey === "care-plan-form"
+                                                    ? (formDataForEdit?.care_plan_type || "Care Plan")
+                                                    : (folderForms.find(f => f.key === activeFormKey)?.value || "Form")
+                                                }
+                                            </h2>
+                                            {isViewOnly && formDataForEdit && (
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Completed on {new Date(formDataForEdit.created_at || formDataForEdit._creationTime).toLocaleDateString()}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        {isViewOnly ? (
+                                            <>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => { setIsViewOnly(false); setIsReviewMode(true); }}
+                                                    className="gap-2"
+                                                >
+                                                    <Edit3 className="w-4 h-4" />
+                                                    Edit
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={handlePrint}
+                                                    disabled={!formDataForEdit}
+                                                    className="gap-2"
+                                                >
+                                                    <Printer className="w-4 h-4" />
+                                                    Print
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={handleCloseForm}
+                                                    disabled={isSaving}
+                                                >
+                                                    Cancel
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    onClick={handleExternalSubmit}
+                                                    disabled={isSaving}
+                                                    className="gap-2"
+                                                >
+                                                    {isSaving ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                    ) : (
+                                                        <FileText className="w-4 h-4" />
+                                                    )}
+                                                    Submit
+                                                </Button>
+                                            </>
+                                        )}
+                                        <Button variant="ghost" size="icon" onClick={handleCloseForm}>
+                                            <X className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <div className="p-6 sm:p-10">
+                                    {isViewOnly ? (
+                                        <RiskAssessmentViewer
+                                            assessment={{
+                                                formKey: activeFormKey,
+                                                formId: formDataForEdit?.id || formDataForEdit?._id,
+                                                name: activeFormKey === "care-plan-form"
+                                                    ? (formDataForEdit?.care_plan_type || "Care Plan")
+                                                    : (folderForms.find(f => f.key === activeFormKey)?.value || "Form"),
+                                                completedAt: formDataForEdit?.created_at || formDataForEdit?._creationTime
+                                            }}
+                                        />
+                                    ) : (
+                                        <Dialog open={true} modal={false}>
+                                            <DialogPrimitive.Content asChild>
+                                                <div className="relative">
+                                                    <CareFileDialogRenderer
+                                                        formKey={activeFormKey}
+                                                        residentId={residentId}
+                                                        teamId={activeTeamId ?? ""}
+                                                        organizationId={profile?.active_organization_id ?? ""}
+                                                        userId={profile?.id ?? ""}
+                                                        userName={profile?.name || profile?.email || "User"}
+                                                        userRole={profile?.role ?? ""}
+                                                        resident={resident}
+                                                        careHomeName={profile?.care_home_name ?? ""}
+                                                        folderKey={folderKey}
+                                                        formDataForEdit={formDataForEdit}
+                                                        isReviewMode={isReviewMode}
+                                                        onClose={handleCloseForm}
+                                                        isInline={true}
+                                                    />
+                                                </div>
+                                            </DialogPrimitive.Content>
+                                        </Dialog>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ) : (

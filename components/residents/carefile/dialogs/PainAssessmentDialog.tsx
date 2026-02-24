@@ -47,11 +47,12 @@ interface PainAssessmentDialogProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function PainAssessmentDialog({
   teamId, residentId, organizationId, userId, userName, resident,
-  careHomeName = "", onClose, initialData, isEditMode = false
+  careHomeName = "", onClose, initialData, isEditMode = false, isInline = false
 }: PainAssessmentDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -137,10 +138,13 @@ export default function PainAssessmentDialog({
 
   return (
     <>
-      <DialogHeader><DialogTitle>Pain Assessment</DialogTitle><DialogDescription>Record pain assessments and interventions</DialogDescription></DialogHeader>
+      {!isInline && (
+        <DialogHeader><DialogTitle>Pain Assessment</DialogTitle><DialogDescription>Record pain assessments and interventions</DialogDescription></DialogHeader>
+      )}
       <div>
         <Form {...form}>
-          <form className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
             <div className="p-4 bg-muted/30 rounded-lg space-y-4">
               <h3 className="font-semibold">Header Info</h3>
               <div className="grid grid-cols-2 gap-4">
@@ -186,10 +190,12 @@ export default function PainAssessmentDialog({
           </form>
         </Form>
       </div>
-      <DialogFooter>
-        <Button onClick={() => onClose?.()} variant="outline" disabled={isLoading}>Cancel</Button>
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>{isLoading ? "Saving..." : "Save"}</Button>
-      </DialogFooter>
+      {!isInline && (
+        <DialogFooter>
+          <Button onClick={() => onClose?.()} variant="outline" disabled={isLoading}>Cancel</Button>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>{isLoading ? "Saving..." : "Save"}</Button>
+        </DialogFooter>
+      )}
     </>
   );
 }

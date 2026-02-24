@@ -26,11 +26,12 @@ interface DietNotificationDialogProps {
   isEditMode?: boolean;
   initialData?: any;
   onClose: () => void;
+  isInline?: boolean;
 }
 
 export default function DietNotificationDialog({
   teamId, residentId, organizationId, userId, resident,
-  isEditMode = false, initialData, onClose
+  isEditMode = false, initialData, onClose, isInline = false
 }: DietNotificationDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { profile } = useProfile();
@@ -156,13 +157,16 @@ export default function DietNotificationDialog({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>{isEditMode ? "Edit" : "New"} Diet Notification</DialogTitle>
-        <DialogDescription>Complete dietary requirements for {resident?.first_name} {resident?.last_name}</DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle>{isEditMode ? "Edit" : "New"} Diet Notification</DialogTitle>
+          <DialogDescription>Complete dietary requirements for {resident?.first_name} {resident?.last_name}</DialogDescription>
+        </DialogHeader>
+      )}
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
+          <button type="submit" id="care-file-submit-btn" className="hidden" />
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Administrative Information</h3>
             <div className="grid grid-cols-2 gap-4">
@@ -211,10 +215,12 @@ export default function DietNotificationDialog({
         </form>
       </Form>
 
-      <div className="flex items-center justify-end gap-3 pt-6 border-t sticky bottom-0 bg-background/80 backdrop-blur-sm py-4">
-        <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isSubmitting}>Cancel</Button>
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting}>{isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}</Button>
-      </div>
+      {!isInline && (
+        <div className="flex items-center justify-end gap-3 pt-6 border-t sticky bottom-0 bg-background/80 backdrop-blur-sm py-4">
+          <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isSubmitting}>Cancel</Button>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting}>{isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}</Button>
+        </div>
+      )}
     </>
   );
 }

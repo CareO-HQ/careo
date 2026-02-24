@@ -51,6 +51,7 @@ interface SkinIntegrityDialogProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function SkinIntegrityDialog({
@@ -62,7 +63,8 @@ export default function SkinIntegrityDialog({
   resident,
   onClose,
   initialData,
-  isEditMode = false
+  isEditMode = false,
+  isInline = false
 }: SkinIntegrityDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -206,16 +208,19 @@ export default function SkinIntegrityDialog({
 
   return (
     <div className="flex flex-col space-y-8">
-      <DialogHeader>
-        <DialogTitle className="text-2xl font-bold">Skin Integrity Assessment</DialogTitle>
-        <DialogDescription>
-          Identify risk of pressure injury using the Braden Scale.
-        </DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold">Skin Integrity Assessment</DialogTitle>
+          <DialogDescription>
+            Identify risk of pressure injury using the Braden Scale.
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
       <div className="space-y-12 pb-20">
         <Form {...form}>
-          <form className="space-y-12">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
             {/* Section 1: Basic Information */}
             <div className="space-y-6">
               <div className="flex items-center gap-2 border-b pb-2">
@@ -306,21 +311,23 @@ export default function SkinIntegrityDialog({
         </Form>
       </div>
 
-      <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
-        <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
-          Cancel
-        </Button>
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            isEditMode ? "Save Changes" : "Save Assessment"
-          )}
-        </Button>
-      </div>
+      {!isInline && (
+        <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
+          <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
+            Cancel
+          </Button>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              isEditMode ? "Save Changes" : "Save Assessment"
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -16,6 +16,7 @@ import {
   FormLabel,
   FormMessage
 } from "@/components/ui/form";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -56,6 +57,7 @@ interface LongTermFallRiskDialogProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function LongTermFallRiskDialog({
@@ -67,7 +69,8 @@ export default function LongTermFallRiskDialog({
   resident,
   onClose,
   initialData,
-  isEditMode = false
+  isEditMode = false,
+  isInline = false
 }: LongTermFallRiskDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -190,17 +193,20 @@ export default function LongTermFallRiskDialog({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>
-          {isEditMode ? "Review" : "Complete"} Long Term Falls Risk Assessment
-        </DialogTitle>
-        <DialogDescription>
-          Complete all sections below to assess the resident&apos;s fall risk
-        </DialogDescription>
-      </DialogHeader>
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle>
+            {isEditMode ? "Review" : "Complete"} Long Term Falls Risk Assessment
+          </DialogTitle>
+          <DialogDescription>
+            Complete all sections below to assess the resident&apos;s fall risk
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
       <Form {...form}>
-        <form className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <button type="submit" id="care-file-submit-btn" className="hidden" />
           <div className="space-y-8 px-1">
 
             {/* Section 1: Demographics */}
@@ -278,19 +284,21 @@ export default function LongTermFallRiskDialog({
           </div>
 
           {/* Sticky Footer */}
-          <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isLoading}>Cancel</Button>
-            <Button type="button" onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Submit Assessment"
-              )}
-            </Button>
-          </DialogFooter>
+          {!isInline && (
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isLoading}>Cancel</Button>
+              <Button type="button" onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Submit Assessment"
+                )}
+              </Button>
+            </DialogFooter>
+          )}
         </form>
       </Form>
     </>
