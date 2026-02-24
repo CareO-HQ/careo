@@ -44,6 +44,7 @@ interface CareFileDialogRendererProps extends BaseDialogProps {
   formDataForEdit: any;
   isReviewMode: boolean;
   isInline?: boolean;
+  newCarePlanName?: string;
 }
 
 /**
@@ -63,9 +64,12 @@ export function CareFileDialogRenderer({
   formDataForEdit,
   isReviewMode,
   isInline,
+  newCarePlanName,
   onClose
 }: CareFileDialogRendererProps) {
   const editData = isReviewMode ? formDataForEdit : null;
+  // For care plan new creation, pass the pre-selected name as a synthetic initialData
+  const carePlanInitialData = editData ?? (newCarePlanName ? { nameOfCarePlan: newCarePlanName } : null);
 
   // If we're in review mode and still loading data, show loading state
   if (isReviewMode && formDataForEdit === undefined) {
@@ -157,7 +161,7 @@ export function CareFileDialogRenderer({
           {...commonProps}
           userName={userName ?? ""}
           folderKey={folderKey ?? ""}
-          initialData={editData}
+          initialData={carePlanInitialData}
         />
       );
 

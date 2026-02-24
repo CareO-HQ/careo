@@ -121,7 +121,9 @@ export const generateCareFilePDF = async ({
     const colWidth = (pageWidth - margin * 2) / 2 - 5;
 
     let y1 = addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
-    y1 = addField("Date of Birth", resident?.dob || "N/A", margin, y1, colWidth);
+    const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
+    const formattedDob = dobValue ? new Date(dobValue).toLocaleDateString('en-GB') : "N/A";
+    y1 = addField("Date of Birth", formattedDob, margin, y1, colWidth);
 
     let y2 = addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
     y2 = addField("Date Generated", new Date().toLocaleDateString('en-GB'), col2, y2, colWidth);
@@ -136,6 +138,23 @@ export const generateCareFilePDF = async ({
         "status", "is_archived", "_creationTime", "goals", "care_plan_type"
     ]);
 
+    const isEmptyValue = (value: any): boolean => {
+        if (value === null || value === undefined) return true;
+        if (typeof value === "string") return value.trim() === "";
+        if (typeof value === "number") return false;
+        if (typeof value === "boolean") return false;
+        if (Array.isArray(value)) {
+            if (value.length === 0) return true;
+            return value.every(v => isEmptyValue(v));
+        }
+        if (typeof value === "object") {
+            const entries = Object.entries(value).filter(([k]) => !SKIP_KEYS.has(k));
+            if (entries.length === 0) return true;
+            return entries.every(([_, v]) => isEmptyValue(v));
+        }
+        return false;
+    };
+
     const formatFieldKey = (key: string): string => {
         return key
             .replace(/_/g, " ")
@@ -146,7 +165,7 @@ export const generateCareFilePDF = async ({
 
     yPos = addSectionTitle("FORM DETAILS", yPos);
 
-    const entries = Object.entries(data).filter(([k]) => !SKIP_KEYS.has(k));
+    const entries = Object.entries(data).filter(([k, v]) => !SKIP_KEYS.has(k) && !isEmptyValue(v));
     let currentX = margin;
     let rowY = yPos;
     let maxYInRow = yPos;
@@ -155,14 +174,18 @@ export const generateCareFilePDF = async ({
         if (typeof value === 'object' && value !== null) {
             // Handle lists or nested objects with autoTable or just a block
             if (Array.isArray(value)) {
+                const filteredItems = value.filter(item => !isEmptyValue(item));
+                if (filteredItems.length === 0) continue;
+
                 if (currentX !== margin) { rowY = maxYInRow + 5; currentX = margin; }
                 rowY = addSectionTitle(formatFieldKey(key), rowY);
-                if (value.length > 0) {
-                    const headers = Object.keys(value[0]).filter(k => !SKIP_KEYS.has(k)).map(formatFieldKey);
-                    const rows = value.map(item =>
+
+                if (filteredItems.length > 0) {
+                    const headers = Object.keys(filteredItems[0]).filter(k => !SKIP_KEYS.has(k)).map(formatFieldKey);
+                    const rows = filteredItems.map(item =>
                         Object.entries(item)
                             .filter(([k]) => !SKIP_KEYS.has(k))
-                            .map(([_, v]) => String(v ?? "N/A"))
+                            .map(([_, v]) => String(v ?? ""))
                     );
                     autoTable(doc, {
                         startY: rowY,
@@ -183,8 +206,10 @@ export const generateCareFilePDF = async ({
             } else {
                 // Nested object - treat as a subsection
                 if (currentX !== margin) { rowY = maxYInRow + 5; currentX = margin; }
+                const subEntries = Object.entries(value).filter(([k, v]) => !SKIP_KEYS.has(k) && !isEmptyValue(v));
+                if (subEntries.length === 0) continue;
+
                 rowY = addSectionTitle(formatFieldKey(key), rowY);
-                const subEntries = Object.entries(value).filter(([k]) => !SKIP_KEYS.has(k));
                 for (const [sk, sv] of subEntries) {
                     rowY = addField(formatFieldKey(sk), sv, margin, rowY, pageWidth - margin * 2);
                 }

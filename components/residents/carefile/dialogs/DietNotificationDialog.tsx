@@ -16,6 +16,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
+import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 
 interface DietNotificationDialogProps {
   teamId: string;
@@ -133,17 +134,20 @@ export default function DietNotificationDialog({
         created_by: currentUserId
       };
 
+      await submitAssessmentWithVersioning(
+        'diet_notifications',
+        payload,
+        initialData,
+        isEditMode
+      );
+
       if (isEditMode && initialData?.id) {
-        const { error } = await supabase.from('diet_notifications').update(payload).eq('id', initialData.id);
-        if (error) throw error;
         await supabase.from('manager_audits').insert({
           form_type: 'diet_notifications', form_id: initialData.id, resident_id: residentId,
           audited_by: currentUserId, audit_notes: "Form reviewed", organization_id: organizationId
         });
         toast.success("Diet Notification updated");
       } else {
-        const { error } = await supabase.from('diet_notifications').insert(payload);
-        if (error) throw error;
         toast.success("Diet Notification submitted");
       }
       onClose();

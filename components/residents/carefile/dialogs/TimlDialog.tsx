@@ -176,7 +176,7 @@ export default function TimlDialog({
           assessment_date: new Date(formData.assessmentDate).toISOString().split('T')[0],
           completed_by: formData.completedBy,
           created_by: userId,
-          status: formData.status
+          status: "completed"
         };
 
         await submitAssessmentWithVersioning(

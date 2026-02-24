@@ -24,8 +24,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Resident } from "@/types";
 import { RiskAssessmentViewer } from "@/components/residents/carefile/folders/RiskAssessmentViewDialog";
+import { CarePlanEvaluations } from "@/components/residents/carefile/CarePlanEvaluations";
+import { CarePlanViewer } from "@/components/residents/carefile/folders/CarePlanViewer";
 import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
-import { Printer, Edit3 } from "lucide-react";
+import { Printer, Edit3, CheckCircle2 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -146,6 +148,7 @@ export default function GenericFolderPage() {
     const folderForms = folderConfig?.forms ?? [];
     const folderFormKeys = (folderConfig?.forms || []).map(f => f.key as CareFileFormKey);
     const {
+        activeCarePlanForms = [],
         latestCarePlanForm,
         archivedCarePlans,
         getAllPdfFiles,
@@ -171,6 +174,7 @@ export default function GenericFolderPage() {
     const [isCarePlanSelectionOpen, setIsCarePlanSelectionOpen] = useState(false);
     const [addedCarePlans, setAddedCarePlans] = useState<CareFileFormKey[]>([]);
     const [activeOrganization, setActiveOrganization] = useState<any>(null);
+    const [selectedCarePlanName, setSelectedCarePlanName] = useState<string | undefined>(undefined);
 
     // HELPER MAPPING for Deletes/Fetches
     const TABLE_MAP: Record<string, string> = {
@@ -270,10 +274,10 @@ export default function GenericFolderPage() {
 
         // Check if there is existing data for this form
         if (key === "care-plan-form") {
-            if (latestCarePlanForm) {
+            if (activeCarePlanForms.length > 0) {
                 setIsViewOnly(true);
                 setIsReviewMode(false);
-                setFormDataForEdit(latestCarePlanForm);
+                setFormDataForEdit(activeCarePlanForms[0]);
             } else {
                 setIsViewOnly(false);
                 setIsReviewMode(false);
@@ -341,13 +345,15 @@ export default function GenericFolderPage() {
         setFormDataForEdit(undefined);
         setIsReviewMode(false);
         setIsViewOnly(false);
+        setSelectedCarePlanName(undefined);
         refreshForms();
         refetchFolderForms();
     };
 
     const handleCarePlanSelect = (name: string) => {
         setActiveFileId(null);
-        setFormDataForEdit({ nameOfCarePlan: name });
+        setFormDataForEdit(null);
+        setSelectedCarePlanName(name);
         setIsReviewMode(false); // Ensure we are in create mode
         setIsViewOnly(false);
         setActiveFormKey("care-plan-form" as CareFileFormKey);
@@ -420,21 +426,41 @@ export default function GenericFolderPage() {
                     <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">Care File</span>
+                    <span
+                        className="text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                        onClick={() => router.push(`/dashboard/residents/${residentId}/care-file` as any)}
+                    >
+                        Care File
+                    </span>
                     <span className="text-muted-foreground">/</span>
-                    <span className="font-medium">{folderConfig.value}</span>
+                    <span
+                        className={`cursor-pointer transition-colors ${activeFormKey || activeFile ? "text-muted-foreground hover:text-foreground" : "font-medium"}`}
+                        onClick={() => {
+                            if (activeFormKey || activeFile) {
+                                setActiveFormKey(null);
+                                setActiveFileId(null);
+                                setFormDataForEdit(undefined);
+                                setIsViewOnly(false);
+                            }
+                        }}
+                    >
+                        {folderConfig.value}
+                    </span>
                     {activeFormKey && (
                         <>
                             <span className="text-muted-foreground">/</span>
-                            <span className="text-muted-foreground">
-                                {folderForms.find((f) => f.key === activeFormKey)?.value || "Form"}
+                            <span className="text-foreground font-medium">
+                                {activeFormKey === "care-plan-form"
+                                    ? (formDataForEdit?.care_plan_type || "Care Plan")
+                                    : (folderForms.find((f) => (f.key as string) === activeFormKey)?.value || "Form")
+                                }
                             </span>
                         </>
                     )}
                     {activeFile && (
                         <>
                             <span className="text-muted-foreground">/</span>
-                            <span className="text-muted-foreground">{activeFile.name}</span>
+                            <span className="text-foreground font-medium">{activeFile.name}</span>
                         </>
                     )}
                 </div>
@@ -452,20 +478,31 @@ export default function GenericFolderPage() {
                                 {/* Form Header with Edit/Print */}
                                 <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
                                     <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-primary/10 rounded-lg">
-                                            <FileText className="w-5 h-5 text-primary" />
-                                        </div>
+                                        {isViewOnly && activeFormKey === "care-plan-form" ? null : (
+                                            <div className="p-2 bg-primary/10 rounded-lg">
+                                                <FileText className="w-5 h-5 text-primary" />
+                                            </div>
+                                        )}
                                         <div>
                                             <h2 className="text-lg font-bold leading-none">
                                                 {activeFormKey === "care-plan-form"
                                                     ? (formDataForEdit?.care_plan_type || "Care Plan")
-                                                    : (folderForms.find(f => f.key === activeFormKey)?.value || "Form")
+                                                    : (folderForms.find(f => (f.key as string) === activeFormKey)?.value || "Form")
                                                 }
                                             </h2>
                                             {isViewOnly && formDataForEdit && (
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Completed on {new Date(formDataForEdit.created_at || formDataForEdit._creationTime).toLocaleDateString()}
-                                                </p>
+                                                <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                                                    {activeFormKey === "care-plan-form" && (
+                                                        <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                                                    )}
+                                                    <span>
+                                                        Completed - {new Date(formDataForEdit.created_at || formDataForEdit._creationTime).toLocaleDateString('en-GB', {
+                                                            day: 'numeric',
+                                                            month: 'short',
+                                                            year: 'numeric'
+                                                        })}
+                                                    </span>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -526,18 +563,39 @@ export default function GenericFolderPage() {
 
                                 <div className="p-6 sm:p-10">
                                     {isViewOnly ? (
-                                        <RiskAssessmentViewer
-                                            assessment={{
-                                                formKey: activeFormKey,
-                                                formId: formDataForEdit?.id || formDataForEdit?._id,
-                                                name: activeFormKey === "care-plan-form"
-                                                    ? (formDataForEdit?.care_plan_type || "Care Plan")
-                                                    : (folderForms.find(f => f.key === activeFormKey)?.value || "Form"),
-                                                completedAt: formDataForEdit?.created_at || formDataForEdit?._creationTime
-                                            }}
-                                        />
+                                        activeFormKey === "care-plan-form" ? (
+                                            <CarePlanViewer
+                                                data={formDataForEdit}
+                                                onAddEvaluation={() => {
+                                                    const evalSection = document.getElementById('care-plan-evaluations-section');
+                                                    if (evalSection) {
+                                                        evalSection.scrollIntoView({ behavior: 'smooth' });
+                                                        // Trigger "New Evaluation" button click
+                                                        const newEvalBtn = document.getElementById('new-evaluation-btn');
+                                                        if (newEvalBtn) {
+                                                            newEvalBtn.click();
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                        ) : (
+                                            <RiskAssessmentViewer
+                                                assessment={{
+                                                    formKey: activeFormKey,
+                                                    formId: formDataForEdit?.id || formDataForEdit?._id,
+                                                    name: (folderForms.find(f => (f.key as string) === activeFormKey)?.value || "Form"),
+                                                    completedAt: formDataForEdit?.created_at || formDataForEdit?._creationTime
+                                                }}
+                                            />
+                                        )
                                     ) : (
                                         <Dialog open={true} modal={false}>
+                                            <DialogPrimitive.Title className="sr-only">
+                                                {activeFormKey === "care-plan-form"
+                                                    ? (formDataForEdit?.care_plan_type || "Care Plan")
+                                                    : (folderForms.find(f => (f.key as string) === activeFormKey)?.value || "Form")
+                                                }
+                                            </DialogPrimitive.Title>
                                             <DialogPrimitive.Content asChild>
                                                 <div className="relative">
                                                     <CareFileDialogRenderer
@@ -555,10 +613,20 @@ export default function GenericFolderPage() {
                                                         isReviewMode={isReviewMode}
                                                         onClose={handleCloseForm}
                                                         isInline={true}
+                                                        newCarePlanName={selectedCarePlanName}
                                                     />
                                                 </div>
                                             </DialogPrimitive.Content>
                                         </Dialog>
+                                    )}
+
+                                    {activeFormKey === "care-plan-form" && (formDataForEdit?.id || formDataForEdit?._id) && (
+                                        <div id="care-plan-evaluations-section" className="mt-8 pt-8 border-t">
+                                            <CarePlanEvaluations
+                                                carePlanId={formDataForEdit.id || formDataForEdit._id}
+                                                residentId={residentId}
+                                            />
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -633,7 +701,7 @@ export default function GenericFolderPage() {
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">
-                                        Care Plan
+                                        Care Plans
                                     </p>
                                     <Button
                                         variant="ghost"
@@ -647,24 +715,36 @@ export default function GenericFolderPage() {
                                 </div>
                                 {folderFormsLoading ? (
                                     <div className="flex justify-center p-2"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
-                                ) : latestCarePlanForm ? (
-                                    <button
-                                        onClick={() => handleFormClick("care-plan-form" as CareFileFormKey)}
-                                        className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeFormKey === "care-plan-form"
-                                            ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                                            : "hover:bg-muted/60 text-foreground"
-                                            }`}
-                                    >
-                                        <FileText className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-500" />
-                                        <div className="min-w-0">
-                                            <p className="text-xs font-semibold leading-tight truncate">
-                                                {latestCarePlanForm.care_plan_type || "Care Plan"}
-                                            </p>
-                                            <p className="text-[10px] text-muted-foreground">
-                                                Last updated: {new Date(latestCarePlanForm._creationTime).toLocaleDateString()}
-                                            </p>
-                                        </div>
-                                    </button>
+                                ) : activeCarePlanForms.length > 0 ? (
+                                    <div className="flex flex-col gap-1">
+                                        {activeCarePlanForms.map((cp) => (
+                                            <button
+                                                key={cp._id || cp.id}
+                                                onClick={() => {
+                                                    setActiveFileId(null);
+                                                    setActiveFormKey("care-plan-form" as CareFileFormKey);
+                                                    setFormDataForEdit(cp);
+                                                    setSelectedCarePlanName(undefined);
+                                                    setIsViewOnly(true);
+                                                    setIsReviewMode(false);
+                                                }}
+                                                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeFormKey === "care-plan-form" && (formDataForEdit?._id === cp._id || formDataForEdit?.id === cp.id)
+                                                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                                                    : "hover:bg-muted/60 text-foreground"
+                                                    }`}
+                                            >
+                                                <FileText className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-500" />
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-semibold leading-tight truncate">
+                                                        {cp.care_plan_type || "Care Plan"}
+                                                    </p>
+                                                    <p className="text-[10px] text-muted-foreground">
+                                                        Last updated: {new Date(cp._creationTime || cp.created_at).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
                                 ) : (
                                     <div className="px-2 py-3 border border-dashed rounded-lg bg-muted/30 text-center">
                                         <p className="text-[10px] text-muted-foreground italic">No care plans yet</p>

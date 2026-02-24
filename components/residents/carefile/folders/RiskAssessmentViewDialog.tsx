@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { FileText, BriefcaseIcon } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { CarePlanEvaluations } from "../CarePlanEvaluations";
 
 const safeFormat = (dateValue: any, formatStr: string) => {
   if (!dateValue) return "N/A";
@@ -29,8 +30,9 @@ const SKIP_KEYS = new Set([
   "id", "_id", "resident_id", "residentId", "organization_id", "organizationId",
   "team_id", "teamId", "user_id", "userId", "created_by", "createdBy",
   "created_at", "createdAt", "updated_at", "updatedAt", "updated_by", "updatedBy",
-  "previous_version_id", "previousVersionId", "previous_care_plan_id",
-  "status", "archived_at", "archivedAt", "version", "is_archived", "isArchived",
+  "previous_version_id", "previousVersionId", "previous_care_plan_id", "Previous_care_plan_id",
+  "status", "archived_at", "archivedAt", "Archived_at", "version", "is_archived", "isArchived",
+  "Previous_version_id", "Previous_version_ID",
   "pdf_file_id", "pdfFileId", "pdf_generated", "pdfGenerated",
   "pdf_generated_at", "pdfGeneratedAt", "saved_as_draft", "savedAsDraft",
   "__v", "_rev"
@@ -43,6 +45,24 @@ const formatFieldKey = (key: string): string => {
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (str) => str.toUpperCase())
     .trim();
+};
+
+// Check if a value is effectively empty
+const isEmptyValue = (value: any): boolean => {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return value.trim() === "";
+  if (typeof value === "number") return false; // Zero is a value
+  if (typeof value === "boolean") return false; // false is a valid answer
+  if (Array.isArray(value)) {
+    if (value.length === 0) return true;
+    return value.every(v => isEmptyValue(v));
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value).filter(([k]) => !SKIP_KEYS.has(k));
+    if (entries.length === 0) return true;
+    return entries.every(([_, v]) => isEmptyValue(v));
+  }
+  return false;
 };
 
 // Recursively render any value in a human-readable format
@@ -93,35 +113,31 @@ const renderNestedValue = (value: any, label?: string, depth: number = 0): React
 
   // Array
   if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return label ? (
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="text-sm text-muted-foreground">None</p>
-        </div>
-      ) : null;
+    const filteredItems = value.filter(item => !isEmptyValue(item));
+    if (filteredItems.length === 0) {
+      return null;
     }
 
     // Array of primitives
-    if (typeof value[0] !== "object" || value[0] === null) {
+    if (typeof filteredItems[0] !== "object" || filteredItems[0] === null) {
       return label ? (
         <div className="space-y-1">
           <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="text-sm">{value.join(", ")}</p>
+          <p className="text-sm">{filteredItems.join(", ")}</p>
         </div>
-      ) : <span>{value.join(", ")}</span>;
+      ) : <span>{filteredItems.join(", ")}</span>;
     }
 
     // Array of objects
     return (
       <div className="space-y-2">
         {label && <p className="text-xs font-medium text-muted-foreground">{label}</p>}
-        {value.map((item: any, index: number) => (
+        {filteredItems.map((item: any, index: number) => (
           <div key={index} className={`p-3 border rounded-lg ${depth === 0 ? "bg-muted/30" : "bg-muted/20"} space-y-2`}>
             <p className="text-xs font-semibold text-muted-foreground">Entry {index + 1}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {Object.entries(item)
-                .filter(([k]) => !SKIP_KEYS.has(k))
+                .filter(([k, v]) => !SKIP_KEYS.has(k) && !isEmptyValue(v))
                 .map(([k, v]) => (
                   <div key={k}>
                     {renderNestedValue(v, formatFieldKey(k), depth + 1)}
@@ -135,8 +151,8 @@ const renderNestedValue = (value: any, label?: string, depth: number = 0): React
   }
 
   // Object
-  if (typeof value === "object") {
-    const entries = Object.entries(value).filter(([k]) => !SKIP_KEYS.has(k));
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value).filter(([k, v]) => !SKIP_KEYS.has(k) && !isEmptyValue(v));
     if (entries.length === 0) return null;
 
     return (
@@ -156,6 +172,8 @@ const renderNestedValue = (value: any, label?: string, depth: number = 0): React
   }
 
   // Fallback
+  if (isEmptyValue(value)) return null;
+
   return label ? (
     <div className="space-y-1">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
@@ -258,19 +276,8 @@ export function RiskAssessmentViewer({
           // Skip internal fields
           if (
             key.startsWith("_") ||
-            key === "residentId" ||
-            key === "userId" ||
-            key === "organizationId" ||
-            key === "teamId" ||
-            key === "createdBy" || // Skip createdBy ID, we show createdByName instead
-            key === "updatedBy" ||
-            key === "pdfFileId" ||
-            key === "pdfGenerated" ||
-            key === "pdfGeneratedAt" ||
-            key === "isArchived" ||
-            key === "archivedAt" ||
-            key === "savedAsDraft" ||
-            key === "updatedAt" ||
+            SKIP_KEYS.has(key) ||
+            isEmptyValue(value) || // Hide empty fields
             // Skip consent sections as they're handled specially above
             (key === "ableToConsentSection" && assessment.formKey === "bedrail-consent-form") ||
             (key === "unableToConsentSection" && assessment.formKey === "bedrail-consent-form") ||
@@ -607,14 +614,6 @@ export function RiskAssessmentViewer({
               // Check if it's a simple {value: string} structure
               if ("value" in value[0]) {
                 displayValue = value.map((item: any) => item.value).join(", ");
-              } else if ("details" in value[0]) {
-                // Handle "other" array with detailed structure
-                displayValue = value
-                  .map(
-                    (item: any, index: number) =>
-                      `${index + 1}. ${item.details}\n   Received by: ${item.receivedBy} | Witnessed by: ${item.witnessedBy}\n   Date: ${safeFormat(item.date, "dd MMM yyyy")} at ${item.time}`
-                  )
-                  .join("\n\n");
               } else {
                 // Array of complex objects — use recursive renderer
                 return (
@@ -849,7 +848,7 @@ const getCategoryColor = (category?: string) => {
   }
 };
 
-interface RiskAssessmentViewDialogProps {
+export interface RiskAssessmentViewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assessment: {

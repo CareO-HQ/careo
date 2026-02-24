@@ -208,9 +208,14 @@ export default function CarePlanDialog({
 
           if (archiveError) throw archiveError;
 
+          const oldVersion = initialData.version_number || 1;
+          const newVersion = oldVersion + 1;
+
           const newVersionPayload = {
             ...payload,
-            previous_care_plan_id: initialData.id
+            previous_version_id: initialData.id,
+            previous_care_plan_id: initialData.id, // Keep for backward compatibility
+            version_number: newVersion
           };
 
           const { error: insertError } = await supabase
@@ -221,9 +226,14 @@ export default function CarePlanDialog({
 
           toast.success("Care plan assessment updated successfully. Previous version archived.");
         } else {
+          const newPayload = {
+            ...payload,
+            version_number: 1
+          };
+
           const { error } = await supabase
             .from('care_plan_assessments')
-            .insert(payload);
+            .insert(newPayload);
 
           if (error) throw error;
           toast.success("Care plan assessment submitted successfully");

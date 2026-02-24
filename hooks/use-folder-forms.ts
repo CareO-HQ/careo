@@ -42,7 +42,7 @@ export function useFolderForms({
   const [allCornellDepressionScaleForms, setAllCornellDepressionScaleForms] = useState<any[] | undefined>(undefined);
   const [allBestInterestDecisionForms, setAllBestInterestDecisionForms] = useState<any[] | undefined>(undefined);
 
-  const [latestCarePlanForm, setLatestCarePlanForm] = useState<any | undefined>(undefined);
+  const [activeCarePlanForms, setActiveCarePlanForms] = useState<any[] | undefined>(undefined);
   const [archivedCarePlans, setArchivedCarePlans] = useState<any[] | undefined>(undefined);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -61,7 +61,7 @@ export function useFolderForms({
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
-      setLatestCarePlanForm(activePlans?.[0] || null);
+      setActiveCarePlanForms(activePlans || []);
 
       // Fetch archived care plans
       const { data: archivedPlans } = await supabase
@@ -74,7 +74,7 @@ export function useFolderForms({
       setArchivedCarePlans(archivedPlans || []);
     } catch (error) {
       console.error("Error fetching care plans:", error);
-      setLatestCarePlanForm(null);
+      setActiveCarePlanForms([]);
       setArchivedCarePlans([]);
     } finally {
       setIsLoading(false);
@@ -619,15 +619,20 @@ export function useFolderForms({
   const allCornellDepressionScaleFormsMapped = useMemo(() => mapToConvexLike(allCornellDepressionScaleForms), [allCornellDepressionScaleForms]);
   const allBestInterestDecisionFormsMapped = useMemo(() => mapToConvexLike(allBestInterestDecisionForms), [allBestInterestDecisionForms]);
 
-  const latestCarePlanFormMapped = useMemo(() => mapToConvexLike(latestCarePlanForm), [latestCarePlanForm]);
+  const activeCarePlanFormsMapped = useMemo(() => mapToConvexLike(activeCarePlanForms), [activeCarePlanForms]);
   const archivedCarePlansMapped = useMemo(() => mapToConvexLike(archivedCarePlans), [archivedCarePlans]);
 
   // Filter care plans by folderKey in useMemo to avoid infinite loops
-  const filteredLatestCarePlan = useMemo(() => {
-    if (!latestCarePlanForm || !folderKey) return null;
-    const savedFolderKey = latestCarePlanForm.goals?.folderKey || latestCarePlanForm.folder_key;
-    return savedFolderKey === folderKey ? latestCarePlanForm : null;
-  }, [latestCarePlanForm, folderKey]);
+  const filteredActiveCarePlans = useMemo(() => {
+    if (!activeCarePlanForms || !folderKey) return [];
+    return activeCarePlanForms.filter((cp: any) => {
+      const savedFolderKey = cp.goals?.folderKey || cp.folder_key;
+      // Match if the saved folderKey equals the current folderKey, OR
+      // if no folderKey was saved at all (legacy data), show in all folders is too broad,
+      // so only match if it explicitly matches.
+      return savedFolderKey === folderKey;
+    });
+  }, [activeCarePlanForms, folderKey]);
 
   const filteredArchivedCarePlans = useMemo(() => {
     if (!archivedCarePlans || !folderKey) return [];
@@ -637,7 +642,7 @@ export function useFolderForms({
     });
   }, [archivedCarePlans, folderKey]);
 
-  const filteredLatestCarePlanMapped = useMemo(() => mapToConvexLike(filteredLatestCarePlan), [filteredLatestCarePlan]);
+  const filteredActiveCarePlansMapped = useMemo(() => mapToConvexLike(filteredActiveCarePlans), [filteredActiveCarePlans]);
   const filteredArchivedCarePlansMapped = useMemo(() => mapToConvexLike(filteredArchivedCarePlans), [filteredArchivedCarePlans]);
 
   // Unified File List
@@ -700,8 +705,8 @@ export function useFolderForms({
     // Process Care Plans
     if (includeCarePlans) {
       const allCarePlans: any[] = [];
-      if (filteredLatestCarePlanMapped) {
-        allCarePlans.push(filteredLatestCarePlanMapped);
+      if (filteredActiveCarePlansMapped && filteredActiveCarePlansMapped.length > 0) {
+        allCarePlans.push(...filteredActiveCarePlansMapped);
       }
       if (filteredArchivedCarePlansMapped && filteredArchivedCarePlansMapped.length > 0) {
         allCarePlans.push(...filteredArchivedCarePlansMapped);
@@ -738,7 +743,7 @@ export function useFolderForms({
     allChokingRiskAssessmentFormsMapped,
     allCornellDepressionScaleFormsMapped,
     allBestInterestDecisionFormsMapped,
-    filteredLatestCarePlanMapped,
+    filteredActiveCarePlansMapped,
     filteredArchivedCarePlansMapped,
     folderFormKeys
   ]);
@@ -773,7 +778,8 @@ export function useFolderForms({
     allChokingRiskAssessmentForms: allChokingRiskAssessmentFormsMapped,
     allCornellDepressionScaleForms: allCornellDepressionScaleFormsMapped,
     allBestInterestDecisionForms: allBestInterestDecisionFormsMapped,
-    latestCarePlanForm: filteredLatestCarePlanMapped,
+    activeCarePlanForms: filteredActiveCarePlansMapped,
+    latestCarePlanForm: filteredActiveCarePlansMapped && filteredActiveCarePlansMapped.length > 0 ? filteredActiveCarePlansMapped[0] : null,
     archivedCarePlans: filteredArchivedCarePlansMapped,
     getAllPdfFiles,
     isLoading,

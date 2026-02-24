@@ -292,7 +292,7 @@ export default function AllRiskAssessmentsPage() {
         <div className="flex-1">
           <h1 className="text-xl sm:text-2xl font-bold">All Assessments</h1>
           <p className="text-muted-foreground text-sm">
-            View all assessments for {resident.firstName} {resident.lastName}
+            View all assessments for {resident.first_name} {resident.last_name}
           </p>
         </div>
       </div>
