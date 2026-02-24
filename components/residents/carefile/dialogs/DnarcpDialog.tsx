@@ -203,7 +203,7 @@ export default function DnacprDialog({
   return (
     <div className="flex flex-col space-y-8">
       <DialogHeader>
-        <DialogTitle className="text-2xl font-bold text-red-600">DNACPR Decision Form</DialogTitle>
+        <DialogTitle className="text-2xl font-bold">DNACPR Decision Form</DialogTitle>
         <DialogDescription>
           Do Not Attempt Cardiopulmonary Resuscitation (DNACPR) decision and discussion record.
         </DialogDescription>
@@ -269,7 +269,7 @@ export default function DnacprDialog({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-red-50/50 rounded-xl border border-red-100">
                 <FormField control={form.control} name="dnacpr" render={({ field }) => (
                   <FormItem>
-                    <FormLabel required className="text-red-700">DNACPR Decision</FormLabel>
+                    <FormLabel required>DNACPR Decision</FormLabel>
                     <Select onValueChange={(value) => field.onChange(value === "true")} value={field.value ? "true" : "false"}>
                       <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
@@ -282,7 +282,7 @@ export default function DnacprDialog({
                 )} />
                 <FormField control={form.control} name="reason" render={({ field }) => (
                   <FormItem>
-                    <FormLabel required className="text-red-700">Primary Reason</FormLabel>
+                    <FormLabel required>Primary Reason</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
@@ -305,7 +305,7 @@ export default function DnacprDialog({
             {/* Section 2: Discussion Record */}
             <div className="space-y-8">
               <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-blue-500 rounded-full" />
+                <div className="h-6 w-1 bg-primary rounded-full" />
                 <h3 className="text-lg font-semibold">2. Discussion Record</h3>
               </div>
 
@@ -412,7 +412,7 @@ export default function DnacprDialog({
             {/* Section 3: Sign-off */}
             <div className="space-y-6">
               <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-green-500 rounded-full" />
+                <div className="h-6 w-1 bg-primary rounded-full" />
                 <h3 className="text-lg font-semibold">3. Final Sign-off</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

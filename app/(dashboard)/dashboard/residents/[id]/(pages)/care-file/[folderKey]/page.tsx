@@ -163,6 +163,8 @@ export default function GenericFolderPage() {
     const [filesLoading, setFilesLoading] = useState(false);
     const [formDataForEdit, setFormDataForEdit] = useState<any>(undefined);
     const [isReviewMode, setIsReviewMode] = useState(false);
+    const [isCarePlanSelectionOpen, setIsCarePlanSelectionOpen] = useState(false);
+    const [addedCarePlans, setAddedCarePlans] = useState<CareFileFormKey[]>([]);
 
     // HELPER MAPPING for Deletes/Fetches
     const TABLE_MAP: Record<string, string> = {
@@ -307,6 +309,14 @@ export default function GenericFolderPage() {
         setIsReviewMode(false);
         refreshForms();
         refetchFolderForms();
+    };
+
+    const handleCarePlanSelect = (name: string) => {
+        setActiveFileId(null);
+        setFormDataForEdit({ nameOfCarePlan: name });
+        setIsReviewMode(false); // Ensure we are in create mode
+        setActiveFormKey("care-plan-form" as CareFileFormKey);
+        setIsCarePlanSelectionOpen(false);
     };
 
     const handleDeleteFile = async (file: UploadedFile, e: React.MouseEvent) => {
@@ -474,7 +484,7 @@ export default function GenericFolderPage() {
                                         variant="ghost"
                                         size="icon"
                                         className="h-5 w-5 hover:bg-muted"
-                                        onClick={() => handleFormClick("care-plan-form" as CareFileFormKey)}
+                                        onClick={() => setIsCarePlanSelectionOpen(true)}
                                         title="Add Care Plan"
                                     >
                                         <Plus className="h-3 w-3" />
@@ -570,6 +580,61 @@ export default function GenericFolderPage() {
                     </div>
                 </aside>
             </div>
+
+            {/* Care Plan Selection Dialog */}
+            <Dialog open={isCarePlanSelectionOpen} onOpenChange={setIsCarePlanSelectionOpen}>
+                <DialogPrimitive.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg overflow-hidden">
+                    <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+                        <DialogPrimitive.Title className="text-sm font-semibold">Select Care Plan Type</DialogPrimitive.Title>
+                        <DialogPrimitive.Description className="text-[10px]">
+                            Choose a care plan to add
+                        </DialogPrimitive.Description>
+                    </div>
+                    <div className="flex flex-col gap-3 max-h-[45vh] overflow-y-auto pr-1">
+                        <div className="grid grid-cols-2 gap-1.5">
+                            <Card
+                                className="cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors border bg-white"
+                                onClick={() => handleCarePlanSelect("General Care Plan")}
+                            >
+                                <CardContent className="p-2.5">
+                                    <div className="flex items-start gap-2">
+                                        <div className="p-1.5 rounded-md bg-blue-100 text-blue-600">
+                                            <FileText className="w-4 h-4" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-semibold text-xs">General Care Plan</h3>
+                                            <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                                                Generic care plan documentation
+                                            </p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            {/* Folder Specific Care Plan */}
+                            {folderConfig.value !== "General" && (
+                                <Card
+                                    className="cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors border bg-white"
+                                    onClick={() => handleCarePlanSelect(`${folderConfig.value} Care Plan`)}
+                                >
+                                    <CardContent className="p-2.5">
+                                        <div className="flex items-start gap-2">
+                                            <div className="p-1.5 rounded-md bg-green-100 text-green-600">
+                                                <FileText className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-semibold text-xs">{folderConfig.value} Plan</h3>
+                                                <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                                                    Specific plan for {folderConfig.value}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
+                    </div>
+                </DialogPrimitive.Content>
+            </Dialog>
         </div>
     );
 }

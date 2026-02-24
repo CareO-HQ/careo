@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { useProfile } from "@/hooks/use-profile";
@@ -183,100 +182,90 @@ export default function ChokingRiskAssessmentDialog({
   };
 
   return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0 gap-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle className="text-xl">Choking Risk Assessment</DialogTitle>
-          <DialogDescription>Complete the assessment by checking all applicable risk factors</DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle className="text-xl">Choking Risk Assessment</DialogTitle>
+        <DialogDescription>Complete the assessment by checking all applicable risk factors</DialogDescription>
+      </DialogHeader>
 
-        <div className="mx-6 mb-4 p-4 border-2 rounded-lg bg-muted/30">
-          <div className="flex items-center justify-between">
-            <div><p className="text-xs font-medium text-muted-foreground">Total Risk Score</p><p className="text-3xl font-bold mt-1">{currentScore}</p></div>
-            <div className="text-right"><p className="text-xs font-medium text-muted-foreground">Risk Level</p>
-              <p className={`text-xl font-bold mt-1 ${currentRiskLevel === "No Risk" ? "text-green-600" : currentRiskLevel === "Low Risk" ? "text-blue-600" : currentRiskLevel === "Medium Risk" ? "text-yellow-600" : currentRiskLevel === "High Risk" ? "text-orange-600" : "text-red-600"}`}>{currentRiskLevel}</p>
-            </div>
+      <div className="mb-4 p-4 border-2 rounded-lg bg-muted/30">
+        <div className="flex items-center justify-between">
+          <div><p className="text-xs font-medium text-muted-foreground">Total Risk Score</p><p className="text-3xl font-bold mt-1">{currentScore}</p></div>
+          <div className="text-right"><p className="text-xs font-medium text-muted-foreground">Risk Level</p>
+            <p className={`text-xl font-bold mt-1 ${currentRiskLevel === "No Risk" ? "text-green-600" : currentRiskLevel === "Low Risk" ? "text-blue-600" : currentRiskLevel === "Medium Risk" ? "text-yellow-600" : currentRiskLevel === "High Risk" ? "text-orange-600" : "text-red-600"}`}>{currentRiskLevel}</p>
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
+        <div className="space-y-4 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2">Administrative Information</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label htmlFor="residentName" className="text-sm">Resident Name</Label><Input id="residentName" {...form.register("residentName")} disabled className="text-sm" /></div>
+            <div className="space-y-2"><Label htmlFor="dateOfAssessment" className="text-sm">Date</Label><Input id="dateOfAssessment" type="date" {...form.register("dateOfAssessment")} className="text-sm" /></div>
           </div>
         </div>
 
-        <ScrollArea className="max-h-[calc(90vh-280px)] px-6">
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-4">
-            <div className="space-y-4 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2">Administrative Information</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label htmlFor="residentName" className="text-sm">Resident Name</Label><Input id="residentName" {...form.register("residentName")} disabled className="text-sm" /></div>
-                <div className="space-y-2"><Label htmlFor="dateOfAssessment" className="text-sm">Date</Label><Input id="dateOfAssessment" type="date" {...form.register("dateOfAssessment")} className="text-sm" /></div>
-              </div>
-            </div>
-
-            <div className="space-y-3 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2">Respiratory Risks <span className="text-xs font-normal text-muted-foreground ml-2">(10 pts each)</span></h3>
-              {["weakCough", "chestInfections", "breathingDifficulties", "knownToAspirate", "chokingHistory", "gurgledVoice"].map(k => <RiskCheckbox key={k} name={k as any} label={k.replace(/([A-Z])/g, ' $1').trim()} points={10} />)}
-            </div>
-
-            <div className="space-y-3 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2">At Risk Groups</h3>
-              <RiskCheckbox name="epilepsy" label="Epilepsy" points={4} />
-              <RiskCheckbox name="cerebralPalsy" label="Cerebral Palsy" points={10} />
-              <RiskCheckbox name="dementia" label="Dementia" points={4} />
-              <RiskCheckbox name="mentalHealth" label="Mental Health Conditions" points={4} />
-              <RiskCheckbox name="neurologicalConditions" label="Neurological Conditions" points={10} />
-              <RiskCheckbox name="learningDisabilities" label="Learning Disabilities" points={10} />
-            </div>
-
-            <div className="space-y-3 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2">Physical Risks</h3>
-              {["posturalProblems", "poorHeadControl", "tongueThrust", "chewingDifficulties"].map(k => <RiskCheckbox key={k} name={k as any} label={k.replace(/([A-Z])/g, ' $1').trim()} points={10} />)}
-              {["slurredSpeech", "neckTrauma", "poorDentition"].map(k => <RiskCheckbox key={k} name={k as any} label={k.replace(/([A-Z])/g, ' $1').trim()} points={8} />)}
-            </div>
-
-            <div className="space-y-3 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2">Eating Behaviours</h3>
-              {["eatsRapidly", "drinksRapidly", "eatsWhileCoughing", "drinksWhileCoughing", "crammingFood"].map(k => <RiskCheckbox key={k} name={k as any} label={k.replace(/([A-Z])/g, ' $1').trim()} points={10} />)}
-              {["pocketingFood", "swallowingWithoutChewing"].map(k => <RiskCheckbox key={k} name={k as any} label={k.replace(/([A-Z])/g, ' $1').trim()} points={8} />)}
-              <RiskCheckbox name="wouldTakeFood" label="Would Take Any Food" points={4} />
-            </div>
-
-            <div className="space-y-3 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2">Protective Factors <span className="text-xs font-normal text-muted-foreground ml-2">(+2 pts if NO)</span></h3>
-              <RiskCheckbox name="drinksIndependently" label="Drinks Independently" points={-2} />
-              <RiskCheckbox name="eatsIndependently" label="Eats Independently" points={-2} />
-            </div>
-
-            <div className="space-y-4 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2">Completion</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="completedBy" className="text-sm">Completed By</Label>
-                  <Input
-                    id="completedBy"
-                    {...form.register("completedBy")}
-                    readOnly
-                    className="text-sm bg-muted cursor-not-allowed"
-                  />
-                </div>
-                <div className="space-y-2"><Label htmlFor="signature" className="text-sm">Signature</Label><Input id="signature" {...form.register("signature")} placeholder="Signature" className="text-sm" /></div>
-              </div>
-            </div>
-          </form>
-        </ScrollArea>
-
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-background">
-          <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isSubmitting}>Cancel</Button>
-          <Button
-            type="submit"
-            onClick={() => {
-              form.handleSubmit(onSubmit, (errors) => {
-                console.error("Form errors:", errors);
-                toast.error("Please fill in all required fields");
-              })();
-            }}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}
-          </Button>
+        <div className="space-y-3 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2">Respiratory Risks <span className="text-xs font-normal text-muted-foreground ml-2">(10 pts each)</span></h3>
+          {["weakCough", "chestInfections", "breathingDifficulties", "knownToAspirate", "chokingHistory", "gurgledVoice"].map(k => <RiskCheckbox key={k} name={k as any} label={k.replace(/([A-Z])/g, ' $1').trim()} points={10} />)}
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <div className="space-y-3 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2">At Risk Groups</h3>
+          <RiskCheckbox name="epilepsy" label="Epilepsy" points={4} />
+          <RiskCheckbox name="cerebralPalsy" label="Cerebral Palsy" points={10} />
+          <RiskCheckbox name="dementia" label="Dementia" points={4} />
+          <RiskCheckbox name="mentalHealth" label="Mental Health Conditions" points={4} />
+          <RiskCheckbox name="neurologicalConditions" label="Neurological Conditions" points={10} />
+          <RiskCheckbox name="learningDisabilities" label="Learning Disabilities" points={10} />
+        </div>
+
+        <div className="space-y-3 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2">Physical Risks</h3>
+          {["posturalProblems", "poorHeadControl", "tongueThrust", "chewingDifficulties"].map(k => <RiskCheckbox key={k} name={k as any} label={k.replace(/([A-Z])/g, ' $1').trim()} points={10} />)}
+          {["slurredSpeech", "neckTrauma", "poorDentition"].map(k => <RiskCheckbox key={k} name={k as any} label={k.replace(/([A-Z])/g, ' $1').trim()} points={8} />)}
+        </div>
+
+        <div className="space-y-3 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2">Eating Behaviours</h3>
+          {["eatsRapidly", "drinksRapidly", "eatsWhileCoughing", "drinksWhileCoughing", "crammingFood"].map(k => <RiskCheckbox key={k} name={k as any} label={k.replace(/([A-Z])/g, ' $1').trim()} points={10} />)}
+          {["pocketingFood", "swallowingWithoutChewing"].map(k => <RiskCheckbox key={k} name={k as any} label={k.replace(/([A-Z])/g, ' $1').trim()} points={8} />)}
+          <RiskCheckbox name="wouldTakeFood" label="Would Take Any Food" points={4} />
+        </div>
+
+        <div className="space-y-3 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2">Protective Factors <span className="text-xs font-normal text-muted-foreground ml-2">(+2 pts if NO)</span></h3>
+          <RiskCheckbox name="drinksIndependently" label="Drinks Independently" points={-2} />
+          <RiskCheckbox name="eatsIndependently" label="Eats Independently" points={-2} />
+        </div>
+
+        <div className="space-y-4 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2">Completion</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="completedBy" className="text-sm">Completed By</Label>
+              <Input id="completedBy" {...form.register("completedBy")} readOnly className="text-sm bg-muted cursor-not-allowed" />
+            </div>
+            <div className="space-y-2"><Label htmlFor="signature" className="text-sm">Signature</Label><Input id="signature" {...form.register("signature")} placeholder="Signature" className="text-sm" /></div>
+          </div>
+        </div>
+      </form>
+
+      <div className="flex items-center justify-end gap-3 pt-6 border-t sticky bottom-0 bg-background/80 backdrop-blur-sm py-4">
+        <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isSubmitting}>Cancel</Button>
+        <Button
+          onClick={() => {
+            form.handleSubmit(onSubmit, (errors) => {
+              console.error("Form errors:", errors);
+              toast.error("Please fill in all required fields");
+            })();
+          }}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}
+        </Button>
+      </div>
+    </>
   );
 }

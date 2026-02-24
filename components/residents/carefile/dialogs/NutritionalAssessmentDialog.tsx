@@ -197,7 +197,7 @@ export default function NutritionalAssessmentDialog({
         <DialogTitle>Nutritional Assessment</DialogTitle>
         <DialogDescription>Complete the nutritional assessment for the resident</DialogDescription>
       </DialogHeader>
-      <div className="max-h-[70vh] overflow-y-auto">
+      <div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Section 1: Resident Information */}

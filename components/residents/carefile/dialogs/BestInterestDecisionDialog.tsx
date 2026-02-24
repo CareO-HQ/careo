@@ -3,10 +3,14 @@
 import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 import { Button } from "@/components/ui/button";
+import {
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -31,7 +35,7 @@ import {
   type BestInterestDecisionFormData,
 } from "@/schemas/residents/care-file/bestInterestDecisionSchema";
 import { format } from "date-fns";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Loader2 } from "lucide-react";
 
 interface BestInterestDecisionDialogProps {
   residentId: string;
@@ -75,7 +79,6 @@ export default function BestInterestDecisionDialog({
   onClose,
   initialData,
 }: BestInterestDecisionDialogProps) {
-  const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<BestInterestDecisionFormData>({
@@ -200,54 +203,25 @@ export default function BestInterestDecisionDialog({
     }
   };
 
-  const nextStep = async () => {
-    const fields = getStepFields(currentStep);
-    const isValid = await form.trigger(fields as any);
-    if (isValid) {
-      setCurrentStep(prev => Math.min(prev + 1, 7));
-    }
-  };
-
-  const prevStep = () => {
-    setCurrentStep(prev => Math.max(prev - 1, 1));
-  };
-
-  const getStepFields = (step: number): string[] => {
-    switch (step) {
-      case 1:
-        return ["residentFullName", "dateOfBirth", "residentIdNumber", "dateOfDecision"];
-      case 2:
-        return ["typeOfDecision", "detailsOfDecision"];
-      case 3:
-        return ["ableToUnderstand", "assessorName", "assessorRole", "assessorSignature", "assessmentDate"];
-      case 4:
-        return ["discussionWith", "viewsExpressed"];
-      case 5:
-        return ["optionsConsidered", "reasonForPreferredOption", "risksIfNotFollowed"];
-      case 6:
-        return ["decisionOutcome", "summaryRationale"];
-      case 7:
-        return ["decisionMakerName", "decisionMakerRole", "decisionMakerSignature", "decisionMakerDate"];
-      default:
-        return [];
-    }
-  };
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Best Interest Decision Form</h2>
-        <div className="text-sm text-muted-foreground">
-          Step {currentStep} of 7
-        </div>
-      </div>
+    <div className="flex flex-col space-y-8">
+      <DialogHeader>
+        <DialogTitle className="text-2xl font-bold">Best Interest Decision Form</DialogTitle>
+        <DialogDescription>
+          Record the best interest decision for a resident who lacks capacity to make this decision.
+        </DialogDescription>
+      </DialogHeader>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* Step 1: Resident Information */}
-          {currentStep === 1 && (
+      <div className="space-y-12 pb-20">
+        <Form {...form}>
+          <form className="space-y-12">
+
+            {/* Section A: Resident Information */}
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold">Section A — Resident Information</h3>
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Section A — Resident Information</h3>
+              </div>
 
               <FormField
                 control={form.control}
@@ -255,15 +229,13 @@ export default function BestInterestDecisionDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Resident Full Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
+                    <FormControl><Input {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
                   name="dateOfBirth"
@@ -291,35 +263,32 @@ export default function BestInterestDecisionDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Resident ID / File Number</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
+                      <FormControl><Input {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="dateOfDecision"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date of Decision</FormLabel>
+                      <FormControl><Input type="date" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-
-              <FormField
-                control={form.control}
-                name="dateOfDecision"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Date of Decision</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
-          )}
 
-          {/* Step 2: Decision Being Made */}
-          {currentStep === 2 && (
+            {/* Section B: Decision Being Made */}
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold">Section B — Decision Being Made</h3>
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Section B — Decision Being Made</h3>
+              </div>
 
               <FormField
                 control={form.control}
@@ -364,9 +333,7 @@ export default function BestInterestDecisionDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Other Decision Type (specify)</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
+                      <FormControl><Input {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -379,20 +346,19 @@ export default function BestInterestDecisionDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Details of Decision Required</FormLabel>
-                    <FormControl>
-                      <Textarea rows={6} {...field} />
-                    </FormControl>
+                    <FormControl><Textarea rows={6} {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-          )}
 
-          {/* Step 3: Capacity Assessment */}
-          {currentStep === 3 && (
+            {/* Section C: Capacity Assessment */}
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold">Section C — Capacity Assessment</h3>
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Section C — Capacity Assessment</h3>
+              </div>
 
               <FormField
                 control={form.control}
@@ -421,57 +387,26 @@ export default function BestInterestDecisionDialog({
                 <div className="border rounded-lg p-4 space-y-4">
                   <FormLabel>Reasons for Lack of Capacity</FormLabel>
 
-                  <FormField
-                    control={form.control}
-                    name="reasonsForLackOfCapacity.cognitiveImpairment"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                        <FormLabel className="font-normal">Cognitive impairment</FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="reasonsForLackOfCapacity.communicationDifficulty"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                        <FormLabel className="font-normal">Communication difficulty</FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="reasonsForLackOfCapacity.fluctuatingCapacity"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                        <FormLabel className="font-normal">Fluctuating capacity</FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="reasonsForLackOfCapacity.other"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                        <FormLabel className="font-normal">Other (specify)</FormLabel>
-                      </FormItem>
-                    )}
-                  />
+                  {[
+                    { name: "reasonsForLackOfCapacity.cognitiveImpairment", label: "Cognitive impairment" },
+                    { name: "reasonsForLackOfCapacity.communicationDifficulty", label: "Communication difficulty" },
+                    { name: "reasonsForLackOfCapacity.fluctuatingCapacity", label: "Fluctuating capacity" },
+                    { name: "reasonsForLackOfCapacity.other", label: "Other (specify)" },
+                  ].map((item) => (
+                    <FormField
+                      key={item.name}
+                      control={form.control}
+                      name={item.name as any}
+                      render={({ field }) => (
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                          <FormLabel className="font-normal">{item.label}</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  ))}
 
                   {form.watch("reasonsForLackOfCapacity.other") && (
                     <FormField
@@ -492,61 +427,47 @@ export default function BestInterestDecisionDialog({
 
               <div className="border-t pt-4 space-y-4">
                 <h4 className="font-semibold">Assessment Conducted By</h4>
-
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="assessorName"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Assessor Name</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="assessorRole"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Role (RN, GP, OT, etc)</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="assessorSignature"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Signature</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="assessmentDate"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
+                        <FormControl><Input type="date" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -554,12 +475,13 @@ export default function BestInterestDecisionDialog({
                 </div>
               </div>
             </div>
-          )}
 
-          {/* Step 4: Best Interest Considerations */}
-          {currentStep === 4 && (
+            {/* Section D: Best Interest Considerations */}
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold">Section D — Best Interest Considerations</h3>
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Section D — Best Interest Considerations</h3>
+              </div>
 
               <FormField
                 control={form.control}
@@ -604,12 +526,7 @@ export default function BestInterestDecisionDialog({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => appendView({
-                      personConsulted: "",
-                      relationship: "",
-                      viewPreference: "",
-                      notes: ""
-                    })}
+                    onClick={() => appendView({ personConsulted: "", relationship: "", viewPreference: "", notes: "" })}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add View
@@ -629,60 +546,48 @@ export default function BestInterestDecisionDialog({
                         <X className="h-4 w-4" />
                       </Button>
                     )}
-
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name={`viewsExpressed.${index}.personConsulted`}
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Person Consulted</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
+                            <FormControl><Input {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-
                       <FormField
                         control={form.control}
                         name={`viewsExpressed.${index}.relationship`}
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Relationship to Resident</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
+                            <FormControl><Input {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
-
                     <FormField
                       control={form.control}
                       name={`viewsExpressed.${index}.viewPreference`}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>View / Preference</FormLabel>
-                          <FormControl>
-                            <Textarea rows={3} {...field} />
-                          </FormControl>
+                          <FormControl><Textarea rows={3} {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={form.control}
                       name={`viewsExpressed.${index}.notes`}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Notes (Optional)</FormLabel>
-                          <FormControl>
-                            <Textarea rows={2} {...field} />
-                          </FormControl>
+                          <FormControl><Textarea rows={2} {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -691,12 +596,13 @@ export default function BestInterestDecisionDialog({
                 ))}
               </div>
             </div>
-          )}
 
-          {/* Step 5: Options & Risks */}
-          {currentStep === 5 && (
+            {/* Section E: Options & Risks */}
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold">Section E — Options & Risks</h3>
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Section E — Options & Risks</h3>
+              </div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -705,12 +611,7 @@ export default function BestInterestDecisionDialog({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => appendOption({
-                      option: "",
-                      benefits: "",
-                      risks: "",
-                      preferred: false
-                    })}
+                    onClick={() => appendOption({ option: "", benefits: "", risks: "", preferred: false })}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Option
@@ -730,49 +631,39 @@ export default function BestInterestDecisionDialog({
                         <X className="h-4 w-4" />
                       </Button>
                     )}
-
                     <FormField
                       control={form.control}
                       name={`optionsConsidered.${index}.option`}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Option</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
+                          <FormControl><Input {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={form.control}
                       name={`optionsConsidered.${index}.benefits`}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Benefits</FormLabel>
-                          <FormControl>
-                            <Textarea rows={3} {...field} />
-                          </FormControl>
+                          <FormControl><Textarea rows={3} {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={form.control}
                       name={`optionsConsidered.${index}.risks`}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Risks</FormLabel>
-                          <FormControl>
-                            <Textarea rows={3} {...field} />
-                          </FormControl>
+                          <FormControl><Textarea rows={3} {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={form.control}
                       name={`optionsConsidered.${index}.preferred`}
@@ -795,9 +686,7 @@ export default function BestInterestDecisionDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Reason for Preferred Option</FormLabel>
-                    <FormControl>
-                      <Textarea rows={4} {...field} />
-                    </FormControl>
+                    <FormControl><Textarea rows={4} {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -809,20 +698,19 @@ export default function BestInterestDecisionDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Risks if Decision Not Followed</FormLabel>
-                    <FormControl>
-                      <Textarea rows={4} {...field} />
-                    </FormControl>
+                    <FormControl><Textarea rows={4} {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-          )}
 
-          {/* Step 6: Best Interest Decision */}
-          {currentStep === 6 && (
+            {/* Section F: Best Interest Decision */}
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold">Section F — Best Interest Decision</h3>
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Section F — Best Interest Decision</h3>
+              </div>
 
               <FormField
                 control={form.control}
@@ -856,39 +744,34 @@ export default function BestInterestDecisionDialog({
                     <div className="text-xs text-muted-foreground mb-2">
                       Include why this decision is in the resident&apos;s best interest and reference to resident&apos;s past wishes if known
                     </div>
-                    <FormControl>
-                      <Textarea rows={8} {...field} />
-                    </FormControl>
+                    <FormControl><Textarea rows={8} {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-          )}
 
-          {/* Step 7: Signatures */}
-          {currentStep === 7 && (
+            {/* Section G: Signatures */}
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold">Section G — Signatures</h3>
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Section G — Signatures</h3>
+              </div>
 
               <div className="border rounded-lg p-4 space-y-4">
                 <h4 className="font-semibold">Decision Made By</h4>
-
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="decisionMakerName"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="decisionMakerRole"
@@ -897,9 +780,7 @@ export default function BestInterestDecisionDialog({
                         <FormLabel>Role</FormLabel>
                         <FormControl>
                           <Select onValueChange={field.onChange} value={field.value}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select role" />
-                            </SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="Manager">Manager</SelectItem>
                               <SelectItem value="RN">Registered Nurse</SelectItem>
@@ -913,32 +794,24 @@ export default function BestInterestDecisionDialog({
                       </FormItem>
                     )}
                   />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="decisionMakerSignature"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Signature</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="decisionMakerDate"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
+                        <FormControl><Input type="date" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -948,61 +821,47 @@ export default function BestInterestDecisionDialog({
 
               <div className="border rounded-lg p-4 space-y-4">
                 <h4 className="font-semibold">Witness / Additional Signatory (Optional)</h4>
-
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="witnessName"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="witnessRole"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Role</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="witnessSignature"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Signature</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="witnessDate"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
+                        <FormControl><Input type="date" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1012,61 +871,47 @@ export default function BestInterestDecisionDialog({
 
               <div className="border rounded-lg p-4 space-y-4">
                 <h4 className="font-semibold">Next of Kin / Representative Acknowledgement (Optional)</h4>
-
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="nextOfKinName"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="nextOfKinRelationship"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Relationship</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="nextOfKinSignature"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Signature</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="nextOfKinDate"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
+                        <FormControl><Input type="date" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1074,31 +919,23 @@ export default function BestInterestDecisionDialog({
                 </div>
               </div>
             </div>
+
+          </form>
+        </Form>
+      </div>
+
+      <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
+        <Button variant="outline" onClick={() => onClose?.()} disabled={isSubmitting} size="lg">
+          Cancel
+        </Button>
+        <Button onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting} size="lg" className="min-w-[180px]">
+          {isSubmitting ? (
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</>
+          ) : (
+            initialData ? "Save Changes" : "Submit Decision"
           )}
-
-          {/* Navigation Buttons */}
-          <div className="flex justify-between pt-6 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={prevStep}
-              disabled={currentStep === 1}
-            >
-              Previous
-            </Button>
-
-            {currentStep < 7 ? (
-              <Button type="button" onClick={nextStep}>
-                Next
-              </Button>
-            ) : (
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Submitting..." : "Submit Decision"}
-              </Button>
-            )}
-          </div>
-        </form>
-      </Form>
+        </Button>
+      </div>
     </div>
   );
 }

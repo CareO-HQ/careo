@@ -234,8 +234,8 @@ export default function PeepDialog({
             {/* Section 2: Assistance Needs */}
             <div className="space-y-6">
               <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-yellow-500 rounded-full" />
-                <h3 className="text-lg font-semibold text-yellow-700">2. Assistance & Communication</h3>
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">2. Assistance & Communication</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField control={form.control} name="understands" render={({ field }) => (
@@ -267,8 +267,8 @@ export default function PeepDialog({
             {/* Section 3: Hazard & Safety */}
             <div className="space-y-6">
               <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-red-500 rounded-full" />
-                <h3 className="text-lg font-semibold text-red-600">3. Hazard & Safety considerations</h3>
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">3. Hazard & Safety considerations</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4 p-4 border rounded-xl bg-red-50/20">
@@ -302,10 +302,10 @@ export default function PeepDialog({
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b pb-2">
                 <div className="flex items-center gap-2">
-                  <div className="h-6 w-1 bg-blue-500 rounded-full" />
-                  <h3 className="text-lg font-semibold text-blue-700">4. Evacuation Steps</h3>
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">4. Evacuation Steps</h3>
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={addStep} className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100">
+                <Button type="button" variant="outline" size="sm" onClick={addStep}>
                   <Plus className="w-4 h-4 mr-2" />Add Step
                 </Button>
               </div>
@@ -343,8 +343,8 @@ export default function PeepDialog({
             {/* Section 5: Sign-off */}
             <div className="space-y-6">
               <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-green-500 rounded-full" />
-                <h3 className="text-lg font-semibold text-green-700">5. Completion Details</h3>
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">5. Completion Details</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <FormField control={form.control} name="completedBy" render={({ field }) => (

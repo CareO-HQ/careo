@@ -138,7 +138,7 @@ export default function PainAssessmentDialog({
   return (
     <>
       <DialogHeader><DialogTitle>Pain Assessment</DialogTitle><DialogDescription>Record pain assessments and interventions</DialogDescription></DialogHeader>
-      <div className="max-h-[70vh] overflow-y-auto">
+      <div>
         <Form {...form}>
           <form className="space-y-4">
             <div className="p-4 bg-muted/30 rounded-lg space-y-4">

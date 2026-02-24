@@ -272,8 +272,8 @@ export default function BedRailsRiskAssessmentDialog({
             {/* Section 3: Exclusion Criteria */}
             <div className="space-y-6">
               <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-red-600 rounded-full" />
-                <h3 className="text-lg font-semibold text-red-600">Exclusion Criteria (When Rails CANNOT Be Used)</h3>
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Exclusion Criteria (When Rails CANNOT Be Used)</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-l-4 border-red-500 pl-6 py-2 bg-red-50/30 rounded-r-xl">
                 {[
@@ -302,8 +302,8 @@ export default function BedRailsRiskAssessmentDialog({
             {/* Section 4: Benefits & Authorization */}
             <div className="space-y-6">
               <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-green-600 rounded-full" />
-                <h3 className="text-lg font-semibold text-green-700">Benefits & Authorization (When Rails CAN Be Used)</h3>
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Benefits & Authorization (When Rails CAN Be Used)</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-l-4 border-green-500 pl-6 py-2 bg-green-50/30 rounded-r-xl">
                 {[
@@ -356,7 +356,7 @@ export default function BedRailsRiskAssessmentDialog({
             {/* Section 6: Safety Checklist */}
             <div className="space-y-6">
               <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-yellow-500 rounded-full" />
+                <div className="h-6 w-1 bg-primary rounded-full" />
                 <h3 className="text-lg font-semibold">Safety Checklist (Entrapment Risk)</h3>
               </div>
               <div className="grid grid-cols-1 gap-4">
@@ -391,7 +391,7 @@ export default function BedRailsRiskAssessmentDialog({
             {(watchTypeOfBedrails?.includes("EXTENDED")) && (
               <div className="space-y-6">
                 <div className="flex items-center gap-2 border-b pb-2">
-                  <div className="h-6 w-1 bg-blue-500 rounded-full" />
+                  <div className="h-6 w-1 bg-primary rounded-full" />
                   <h3 className="text-lg font-semibold">Extended Height Checklist</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

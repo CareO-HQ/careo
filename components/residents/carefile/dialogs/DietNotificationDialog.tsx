@@ -1,8 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -156,68 +155,66 @@ export default function DietNotificationDialog({
   };
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEditMode ? "Edit" : "New"} Diet Notification</DialogTitle>
-          <DialogDescription>Complete dietary requirements for {resident?.firstName} {resident?.lastName}</DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>{isEditMode ? "Edit" : "New"} Diet Notification</DialogTitle>
+        <DialogDescription>Complete dietary requirements for {resident?.first_name} {resident?.last_name}</DialogDescription>
+      </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Administrative Information</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="residentName" render={({ field }) => (<FormItem><FormLabel>Resident Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="roomNumber" render={({ field }) => (<FormItem><FormLabel>Room Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="completedBy" render={({ field }) => (<FormItem><FormLabel>Completed By *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="printName" render={({ field }) => (<FormItem><FormLabel>Print Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel>Job Role *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="signature" render={({ field }) => (<FormItem><FormLabel>Signature *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-              </div>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Administrative Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="residentName" render={({ field }) => (<FormItem><FormLabel>Resident Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="roomNumber" render={({ field }) => (<FormItem><FormLabel>Room Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="completedBy" render={({ field }) => (<FormItem><FormLabel>Completed By *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="printName" render={({ field }) => (<FormItem><FormLabel>Print Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel>Job Role *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="signature" render={({ field }) => (<FormItem><FormLabel>Signature *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
+          </div>
 
-            <Separator />
+          <Separator />
 
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Dietary Preferences & Risks</h3>
-              <FormField control={form.control} name="likesFavouriteFoods" render={({ field }) => (<FormItem><FormLabel>Likes / Favourite Foods</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="dislikes" render={({ field }) => (<FormItem><FormLabel>Dislikes</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="chokingRiskAssessment" render={({ field }) => (
-                <FormItem className="space-y-3"><FormLabel>Choking Risk *</FormLabel><FormControl>
-                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
-                    {["Low Risk", "Medium Risk", "High Risk"].map(risk => (
-                      <div key={risk} className="flex items-center space-x-2"><RadioGroupItem value={risk} id={risk.toLowerCase().replace(' ', '-')} /><Label htmlFor={risk.toLowerCase().replace(' ', '-')}>{risk}</Label></div>
-                    ))}
-                  </RadioGroup>
-                </FormControl><FormMessage /></FormItem>
-              )} />
-            </div>
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Dietary Preferences &amp; Risks</h3>
+            <FormField control={form.control} name="likesFavouriteFoods" render={({ field }) => (<FormItem><FormLabel>Likes / Favourite Foods</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="dislikes" render={({ field }) => (<FormItem><FormLabel>Dislikes</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="chokingRiskAssessment" render={({ field }) => (
+              <FormItem className="space-y-3"><FormLabel>Choking Risk *</FormLabel><FormControl>
+                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
+                  {["Low Risk", "Medium Risk", "High Risk"].map(risk => (
+                    <div key={risk} className="flex items-center space-x-2"><RadioGroupItem value={risk} id={risk.toLowerCase().replace(' ', '-')} /><Label htmlFor={risk.toLowerCase().replace(' ', '-')}>{risk}</Label></div>
+                  ))}
+                </RadioGroup>
+              </FormControl><FormMessage /></FormItem>
+            )} />
+          </div>
 
-            <Separator />
+          <Separator />
 
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Meal & Fluid Specifications</h3>
-              <FormField control={form.control} name="preferredMealSize" render={({ field }) => (
-                <FormItem className="space-y-3"><FormLabel>Preferred Meal Size *</FormLabel><FormControl>
-                  <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
-                    {["Small", "Standard", "Large"].map(size => (
-                      <div key={size} className="flex items-center space-x-2"><RadioGroupItem value={size} id={size.toLowerCase()} /><Label htmlFor={size.toLowerCase()}>{size}</Label></div>
-                    ))}
-                  </RadioGroup>
-                </FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="dietType" render={({ field }) => (<FormItem><FormLabel>Diet Type</FormLabel><FormControl><Input {...field} placeholder="e.g., Diabetic, Fortified" /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="foodAllergyOrIntolerance" render={({ field }) => (<FormItem><FormLabel>Food Allergy or Intolerance</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
-            </div>
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Meal &amp; Fluid Specifications</h3>
+            <FormField control={form.control} name="preferredMealSize" render={({ field }) => (
+              <FormItem className="space-y-3"><FormLabel>Preferred Meal Size *</FormLabel><FormControl>
+                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
+                  {["Small", "Standard", "Large"].map(size => (
+                    <div key={size} className="flex items-center space-x-2"><RadioGroupItem value={size} id={size.toLowerCase()} /><Label htmlFor={size.toLowerCase()}>{size}</Label></div>
+                  ))}
+                </RadioGroup>
+              </FormControl><FormMessage /></FormItem>
+            )} />
+            <FormField control={form.control} name="dietType" render={({ field }) => (<FormItem><FormLabel>Diet Type</FormLabel><FormControl><Input {...field} placeholder="e.g., Diabetic, Fortified" /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="foodAllergyOrIntolerance" render={({ field }) => (<FormItem><FormLabel>Food Allergy or Intolerance</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
+          </div>
+        </form>
+      </Form>
 
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isSubmitting}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}</Button>
-            </div>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+      <div className="flex items-center justify-end gap-3 pt-6 border-t sticky bottom-0 bg-background/80 backdrop-blur-sm py-4">
+        <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isSubmitting}>Cancel</Button>
+        <Button onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting}>{isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}</Button>
+      </div>
+    </>
   );
 }
