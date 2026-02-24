@@ -1,12 +1,14 @@
+
 "use client";
 
 import CareFileFolder from "@/components/residents/carefile/folders/CareFileFolder";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { config } from "@/config";
 import { useProfile } from "@/hooks/use-profile";
 import { canFillCareFileForms } from "@/lib/permissions";
-import { ArrowLeft, FolderIcon, Archive } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -117,7 +119,7 @@ export default function CareFilePage() {
       </div>
 
       {/* Care Files Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {careFiles.map(
           (file, index) =>
             file.type === "folder" && (
@@ -137,43 +139,70 @@ export default function CareFilePage() {
         )}
       </div>
 
+      {/* Divider */}
+      <div className="border-t border-border my-6"></div>
+
       {/* Additional Folders Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* All Care Plans */}
-        <div
-          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
+        <Card
+          className="cursor-pointer shadow-none hover:shadow-lg hover:scale-105 transition-all duration-200 border-2 border-cyan-200 bg-white h-24"
           onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-care-plans`)}
         >
-          <FolderIcon className="size-12 text-muted-foreground/70 group-hover:text-primary" />
-          <p className="text-primary text-2xl font-semibold">All Care Plans</p>
-        </div>
+          <CardContent className="p-4 h-full flex items-center">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex flex-col gap-1 flex-1 min-w-0">
+                <h3 className="font-semibold text-sm text-cyan-700 line-clamp-1">All Care Plans</h3>
+                <p className="text-xs text-muted-foreground line-clamp-1">View all care plans</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* All Assessments */}
-        <div
-          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
+        <Card
+          className="cursor-pointer shadow-none hover:shadow-lg hover:scale-105 transition-all duration-200 border-2 border-teal-200 bg-white h-24"
           onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-risk-assessments`)}
         >
-          <FolderIcon className="size-12 text-muted-foreground/70 group-hover:text-primary" />
-          <p className="text-primary text-2xl font-semibold">All Assessments</p>
-        </div>
+          <CardContent className="p-4 h-full flex items-center">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex flex-col gap-1 flex-1 min-w-0">
+                <h3 className="font-semibold text-sm text-teal-700 line-clamp-1">All Assessments</h3>
+                <p className="text-xs text-muted-foreground line-clamp-1">View all risk assessments</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Archived Care Plans */}
-        <div
-          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
+        <Card
+          className="cursor-pointer shadow-none hover:shadow-lg hover:scale-105 transition-all duration-200 border-2 border-amber-200 bg-white h-24"
           onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-care-plans`)}
         >
-          <Archive className="size-12 text-muted-foreground/70 group-hover:text-primary" />
-          <p className="text-primary text-2xl font-semibold">Archived Care Plans</p>
-        </div>
+          <CardContent className="p-4 h-full flex items-center">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex flex-col gap-1 flex-1 min-w-0">
+                <h3 className="font-semibold text-sm text-amber-700 line-clamp-1">Archived Care Plans</h3>
+                <p className="text-xs text-muted-foreground line-clamp-1">View archived plans</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Archived Assessments */}
-        <div
-          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
+        <Card
+          className="cursor-pointer shadow-none hover:shadow-lg hover:scale-105 transition-all duration-200 border-2 border-slate-300 bg-white h-24"
           onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-risk-assessments`)}
         >
-          <Archive className="size-12 text-muted-foreground/70 group-hover:text-primary" />
-          <p className="text-primary text-2xl font-semibold">Archived Assessments</p>
-        </div>
+          <CardContent className="p-4 h-full flex items-center">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex flex-col gap-1 flex-1 min-w-0">
+                <h3 className="font-semibold text-sm text-slate-700 line-clamp-1">Archived Assessments</h3>
+                <p className="text-xs text-muted-foreground line-clamp-1">View archived assessments</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

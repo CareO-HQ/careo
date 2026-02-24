@@ -3,13 +3,13 @@
 import CarePlanEvaluationDialog from "@/components/residents/carefile/CarePlanEvaluationDialog";
 import CarePlanDialog from "@/components/residents/carefile/dialogs/CarePlanDialog";
 import EmailPDF from "@/components/residents/carefile/EmailPDF";
-import { FolderProgressIndicator } from "@/components/residents/carefile/FolderCompletionIndicator";
 import FormStatusIndicator, {
   FormStatusBadge
 } from "@/components/residents/carefile/FormStatusIndicator";
 import UploadFileModal from "@/components/residents/carefile/folders/UploadFileModal";
 import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -42,7 +42,6 @@ import {
   Edit2,
   Eye,
   FileIcon,
-  FolderIcon,
   Trash2
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -499,35 +498,51 @@ export default function CareFileFolder({
   // If this folder has been migrated to the full-page layout, navigate instead of opening Sheet
   const migratedRoute = MIGRATED_FOLDER_ROUTES[folderKey];
   if (migratedRoute) {
+    const colors = [
+      { bg: "bg-red-50", text: "text-red-700", icon: "text-red-500" },
+      { bg: "bg-green-50", text: "text-green-700", icon: "text-green-500" },
+      { bg: "bg-blue-50", text: "text-blue-700", icon: "text-blue-500" },
+      { bg: "bg-purple-50", text: "text-purple-700", icon: "text-purple-500" },
+      { bg: "bg-orange-50", text: "text-orange-700", icon: "text-orange-500" },
+      { bg: "bg-pink-50", text: "text-pink-700", icon: "text-pink-500" },
+    ];
+    const colorScheme = colors[index % colors.length];
+
     return (
-      <div
-        className="w-full flex flex-row justify-between items-center gap-3 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded px-2 py-2 group"
+      <Card
+
+      className={`cursor-pointer shadow-none hover:shadow-lg hover:scale-105 transition-all duration-200 border-none ${colorScheme.bg} h-24 relative`}
         onClick={
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           () => router.push(`/dashboard/residents/${residentId}/care-file/${migratedRoute}` as any)
         }
       >
-        <div className="flex flex-row items-center gap-3">
-          <FolderIcon className="size-6 text-muted-foreground/70 group-hover:text-primary" />
-          <p className="text-primary text-base font-medium">
-            {index + 1}. {folderName}
-          </p>
-          {forms && forms.length >= 1 && (
-            <p className="text-muted-foreground text-sm">
-              {forms?.length} {forms?.length === 1 ? "form" : "forms"}
-            </p>
-          )}
+        <div className={`absolute top-2 left-2 text-xs font-bold ${colorScheme.text} opacity-50`}>
+          {index + 1}
         </div>
-        {totalCount > 0 && (
-          <FolderProgressIndicator
-            completedCount={completedCount}
-            totalCount={totalCount}
-            className="flex-shrink-0"
-          />
-        )}
-      </div>
+        <CardContent className="p-4 pt-6 h-full flex items-center">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <h3 className={`font-semibold text-sm leading-tight ${colorScheme.text} line-clamp-2`}>
+                {folderName}
+              </h3>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
+
+  // Color schemes for non-migrated folders
+  const colors = [
+    { bg: "bg-red-50", text: "text-red-700", icon: "text-red-500" },
+    { bg: "bg-green-50", text: "text-green-700", icon: "text-green-500" },
+    { bg: "bg-blue-50", text: "text-blue-700", icon: "text-blue-500" },
+    { bg: "bg-purple-50", text: "text-purple-700", icon: "text-purple-500" },
+    { bg: "bg-orange-50", text: "text-orange-700", icon: "text-orange-500" },
+    { bg: "bg-pink-50", text: "text-pink-700", icon: "text-pink-500" },
+  ];
+  const colorScheme = colors[index % colors.length];
 
   return (
     <div>
@@ -538,27 +553,20 @@ export default function CareFileFolder({
         setIsSheetOpen(open);
       }}>
         <SheetTrigger asChild>
-          <div className="w-full flex flex-row justify-between items-center gap-3 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded px-2 py-2 group">
-            <div className="flex flex-row items-center gap-3">
-              <FolderIcon className="size-6 text-muted-foreground/70 group-hover:text-primary" />
-
-              <p className="text-primary text-base font-medium">
-                {index + 1}. {folderName}
-              </p>
-              {forms && forms.length >= 1 && (
-                <p className="text-muted-foreground text-sm">
-                  {forms?.length} {forms?.length === 1 ? "form" : "forms"}
-                </p>
-              )}
+          <Card className={`cursor-pointer shadow-none hover:shadow-lg hover:scale-105 transition-all duration-200 border-none ${colorScheme.bg} h-24 relative`}>
+            <div className={`absolute top-2 left-2 text-xs font-bold ${colorScheme.text} opacity-50`}>
+              {index + 1}
             </div>
-            {totalCount > 0 && (
-              <FolderProgressIndicator
-                completedCount={completedCount}
-                totalCount={totalCount}
-                className="flex-shrink-0"
-              />
-            )}
-          </div>
+            <CardContent className="p-4 pt-6 h-full flex items-center">
+              <div className="flex items-center justify-between w-full">
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <h3 className={`font-semibold text-sm leading-tight ${colorScheme.text} line-clamp-2`}>
+                    {folderName}
+                  </h3>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </SheetTrigger>
         <SheetContent size="lg" className="flex flex-col">
           {/* Dialogs moved outside Sheet to appear as overlays */}
