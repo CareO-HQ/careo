@@ -9,7 +9,7 @@ import { canFillCareFileForms } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { CareFileFormKey } from "@/types/care-files";
 import { config } from "@/config";
-import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X, ExternalLink } from "lucide-react";
 import { usePathname, useRouter, useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -144,7 +144,14 @@ export default function GenericFolderPage() {
     const { getFormState, loading: formsLoading, refreshForms } = useCareFileForms({ residentId });
     const canFillForms = canFillCareFileForms(profile?.role);
 
-    const folderConfig = config.careFiles.find((f) => f.key === folderKey);
+    console.log("Folder Page Debug - folderKey:", folderKey);
+    console.log("Available keys:", config.careFiles.map(f => f.key));
+
+    const folderConfig = config.careFiles.find((f) => {
+        const target = f.key.toLowerCase().trim().replace(/ /g, "-");
+        const current = folderKey.toLowerCase().trim().replace(/ /g, "-").replace(/%20/g, "-");
+        return target === current || f.key === folderKey;
+    });
     const folderForms = folderConfig?.forms ?? [];
     const folderFormKeys = (folderConfig?.forms || []).map(f => f.key as CareFileFormKey);
     const {
@@ -260,6 +267,14 @@ export default function GenericFolderPage() {
 
     const handleFormClick = async (key: CareFileFormKey) => {
         if (!canFillForms) return;
+
+        // Special handling for external links
+        const formConfig = folderForms.find(f => f.key === key);
+        if (formConfig?.type === "link" && formConfig.url) {
+            window.open(formConfig.url, "_blank");
+            return;
+        }
+
         setActiveFileId(null);
 
         if (activeFormKey === key) {
@@ -369,9 +384,28 @@ export default function GenericFolderPage() {
 
         toast.info(`Generating PDF for ${formName}...`);
 
+        let dataToPrint = { ...formDataForEdit };
+
+        // If it's a care plan, fetch the 5 most recent evaluations
+        if (activeFormKey === "care-plan-form") {
+            const { data: evaluations, error } = await supabase
+                .from('care_plan_evaluations')
+                .select('*')
+                .eq('care_plan_id', formDataForEdit.id || formDataForEdit._id)
+                .order('created_at', { ascending: false })
+                .limit(5);
+
+            if (!error && evaluations) {
+                dataToPrint.evaluations = evaluations.map(e => ({
+                    evaluationDate: e.evaluation_date || e.created_at,
+                    progress_notes: e.progress_notes || e.comments
+                }));
+            }
+        }
+
         await generateCareFilePDF({
             formName,
-            data: formDataForEdit,
+            data: dataToPrint,
             resident,
             orgLogoUrl: activeOrganization?.logo_url,
             careHomeName: activeOrganization?.name || profile?.care_home_name
@@ -666,6 +700,8 @@ export default function GenericFolderPage() {
                                             ? { status: "not-started" as const, hasData: false, isAudited: false }
                                             : getFormState(form.key as CareFileFormKey);
 
+                                        const isLink = form.type === "link";
+
                                         return (
                                             <button
                                                 key={form.key}
@@ -676,18 +712,25 @@ export default function GenericFolderPage() {
                                                     : "hover:bg-muted/60 text-foreground"
                                                     }`}
                                             >
-                                                <FormStatusIndicator
-                                                    status={formState.status}
-                                                    className="h-4 w-4 flex-shrink-0 mt-0.5"
-                                                />
+                                                {!isLink && (
+                                                    <FormStatusIndicator
+                                                        status={formState.status}
+                                                        className="h-4 w-4 flex-shrink-0 mt-0.5"
+                                                    />
+                                                )}
+                                                {isLink && (
+                                                    <ExternalLink className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
+                                                )}
                                                 <div className="min-w-0">
                                                     <p className="text-xs font-semibold leading-tight mb-0.5">
                                                         {form.value}
                                                     </p>
-                                                    <FormStatusBadge
-                                                        status={formState.status}
-                                                        isAudited={formState.isAudited}
-                                                    />
+                                                    {!isLink && (
+                                                        <FormStatusBadge
+                                                            status={formState.status}
+                                                            isAudited={formState.isAudited}
+                                                        />
+                                                    )}
                                                 </div>
                                             </button>
                                         );

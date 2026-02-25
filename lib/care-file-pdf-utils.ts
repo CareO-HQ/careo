@@ -181,20 +181,51 @@ export const generateCareFilePDF = async ({
                 rowY = addSectionTitle(formatFieldKey(key), rowY);
 
                 if (filteredItems.length > 0) {
-                    const headers = Object.keys(filteredItems[0]).filter(k => !SKIP_KEYS.has(k)).map(formatFieldKey);
+                    // Specific field filtering and reordering for evaluations
+                    const EVAL_DATE_KEYS = ["evaluationDate", "evaluation_date"];
+                    const EVAL_NOTES_KEYS = ["progress_notes", "comments"];
+                    let headers = Object.keys(filteredItems[0]).filter(k => !SKIP_KEYS.has(k));
+
+                    // If it looks like an evaluation array, restrict to strict columns
+                    const isEvaluation = headers.some(k => EVAL_DATE_KEYS.includes(k) || EVAL_NOTES_KEYS.includes(k));
+                    if (isEvaluation) {
+                        // Narrow down to one date and one notes field
+                        const dateKey = headers.find(k => EVAL_DATE_KEYS.includes(k));
+                        const notesKey = headers.find(k => EVAL_NOTES_KEYS.includes(k));
+                        headers = [dateKey, notesKey].filter((k): k is string => !!k);
+                    }
+
                     const rows = filteredItems.map(item =>
-                        Object.entries(item)
-                            .filter(([k]) => !SKIP_KEYS.has(k))
-                            .map(([_, v]) => String(v ?? ""))
+                        headers.map(k => {
+                            const v = item[k];
+                            if (v === null || v === undefined) return "";
+                            // Basic date detection and formatting
+                            if (typeof v === "string" && v.includes("T") && !isNaN(Date.parse(v))) {
+                                try {
+                                    return new Date(v).toLocaleDateString('en-GB', {
+                                        day: '2-digit',
+                                        month: 'short',
+                                        year: 'numeric'
+                                    });
+                                } catch (e) { return v; }
+                            }
+                            return String(v);
+                        })
                     );
+
+                    const displayHeaders = headers.map(formatFieldKey);
+
                     autoTable(doc, {
                         startY: rowY,
-                        head: [headers],
+                        head: [displayHeaders],
                         body: rows,
                         margin: { left: margin, right: margin },
                         theme: 'grid',
-                        styles: { fontSize: 8 },
-                        headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55] }
+                        styles: { fontSize: 8, cellPadding: 3 },
+                        headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: 'bold' },
+                        columnStyles: {
+                            0: { cellWidth: 40 }, // Usually date
+                        }
                     });
                     rowY = (doc as any).lastAutoTable.finalY + 10;
                 } else {

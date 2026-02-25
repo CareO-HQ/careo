@@ -258,7 +258,7 @@ export const config = {
     },
     {
       type: "folder",
-      key: "skin integrity",
+      key: "skin-integrity",
       value: "Skin Integrity / Tissue Viability",
       description: "Skin Integrity / Tissue Viability Assessment",
       carePlan: true,
@@ -470,14 +470,14 @@ export const config = {
     {
       type: "folder",
       key: "v2-skin-integrity",
-      value: "Skin Integrity",
+      value: "Skin Integrity / Tissue Viability",
       description: "Wound care and skin integrity.",
       carePlan: true,
       forms: [
         { type: "form", key: "v2-braden-skin", value: "Braden Risk Assessment", isComingSoon: true },
         { type: "form", key: "v2-body-map-skin", value: "Body Map", isComingSoon: true },
         { type: "form", key: "v2-wound-assessment", value: "Wound Assessment", isComingSoon: true },
-        { type: "form", key: "skin-integrity-form", value: "Care Plan + Evaluation" }
+        { type: "form", key: "skin-integrity-form", value: "Skin Integrity / Tissue Viability Assessment" }
       ]
     },
     {

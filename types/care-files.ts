@@ -22,7 +22,8 @@ export type CareFileFormKey =
   | "oral-assessment-form"
   | "diet-notification-form"
   | "choking-risk-assessment-form"
-  | "cornell-depression-scale-form";
+  | "cornell-depression-scale-form"
+  | "must-calculator";
 
 export type CareFileFormStatus =
   | "not-started"

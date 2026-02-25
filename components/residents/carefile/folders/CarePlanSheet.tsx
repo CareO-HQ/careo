@@ -358,7 +358,10 @@ export default function CarePlanSheetContent({
       formName: carePlanData.nameOfCarePlan,
       data: {
         ...carePlanData,
-        evaluations: evaluations // Include evaluations in the PDF
+        evaluations: evaluations.slice(0, 5).map(e => ({
+          evaluationDate: e.evaluation_date || e.created_at,
+          progress_notes: e.progress_notes || e.comments
+        })) // Include ONLY 5 most recent evaluations in the PDF, with clean mapping
       },
       resident: resident,
       orgLogoUrl: activeOrganization?.logo_url,

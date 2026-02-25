@@ -80,8 +80,18 @@ export default function BedrailConsentDialog({
             ? new Date(resident.date_of_birth).getTime()
             : Date.now()),
         consentType: initialData.consentType ?? "ABLE_TO_CONSENT",
-        ableToConsentSection: initialData.ableToConsentSection,
-        unableToConsentSection: initialData.unableToConsentSection
+        ableToConsentSection: initialData.ableToConsentSection ? {
+          ...initialData.ableToConsentSection,
+          staffMemberName: initialData.ableToConsentSection.staffMemberName || userName || "",
+          staffMemberSignature: initialData.ableToConsentSection.staffMemberSignature || userName || "",
+          staffSignatureDate: initialData.ableToConsentSection.staffSignatureDate || new Date().toISOString().split("T")[0]
+        } : undefined,
+        unableToConsentSection: initialData.unableToConsentSection ? {
+          ...initialData.unableToConsentSection,
+          staffMemberName: initialData.unableToConsentSection.staffMemberName || userName || "",
+          staffMemberSignature: initialData.unableToConsentSection.staffMemberSignature || userName || "",
+          staffSignatureDate: initialData.unableToConsentSection.staffSignatureDate || new Date().toISOString().split("T")[0]
+        } : undefined
       }
       : {
         residentId,
@@ -105,7 +115,6 @@ export default function BedrailConsentDialog({
         },
         unableToConsentSection: {
           representativeName: "",
-          discussionAcknowledged: true,
           residentPreference: undefined,
           representativeSignature: "",
           staffMemberName: userName || "",
@@ -228,7 +237,10 @@ export default function BedrailConsentDialog({
                   <FormItem>
                     <FormLabel required>Resident&apos;s Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        {...field}
+                        value={field.value ?? ""}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -241,7 +253,10 @@ export default function BedrailConsentDialog({
                   <FormItem>
                     <FormLabel required>Bedroom Number</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        {...field}
+                        value={field.value ?? ""}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -380,7 +395,11 @@ export default function BedrailConsentDialog({
                       <FormItem>
                         <FormLabel required>Resident Signature</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Type name to sign" />
+                          <Input
+                            {...field}
+                            value={field.value ?? ""}
+                            placeholder="Type name to sign"
+                          />
                         </FormControl>
                         <FormDescription>
                           Type the resident&apos;s name to serve as their
@@ -400,14 +419,11 @@ export default function BedrailConsentDialog({
                         <FormControl>
                           <Input
                             {...field}
-                            value={userName || ""}
-                            readOnly
-                            disabled
-                            className="bg-muted"
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormDescription>
-                          Automatically populated with current user
+                          Staff member completing this assessment
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -423,14 +439,11 @@ export default function BedrailConsentDialog({
                         <FormControl>
                           <Input
                             {...field}
-                            value={userName || ""}
-                            readOnly
-                            disabled
-                            className="bg-muted"
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormDescription>
-                          Automatically populated with current user
+                          Staff signature for confirmation
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -446,10 +459,7 @@ export default function BedrailConsentDialog({
                         <FormControl>
                           <Input
                             {...field}
-                            value={
-                              field.value ||
-                              new Date().toISOString().split("T")[0]
-                            }
+                            value={field.value ?? ""}
                             type="date"
                           />
                         </FormControl>
@@ -482,7 +492,10 @@ export default function BedrailConsentDialog({
                           Next of Kin / Advocate / MDT Member Name
                         </FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input
+                            {...field}
+                            value={field.value ?? ""}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -548,7 +561,11 @@ export default function BedrailConsentDialog({
                           Signature of Relative / Next of Kin
                         </FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Type name to sign" />
+                          <Input
+                            {...field}
+                            value={field.value ?? ""}
+                            placeholder="Type name to sign"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -564,14 +581,11 @@ export default function BedrailConsentDialog({
                         <FormControl>
                           <Input
                             {...field}
-                            value={userName || ""}
-                            readOnly
-                            disabled
-                            className="bg-muted"
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormDescription>
-                          Automatically populated with current user
+                          Staff member completing this assessment
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -587,14 +601,11 @@ export default function BedrailConsentDialog({
                         <FormControl>
                           <Input
                             {...field}
-                            value={userName || ""}
-                            readOnly
-                            disabled
-                            className="bg-muted"
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormDescription>
-                          Automatically populated with current user
+                          Staff signature for confirmation
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -610,10 +621,7 @@ export default function BedrailConsentDialog({
                         <FormControl>
                           <Input
                             {...field}
-                            value={
-                              field.value ||
-                              new Date().toISOString().split("T")[0]
-                            }
+                            value={field.value ?? ""}
                             type="date"
                           />
                         </FormControl>

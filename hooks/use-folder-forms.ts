@@ -630,6 +630,8 @@ export function useFolderForms({
       // Match if the saved folderKey equals the current folderKey, OR
       // if no folderKey was saved at all (legacy data), show in all folders is too broad,
       // so only match if it explicitly matches.
+      // Special case for skin integrity key change
+      if (folderKey === "skin-integrity" && (savedFolderKey === "skin entry" || savedFolderKey === "skin integrity")) return true;
       return savedFolderKey === folderKey;
     });
   }, [activeCarePlanForms, folderKey]);
