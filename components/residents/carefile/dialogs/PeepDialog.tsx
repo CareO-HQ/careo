@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
@@ -34,7 +33,7 @@ import { peepSchema } from "@/schemas/residents/care-file/peepSchema";
 import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, Trash2 } from "lucide-react";
+import { CalendarIcon, Plus, Trash2, Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { cn } from "@/lib/utils";
@@ -53,6 +52,7 @@ interface PeepDialogProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function PeepDialog({
@@ -64,13 +64,12 @@ export default function PeepDialog({
   resident,
   onClose,
   initialData,
-  isEditMode = false
+  isEditMode = false,
+  isInline = false,
 }: PeepDialogProps) {
-  const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
-  const [completionDatePopoverOpen, setCompletionDatePopoverOpen] =
-    useState(false);
+  const [completionDatePopoverOpen, setCompletionDatePopoverOpen] = useState(false);
 
   const { supabase } = useSupabase();
 
@@ -79,7 +78,6 @@ export default function PeepDialog({
     mode: "onChange",
     defaultValues: initialData
       ? {
-        // Use existing data for editing
         residentName:
           initialData.residentName ??
           `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
@@ -115,7 +113,6 @@ export default function PeepDialog({
         status: initialData.status ?? "draft"
       }
       : {
-        // Default values for new forms
         residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
         residentDateOfBirth:
           typeof resident.date_of_birth === "number"
@@ -147,91 +144,29 @@ export default function PeepDialog({
     name: "steps"
   });
 
-  const totalSteps = 5;
-
-  const handleNext = async () => {
-    let isValid = false;
-
-    // Close all date popovers when moving between steps
-    setDobPopoverOpen(false);
-    setCompletionDatePopoverOpen(false);
-
-    if (step === 1) {
-      // Resident Information
-      const fieldsToValidate = [
-        "residentName",
-        "residentDateOfBirth",
-        "bedroomNumber"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 2) {
-      // Assessment Questions
-      const fieldsToValidate = ["understands", "staffNeeded"] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 3) {
-      // Evacuation Steps - no specific validation needed, steps are optional
-      isValid = true;
-    } else if (step === 4) {
-      // Safety Questions
-      const fieldsToValidate = [
-        "oxigenInUse",
-        "residentSmokes",
-        "furnitureFireRetardant"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    } else if (step === 5) {
-      // Completion Details
-      const fieldsToValidate = [
-        "completedBy",
-        "completedBySignature",
-        "assessmentDate"
-      ] as const;
-      isValid = await form.trigger(fieldsToValidate);
-    }
-
-    if (isValid) {
-      if (step < totalSteps) {
-        setStep(step + 1);
-      } else {
-        await handleSubmit();
-      }
-    }
-  };
-
-  const handlePrevious = () => {
-    // Close all date popovers when moving between steps
-    setDobPopoverOpen(false);
-    setCompletionDatePopoverOpen(false);
-
-    if (step > 1) {
-      setStep(step - 1);
-    }
-  };
-
-  const handleSubmit = async () => {
+  const onSubmit = async (values: z.infer<typeof peepSchema>) => {
     startTransition(async () => {
       try {
-        const formData = form.getValues();
         const payload = {
           resident_id: residentId,
           organization_id: organizationId,
           assistance_needed: {
-            understands: formData.understands,
-            staffNeeded: formData.staffNeeded,
-            equipmentNeeded: formData.equipmentNeeded,
-            communicationNeeds: formData.communicationNeeds
+            understands: values.understands,
+            staffNeeded: values.staffNeeded,
+            equipmentNeeded: values.equipmentNeeded,
+            communicationNeeds: values.communicationNeeds
           },
-          evacuation_steps: formData.steps,
+          evacuation_steps: values.steps,
           hazard_info: {
-            oxigenInUse: formData.oxigenInUse,
-            oxigenComments: formData.oxigenComments,
-            residentSmokes: formData.residentSmokes,
-            residentSmokesComments: formData.residentSmokesComments,
-            furnitureFireRetardant: formData.furnitureFireRetardant,
-            furnitureFireRetardantComments: formData.furnitureFireRetardantComments
+            oxigenInUse: values.oxigenInUse,
+            oxigenComments: values.oxigenComments,
+            residentSmokes: values.residentSmokes,
+            residentSmokesComments: values.residentSmokesComments,
+            furnitureFireRetardant: values.furnitureFireRetardant,
+            furnitureFireRetardantComments: values.furnitureFireRetardantComments
           },
-          completed_by: formData.completedBy,
-          assessment_date: format(new Date(formData.assessmentDate), "yyyy-MM-dd"),
+          completed_by: values.completedBy,
+          assessment_date: format(new Date(values.assessmentDate), "yyyy-MM-dd"),
           created_by: userId
         };
 
@@ -243,7 +178,6 @@ export default function PeepDialog({
         );
 
         toast.success(isEditMode ? "PEEP updated successfully" : "PEEP saved successfully");
-
         onClose?.();
       } catch (error) {
         console.error("Error submitting form:", error);
@@ -256,550 +190,207 @@ export default function PeepDialog({
     append({ name: "", description: "" });
   };
 
-  const removeStep = (index: number) => {
-    remove(index);
-  };
+  return (
+    <div className="flex flex-col space-y-8">
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold">Personal Emergency Evacuation Plan (PEEP)</DialogTitle>
+          <DialogDescription>
+            Record evacuation procedures and safety requirements for the resident.
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
-  const renderStepContent = () => {
-    switch (step) {
-      case 1:
-        return (
-          <div className="space-y-4" key="step-1">
-            <div className="grid grid-cols-1 gap-4">
-              <FormField
-                control={form.control}
-                name="residentName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Resident Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="residentDateOfBirth"
-                render={({ field }) => (
+      <div className="space-y-12 pb-20">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
+
+            {/* Section 1: Resident Info */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">1. Resident Information</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField control={form.control} name="residentName" render={({ field }) => (
+                  <FormItem><FormLabel required>Resident Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="bedroomNumber" render={({ field }) => (
+                  <FormItem><FormLabel required>Bedroom Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="residentDateOfBirth" render={({ field }) => (
                   <FormItem>
                     <FormLabel required>Date of Birth</FormLabel>
-                    <Popover
-                      modal
-                      open={dobPopoverOpen}
-                      onOpenChange={setDobPopoverOpen}
-                    >
+                    <Popover modal open={dobPopoverOpen} onOpenChange={setDobPopoverOpen}>
                       <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(new Date(field.value), "PPP")
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
+                        <FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          captionLayout="dropdown"
-                          mode="single"
-                          selected={
-                            field.value ? new Date(field.value) : undefined
-                          }
-                          onSelect={(date) => {
-                            if (date) {
-                              field.onChange(date.getTime());
-                              setDobPopoverOpen(false);
-                            }
-                          }}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
-                          }
-                        />
+                        <Calendar captionLayout="dropdown" mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDobPopoverOpen(false); } }} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} />
                       </PopoverContent>
                     </Popover>
                     <FormMessage />
                   </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="bedroomNumber"
-                render={({ field }) => (
+                )} />
+              </div>
+            </div>
+
+            {/* Section 2: Assistance Needs */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">2. Assistance & Communication</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField control={form.control} name="understands" render={({ field }) => (
                   <FormItem>
-                    <FormLabel required>Bedroom Number</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
+                    <FormLabel required>Understands evacuation plan?</FormLabel>
+                    <Select onValueChange={(value) => field.onChange(value === "true")} value={field.value ? "true" : "false"}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
-                )}
-              />
+                )} />
+                <FormField control={form.control} name="staffNeeded" render={({ field }) => (
+                  <FormItem><FormLabel required>Number of Staff Needed</FormLabel><FormControl><Input {...field} type="number" min="0" onChange={(e) => field.onChange(parseInt(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <div className="md:col-span-2">
+                  <FormField control={form.control} name="equipmentNeeded" render={({ field }) => (
+                    <FormItem><FormLabel>Evacuation Equipment Needed</FormLabel><FormControl><Textarea {...field} placeholder="Wheelchair, evacuation chair, slide sheets..." rows={2} /></FormControl></FormItem>
+                  )} />
+                </div>
+                <div className="md:col-span-2">
+                  <FormField control={form.control} name="communicationNeeds" render={({ field }) => (
+                    <FormItem><FormLabel>Special Communication Needs</FormLabel><FormControl><Textarea {...field} placeholder="Visual aids, hearing aids, translation..." rows={2} /></FormControl></FormItem>
+                  )} />
+                </div>
+              </div>
             </div>
-          </div>
-        );
 
-      case 2:
-        return (
-          <div className="space-y-4" key="step-2">
-            <FormField
-              control={form.control}
-              name="understands"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>
-                    Resident understanding of evacuation plan
-                  </FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(value === "true")}
-                    value={field.value ? "true" : "false"}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select understanding level" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="true">Yes</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Section 3: Hazard & Safety */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">3. Hazard & Safety considerations</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4 p-4 border rounded-xl bg-red-50/20">
+                  <FormField control={form.control} name="oxigenInUse" render={({ field }) => (
+                    <FormItem className="flex items-center justify-between"><FormLabel className="mr-4">Oxygen in use?</FormLabel><FormControl><Select onValueChange={(v) => field.onChange(v === "true")} value={field.value ? "true" : "false"}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent></Select></FormControl></FormItem>
+                  )} />
+                  <FormField control={form.control} name="oxigenComments" render={({ field }) => (
+                    <FormItem><FormLabel>Oxygen Details</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem>
+                  )} />
+                </div>
+                <div className="space-y-4 p-4 border rounded-xl bg-red-50/20">
+                  <FormField control={form.control} name="residentSmokes" render={({ field }) => (
+                    <FormItem className="flex items-center justify-between"><FormLabel className="mr-4">Resident smokes?</FormLabel><FormControl><Select onValueChange={(v) => field.onChange(v === "true")} value={field.value ? "true" : "false"}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent></Select></FormControl></FormItem>
+                  )} />
+                  <FormField control={form.control} name="residentSmokesComments" render={({ field }) => (
+                    <FormItem><FormLabel>Smoking Details</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem>
+                  )} />
+                </div>
+                <div className="md:col-span-2 space-y-4 p-4 border rounded-xl bg-red-50/20">
+                  <FormField control={form.control} name="furnitureFireRetardant" render={({ field }) => (
+                    <FormItem className="flex items-center justify-between"><FormLabel>Furniture is fire retardant?</FormLabel><FormControl><Select onValueChange={(v) => field.onChange(v === "true")} value={field.value ? "true" : "false"}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent></Select></FormControl></FormItem>
+                  )} />
+                  <FormField control={form.control} name="furnitureFireRetardantComments" render={({ field }) => (
+                    <FormItem><FormLabel>Furniture Comments</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem>
+                  )} />
+                </div>
+              </div>
+            </div>
 
-            <FormField
-              control={form.control}
-              name="staffNeeded"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>Number of Staff Needed</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type="number"
-                      min="0"
-                      onChange={(e) =>
-                        field.onChange(parseInt(e.target.value) || 0)
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="equipmentNeeded"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Equipment Needed</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Describe any special equipment needed for evacuation..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="communicationNeeds"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Communication Needs</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Describe any special communication requirements..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="space-y-4" key="step-3">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <FormLabel>Evacuation Steps</FormLabel>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addStep}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Step
+            {/* Section 4: Evacuation Steps */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">4. Evacuation Steps</h3>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addStep}>
+                  <Plus className="w-4 h-4 mr-2" />Add Step
                 </Button>
               </div>
 
-              {fields.map((field, index) => (
-                <div key={field.id} className="space-y-2 p-4 border rounded-md">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-sm font-medium">Step {index + 1}</h4>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeStep(index)}
-                    >
+              {fields.length === 0 && (
+                <div className="text-center py-8 border-2 border-dashed rounded-xl text-muted-foreground bg-muted/5">
+                  No steps added yet. Click &quot;Add Step&quot; to begin.
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-6">
+                {fields.map((field, index) => (
+                  <div key={field.id} className="p-6 border rounded-xl bg-card relative group transition-all hover:border-blue-300 hover:shadow-sm">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)} className="absolute top-4 right-4 text-red-500 hover:text-red-700 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Trash2 className="w-4 h-4" />
                     </Button>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className="md:col-span-1 border-r pr-4">
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Step {index + 1}</span>
+                        <FormField control={form.control} name={`steps.${index}.name`} render={({ field }) => (
+                          <FormItem className="mt-2"><FormLabel className="text-xs">Label</FormLabel><FormControl><Input {...field} placeholder="e.g. Exit building" className="h-8" /></FormControl></FormItem>
+                        )} />
+                      </div>
+                      <div className="md:col-span-3">
+                        <FormField control={form.control} name={`steps.${index}.description`} render={({ field }) => (
+                          <FormItem><FormLabel className="text-xs">Detailed Procedure</FormLabel><FormControl><Textarea {...field} placeholder="How to perform this step..." rows={3} /></FormControl></FormItem>
+                        )} />
+                      </div>
+                    </div>
                   </div>
-                  <FormField
-                    control={form.control}
-                    name={`steps.${index}.name`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Step Name</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="e.g., Move to assembly point"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={`steps.${index}.description`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Step Description</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            {...field}
-                            placeholder="Detailed description of this evacuation step..."
-                            rows={4}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        );
 
-      case 4:
-        return (
-          <div className="space-y-4" key="step-4">
-            <FormField
-              control={form.control}
-              name="oxigenInUse"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Oxygen in use</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(value === "true")}
-                    value={field.value ? "true" : "false"}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select option" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="true">Yes</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Section 5: Sign-off */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">5. Completion Details</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <FormField control={form.control} name="completedBy" render={({ field }) => (
+                  <FormItem><FormLabel required>Completed By</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly disabled /></FormControl></FormItem>
+                )} />
+                <FormField control={form.control} name="completedBySignature" render={({ field }) => (
+                  <FormItem><FormLabel required>Signature</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly disabled /></FormControl></FormItem>
+                )} />
+                <FormField control={form.control} name="assessmentDate" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>Completion Date</FormLabel>
+                    <Popover modal open={completionDatePopoverOpen} onOpenChange={setCompletionDatePopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl><Button variant="outline" className={cn("w-full text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(new Date(field.value), "PPP") : "Pick date"}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar captionLayout="dropdown" mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(date) => { if (date) { field.onChange(date.getTime()); setCompletionDatePopoverOpen(false); } }} />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
 
-            <FormField
-              control={form.control}
-              name="oxigenComments"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Oxygen Comments</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Additional details about oxygen use..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          </form>
+        </Form>
+      </div>
 
-            <FormField
-              control={form.control}
-              name="residentSmokes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Resident smokes</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(value === "true")}
-                    value={field.value ? "true" : "false"}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select option" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="true">Yes</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="residentSmokesComments"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Smoking Comments</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Additional details about smoking habits..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="furnitureFireRetardant"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Furniture is fire retardant</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(value === "true")}
-                    value={field.value ? "true" : "false"}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select option" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="true">Yes</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="furnitureFireRetardantComments"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Furniture Comments</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Additional details about furniture fire safety..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        );
-
-      case 5:
-        return (
-          <div className="space-y-4" key="step-5">
-            <FormField
-              control={form.control}
-              name="completedBy"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>Completed By</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="Staff member name" readOnly disabled className="bg-muted" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="completedBySignature"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>Signature</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="Digital signature or staff initials"
-                      readOnly
-                      disabled
-                      className="bg-muted"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="assessmentDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>Completion Date</FormLabel>
-                  <Popover
-                    modal
-                    open={completionDatePopoverOpen}
-                    onOpenChange={setCompletionDatePopoverOpen}
-                  >
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(new Date(field.value), "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        captionLayout="dropdown"
-                        mode="single"
-                        selected={
-                          field.value ? new Date(field.value) : undefined
-                        }
-                        onSelect={(date) => {
-                          if (date) {
-                            field.onChange(date.getTime());
-                            setCompletionDatePopoverOpen(false);
-                          }
-                        }}
-                        disabled={(date) =>
-                          date > new Date() || date < new Date("1900-01-01")
-                        }
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle>
-          {isEditMode
-            ? "Review PEEP Assessment"
-            : step === 1
-              ? "Personal Emergency Evacuation Plan"
-              : step === 2
-                ? "Assessment Questions"
-                : step === 3
-                  ? "Evacuation Steps"
-                  : step === 4
-                    ? "Safety Considerations"
-                    : step === 5
-                      ? "Completion Details"
-                      : "Personal Emergency Evacuation Plan"}
-        </DialogTitle>
-        <DialogDescription>
-          {isEditMode
-            ? "Review and update the Personal Emergency Evacuation Plan"
-            : step === 1
-              ? "Enter the resident's basic information for the evacuation plan"
-              : step === 2
-                ? "Assess evacuation needs and communication requirements"
-                : step === 3
-                  ? "Define the specific evacuation steps and procedures"
-                  : step === 4
-                    ? "Identify safety considerations and fire risks"
-                    : step === 5
-                      ? "Complete the PEEP with staff signature and date"
-                      : "Create a Personal Emergency Evacuation Plan for the resident"}
-        </DialogDescription>
-      </DialogHeader>
-
-      <Form {...form}>
-        <form
-          onSubmit={(e) => e.preventDefault()}
-          className="space-y-6"
-          autoComplete="off"
-        >
-          <div className="max-h-[60vh] overflow-y-auto px-1">
-            {renderStepContent()}
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={step === 1 ? onClose : handlePrevious}
-              disabled={step === 1 || isLoading}
-            >
-              {step === 1 ? "Cancel" : "Back"}
-            </Button>
-            <Button
-              type="button"
-              onClick={step === totalSteps ? handleSubmit : handleNext}
-              disabled={isLoading}
-            >
-              {isLoading
-                ? "Saving..."
-                : step === totalSteps
-                  ? "Save PEEP"
-                  : "Next"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </Form>
-    </>
+      {!isInline && (
+        <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
+          <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">Cancel</Button>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
+            {isLoading ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+            ) : (
+              isEditMode ? "Save Changes" : "Save PEEP"
+            )}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

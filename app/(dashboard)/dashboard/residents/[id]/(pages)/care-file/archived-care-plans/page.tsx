@@ -55,7 +55,7 @@ export default function ArchivedCarePlansPage() {
           .eq('resident_id', residentId)
           .eq('status', 'archived')
           .order('created_at', { ascending: false });
-        
+
         // Map to convex-like structure for compatibility
         const mappedCarePlans = (carePlansData || []).map(cp => ({
           ...cp,
@@ -65,7 +65,7 @@ export default function ArchivedCarePlansPage() {
           lastName: cp.last_name,
           imageUrl: cp.image_url
         }));
-        
+
         setArchivedCarePlans(mappedCarePlans);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -143,7 +143,7 @@ export default function ArchivedCarePlansPage() {
             <h1 className="text-xl sm:text-2xl font-bold">Archived Care Plans</h1>
           </div>
           <p className="text-muted-foreground text-sm">
-            View previous versions of care plans for {resident.firstName} {resident.lastName}
+            View previous versions of care plans for {resident.first_name} {resident.last_name}
           </p>
         </div>
       </div>
@@ -230,7 +230,7 @@ export default function ArchivedCarePlansPage() {
 
       {/* Care Plan View Dialog */}
       {viewingCarePlan && (
-      <CarePlanViewDialog
+        <CarePlanViewDialog
           open={isDialogOpen}
           onOpenChange={setIsDialogOpen}
           carePlan={viewingCarePlan}

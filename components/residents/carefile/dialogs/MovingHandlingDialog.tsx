@@ -46,6 +46,7 @@ interface MovingHandlingDialogProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function MovingHandlingDialog({
@@ -57,9 +58,9 @@ export default function MovingHandlingDialog({
   resident,
   onClose,
   initialData,
-  isEditMode = false
+  isEditMode = false,
+  isInline = false,
 }: MovingHandlingDialogProps) {
-  const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
 
   const form = useForm<z.infer<typeof movingHandlingAssessmentSchema>>({
@@ -255,14 +256,6 @@ export default function MovingHandlingDialog({
     });
   };
 
-  const handleNext = async () => {
-    let fields: any[] = [];
-    if (step === 1) fields = ["residentName", "weight", "height"];
-    else if (step === 2) fields = ["canWeightBear", "limbUpperRight", "limbUpperLeft", "limbLowerRight", "limbLowerLeft"];
-
-    const isValid = await form.trigger(fields as any);
-    if (isValid || step > 2) setStep(prev => prev + 1);
-  };
 
   const RiskEntry = ({ name, label }: { name: string, label: string }) => {
     const stateName = (name === "localisedPain" ? "localisedPain" : `${name}State`) as any;
@@ -293,43 +286,50 @@ export default function MovingHandlingDialog({
   };
 
   return (
-    <div className="max-h-[80vh] flex flex-col">
-      <DialogHeader>
-        <DialogTitle>Moving & Handling Assessment (Step {step}/7)</DialogTitle>
-        <DialogDescription>
-          {step === 1 && "Resident Information"}
-          {step === 2 && "Mobility Assessment"}
-          {step === 3 && "Sensory and Behavioral Risk Factors"}
-          {step === 4 && "Cognitive and Emotional Risk Factors"}
-          {step === 5 && "Physical Risk Factors"}
-          {step === 6 && "Additional Risk Factors"}
-          {step === 7 && "Completion"}
-        </DialogDescription>
-      </DialogHeader>
+    <div className="flex flex-col space-y-8">
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold">Moving & Handling Assessment</DialogTitle>
+          <DialogDescription>
+            Comprehensive assessment of mobility and risk factors.
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
-      <div className="flex-1 overflow-y-auto px-1 py-4">
+      <div className="space-y-12">
         <Form {...form}>
-          <form className="space-y-6 px-1">
-            {step === 1 && (
-              <div className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            {/* Section 1: Resident Information */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Resident Information</h3>
+              </div>
+              <div className="grid gap-6">
                 <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-6">
                   <FormField control={form.control} name="weight" render={({ field }) => <FormItem><FormLabel>Weight (kg)</FormLabel><FormControl><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl></FormItem>} />
                   <FormField control={form.control} name="height" render={({ field }) => <FormItem><FormLabel>Height (cm)</FormLabel><FormControl><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl></FormItem>} />
                 </div>
                 <FormField control={form.control} name="historyOfFalls" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-card/50">
                     <div className="space-y-0.5"><FormLabel>History of Falls?</FormLabel></div>
                     <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                   </FormItem>
                 )} />
               </div>
-            )}
+            </div>
 
-            {step === 2 && (
-              <div className="space-y-4">
+            {/* Section 2: Mobility Assessment */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Mobility Assessment</h3>
+              </div>
+              <div className="grid gap-6">
                 <FormField control={form.control} name="independentMobility" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-card/50">
                     <div className="space-y-0.5"><FormLabel>Independent Mobility?</FormLabel></div>
                     <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                   </FormItem>
@@ -345,81 +345,109 @@ export default function MovingHandlingDialog({
                     </SelectContent>
                   </Select></FormItem>
                 )} />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   {["limbUpperRight", "limbUpperLeft", "limbLowerRight", "limbLowerLeft"].map(k => (
                     <FormField key={k} control={form.control} name={k as any} render={({ field }) => (
-                      <FormItem><FormLabel className="capitalize">{k.replace('limb', '').replace(/([A-Z])/g, ' $1')}</FormLabel>
+                      <FormItem className="p-4 border rounded-lg bg-card/30">
+                        <FormLabel className="capitalize font-medium">{k.replace('limb', '').replace(/([A-Z])/g, ' $1')}</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                          <FormControl><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger></FormControl>
                           <SelectContent><SelectItem value="FULLY">Fully</SelectItem><SelectItem value="PARTIALLY">Partially</SelectItem><SelectItem value="NONE">None</SelectItem></SelectContent>
                         </Select></FormItem>
                     )} />
                   ))}
                 </div>
               </div>
-            )}
+            </div>
 
-            {step === 3 && (
-              <div className="space-y-4">
-                <RiskEntry name="deafness" label="Deafness" />
-                <RiskEntry name="blindness" label="Blindness" />
-                <RiskEntry name="unpredictableBehaviour" label="Unpredictable Behaviour" />
-                <RiskEntry name="uncooperativeBehaviour" label="Uncooperative Behaviour" />
+            {/* Section 3: Risk Factors */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Risk Factors</h3>
               </div>
-            )}
 
-            {step === 4 && (
-              <div className="space-y-4">
-                <RiskEntry name="distressedReaction" label="Distressed Reaction" />
-                <RiskEntry name="disorientated" label="Disorientated" />
-                <RiskEntry name="unconscious" label="Unconscious" />
-                <RiskEntry name="unbalance" label="Unbalance" />
+              <div className="space-y-8">
+                <div>
+                  <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Sensory & Behavioral</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <RiskEntry name="deafness" label="Deafness" />
+                    <RiskEntry name="blindness" label="Blindness" />
+                    <RiskEntry name="unpredictableBehaviour" label="Unpredictable Behaviour" />
+                    <RiskEntry name="uncooperativeBehaviour" label="Uncooperative Behaviour" />
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Cognitive & Emotional</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <RiskEntry name="distressedReaction" label="Distressed Reaction" />
+                    <RiskEntry name="disorientated" label="Disorientated" />
+                    <RiskEntry name="unconscious" label="Unconscious" />
+                    <RiskEntry name="unbalance" label="Unbalance" />
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Physical & Other</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <RiskEntry name="spasms" label="Spasms" />
+                    <RiskEntry name="stiffness" label="Stiffness" />
+                    <RiskEntry name="catheters" label="Catheters" />
+                    <RiskEntry name="incontinence" label="Incontinence" />
+                    <RiskEntry name="localisedPain" label="Localised Pain" />
+                    <RiskEntry name="other" label="Other Risks" />
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
 
-            {step === 5 && (
-              <div className="space-y-4">
-                <RiskEntry name="spasms" label="Spasms" />
-                <RiskEntry name="stiffness" label="Stiffness" />
-                <RiskEntry name="catheters" label="Catheters" />
-                <RiskEntry name="incontinence" label="Incontinence" />
+            {/* Section 4: Requirements */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Requirements & Equipment</h3>
               </div>
-            )}
-
-            {step === 6 && (
               <div className="grid gap-6">
-                <div className="space-y-4">
-                  <RiskEntry name="localisedPain" label="Localised Pain" />
-                  <RiskEntry name="other" label="Other Risks" />
-                </div>
-                <div className="space-y-4 pt-4 border-t">
-                  <FormField control={form.control} name="needsRiskStaff" render={({ field }) => (<FormItem><FormLabel>Specific Risk Staff Requirements</FormLabel><FormControl><Textarea placeholder="Details..." {...field} /></FormControl></FormItem>)} />
-                  <FormField control={form.control} name="equipmentUsed" render={({ field }) => (<FormItem><FormLabel>Equipment Required</FormLabel><FormControl><Input placeholder="Hoist, Slide sheets, etc." {...field} /></FormControl></FormItem>)} />
-                </div>
+                <FormField control={form.control} name="needsRiskStaff" render={({ field }) => (<FormItem><FormLabel>Specific Risk Staff Requirements</FormLabel><FormControl><Textarea placeholder="Details..." className="min-h-[100px]" {...field} /></FormControl></FormItem>)} />
+                <FormField control={form.control} name="equipmentUsed" render={({ field }) => (<FormItem><FormLabel>Equipment Required</FormLabel><FormControl><Input placeholder="Hoist, Slide sheets, etc." {...field} /></FormControl></FormItem>)} />
               </div>
-            )}
+            </div>
 
-            {step === 7 && (
-              <div className="space-y-4">
+            {/* Section 5: Completion */}
+            <div className="space-y-6 pt-4">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Completion & Signature</h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted" /></FormControl></FormItem>} />
                 <FormField control={form.control} name="jobRole" render={({ field }) => <FormItem><FormLabel>Job Role</FormLabel><FormControl><Input placeholder="e.g. Care Manager" {...field} /></FormControl><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel>Digital Signature (Name)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
                 <FormField control={form.control} name="assessmentDate" render={({ field }) => <FormItem><FormLabel>Completion Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} />
               </div>
-            )}
+            </div>
           </form>
         </Form>
       </div>
 
-      <DialogFooter className="border-t p-4 mt-auto">
-        <Button variant="outline" onClick={() => (step === 1 ? onClose?.() : setStep(step - 1))} disabled={isLoading}>
-          {step === 1 ? "Cancel" : "Back"}
-        </Button>
-        <Button onClick={step === 7 ? form.handleSubmit(onSubmit) : handleNext} disabled={isLoading}>
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {step === 7 ? "Save Assessment" : "Next"}
-        </Button>
-      </DialogFooter>
+      {!isInline && (
+        <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
+          <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
+            Cancel
+          </Button>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Assessment"
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

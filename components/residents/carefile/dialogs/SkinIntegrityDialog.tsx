@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button";
 import {
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
@@ -32,7 +31,7 @@ import { skinIntegrityAssessmentSchema } from "@/schemas/residents/care-file/ski
 import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { cn } from "@/lib/utils";
@@ -52,6 +51,7 @@ interface SkinIntegrityDialogProps {
   onClose?: () => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function SkinIntegrityDialog({
@@ -63,17 +63,17 @@ export default function SkinIntegrityDialog({
   resident,
   onClose,
   initialData,
-  isEditMode = false
+  isEditMode = false,
+  isInline = false
 }: SkinIntegrityDialogProps) {
-  const [step, setStep] = useState<number>(1);
   const [isLoading, startTransition] = useTransition();
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
 
   const form = useForm<z.infer<typeof skinIntegrityAssessmentSchema>>({
     resolver: zodResolver(skinIntegrityAssessmentSchema),
     mode: "onChange",
     defaultValues: initialData
       ? {
-        // Flatten assessment_details JSONB if coming from DB
         residentId: residentId,
         teamId,
         organizationId,
@@ -108,54 +108,31 @@ export default function SkinIntegrityDialog({
       }
   });
 
-  const totalSteps = 2;
-
-  const handleNext = async () => {
-    let isValid = false;
-
-    if (step === 1) {
-      isValid = await form.trigger(["residentName", "bedroomNumber", "assessmentDate"]);
-    } else if (step === 2) {
-      isValid = await form.trigger(["sensoryPerception", "moisture", "activity", "mobility", "nutrition", "frictionShear"]);
-    }
-
-    if (isValid || step === totalSteps) {
-      if (step < totalSteps) {
-        setStep(step + 1);
-      } else {
-        await handleSubmit();
-      }
-    }
-  };
-
-  const handlePrevious = () => { if (step > 1) setStep(step - 1); };
-
-  const handleSubmit = async () => {
+  const onSubmit = async (values: z.infer<typeof skinIntegrityAssessmentSchema>) => {
     startTransition(async () => {
       try {
-        const formData = form.getValues();
         const currentUserId = userId;
         if (!currentUserId) throw new Error("User not authenticated");
 
         const totalScore =
-          formData.sensoryPerception +
-          formData.moisture +
-          formData.activity +
-          formData.mobility +
-          formData.nutrition +
-          formData.frictionShear;
+          values.sensoryPerception +
+          values.moisture +
+          values.activity +
+          values.mobility +
+          values.nutrition +
+          values.frictionShear;
 
         let riskLevel = "Low Risk";
         if (totalScore < 12) riskLevel = "High Risk";
         else if (totalScore <= 14) riskLevel = "Moderate Risk";
 
         const assessmentDetails = {
-          sensoryPerception: formData.sensoryPerception,
-          moisture: formData.moisture,
-          activity: formData.activity,
-          mobility: formData.mobility,
-          nutrition: formData.nutrition,
-          frictionShear: formData.frictionShear
+          sensoryPerception: values.sensoryPerception,
+          moisture: values.moisture,
+          activity: values.activity,
+          mobility: values.mobility,
+          nutrition: values.nutrition,
+          frictionShear: values.frictionShear
         };
 
         const payload = {
@@ -164,8 +141,8 @@ export default function SkinIntegrityDialog({
           risk_score: totalScore,
           risk_level: riskLevel,
           assessment_details: assessmentDetails,
-          assessment_date: new Date(formData.assessmentDate).toISOString().split('T')[0],
-          completed_by: formData.completedBy,
+          assessment_date: new Date(values.assessmentDate).toISOString().split('T')[0],
+          completed_by: values.completedBy,
           created_by: currentUserId
         };
 
@@ -192,15 +169,14 @@ export default function SkinIntegrityDialog({
         }
 
         onClose?.();
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error submitting form:", error);
-        toast.error("Failed to save skin integrity assessment");
+        toast.error(error.message || "Failed to save skin integrity assessment");
       }
     });
   };
 
   const getScoreDescription = (category: string, score: number): string => {
-    // Concise descriptions for brevity in this file content, full texts preserved in logic
     const descriptions: any = {
       sensoryPerception: { 1: "Completely Limited", 2: "Very Limited", 3: "Slightly Limited", 4: "No Impairment" },
       moisture: { 1: "Constantly Moist", 2: "Very Moist", 3: "Occasionally Moist", 4: "Rarely Moist" },
@@ -212,63 +188,146 @@ export default function SkinIntegrityDialog({
     return descriptions[category]?.[score] || "";
   };
 
+  const currentScore =
+    form.watch("sensoryPerception") +
+    form.watch("moisture") +
+    form.watch("activity") +
+    form.watch("mobility") +
+    form.watch("nutrition") +
+    form.watch("frictionShear");
+
+  let riskLevel = "Low Risk";
+  let riskColor = "text-green-600";
+  if (currentScore < 12) {
+    riskLevel = "High Risk";
+    riskColor = "text-destructive";
+  } else if (currentScore <= 14) {
+    riskLevel = "Moderate Risk";
+    riskColor = "text-amber-600";
+  }
+
   return (
-    <div className="max-h-[80vh] flex flex-col">
-      <DialogHeader>
-        <DialogTitle>Skin Integrity Assessment (Braden Scale)</DialogTitle>
-        <DialogDescription>Step {step} of 2</DialogDescription>
-      </DialogHeader>
+    <div className="flex flex-col space-y-8">
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold">Skin Integrity Assessment</DialogTitle>
+          <DialogDescription>
+            Identify risk of pressure injury using the Braden Scale.
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="space-y-12 pb-20">
         <Form {...form}>
-          <form className="space-y-6">
-            {step === 1 && (
-              <div className="space-y-4">
-                <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Name</FormLabel><Input {...field} /></FormItem>} />
-                <FormField control={form.control} name="bedroomNumber" render={({ field }) => <FormItem><FormLabel>Room</FormLabel><Input {...field} /></FormItem>} />
-                <FormField control={form.control} name="assessmentDate" render={({ field }) => <FormItem><FormLabel>Date</FormLabel><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full text-left">{field.value ? format(new Date(field.value), "PPP") : "Pick date"}</Button></PopoverTrigger><PopoverContent><Calendar mode="single" selected={new Date(field.value)} onSelect={d => field.onChange(d?.getTime())} /></PopoverContent></Popover></FormItem>} />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            {/* Section 1: Basic Information */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Basic Information</h3>
               </div>
-            )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField control={form.control} name="residentName" render={({ field }) => (
+                  <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="bedroomNumber" render={({ field }) => (
+                  <FormItem><FormLabel>Bedroom Number</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="assessmentDate" render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel required>Assessment Date</FormLabel>
+                    <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen} modal>
+                      <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(new Date(field.value), "PPP") : <span>Pick date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDatePopoverOpen(false); } }} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} /></PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="completedBy" render={({ field }) => (
+                  <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+                )} />
+              </div>
+            </div>
 
-            {step === 2 && (
-              <div className="space-y-4">
+            {/* Section 2: Braden Scale Parameters */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Braden Scale Assessment</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10">
                 {["sensoryPerception", "moisture", "activity", "mobility", "nutrition", "frictionShear"].map((key) => (
                   <FormField key={key} control={form.control} name={key as any} render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</FormLabel>
-                      <Select onValueChange={v => field.onChange(Number(v))} value={field.value?.toString()}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {[1, 2, 3, 4].map(i => (
-                            (key === 'frictionShear' && i === 4) ? null :
-                              <SelectItem key={i} value={String(i)}>{i} - {getScoreDescription(key, i)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <FormItem className="space-y-3">
+                      <FormLabel className="text-base font-semibold capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</FormLabel>
+                      <FormControl>
+                        <Select onValueChange={v => field.onChange(Number(v))} value={field.value?.toString()}>
+                          <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4].filter(i => !(key === 'frictionShear' && i === 4)).map(i => (
+                              <SelectItem key={i} value={String(i)} className="py-3">
+                                <div className="flex flex-col">
+                                  <span className="font-bold">Score {i}</span>
+                                  <span className="text-xs text-muted-foreground">{getScoreDescription(key, i)}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
                     </FormItem>
                   )} />
                 ))}
+              </div>
+            </div>
 
-                <div className="p-4 bg-muted rounded">
-                  <p className="font-bold">Total Score: {
-                    form.watch("sensoryPerception") +
-                    form.watch("moisture") +
-                    form.watch("activity") +
-                    form.watch("mobility") +
-                    form.watch("nutrition") +
-                    form.watch("frictionShear")
-                  }</p>
+            {/* Risk Summary Card */}
+            <div className="p-8 border rounded-2xl bg-muted/30 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Assessment Summary</h4>
+                  <p className="text-3xl font-black mt-2">Braden Score: {currentScore}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Risk Level</p>
+                  <p className={cn("text-2xl font-black mt-2", riskColor)}>{riskLevel}</p>
                 </div>
               </div>
-            )}
+              <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
+                <div
+                  className={cn("h-full transition-all duration-500",
+                    currentScore < 12 ? "bg-destructive" : currentScore <= 14 ? "bg-amber-500" : "bg-green-500"
+                  )}
+                  style={{ width: `${(currentScore / 23) * 100}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground italic">
+                * High Risk: &lt; 12 | Moderate Risk: 12-14 | Low Risk: 15-23
+              </p>
+            </div>
           </form>
         </Form>
       </div>
 
-      <div className="border-t pt-2 flex justify-between">
-        <Button variant="outline" onClick={step === 1 ? onClose : handlePrevious} disabled={isLoading}>{step === 1 ? "Cancel" : "Back"}</Button>
-        <Button onClick={handleNext}>{step === totalSteps ? (isLoading ? "Saving..." : "Save Assessment") : "Next"}</Button>
-      </div>
+      {!isInline && (
+        <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
+          <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
+            Cancel
+          </Button>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              isEditMode ? "Save Changes" : "Save Assessment"
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

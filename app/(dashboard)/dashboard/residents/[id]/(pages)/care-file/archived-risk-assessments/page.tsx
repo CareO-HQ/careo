@@ -504,7 +504,7 @@ export default function ArchivedRiskAssessmentsPage() {
             <h1 className="text-xl sm:text-2xl font-bold">Archived Assessments</h1>
           </div>
           <p className="text-muted-foreground text-sm">
-            View previous versions of assessments for {resident.firstName} {resident.lastName}
+            View previous versions of assessments for {resident.first_name} {resident.last_name}
           </p>
         </div>
       </div>

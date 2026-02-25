@@ -9,9 +9,10 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
-import { FileText } from "lucide-react";
+import { FileText, BriefcaseIcon } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { CarePlanEvaluations } from "../CarePlanEvaluations";
 
 const safeFormat = (dateValue: any, formatStr: string) => {
   if (!dateValue) return "N/A";
@@ -29,8 +30,9 @@ const SKIP_KEYS = new Set([
   "id", "_id", "resident_id", "residentId", "organization_id", "organizationId",
   "team_id", "teamId", "user_id", "userId", "created_by", "createdBy",
   "created_at", "createdAt", "updated_at", "updatedAt", "updated_by", "updatedBy",
-  "previous_version_id", "previousVersionId", "previous_care_plan_id",
-  "status", "archived_at", "archivedAt", "version", "is_archived", "isArchived",
+  "previous_version_id", "previousVersionId", "previous_care_plan_id", "Previous_care_plan_id",
+  "status", "archived_at", "archivedAt", "Archived_at", "version", "is_archived", "isArchived",
+  "Previous_version_id", "Previous_version_ID",
   "pdf_file_id", "pdfFileId", "pdf_generated", "pdfGenerated",
   "pdf_generated_at", "pdfGeneratedAt", "saved_as_draft", "savedAsDraft",
   "__v", "_rev"
@@ -43,6 +45,24 @@ const formatFieldKey = (key: string): string => {
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (str) => str.toUpperCase())
     .trim();
+};
+
+// Check if a value is effectively empty
+const isEmptyValue = (value: any): boolean => {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return value.trim() === "";
+  if (typeof value === "number") return false; // Zero is a value
+  if (typeof value === "boolean") return false; // false is a valid answer
+  if (Array.isArray(value)) {
+    if (value.length === 0) return true;
+    return value.every(v => isEmptyValue(v));
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value).filter(([k]) => !SKIP_KEYS.has(k));
+    if (entries.length === 0) return true;
+    return entries.every(([_, v]) => isEmptyValue(v));
+  }
+  return false;
 };
 
 // Recursively render any value in a human-readable format
@@ -93,35 +113,31 @@ const renderNestedValue = (value: any, label?: string, depth: number = 0): React
 
   // Array
   if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return label ? (
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="text-sm text-muted-foreground">None</p>
-        </div>
-      ) : null;
+    const filteredItems = value.filter(item => !isEmptyValue(item));
+    if (filteredItems.length === 0) {
+      return null;
     }
 
     // Array of primitives
-    if (typeof value[0] !== "object" || value[0] === null) {
+    if (typeof filteredItems[0] !== "object" || filteredItems[0] === null) {
       return label ? (
         <div className="space-y-1">
           <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="text-sm">{value.join(", ")}</p>
+          <p className="text-sm">{filteredItems.join(", ")}</p>
         </div>
-      ) : <span>{value.join(", ")}</span>;
+      ) : <span>{filteredItems.join(", ")}</span>;
     }
 
     // Array of objects
     return (
       <div className="space-y-2">
         {label && <p className="text-xs font-medium text-muted-foreground">{label}</p>}
-        {value.map((item: any, index: number) => (
+        {filteredItems.map((item: any, index: number) => (
           <div key={index} className={`p-3 border rounded-lg ${depth === 0 ? "bg-muted/30" : "bg-muted/20"} space-y-2`}>
             <p className="text-xs font-semibold text-muted-foreground">Entry {index + 1}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {Object.entries(item)
-                .filter(([k]) => !SKIP_KEYS.has(k))
+                .filter(([k, v]) => !SKIP_KEYS.has(k) && !isEmptyValue(v))
                 .map(([k, v]) => (
                   <div key={k}>
                     {renderNestedValue(v, formatFieldKey(k), depth + 1)}
@@ -135,8 +151,8 @@ const renderNestedValue = (value: any, label?: string, depth: number = 0): React
   }
 
   // Object
-  if (typeof value === "object") {
-    const entries = Object.entries(value).filter(([k]) => !SKIP_KEYS.has(k));
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value).filter(([k, v]) => !SKIP_KEYS.has(k) && !isEmptyValue(v));
     if (entries.length === 0) return null;
 
     return (
@@ -156,6 +172,8 @@ const renderNestedValue = (value: any, label?: string, depth: number = 0): React
   }
 
   // Fallback
+  if (isEmptyValue(value)) return null;
+
   return label ? (
     <div className="space-y-1">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
@@ -164,23 +182,19 @@ const renderNestedValue = (value: any, label?: string, depth: number = 0): React
   ) : <span>{String(value)}</span>;
 };
 
-interface RiskAssessmentViewDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+export interface RiskAssessmentViewerProps {
   assessment: {
     formKey: string;
     formId: string;
     name: string;
     completedAt: number;
-    category: string;
+    category?: string;
   };
 }
 
-export default function RiskAssessmentViewDialog({
-  open,
-  onOpenChange,
+export function RiskAssessmentViewer({
   assessment
-}: RiskAssessmentViewDialogProps) {
+}: RiskAssessmentViewerProps) {
   // Fetch the assessment data based on the form key
   const [assessmentData, setAssessmentData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -208,12 +222,13 @@ export default function RiskAssessmentViewDialog({
     "diet-notification-form": "diet_notifications",
     "choking-risk-assessment-form": "choking_risk_assessments",
     "cornell-depression-scale-form": "cornell_depression_scales",
-    "best-interest-decision-form": "best_interest_decisions"
+    "best-interest-decision-form": "best_interest_decisions",
+    "care-plan-form": "care_plan_assessments"
   };
 
   useEffect(() => {
     async function fetchData() {
-      if (!open || !assessment.formId) return;
+      if (!assessment.formId) return;
 
       try {
         const table = TABLE_MAP[assessment.formKey];
@@ -233,46 +248,23 @@ export default function RiskAssessmentViewDialog({
     }
 
     fetchData();
-  }, [open, assessment.formId, assessment.formKey]);
+  }, [assessment.formId, assessment.formKey]);
 
   if (loading) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Loading Assessment</DialogTitle>
-            <DialogDescription>Please wait while we load the assessment details...</DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+      </div>
     );
   }
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case "Infection Control":
-        return "bg-blue-50 text-blue-700";
-      case "Moving & Handling":
-        return "bg-orange-50 text-orange-700";
-      case "Fall Risk":
-        return "bg-red-50 text-red-700";
-      case "Risk Assessment":
-        return "bg-amber-50 text-amber-700";
-      case "Continence":
-        return "bg-purple-50 text-purple-700";
-      case "Medication":
-        return "bg-green-50 text-green-700";
-      case "Nutrition":
-        return "bg-emerald-50 text-emerald-700";
-      case "Capacity":
-        return "bg-indigo-50 text-indigo-700";
-      default:
-        return "bg-gray-50 text-gray-700";
-    }
-  };
+  if (!assessmentData) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        No data found for this assessment.
+      </div>
+    );
+  }
 
   const renderAssessmentContent = () => {
     // Render different content based on assessment type
@@ -284,19 +276,8 @@ export default function RiskAssessmentViewDialog({
           // Skip internal fields
           if (
             key.startsWith("_") ||
-            key === "residentId" ||
-            key === "userId" ||
-            key === "organizationId" ||
-            key === "teamId" ||
-            key === "createdBy" || // Skip createdBy ID, we show createdByName instead
-            key === "updatedBy" ||
-            key === "pdfFileId" ||
-            key === "pdfGenerated" ||
-            key === "pdfGeneratedAt" ||
-            key === "isArchived" ||
-            key === "archivedAt" ||
-            key === "savedAsDraft" ||
-            key === "updatedAt" ||
+            SKIP_KEYS.has(key) ||
+            isEmptyValue(value) || // Hide empty fields
             // Skip consent sections as they're handled specially above
             (key === "ableToConsentSection" && assessment.formKey === "bedrail-consent-form") ||
             (key === "unableToConsentSection" && assessment.formKey === "bedrail-consent-form") ||
@@ -317,7 +298,6 @@ export default function RiskAssessmentViewDialog({
 
           // Special handling for Date of Birth
           if (key === "dateOfBirth") {
-            const dateValue = typeof value === "number" ? new Date(value) : null;
             return (
               <div key={key} className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Date of Birth</p>
@@ -634,14 +614,6 @@ export default function RiskAssessmentViewDialog({
               // Check if it's a simple {value: string} structure
               if ("value" in value[0]) {
                 displayValue = value.map((item: any) => item.value).join(", ");
-              } else if ("details" in value[0]) {
-                // Handle "other" array with detailed structure
-                displayValue = value
-                  .map(
-                    (item: any, index: number) =>
-                      `${index + 1}. ${item.details}\n   Received by: ${item.receivedBy} | Witnessed by: ${item.witnessedBy}\n   Date: ${safeFormat(item.date, "dd MMM yyyy")} at ${item.time}`
-                  )
-                  .join("\n\n");
               } else {
                 // Array of complex objects — use recursive renderer
                 return (
@@ -847,6 +819,53 @@ export default function RiskAssessmentViewDialog({
   };
 
   return (
+    <div className="space-y-6">
+      {renderAssessmentContent()}
+    </div>
+  );
+}
+
+const getCategoryColor = (category?: string) => {
+  switch (category) {
+    case "Infection Control":
+      return "bg-blue-50 text-blue-700";
+    case "Moving & Handling":
+      return "bg-orange-50 text-orange-700";
+    case "Fall Risk":
+      return "bg-red-50 text-red-700";
+    case "Risk Assessment":
+      return "bg-amber-50 text-amber-700";
+    case "Continence":
+      return "bg-purple-50 text-purple-700";
+    case "Medication":
+      return "bg-green-50 text-green-700";
+    case "Nutrition":
+      return "bg-emerald-50 text-emerald-700";
+    case "Capacity":
+      return "bg-indigo-50 text-indigo-700";
+    default:
+      return "bg-gray-50 text-gray-700";
+  }
+};
+
+export interface RiskAssessmentViewDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  assessment: {
+    formKey: string;
+    formId: string;
+    name: string;
+    completedAt: number;
+    category?: string;
+  };
+}
+
+export default function RiskAssessmentViewDialog({
+  open,
+  onOpenChange,
+  assessment
+}: RiskAssessmentViewDialogProps) {
+  return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl w-[calc(100vw-3rem)] max-h-[calc(100vh-3rem)] flex flex-col gap-0 p-0 overflow-hidden">
         {/* Header */}
@@ -854,13 +873,20 @@ export default function RiskAssessmentViewDialog({
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <DialogTitle className="text-lg font-bold mb-2">
-                {assessment.name}
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  {assessment.name}
+                </div>
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded-full ${getCategoryColor(assessment.category)}`}>
-                  {assessment.category}
-                </span>
-                <span>•</span>
+                {assessment.category && (
+                  <>
+                    <span className={`px-2 py-0.5 rounded-full ${getCategoryColor(assessment.category)}`}>
+                      {assessment.category}
+                    </span>
+                    <span>•</span>
+                  </>
+                )}
                 <span>{safeFormat(assessment.completedAt, "dd MMM yyyy 'at' HH:mm")}</span>
               </DialogDescription>
             </div>
@@ -870,7 +896,7 @@ export default function RiskAssessmentViewDialog({
         {/* Content */}
         <ScrollArea className="flex-1 overflow-y-auto">
           <div className="px-6 py-6 space-y-6 pb-8">
-            {renderAssessmentContent()}
+            <RiskAssessmentViewer assessment={assessment} />
           </div>
         </ScrollArea>
       </DialogContent>

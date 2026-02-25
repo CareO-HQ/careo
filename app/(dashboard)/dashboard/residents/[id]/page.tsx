@@ -103,7 +103,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       const filteredAlerts = (alertsData || []).filter(
         (alert: any) => !dismissedAlertIds.has(alert.id)
       );
-      
+
       setAlerts(filteredAlerts);
     }
     setIsLoading(false);
@@ -126,7 +126,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
 
   const handleDismissAlert = async (alertId: string) => {
     if (!profile?.id) return;
-    
+
     try {
       // Insert into alert_dismissals table for per-user dismissal tracking
       const { error } = await supabase
@@ -289,6 +289,30 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                       <h3 className="font-semibold">Care File</h3>
                       <p className="text-sm text-muted-foreground">
                         Care plan & records
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {/* Care File V2 Card */}
+          {canViewResidentSection("care-file", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("care-file-v2")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-orange-50 rounded-lg">
+                      <FileText className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Care File V2</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Enhanced care records
                       </p>
                     </div>
                   </div>

@@ -331,6 +331,32 @@ function generateCarePlanHTML(assessment: any): string {
     }
       </div>
 
+      ${assessment.evaluations && assessment.evaluations.length > 0 ? `
+      <div class="section">
+        <div class="section-title">Recent Evaluations</div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width: 30%">Date</th>
+              <th>Progress Notes / Comments</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${assessment.evaluations
+        .map(
+          (evalItem: any) => `
+              <tr>
+                <td>${formatDate(evalItem.evaluationDate || evalItem.evaluation_date || evalItem.created_at)}</td>
+                <td>${evalItem.comments || evalItem.progress_notes || ""}</td>
+              </tr>
+            `
+        )
+        .join("")}
+          </tbody>
+        </table>
+      </div>
+      ` : ""}
+
       <div class="footer">
         <p>Generated on: ${new Date().toLocaleDateString("en-GB")} at ${new Date().toLocaleTimeString("en-GB")}</p>
         <p>This care plan was written by ${assessment.writtenBy} on ${formatDate(assessment.dateWritten)}</p>

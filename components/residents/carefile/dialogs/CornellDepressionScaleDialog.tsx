@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
@@ -26,11 +25,12 @@ interface CornellDepressionScaleDialogProps {
   isEditMode?: boolean;
   initialData?: any;
   onClose: () => void;
+  isInline?: boolean;
 }
 
 export default function CornellDepressionScaleDialog({
   teamId, residentId, organizationId, userId, userName, resident,
-  isEditMode = false, initialData, onClose
+  isEditMode = false, initialData, onClose, isInline = false
 }: CornellDepressionScaleDialogProps) {
   const [currentScore, setCurrentScore] = useState(0);
   const [currentSeverity, setCurrentSeverity] = useState("No Depression");
@@ -147,84 +147,76 @@ export default function CornellDepressionScaleDialog({
   };
 
   return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0 gap-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
+    <>
+      {!isInline && (
+        <DialogHeader>
           <DialogTitle className="text-xl">Cornell Scale for Depression in Dementia</DialogTitle>
           <DialogDescription>Rate each item: 0 = Absent, 1 = Mild/Intermittent, 2 = Severe</DialogDescription>
         </DialogHeader>
+      )}
 
-        <div className="mx-6 mb-4 p-4 border-2 rounded-lg bg-muted/30">
-          <div className="flex items-center justify-between">
-            <div><p className="text-xs font-medium text-muted-foreground">Total Score</p><p className="text-3xl font-bold mt-1">{currentScore}</p></div>
-            <div className="text-right"><p className="text-xs font-medium text-muted-foreground">Severity</p><p className={`text-xl font-bold mt-1 ${getSeverityColor(currentSeverity)}`}>{currentSeverity}</p></div>
+      <div className="mb-4 p-4 border-2 rounded-lg bg-muted/30">
+        <div className="flex items-center justify-between">
+          <div><p className="text-xs font-medium text-muted-foreground">Total Score</p><p className="text-3xl font-bold mt-1">{currentScore}</p></div>
+          <div className="text-right"><p className="text-xs font-medium text-muted-foreground">Severity</p><p className={`text-xl font-bold mt-1 ${getSeverityColor(currentSeverity)}`}>{currentSeverity}</p></div>
+        </div>
+        <div className="mt-3 pt-3 border-t text-xs text-muted-foreground"><p>Score interpretation: 0-7 = No Depression, 8-12 = Mild Depression, 13+ = Major Depression</p></div>
+      </div>
+
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
+        <button type="submit" id="care-file-submit-btn" className="hidden" />
+        <div className="space-y-4 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2">Administrative Information</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label className="text-sm">Resident Name</Label><Input {...form.register("residentName")} disabled className="text-sm" /></div>
+            <div className="space-y-2"><Label className="text-sm">Date of Assessment</Label><Input type="date" {...form.register("dateOfAssessment")} className="text-sm" /></div>
           </div>
-          <div className="mt-3 pt-3 border-t text-xs text-muted-foreground"><p>Score interpretation: 0-7 = No Depression, 8-12 = Mild Depression, 13+ = Major Depression</p></div>
         </div>
 
-        <ScrollArea className="max-h-[calc(90vh-280px)] px-6">
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-4">
-            <div className="space-y-4 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2">Administrative Information</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label className="text-sm">Resident Name</Label><Input {...form.register("residentName")} disabled className="text-sm" /></div>
-                <div className="space-y-2"><Label className="text-sm">Date of Assessment</Label><Input type="date" {...form.register("dateOfAssessment")} className="text-sm" /></div>
-              </div>
-            </div>
+        <div className="space-y-2 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2 mb-2">A. Mood-Related Signs</h3>
+          <RatingItem name="anxiety" label="Anxiety" /><RatingItem name="sadness" label="Sadness" /><RatingItem name="lackOfReactivity" label="Lack of Reactivity to Pleasant Events" /><RatingItem name="irritability" label="Irritability" />
+        </div>
 
-            <div className="space-y-2 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2 mb-2">A. Mood-Related Signs</h3>
-              <RatingItem name="anxiety" label="Anxiety" /><RatingItem name="sadness" label="Sadness" /><RatingItem name="lackOfReactivity" label="Lack of Reactivity to Pleasant Events" /><RatingItem name="irritability" label="Irritability" />
-            </div>
+        <div className="space-y-2 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2 mb-2">B. Behavioral Disturbance</h3>
+          <RatingItem name="agitation" label="Agitation" /><RatingItem name="retardation" label="Retardation" /><RatingItem name="multiplePhysicalComplaints" label="Multiple Physical Complaints" /><RatingItem name="lossOfInterest" label="Loss of Interest" />
+        </div>
 
-            <div className="space-y-2 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2 mb-2">B. Behavioral Disturbance</h3>
-              <RatingItem name="agitation" label="Agitation" /><RatingItem name="retardation" label="Retardation" /><RatingItem name="multiplePhysicalComplaints" label="Multiple Physical Complaints" /><RatingItem name="lossOfInterest" label="Loss of Interest" />
-            </div>
+        <div className="space-y-2 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2 mb-2">C. Physical Signs</h3>
+          <RatingItem name="appetiteLoss" label="Appetite Loss" /><RatingItem name="weightLoss" label="Weight Loss" />
+        </div>
 
-            <div className="space-y-2 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2 mb-2">C. Physical Signs</h3>
-              <RatingItem name="appetiteLoss" label="Appetite Loss" /><RatingItem name="weightLoss" label="Weight Loss" />
-            </div>
+        <div className="space-y-2 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2 mb-2">D. Cyclic Functions</h3>
+          <RatingItem name="diurnalVariation" label="Diurnal Variation of Mood" /><RatingItem name="sleepDisturbance" label="Sleep Disturbance" />
+        </div>
 
-            <div className="space-y-2 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2 mb-2">D. Cyclic Functions</h3>
-              <RatingItem name="diurnalVariation" label="Diurnal Variation of Mood" /><RatingItem name="sleepDisturbance" label="Sleep Disturbance" />
-            </div>
+        <div className="space-y-2 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2 mb-2">E. Ideational Disturbance</h3>
+          <RatingItem name="suicidalIdeation" label="Suicidal Ideation" /><RatingItem name="lowSelfEsteem" label="Low Self-Esteem" /><RatingItem name="pessimism" label="Pessimism" /><RatingItem name="moodCongruentDelusions" label="Mood-Congruent Delusions" />
+        </div>
 
-            <div className="space-y-2 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2 mb-2">E. Ideational Disturbance</h3>
-              <RatingItem name="suicidalIdeation" label="Suicidal Ideation" /><RatingItem name="lowSelfEsteem" label="Low Self-Esteem" /><RatingItem name="pessimism" label="Pessimism" /><RatingItem name="moodCongruentDelusions" label="Mood-Congruent Delusions" />
+        <div className="space-y-4 p-4 border rounded-lg bg-card">
+          <h3 className="font-semibold text-sm border-b pb-2">Completion</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm">Assessed By</Label>
+              <Input {...form.register("assessedBy")} readOnly className="text-sm bg-muted cursor-not-allowed" />
             </div>
-
-            <div className="space-y-4 p-4 border rounded-lg bg-card">
-              <h3 className="font-semibold text-sm border-b pb-2">Completion</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm">Assessed By</Label>
-                  <Input
-                    {...form.register("assessedBy")}
-                    readOnly
-                    className="text-sm bg-muted cursor-not-allowed"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Signature</Label>
-                  <Input
-                    {...form.register("signature")}
-                    placeholder="Signature"
-                    className="text-sm"
-                  />
-                </div>
-              </div>
+            <div className="space-y-2">
+              <Label className="text-sm">Signature</Label>
+              <Input {...form.register("signature")} placeholder="Signature" className="text-sm" />
             </div>
-          </form>
-        </ScrollArea>
+          </div>
+        </div>
+      </form>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-background">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
+      {!isInline && (
+        <div className="flex items-center justify-end gap-3 pt-6 border-t sticky bottom-0 bg-background/80 backdrop-blur-sm py-4 pb-2">
+          <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isSubmitting}>Cancel</Button>
           <Button
-            type="submit"
             onClick={() => {
               form.handleSubmit(onSubmit, (errors) => {
                 console.error("Form errors:", errors);
@@ -236,7 +228,7 @@ export default function CornellDepressionScaleDialog({
             {isSubmitting ? "Submitting..." : isEditMode ? "Update" : "Submit"}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      )}
+    </>
   );
 }

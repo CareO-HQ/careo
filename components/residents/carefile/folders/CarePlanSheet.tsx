@@ -7,6 +7,7 @@ import {
   SheetHeader,
   SheetTitle
 } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
@@ -23,6 +24,8 @@ import { toast } from "sonner";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/lib/supabase";
 import { Separator } from "@/components/ui/separator";
+import { Printer } from "lucide-react";
+import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
 
 const UK_TIMEZONE = "Europe/London";
 
@@ -44,6 +47,8 @@ export default function CarePlanSheetContent({
   // Fetch the full care plan data
   const [carePlanData, setCarePlanData] = useState<any>(null);
   const [evaluations, setEvaluations] = useState<any[]>([]);
+  const [resident, setResident] = useState<any>(null);
+  const [activeOrganization, setActiveOrganization] = useState<any>(null);
   const { profile } = useProfile();
 
   const fetchCarePlanData = async () => {
@@ -105,6 +110,32 @@ export default function CarePlanSheetContent({
       fetchEvaluations();
     }
   }, [open, carePlan.formId]);
+
+  useEffect(() => {
+    if (open && carePlanData?.resident_id) {
+      supabase
+        .from("residents")
+        .select("*, emergency_contacts(*)")
+        .eq("id", carePlanData.resident_id)
+        .single()
+        .then(({ data, error }) => {
+          if (!error) setResident(data);
+        });
+    }
+  }, [open, carePlanData?.resident_id]);
+
+  useEffect(() => {
+    if (open && profile?.active_organization_id) {
+      supabase
+        .from("organizations")
+        .select("*")
+        .eq("id", profile.active_organization_id)
+        .single()
+        .then(({ data, error }) => {
+          if (!error) setActiveOrganization(data);
+        });
+    }
+  }, [open, profile?.active_organization_id]);
 
 
   // State for managing form data
@@ -315,6 +346,31 @@ export default function CarePlanSheetContent({
     }
   };
 
+  const handlePrint = async () => {
+    if (!carePlanData || !resident) {
+      toast.error("Care plan data or resident information not available for printing");
+      return;
+    }
+
+    toast.info("Generating PDF...");
+
+    await generateCareFilePDF({
+      formName: carePlanData.nameOfCarePlan,
+      data: {
+        ...carePlanData,
+        evaluations: evaluations.slice(0, 5).map(e => ({
+          evaluationDate: e.evaluation_date || e.created_at,
+          progress_notes: e.progress_notes || e.comments
+        })) // Include ONLY 5 most recent evaluations in the PDF, with clean mapping
+      },
+      resident: resident,
+      orgLogoUrl: activeOrganization?.logo_url,
+      careHomeName: activeOrganization?.name || profile?.care_home_name
+    });
+
+    toast.success("PDF generated successfully");
+  };
+
   if (!carePlanData) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -348,7 +404,7 @@ export default function CarePlanSheetContent({
       >
         <SheetHeader>
           <div className="flex items-start justify-between">
-            <div>
+            <div className="flex-1">
               <SheetTitle>{carePlanData.nameOfCarePlan}</SheetTitle>
               <SheetDescription className="w-full flex flex-col gap-1">
                 <span>
@@ -372,219 +428,233 @@ export default function CarePlanSheetContent({
                 )}
               </SheetDescription>
             </div>
+            <div className="flex items-center gap-2 mr-8">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrint}
+                className="gap-2"
+              >
+                <Printer className="w-4 h-4" />
+                Print
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleUpdateCarePlan}
+                disabled={isSubmitting || !hasModified}
+              >
+                {isSubmitting ? "Updating..." : "Update Care Plan"}
+              </Button>
+            </div>
           </div>
         </SheetHeader>
 
-        <div className="flex flex-col justify-between h-full">
-          <div className="flex flex-col gap-1 px-4">
-            {/* Basic Information */}
-            <div className="flex flex-row justify-between items-center gap-2">
-              <p className="text-muted-foreground text-sm font-medium">
-                Resident Information
-              </p>
-            </div>
-            <div className="flex flex-col justify-start items-start gap-1">
-              <p className="text-sm font-normal text-muted-foreground">
-                Name:{" "}
-                <span className="font-medium text-primary">
-                  {carePlanData.residentName}
-                </span>
-              </p>
-              <p className="text-sm font-normal text-muted-foreground">
-                Date of Birth:{" "}
-                <span className="font-medium text-primary">
-                  {carePlanData.dob ? format(new Date(carePlanData.dob), "dd MMMM yyyy") : "N/A"}
-                </span>
-              </p>
-              <p className="text-sm font-normal text-muted-foreground">
-                Bedroom Number:{" "}
-                <span className="font-medium text-primary">
-                  {carePlanData.bedroomNumber}
-                </span>
-              </p>
-            </div>
+        <Separator />
 
-            {/* Aims */}
-            <div className="flex flex-row justify-between items-center gap-2 mt-4">
-              <p className="text-muted-foreground text-sm font-medium">Aims</p>
-            </div>
-            <div className="flex flex-col justify-start items-start gap-1">
-              <Textarea
-                value={aims}
-                onChange={(e) => {
-                  setAims(e.target.value);
-                  setHasModified(true);
-                }}
-                className="w-full"
-                placeholder="Enter care plan aims..."
-              />
-            </div>
+        <ScrollArea className="flex-1">
+          <div className="flex flex-col justify-between h-full py-4">
+            <div className="flex flex-col gap-1 px-4">
+              {/* Basic Information */}
+              <div className="flex flex-row justify-between items-center gap-2">
+                <p className="text-muted-foreground text-sm font-medium">
+                  Resident Information
+                </p>
+              </div>
+              <div className="flex flex-col justify-start items-start gap-1">
+                <p className="text-sm font-normal text-muted-foreground">
+                  Name:{" "}
+                  <span className="font-medium text-primary">
+                    {carePlanData.residentName}
+                  </span>
+                </p>
+                <p className="text-sm font-normal text-muted-foreground">
+                  Date of Birth:{" "}
+                  <span className="font-medium text-primary">
+                    {carePlanData.dob ? format(new Date(carePlanData.dob), "dd MMMM yyyy") : "N/A"}
+                  </span>
+                </p>
+                <p className="text-sm font-normal text-muted-foreground">
+                  Bedroom Number:{" "}
+                  <span className="font-medium text-primary">
+                    {carePlanData.bedroomNumber}
+                  </span>
+                </p>
+              </div>
 
-            {/* Identified Needs */}
-            <div className="flex flex-row justify-between items-center gap-2 mt-4">
-              <p className="text-muted-foreground text-sm font-medium">
-                Identified Needs
-              </p>
-            </div>
-            <div className="flex flex-col justify-start items-start gap-1">
-              <Textarea
-                value={identifiedNeeds}
-                onChange={(e) => {
-                  setIdentifiedNeeds(e.target.value);
-                  setHasModified(true);
-                }}
-                className="w-full"
-                placeholder="Enter identified needs..."
-              />
-            </div>
+              {/* Aims */}
+              <div className="flex flex-row justify-between items-center gap-2 mt-4">
+                <p className="text-muted-foreground text-sm font-medium">Aims</p>
+              </div>
+              <div className="flex flex-col justify-start items-start gap-1">
+                <Textarea
+                  value={aims}
+                  onChange={(e) => {
+                    setAims(e.target.value);
+                    setHasModified(true);
+                  }}
+                  className="w-full"
+                  placeholder="Enter care plan aims..."
+                />
+              </div>
 
-            {/* Planned Care */}
+              {/* Identified Needs */}
+              <div className="flex flex-row justify-between items-center gap-2 mt-4">
+                <p className="text-muted-foreground text-sm font-medium">
+                  Identified Needs
+                </p>
+              </div>
+              <div className="flex flex-col justify-start items-start gap-1">
+                <Textarea
+                  value={identifiedNeeds}
+                  onChange={(e) => {
+                    setIdentifiedNeeds(e.target.value);
+                    setHasModified(true);
+                  }}
+                  className="w-full"
+                  placeholder="Enter identified needs..."
+                />
+              </div>
 
-            <div className="flex flex-row justify-between items-center gap-2 mt-4">
-              <p className="text-muted-foreground text-sm font-medium">
-                Planned Care
-              </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleAddEntry}
-                className="gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Add Entry
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {plannedCareEntries.map((entry, index) => (
-                <div key={index} className="rounded-lg border p-4 bg-muted/20">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      Entry {index + 1}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteEntry(index)}
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+              {/* Planned Care */}
 
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">
-                          Date
-                        </label>
-                        <Popover
-                          open={openDatePickers[index] || false}
-                          onOpenChange={(open) => {
-                            setOpenDatePickers(prev => ({ ...prev, [index]: open }));
-                          }}
-                          modal
-                        >
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              type="button"
-                              className={cn(
-                                "w-full justify-start text-left font-normal text-sm h-9",
-                                !entry.date && "text-muted-foreground"
-                              )}
-                            >
-                              <Calendar className="mr-2 h-3 w-3" />
-                              {entry.date ? (
-                                format(new Date(entry.date), "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <CalendarComponent
-                              mode="single"
-                              selected={entry.date ? new Date(entry.date) : undefined}
-                              onSelect={(date) => {
-                                if (date) {
-                                  handleUpdateEntry(index, "date", date.getTime());
-                                  setOpenDatePickers(prev => ({ ...prev, [index]: false }));
-                                }
-                              }}
-                              disabled={(date) => {
-                                const today = new Date();
-                                today.setHours(23, 59, 59, 999);
-                                return date > today;
-                              }}
-                              captionLayout="dropdown"
-                              defaultMonth={entry.date ? new Date(entry.date) : new Date()}
-                              startMonth={new Date(new Date().getFullYear() - 1, 0)}
-                              endMonth={new Date()}
-                            />
-                          </PopoverContent>
-                        </Popover>
+              <div className="flex flex-row justify-between items-center gap-2 mt-4">
+                <p className="text-muted-foreground text-sm font-medium">
+                  Planned Care
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleAddEntry}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Entry
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {plannedCareEntries.map((entry, index) => (
+                  <div key={index} className="rounded-lg border p-4 bg-muted/20">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        Entry {index + 1}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteEntry(index)}
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">
+                            Date
+                          </label>
+                          <Popover
+                            open={openDatePickers[index] || false}
+                            onOpenChange={(open) => {
+                              setOpenDatePickers(prev => ({ ...prev, [index]: open }));
+                            }}
+                            modal
+                          >
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                type="button"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal text-sm h-9",
+                                  !entry.date && "text-muted-foreground"
+                                )}
+                              >
+                                <Calendar className="mr-2 h-3 w-3" />
+                                {entry.date ? (
+                                  format(new Date(entry.date), "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent
+                                mode="single"
+                                selected={entry.date ? new Date(entry.date) : undefined}
+                                onSelect={(date) => {
+                                  if (date) {
+                                    handleUpdateEntry(index, "date", date.getTime());
+                                    setOpenDatePickers(prev => ({ ...prev, [index]: false }));
+                                  }
+                                }}
+                                disabled={(date) => {
+                                  const today = new Date();
+                                  today.setHours(23, 59, 59, 999);
+                                  return date > today;
+                                }}
+                                captionLayout="dropdown"
+                                defaultMonth={entry.date ? new Date(entry.date) : new Date()}
+                                startMonth={new Date(new Date().getFullYear() - 1, 0)}
+                                endMonth={new Date()}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">
+                            Time (optional)
+                          </label>
+                          <Input
+                            type="time"
+                            step="1"
+                            value={entry.time || ""}
+                            onChange={(e) =>
+                              handleUpdateEntry(index, "time", e.target.value)
+                            }
+                            className="text-sm bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                          />
+                        </div>
                       </div>
+
                       <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">
-                          Time (optional)
+                          Details
+                        </label>
+                        <Textarea
+                          value={entry.details}
+                          onChange={(e) =>
+                            handleUpdateEntry(index, "details", e.target.value)
+                          }
+                          className="text-sm min-h-[80px]"
+                          placeholder="Enter care plan details..."
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          Signature
                         </label>
                         <Input
-                          type="time"
-                          step="1"
-                          value={entry.time || ""}
+                          value={entry.signature}
                           onChange={(e) =>
-                            handleUpdateEntry(index, "time", e.target.value)
+                            handleUpdateEntry(index, "signature", e.target.value)
                           }
-                          className="text-sm bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                          className="text-sm"
+                          placeholder="Signed by..."
                         />
                       </div>
                     </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">
-                        Details
-                      </label>
-                      <Textarea
-                        value={entry.details}
-                        onChange={(e) =>
-                          handleUpdateEntry(index, "details", e.target.value)
-                        }
-                        className="text-sm min-h-[80px]"
-                        placeholder="Enter care plan details..."
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">
-                        Signature
-                      </label>
-                      <Input
-                        value={entry.signature}
-                        onChange={(e) =>
-                          handleUpdateEntry(index, "signature", e.target.value)
-                        }
-                        className="text-sm"
-                        placeholder="Signed by..."
-                      />
-                    </div>
                   </div>
-                </div>
-              ))}
-              {plannedCareEntries.length === 0 && (
-                <div className="text-center py-6 text-sm text-muted-foreground border rounded-lg">
-                  No planned care entries yet. Click &quot;Add Entry&quot; to
-                  create one.
-                </div>
-              )}
+                ))}
+                {plannedCareEntries.length === 0 && (
+                  <div className="text-center py-6 text-sm text-muted-foreground border rounded-lg">
+                    No planned care entries yet. Click &quot;Add Entry&quot; to
+                    create one.
+                  </div>
+                )}
+              </div>
             </div>
-
-            <Button
-              className="mt-4"
-              onClick={handleUpdateCarePlan}
-              disabled={isSubmitting || !hasModified}
-            >
-              {isSubmitting ? "Updating..." : "Update Care Plan"}
-            </Button>
             <Separator className="my-4" />
 
             {/* Evaluations Section */}
@@ -709,7 +779,7 @@ export default function CarePlanSheetContent({
                 )}
             </div>
           </div>
-        </div>
+        </ScrollArea>
       </SheetContent>
     </Sheet>
   );

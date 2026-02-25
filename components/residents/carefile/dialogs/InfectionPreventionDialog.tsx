@@ -1,10 +1,10 @@
 "use client";
+
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
@@ -52,6 +52,7 @@ interface InfectionPreventionDialogProps {
   onClose?: (assessmentId?: string) => void;
   initialData?: any;
   isEditMode?: boolean;
+  isInline?: boolean;
 }
 
 export default function InfectionPreventionDialog({
@@ -62,9 +63,9 @@ export default function InfectionPreventionDialog({
   userId,
   onClose,
   initialData,
-  isEditMode = false
+  isEditMode = false,
+  isInline = false
 }: InfectionPreventionDialogProps) {
-  const [step, setStep] = useState(1);
   const [isLoading, startTransition] = useTransition();
   const [datePopovers, setDatePopovers] = useState<Record<string, boolean>>({});
 
@@ -86,7 +87,6 @@ export default function InfectionPreventionDialog({
         reasonForAdmission: initialData.exposure_history?.reasonForAdmission || "",
         dateOfAdmission: initialData.exposure_history?.dateOfAdmission || undefined,
 
-        // Respiratory
         newContinuousCough: initialData.symptoms?.respiratory?.newContinuousCough ?? false,
         worseningCough: initialData.symptoms?.respiratory?.worseningCough ?? false,
         temperatureHigh: initialData.symptoms?.respiratory?.temperatureHigh ?? false,
@@ -98,19 +98,16 @@ export default function InfectionPreventionDialog({
         influenzaB: initialData.symptoms?.respiratory?.influenzaB ?? false,
         respiratoryScreen: initialData.symptoms?.respiratory?.respiratoryScreen ?? false,
 
-        // Exposure
         exposureToPatientsCovid: initialData.exposure_history?.exposureToPatientsCovid ?? false,
         exposureToStaffCovid: initialData.exposure_history?.exposureToStaffCovid ?? false,
         isolationRequired: initialData.isolation_required ?? false,
         isolationDetails: initialData.exposure_history?.isolationDetails || "",
         furtherTreatmentRequired: initialData.exposure_history?.furtherTreatmentRequired ?? false,
 
-        // Diarrhea
         diarrheaVomitingCurrentSymptoms: initialData.symptoms?.diarrheaVomiting?.currentSymptoms ?? false,
         diarrheaVomitingContactWithOthers: initialData.symptoms?.diarrheaVomiting?.contactWithOthers ?? false,
         diarrheaVomitingFamilyHistory72h: initialData.symptoms?.diarrheaVomiting?.familyHistory72h ?? false,
 
-        // Clostridium
         clostridiumActive: initialData.symptoms?.clostridium?.active ?? false,
         clostridiumHistory: initialData.symptoms?.clostridium?.history ?? false,
         clostridiumStoolCount72h: initialData.symptoms?.clostridium?.stoolCount72h || "",
@@ -123,7 +120,6 @@ export default function InfectionPreventionDialog({
         ongoingLengthOfCourse: initialData.symptoms?.clostridium?.ongoingLengthOfCourse || "",
         ongoingFollowUpRequired: initialData.symptoms?.clostridium?.ongoingFollowUpRequired || undefined,
 
-        // MRSA
         mrsaMssaColonised: initialData.symptoms?.mrsa?.colonised ?? false,
         mrsaMssaInfected: initialData.symptoms?.mrsa?.infected ?? false,
         mrsaMssaLastPositiveSwabDate: initialData.symptoms?.mrsa?.lastPositiveSwabDate || undefined,
@@ -135,18 +131,15 @@ export default function InfectionPreventionDialog({
         mrsaMssaLengthOfCourse: initialData.symptoms?.mrsa?.mrsaMssaLengthOfCourse || "",
         mrsaMssaFollowUpRequired: initialData.symptoms?.mrsa?.mrsaMssaFollowUpRequired || "",
 
-        // MultiDrug
         esbl: initialData.symptoms?.multiDrugResistance?.esbl ?? false,
         vreGre: initialData.symptoms?.multiDrugResistance?.vreGre ?? false,
         cpe: initialData.symptoms?.multiDrugResistance?.cpe ?? false,
         otherMultiDrugResistance: initialData.symptoms?.multiDrugResistance?.other || "",
         relevantInformationMultiDrugResistance: initialData.symptoms?.multiDrugResistance?.relevantInformation || "",
 
-        // Other
         awarenessOfInfection: initialData.exposure_history?.awarenessOfInfection ?? false,
         lastFluVaccinationDate: initialData.exposure_history?.lastFluVaccinationDate || undefined,
 
-        // Completion
         completedBy: initialData.completed_by || userName,
         jobRole: initialData.jobRole || "",
         signature: initialData.signature || userName,
@@ -316,7 +309,7 @@ export default function InfectionPreventionDialog({
         if (isEditMode && initialData?.id) {
           await supabase.from('manager_audits').insert({
             form_type: 'infection_prevention_assessments',
-            form_id: result.id, // Use new version ID
+            form_id: result.id,
             resident_id: resident.id,
             audited_by: userId,
             audit_notes: "Form updated (New Version)",
@@ -327,39 +320,29 @@ export default function InfectionPreventionDialog({
           toast.success("Assessment submitted");
         }
         onClose?.();
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error submitting:", error);
-        toast.error("Failed to submit assessment");
+        toast.error(error.message || "Failed to submit assessment");
       }
     });
-  };
-
-  const handleNext = async () => {
-    let fieldsToValidate: any[] = [];
-    if (step === 1) fieldsToValidate = ["name", "dateOfBirth", "homeAddress", "assessmentType"];
-    else if (step === 2) fieldsToValidate = ["newContinuousCough", "worseningCough", "temperatureHigh"];
-    else if (step === 9) fieldsToValidate = ["completedBy", "jobRole", "signature", "assessmentDate"];
-
-    const isValid = await form.trigger(fieldsToValidate as any);
-    if (isValid) setStep(prev => prev + 1);
   };
 
   const setPopover = (key: string, open: boolean) => setDatePopovers(prev => ({ ...prev, [key]: open }));
 
   const BooleanField = ({ name, label }: { name: keyof z.infer<typeof InfectionPreventionAssessmentSchema>, label: string }) => (
     <FormField control={form.control} name={name} render={({ field }) => (
-      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-        <div className="space-y-0.5"><FormLabel>{label}</FormLabel></div>
+      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+        <div className="space-y-0.5"><FormLabel className="cursor-pointer">{label}</FormLabel></div>
         <FormControl><Checkbox checked={!!field.value} onCheckedChange={field.onChange} /></FormControl>
       </FormItem>
     )} />
   );
 
-  const DateField = ({ name, label }: { name: keyof z.infer<typeof InfectionPreventionAssessmentSchema>, label: string }) => (
+  const DateField = ({ name, label, required = false }: { name: keyof z.infer<typeof InfectionPreventionAssessmentSchema>, label: string, required?: boolean }) => (
     <FormField control={form.control} name={name} render={({ field }) => (
       <FormItem className="flex flex-col">
-        <FormLabel>{label}</FormLabel>
-        <Popover open={datePopovers[name]} onOpenChange={o => setPopover(name, o)}>
+        <FormLabel required={required}>{label}</FormLabel>
+        <Popover open={datePopovers[name]} onOpenChange={o => setPopover(name, o)} modal>
           <PopoverTrigger asChild>
             <FormControl>
               <Button variant="outline" className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
@@ -369,7 +352,7 @@ export default function InfectionPreventionDialog({
             </FormControl>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <Calendar mode="single" selected={field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.getTime()); setPopover(name, false); }} disabled={d => d > new Date() || d < new Date("1900-01-01")} initialFocus />
+            <Calendar mode="single" selected={field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={d => { field.onChange(d?.getTime()); setPopover(name, false); }} disabled={d => d > new Date() || d < new Date("1900-01-01")} initialFocus />
           </PopoverContent>
         </Popover>
         <FormMessage />
@@ -378,169 +361,226 @@ export default function InfectionPreventionDialog({
   );
 
   return (
-    <div className="max-h-[80vh] flex flex-col">
-      <DialogHeader>
-        <DialogTitle>Infection Prevention Assessment (Step {step}/9)</DialogTitle>
-        <DialogDescription>
-          {step === 1 && "Resident details"}
-          {step === 2 && "Acute Respiratory Illness (ARI)"}
-          {step === 3 && "Exposure History"}
-          {step === 4 && "Diarrhoea and Vomiting"}
-          {step === 5 && "Clostridium Difficile"}
-          {step === 6 && "MRSA / MSSA"}
-          {step === 7 && "Multi-drug Resistance"}
-          {step === 8 && "Other Information"}
-          {step === 9 && "Completion"}
-        </DialogDescription>
-      </DialogHeader>
+    <div className="flex flex-col space-y-8">
+      {!isInline && (
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold">Infection Prevention Assessment</DialogTitle>
+          <DialogDescription>
+            Record infectious risk and exposure history for the resident.
+          </DialogDescription>
+        </DialogHeader>
+      )}
 
-      <div className="flex-1 overflow-y-auto px-1 py-4">
+      <div className="space-y-12 pb-20">
         <Form {...form}>
-          <form className="space-y-4 px-1">
-            {step === 1 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="name" render={({ field }) => <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-                  <FormField control={form.control} name="assessmentType" render={({ field }) => (
-                    <FormItem><FormLabel>Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Pre-admission">Pre-admission</SelectItem><SelectItem value="Admission">Admission</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                  )} />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            {/* Section 1: Resident Details */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Resident Details</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField control={form.control} name="name" render={({ field }) => <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="assessmentType" render={({ field }) => (
+                  <FormItem><FormLabel required>Assessment Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Pre-admission">Pre-admission</SelectItem><SelectItem value="Admission">Admission</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="dateOfBirth" render={({ field }) => <FormItem><FormLabel>Date of Birth</FormLabel><FormControl><Input type="date" {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="informationProvidedBy" render={({ field }) => <FormItem><FormLabel>Information Provided By</FormLabel><FormControl><Input placeholder="e.g. Resident, Social Worker, Hospital Staff" {...field} /></FormControl></FormItem>} />
+                <FormField control={form.control} name="homeAddress" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Home Address / Current Location</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="consultantGP" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Consultant / GP Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+              </div>
+            </div>
+
+            {/* Section 2: Respiratory Health */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Acute Respiratory Illness (ARI)</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Current Symptoms</h4>
+                  <div className="grid gap-3">
+                    <BooleanField name="newContinuousCough" label="New Continuous Cough" />
+                    <BooleanField name="worseningCough" label="Worsening Cough" />
+                    <BooleanField name="temperatureHigh" label="High Temperature (>37.8°C)" />
+                    <FormField control={form.control} name="otherRespiratorySymptoms" render={({ field }) => <FormItem><FormLabel>Other Symptoms</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+                  </div>
                 </div>
-                <FormField control={form.control} name="dateOfBirth" render={({ field }) => <FormItem><FormLabel>Date of Birth</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="homeAddress" render={({ field }) => <FormItem><FormLabel>Home Address</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>} />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="informationProvidedBy" render={({ field }) => <FormItem><FormLabel>Info Provided By</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-                  <FormField control={form.control} name="consultantGP" render={({ field }) => <FormItem><FormLabel>Consultant / GP</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <div className="space-y-4">
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Recent Testing</h4>
+                  <div className="grid grid-cols-1 gap-3">
+                    <BooleanField name="testedForCovid19" label="Tested for COVID-19" />
+                    <BooleanField name="testedForInfluenzaA" label="Tested for Influenza A" />
+                    <BooleanField name="testedForInfluenzaB" label="Tested for Influenza B" />
+                    <BooleanField name="testedForRespiratoryScreen" label="Tested for Resp Screen" />
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
 
-            {step === 2 && (
-              <div className="space-y-4">
-                <div className="grid gap-2">
-                  <BooleanField name="newContinuousCough" label="New Continuous Cough?" />
-                  <BooleanField name="worseningCough" label="Worsening Cough?" />
-                  <BooleanField name="temperatureHigh" label="Temperature High (>37.8°C)?" />
-                  <FormField control={form.control} name="otherRespiratorySymptoms" render={({ field }) => <FormItem><FormLabel>Other Respiratory Symptoms</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+            {/* Section 3: Exposure History */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Exposure & Isolation History</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField control={form.control} name="admittedFrom" render={({ field }) => <FormItem><FormLabel>Location Admitted From</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <DateField name="dateOfAdmission" label="Admission Date" />
+                <FormField control={form.control} name="reasonForAdmission" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Reason for Admission</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+
+                <div className="md:col-span-2 grid gap-3 p-6 border rounded-xl bg-muted/20">
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">COVID-19 Exposure</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <BooleanField name="exposureToPatientsCovid" label="Exposed to COVID+ patients?" />
+                    <BooleanField name="exposureToStaffCovid" label="Exposed to COVID+ staff?" />
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                  <BooleanField name="testedForCovid19" label="Tested for COVID-19?" />
-                  <BooleanField name="testedForInfluenzaA" label="Tested for Influenza A?" />
-                  <BooleanField name="testedForInfluenzaB" label="Tested for Influenza B?" />
-                  <BooleanField name="testedForRespiratoryScreen" label="Tested for Resp Screen?" />
+
+                <div className="md:col-span-2 space-y-4">
+                  <BooleanField name="isolationRequired" label="Is current isolation required?" />
+                  <FormField control={form.control} name="isolationDetails" render={({ field }) => <FormItem><FormLabel>Isolation Details & Recommendations</FormLabel><FormControl><Textarea placeholder="Duration, type of precautions..." {...field} /></FormControl></FormItem>} />
+                  <BooleanField name="furtherTreatmentRequired" label="Further treatment for ARI required?" />
                 </div>
               </div>
-            )}
+            </div>
 
-            {step === 3 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="admittedFrom" render={({ field }) => <FormItem><FormLabel>Admitted From</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-                  <DateField name="dateOfAdmission" label="Date of Admission" />
-                </div>
-                <FormField control={form.control} name="reasonForAdmission" render={({ field }) => <FormItem><FormLabel>Reason for Admission</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-                <Separator />
-                <BooleanField name="exposureToPatientsCovid" label="Exposure to patients with COVID-19?" />
-                <BooleanField name="exposureToStaffCovid" label="Exposure to staff with COVID-19?" />
-                <BooleanField name="isolationRequired" label="Isolation Required?" />
-                <FormField control={form.control} name="isolationDetails" render={({ field }) => <FormItem><FormLabel>Isolation Details</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
-                <BooleanField name="furtherTreatmentRequired" label="Further treatment for ARI required?" />
+            {/* Section 4: Gastric Symptoms */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Diarrhoea & Vomiting</h3>
               </div>
-            )}
-
-            {step === 4 && (
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
                 <BooleanField name="diarrheaVomitingCurrentSymptoms" label="Current symptoms of diarrhoea/vomiting?" />
-                <BooleanField name="diarrheaVomitingContactWithOthers" label="Contact with others with symptoms (48h)?" />
-                <BooleanField name="diarrheaVomitingFamilyHistory72h" label="Family/Home members with symptoms (72h)?" />
+                <BooleanField name="diarrheaVomitingContactWithOthers" label="Contact with others showing symptoms (last 48h)?" />
+                <BooleanField name="diarrheaVomitingFamilyHistory72h" label="Household/Family members with symptoms (last 72h)?" />
               </div>
-            )}
+            </div>
 
-            {step === 5 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  <BooleanField name="clostridiumActive" label="Active C.Diff?" />
-                  <BooleanField name="clostridiumHistory" label="History of C.Diff?" />
+            {/* Section 5: C. Difficile */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Clostridium Difficile</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2 grid grid-cols-2 gap-4">
+                  <BooleanField name="clostridiumActive" label="Active C.Diff Case?" />
+                  <BooleanField name="clostridiumHistory" label="Past Medical History of C.Diff?" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="clostridiumStoolCount72h" render={({ field }) => <FormItem><FormLabel>Stool Count (72h)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-                  <DateField name="clostridiumLastPositiveSpecimenDate" label="Last positive specimen date" />
-                </div>
-                <FormField control={form.control} name="clostridiumResult" render={({ field }) => <FormItem><FormLabel>Result</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <FormField control={form.control} name="clostridiumStoolCount72h" render={({ field }) => <FormItem><FormLabel>Stool Count (last 72h)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <DateField name="clostridiumLastPositiveSpecimenDate" label="Last positive specimen date" />
+                <FormField control={form.control} name="clostridiumResult" render={({ field }) => <FormItem><FormLabel>Specimen Result</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
                 <FormField control={form.control} name="clostridiumTreatmentReceived" render={({ field }) => <FormItem><FormLabel>Treatment Received</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-                <BooleanField name="clostridiumTreatmentComplete" label="Treatment Complete?" />
-                <Separator />
-                <h4 className="text-sm font-medium">Ongoing Treatment</h4>
-                <FormField control={form.control} name="ongoingDetails" render={({ field }) => <FormItem><FormLabel>Details</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
-                <div className="grid grid-cols-2 gap-4">
-                  <DateField name="ongoingDateCommenced" label="Date Commenced" />
-                  <FormField control={form.control} name="ongoingLengthOfCourse" render={({ field }) => <FormItem><FormLabel>Length of Course</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <div className="md:col-span-2">
+                  <BooleanField name="clostridiumTreatmentComplete" label="Initial treatment regimen complete?" />
+                </div>
+
+                <div className="md:col-span-2 grid gap-4 p-6 border rounded-xl bg-card/10">
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Ongoing Regimen</h4>
+                  <FormField control={form.control} name="ongoingDetails" render={({ field }) => <FormItem><FormLabel>Active Antibiotic Details</FormLabel><FormControl><Textarea className="bg-background" {...field} /></FormControl></FormItem>} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <DateField name="ongoingDateCommenced" label="Course Start Date" />
+                    <FormField control={form.control} name="ongoingLengthOfCourse" render={({ field }) => <FormItem><FormLabel>Projected Length (e.g. 10 days)</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl></FormItem>} />
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
 
-            {step === 6 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  <BooleanField name="mrsaMssaColonised" label="MRSA/MSSA Colonised?" />
-                  <BooleanField name="mrsaMssaInfected" label="MRSA/MSSA Infected?" />
+            {/* Section 6: MRSA / MSSA */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">MRSA / MSSA Status</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2 grid grid-cols-2 gap-4">
+                  <BooleanField name="mrsaMssaColonised" label="Known Colonisation?" />
+                  <BooleanField name="mrsaMssaInfected" label="Active Infection?" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <DateField name="mrsaMssaLastPositiveSwabDate" label="Last positive swab date" />
-                  <FormField control={form.control} name="mrsaMssaSitesPositive" render={({ field }) => <FormItem><FormLabel>Sites Positive</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-                </div>
-                <FormField control={form.control} name="mrsaMssaTreatmentReceived" render={({ field }) => <FormItem><FormLabel>Treatment Received</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-                <Separator />
-                <h4 className="text-sm font-medium">Ongoing Treatment</h4>
-                <FormField control={form.control} name="mrsaMssaDetails" render={({ field }) => <FormItem><FormLabel>Details</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
-                <div className="grid grid-cols-2 gap-4">
-                  <DateField name="mrsaMssaDateCommenced" label="Date Commenced" />
-                  <FormField control={form.control} name="mrsaMssaLengthOfCourse" render={({ field }) => <FormItem><FormLabel>Length of Course</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <DateField name="mrsaMssaLastPositiveSwabDate" label="Last positive swab date" />
+                <FormField control={form.control} name="mrsaMssaSitesPositive" render={({ field }) => <FormItem><FormLabel>Sites Positive (e.g Nose, Wound)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <FormField control={form.control} name="mrsaMssaTreatmentReceived" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Treatment Regimen Received</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+
+                <div className="md:col-span-2 grid gap-4 p-6 border rounded-xl bg-card/10">
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Ongoing Decolonisation</h4>
+                  <FormField control={form.control} name="mrsaMssaDetails" render={({ field }) => <FormItem><FormLabel>Active Decolonisation Details</FormLabel><FormControl><Textarea className="bg-background" {...field} /></FormControl></FormItem>} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <DateField name="mrsaMssaDateCommenced" label="Regimen Start Date" />
+                    <FormField control={form.control} name="mrsaMssaLengthOfCourse" render={({ field }) => <FormItem><FormLabel>Projected Duration</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl></FormItem>} />
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
 
-            {step === 7 && (
-              <div className="space-y-4">
-                <div className="grid gap-2">
-                  <BooleanField name="esbl" label="ESBL?" />
-                  <BooleanField name="vreGre" label="VRE / GRE?" />
-                  <BooleanField name="cpe" label="CPE?" />
-                </div>
-                <FormField control={form.control} name="otherMultiDrugResistance" render={({ field }) => <FormItem><FormLabel>Other MDR Organisms</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-                <FormField control={form.control} name="relevantInformationMultiDrugResistance" render={({ field }) => <FormItem><FormLabel>Relevant Information</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>} />
+            {/* Section 7: Multi-drug Resistance */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Multi-drug Resistant Organisms (MDRO)</h3>
               </div>
-            )}
+              <div className="grid gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <BooleanField name="esbl" label="ESBL" />
+                  <BooleanField name="vreGre" label="VRE / GRE" />
+                  <BooleanField name="cpe" label="CPE" />
+                </div>
+                <FormField control={form.control} name="otherMultiDrugResistance" render={({ field }) => <FormItem><FormLabel>Other MDR Organisms (e.g. Pseudomonas)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                <FormField control={form.control} name="relevantInformationMultiDrugResistance" render={({ field }) => <FormItem><FormLabel>Additional Clinical Notes</FormLabel><FormControl><Textarea placeholder="Past infections, hospitalisations..." {...field} /></FormControl></FormItem>} />
+              </div>
+            </div>
 
-            {step === 8 && (
-              <div className="space-y-4">
+            {/* Section 8: Vaccinations & Awareness */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Vaccinations & Awareness</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <BooleanField name="awarenessOfInfection" label="Personal awareness of infection status?" />
                 <DateField name="lastFluVaccinationDate" label="Date of last Flu Vaccination" />
               </div>
-            )}
+            </div>
 
-            {step === 9 && (
-              <div className="space-y-4">
-                <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted" /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="jobRole" render={({ field }) => <FormItem><FormLabel>Job Role</FormLabel><FormControl><Input {...field} placeholder="e.g. Registered Nurse" /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel>Digital Signature (Name)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-                <DateField name="assessmentDate" label="Date Completed" />
+            {/* Section 9: Completion */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <div className="h-6 w-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-semibold">Completion & Sign-off</h3>
               </div>
-            )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="jobRole" render={({ field }) => <FormItem><FormLabel required>Job Role</FormLabel><FormControl><Input {...field} placeholder="e.g. Registered Nurse, Care Manager" /></FormControl><FormMessage /></FormItem>} />
+                <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel required>Digital Signature (Name)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                <DateField name="assessmentDate" label="Completion Date" required />
+              </div>
+            </div>
           </form>
         </Form>
       </div>
 
-      <DialogFooter className="border-t p-4 mt-auto">
-        <Button variant="outline" onClick={step === 1 ? () => onClose?.() : () => setStep(step - 1)} disabled={isLoading}>
-          {step === 1 ? "Cancel" : "Back"}
-        </Button>
-        <Button onClick={step === 9 ? form.handleSubmit(onSubmit) : handleNext} disabled={isLoading}>
-          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {step === 9 ? "Save Assessment" : "Next"}
-        </Button>
-      </DialogFooter>
+      {!isInline && (
+        <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
+          <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
+            Cancel
+          </Button>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} size="lg" className="min-w-[150px]">
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              isEditMode ? "Save Changes" : "Save Assessment"
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
-
-const Separator = () => <div className="h-px bg-border my-6" />;

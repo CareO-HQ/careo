@@ -54,7 +54,7 @@ export default function AllCarePlansPage() {
           .select('*')
           .eq('resident_id', residentId)
           .order('created_at', { ascending: false });
-        
+
         // Map to convex-like structure for compatibility
         const mappedCarePlans = (carePlansData || []).map(cp => ({
           ...cp,
@@ -64,7 +64,7 @@ export default function AllCarePlansPage() {
           lastName: cp.last_name,
           imageUrl: cp.image_url
         }));
-        
+
         setAllCarePlans(mappedCarePlans);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -139,7 +139,7 @@ export default function AllCarePlansPage() {
         <div className="flex-1">
           <h1 className="text-xl sm:text-2xl font-bold">All Care Plans</h1>
           <p className="text-muted-foreground text-sm">
-            View all care plans for {resident.firstName} {resident.lastName}
+            View all care plans for {resident.first_name} {resident.last_name}
           </p>
         </div>
       </div>
@@ -168,37 +168,45 @@ export default function AllCarePlansPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {allCarePlans.map((carePlan) => (
-                <TableRow key={carePlan._id}>
-                  <TableCell className="font-medium">
-                    {carePlan.name_of_care_plan}
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
-                      {carePlan.care_plan_type || "General"}
-                    </span>
-                  </TableCell>
-                  <TableCell>#{carePlan.care_plan_number}</TableCell>
-                  <TableCell>{carePlan.written_by}</TableCell>
-                  <TableCell>
-                    {format(new Date(carePlan.date_written), "dd MMM yyyy")}
-                  </TableCell>
-                  <TableCell>
-                    {format(new Date(carePlan._creationTime), "dd MMM yyyy, HH:mm")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleViewCarePlan(carePlan)}
-                      className="gap-2"
-                    >
-                      <Eye className="h-4 w-4" />
-                      View
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {allCarePlans.map((carePlan) => {
+                const goals = carePlan.goals || {};
+                const nameOfCarePlan = goals.nameOfCarePlan || carePlan.care_plan_type || "Care Plan";
+                const carePlanNumber = goals.carePlanNumber || carePlan.care_plan_number || "N/A";
+                const writtenBy = goals.writtenBy || carePlan.written_by || "N/A";
+                const dateWritten = goals.dateWritten || carePlan.date_written;
+
+                return (
+                  <TableRow key={carePlan._id}>
+                    <TableCell className="font-medium">
+                      {nameOfCarePlan}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
+                        {carePlan.care_plan_type || "General"}
+                      </span>
+                    </TableCell>
+                    <TableCell>#{carePlanNumber}</TableCell>
+                    <TableCell>{writtenBy}</TableCell>
+                    <TableCell>
+                      {dateWritten ? format(new Date(dateWritten), "dd MMM yyyy") : "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      {format(new Date(carePlan._creationTime), "dd MMM yyyy, HH:mm")}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewCarePlan(carePlan)}
+                        className="gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
