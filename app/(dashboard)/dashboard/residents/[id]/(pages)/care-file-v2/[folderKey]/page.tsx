@@ -305,7 +305,7 @@ export default function CareFileV2FolderPage() {
 
         toast.info(`Generating PDF for ${formName}...`);
 
-        let dataToPrint = { ...formDataForEdit };
+        const dataToPrint: any = { ...formDataForEdit };
 
         // If it's a care plan, fetch the 5 most recent evaluations
         if (activeFormKey === "care-plan-form") {

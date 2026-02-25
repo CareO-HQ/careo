@@ -45,7 +45,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       "best-interest-decision-form"
     ];
 
-    const tableMap: Record<CareFileFormKey, string> = {
+    const tableMap: Partial<Record<CareFileFormKey, string>> = {
       "preAdmission-form": "pre_admission_care_files",
       "infection-prevention": "infection_prevention_assessments",
       "blader-bowel-form": "bladder_bowel_assessments",

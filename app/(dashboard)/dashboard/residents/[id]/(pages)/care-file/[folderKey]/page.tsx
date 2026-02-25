@@ -92,7 +92,6 @@ function FileViewer({ file }: { file: UploadedFile }) {
                 )}
                 {isImage && (
                     <div className="flex items-center justify-center h-full p-6">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src={url}
                             alt={file.name}
@@ -384,7 +383,7 @@ export default function GenericFolderPage() {
 
         toast.info(`Generating PDF for ${formName}...`);
 
-        let dataToPrint = { ...formDataForEdit };
+        const dataToPrint: any = { ...formDataForEdit };
 
         // If it's a care plan, fetch the 5 most recent evaluations
         if (activeFormKey === "care-plan-form") {
