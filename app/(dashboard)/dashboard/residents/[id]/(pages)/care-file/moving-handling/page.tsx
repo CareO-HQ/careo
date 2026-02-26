@@ -10,6 +10,7 @@ import UploadFileModal from "@/components/residents/carefile/folders/UploadFileM
 import { useCareFileForms } from "@/hooks/use-care-file-forms";
 import { useProfile } from "@/hooks/use-profile";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import { canFillCareFileForms } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { CareFileFormKey } from "@/types/care-files";
@@ -207,8 +208,14 @@ export default function MovingHandlingPage() {
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
-  const [addedForms, setAddedForms] = useState<CareFileFormKey[]>([]);
-  const [addedCarePlans, setAddedCarePlans] = useState<CareFileFormKey[]>([]);
+  const [addedForms, setAddedForms] = usePersistedState<CareFileFormKey[]>(
+    `moving-handling-forms-${residentId}`,
+    []
+  );
+  const [addedCarePlans, setAddedCarePlans] = usePersistedState<CareFileFormKey[]>(
+    `moving-handling-care-plans-${residentId}`,
+    []
+  );
   const [isFormSelectionOpen, setIsFormSelectionOpen] = useState(false);
   const [isCarePlanSelectionOpen, setIsCarePlanSelectionOpen] = useState(false);
 

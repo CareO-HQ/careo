@@ -157,7 +157,7 @@ function generatePainAssessmentHTML(data: any): string {
         ${entries.length > 0 ? entries.map((entry: any, index: number) => `
           <div class="entry-box">
             <div class="entry-header">
-              <span class="field-label">Entry #${index + 1}</span>
+              <span class="field-label">${index + 1}</span>
               <span class="field-value">${entry.dateTime || "Not specified"}</span>
             </div>
             

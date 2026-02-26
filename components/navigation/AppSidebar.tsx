@@ -408,6 +408,16 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+
+              {/* Manager Audit */}
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/manager-audit">
+                    <FileTextIcon />
+                    <span>Manager Audit</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarGroupContent>
           </SidebarGroup>
         )}

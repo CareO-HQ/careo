@@ -305,15 +305,15 @@ export const config = {
     {
       type: "folder",
       key: "resident-valuables",
-      value: "Resident valuables and personal property",
-      description: "Resident valuables and personal property",
+      value: "Valuables and personal property",
+      description: "Valuables and personal property",
       carePlan: true,
       forms: [
         {
           type: "form",
           key: "resident-valuables-form",
-          value: "Resident valuables and personal property",
-          description: "Resident valuables and personal property"
+          value: "Valuables and personal property",
+          description: "Valuables and personal property"
         }
       ]
     },

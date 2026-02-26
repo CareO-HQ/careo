@@ -267,7 +267,7 @@ function MobilityFallDocumentView({
             <div className="space-y-3">
               {interventions.map((entry: any, index: number) => (
                 <div key={index} className="p-3 border rounded bg-muted/20">
-                  <p className="text-xs font-bold text-foreground mb-3">Entry #{index + 1}</p>
+                  <p className="text-xs font-bold text-foreground mb-3">{index + 1}</p>
                   <div className="space-y-2">
                     <div className="grid grid-cols-[1fr_1.5fr] gap-2">
                       <p className="text-sm font-bold text-foreground">Date</p>
@@ -894,7 +894,7 @@ export default function MobilityFallCarePlanForm({
                   {fields.map((field, index) => (
                     <div key={field.id} className="p-3 border rounded space-y-3 bg-muted/30">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold text-muted-foreground">Entry #{index + 1}</p>
+                      <p className="text-xs font-semibold text-muted-foreground">#{index + 1}</p>
                         {fields.length > 1 && (
                           <Button
                             type="button"
