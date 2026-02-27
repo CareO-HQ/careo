@@ -9,11 +9,15 @@ import { canFillCareFileForms } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { CareFileFormKey } from "@/types/care-files";
 import { config } from "@/config";
-import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X, ExternalLink } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X, ExternalLink, PanelRight, PanelRightClose } from "lucide-react";
 import { usePathname, useRouter, useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useSidebar } from "@/components/ui/sidebar";
 import {
     Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Card, CardContent } from "@/components/ui/card";
@@ -82,7 +86,7 @@ function FileViewer({ file }: { file: UploadedFile }) {
             </div>
 
             {/* Viewer body */}
-            <div className="flex-1 overflow-auto bg-muted/30">
+            <div className="flex-1 flex overflow-hidden min-h-0 relative">
                 {isPdf && (
                     <iframe
                         src={url}
@@ -181,6 +185,9 @@ export default function GenericFolderPage() {
     const [addedCarePlans, setAddedCarePlans] = useState<CareFileFormKey[]>([]);
     const [activeOrganization, setActiveOrganization] = useState<any>(null);
     const [selectedCarePlanName, setSelectedCarePlanName] = useState<string | undefined>(undefined);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    // useSidebar state used to coordinate with SidebarTrigger if needed, but SidebarTrigger handles itself.
+    const { toggleSidebar, state: leftSidebarState } = useSidebar();
 
     // HELPER MAPPING for Deletes/Fetches
     const TABLE_MAP: Record<string, string> = {
@@ -396,8 +403,12 @@ export default function GenericFolderPage() {
 
             if (!error && evaluations) {
                 dataToPrint.evaluations = evaluations.map(e => ({
-                    evaluationDate: e.evaluation_date || e.created_at,
-                    progress_notes: e.progress_notes || e.comments
+                    evaluation_date: e.evaluation_date || e.created_at,
+                    progress_notes: e.progress_notes || e.comments,
+                    outcome: e.outcome,
+                    position: e.position,
+                    staff_name: e.reviewed_by_name,
+                    next_review_date: e.new_review_date
                 }));
             }
         }
@@ -449,54 +460,62 @@ export default function GenericFolderPage() {
     }
 
     return (
-        <div className="flex flex-col -mx-16 -mt-16 -mb-6 h-screen overflow-hidden">
+        <div className="flex flex-col gap-6 w-full relative h-[calc(100vh-theme(spacing.24))]">
             {/* Top Bar */}
-            <div className="flex items-center gap-3 px-6 py-3 bg-background border-b flex-shrink-0">
+            <div className="flex items-center gap-2 px-4 py-2 bg-background border-b flex-shrink-0">
                 <button
                     onClick={() => router.push(`/dashboard/residents/${residentId}/care-file` as any)}
                     className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
                 >
                     <ArrowLeft className="w-4 h-4" />
                 </button>
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
                     <span
-                        className="text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                        onClick={() => router.push(`/dashboard/residents/${residentId}/care-file` as any)}
+                        className="cursor-pointer hover:text-foreground transition-colors"
+                        onClick={() => {
+                            setActiveFormKey(null);
+                            setActiveFileId(null);
+                            setFormDataForEdit(undefined);
+                            setIsViewOnly(false);
+                            router.push(`/dashboard/residents/${residentId}/care-file` as any);
+                        }}
                     >
                         Care File
                     </span>
-                    <span className="text-muted-foreground">/</span>
-                    <span
-                        className={`cursor-pointer transition-colors ${activeFormKey || activeFile ? "text-muted-foreground hover:text-foreground" : "font-medium"}`}
-                        onClick={() => {
-                            if (activeFormKey || activeFile) {
-                                setActiveFormKey(null);
-                                setActiveFileId(null);
-                                setFormDataForEdit(undefined);
-                                setIsViewOnly(false);
-                            }
-                        }}
-                    >
-                        {folderConfig.value}
-                    </span>
+                    <span>/</span>
+                    <span className="font-medium text-foreground">{folderConfig.value || folderKey}</span>
                     {activeFormKey && (
                         <>
-                            <span className="text-muted-foreground">/</span>
-                            <span className="text-foreground font-medium">
+                            <span>/</span>
+                            <span className="text-foreground">
                                 {activeFormKey === "care-plan-form"
                                     ? (formDataForEdit?.care_plan_type || "Care Plan")
-                                    : (folderForms.find((f) => (f.key as string) === activeFormKey)?.value || "Form")
+                                    : (folderForms.find(f => (f.key as string) === activeFormKey)?.value || "Form")
                                 }
                             </span>
                         </>
                     )}
                     {activeFile && (
                         <>
-                            <span className="text-muted-foreground">/</span>
-                            <span className="text-foreground font-medium">{activeFile.name}</span>
+                            <span>/</span>
+                            <span className="text-foreground">{activeFile.name}</span>
                         </>
                     )}
                 </div>
+
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground transition-all duration-200"
+                    title={isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"}
+                >
+                    {isSidebarCollapsed ? (
+                        <PanelRight className="h-4 w-4" />
+                    ) : (
+                        <PanelRightClose className="h-4 w-4" />
+                    )}
+                </Button>
             </div>
 
             {/* Body */}
@@ -506,8 +525,8 @@ export default function GenericFolderPage() {
                     {activeFile ? (
                         <FileViewer file={activeFile} />
                     ) : activeFormKey && resident ? (
-                        <div className="flex-1 overflow-y-auto p-4 sm:p-8 scrollbar-thin">
-                            <div className="mx-auto w-full max-w-4xl bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+                            <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
                                 {/* Form Header with Edit/Print */}
                                 <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
                                     <div className="flex items-center gap-3">
@@ -678,7 +697,8 @@ export default function GenericFolderPage() {
                 </main>
 
                 {/* Right Sidebar */}
-                <aside className="w-[200px] flex-shrink-0 border-l bg-background h-full p-3 overflow-y-auto">
+                <aside className={`flex-shrink-0 border-l bg-background h-full transition-all duration-300 ease-in-out ${isSidebarCollapsed ? "w-0 opacity-0 invisible" : "w-[200px] opacity-100"
+                    } overflow-y-auto overflow-x-hidden p-3`}>
                     <div className="flex flex-col gap-6">
                         {/* Forms section */}
                         <div>

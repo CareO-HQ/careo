@@ -8,10 +8,16 @@ import { canFillCareFileForms } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { CareFileFormKey } from "@/types/care-files";
 import { config } from "@/config";
-import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X, Edit3, Printer, History, Clock, FileCheck, ChevronRight, ExternalLink } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X, Edit3, Printer, History, Clock, FileCheck, ChevronRight, ExternalLink, PanelRight, PanelRightClose } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Dialog } from "@/components/ui/dialog";
+import { useSidebar } from "@/components/ui/sidebar";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
@@ -104,7 +110,7 @@ function FileViewer({ file }: { file: UploadedFile }) {
                     Download
                 </a>
             </div>
-            <div className="flex-1 overflow-auto bg-muted/30">
+            <div className="flex-1 flex overflow-hidden min-h-0 relative">
                 {isPdf && <iframe src={url} className="w-full h-full border-none" title={file.name} />}
                 {isImage && (
                     <div className="flex items-center justify-center h-full p-6">
@@ -158,6 +164,9 @@ export default function CareFileV2FolderPage() {
     const [isCarePlanSelectionOpen, setIsCarePlanSelectionOpen] = useState(false);
     const [activeOrganization, setActiveOrganization] = useState<any>(null);
     const [selectedCarePlanName, setSelectedCarePlanName] = useState<string | undefined>(undefined);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    // SidebarTrigger handles the left sidebar, hook used for state if needed.
+    const { toggleSidebar, state: leftSidebarState } = useSidebar();
 
     const folderFormKeys = (folder?.forms || []).map(f => f.key as CareFileFormKey);
 
@@ -318,8 +327,12 @@ export default function CareFileV2FolderPage() {
 
             if (!error && evaluations) {
                 dataToPrint.evaluations = evaluations.map(e => ({
-                    evaluationDate: e.evaluation_date || e.created_at,
-                    progress_notes: e.progress_notes || e.comments
+                    evaluation_date: e.evaluation_date || e.created_at,
+                    progress_notes: e.progress_notes || e.comments,
+                    outcome: e.outcome,
+                    position: e.position,
+                    staff_name: e.reviewed_by_name,
+                    next_review_date: e.new_review_date
                 }));
             }
         }
@@ -358,24 +371,41 @@ export default function CareFileV2FolderPage() {
     }
 
     return (
-        <div className="flex flex-col -mx-16 -mt-16 -mb-6 h-screen overflow-hidden">
+        <div className="flex flex-col gap-6 w-full relative h-[calc(100vh-theme(spacing.24))]">
             {/* Top Bar */}
-            <div className="flex items-center gap-3 px-6 py-3 bg-background border-b flex-shrink-0">
-                <button onClick={() => router.push(`/dashboard/residents/${residentId}/care-file-v2` as any)} className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+            <div className="flex items-center gap-2 px-4 py-2 bg-background border-b flex-shrink-0">
+                <button
+                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file-v2` as any)}
+                    className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                >
                     <ArrowLeft className="w-4 h-4" />
                 </button>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
                     <span>Care File V2</span> <span>/</span> <span className="font-medium text-foreground">{folder.value}</span>
                     {activeFormKey && <><span>/</span> <span className="text-foreground">{folder.forms.find(f => f.key === activeFormKey)?.value || "Form"}</span></>}
                     {activeFile && <><span>/</span> <span className="text-foreground">{activeFile.name}</span></>}
                 </div>
-            </div>
+
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground transition-all duration-200"
+                    title={isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"}
+                >
+                    {isSidebarCollapsed ? (
+                        <PanelRight className="h-4 w-4" />
+                    ) : (
+                        <PanelRightClose className="h-4 w-4" />
+                    )}
+                </Button>
+            </div >
 
             <div className="flex flex-1 min-h-0 overflow-hidden">
                 <main className="flex-1 min-w-0 flex flex-col overflow-hidden bg-muted/10">
                     {activeFile ? <FileViewer file={activeFile} /> : activeFormKey && resident ? (
-                        <div className="flex-1 overflow-y-auto p-4 sm:p-8 scrollbar-thin">
-                            <div className="mx-auto w-full max-w-4xl bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+                            <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
                                 <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-primary/10 rounded-lg"><FileText className="w-5 h-5 text-primary" /></div>
@@ -441,7 +471,8 @@ export default function CareFileV2FolderPage() {
                     )}
                 </main>
 
-                <aside className="w-[200px] flex-shrink-0 border-l bg-background h-full p-3 overflow-y-auto">
+                <aside className={`flex-shrink-0 border-l bg-background h-full transition-all duration-300 ease-in-out ${isSidebarCollapsed ? "w-0 opacity-0 invisible" : "w-[200px] opacity-100"
+                    } overflow-y-auto overflow-x-hidden p-3`}>
                     <div className="flex flex-col gap-6">
                         <div>
                             <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1 mb-2">Forms</p>
@@ -565,6 +596,6 @@ export default function CareFileV2FolderPage() {
                     </div>
                 </DialogPrimitive.Content>
             </Dialog>
-        </div>
+        </div >
     );
 }

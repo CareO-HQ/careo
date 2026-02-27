@@ -186,27 +186,34 @@ export const generateCareFilePDF = async ({
                     const EVAL_NOTES_KEYS = ["progress_notes", "comments"];
                     let headers = Object.keys(filteredItems[0]).filter(k => !SKIP_KEYS.has(k));
 
-                    // If it looks like an evaluation array, restrict to strict columns
+                    // If it looks like an evaluation array, restrict to recognized columns to avoid clutter
                     const isEvaluation = headers.some(k => EVAL_DATE_KEYS.includes(k) || EVAL_NOTES_KEYS.includes(k));
                     if (isEvaluation) {
-                        // Narrow down to one date and one notes field
+                        // Narrow down to one date, one notes field, and other specific fields
                         const dateKey = headers.find(k => EVAL_DATE_KEYS.includes(k));
                         const notesKey = headers.find(k => EVAL_NOTES_KEYS.includes(k));
-                        headers = [dateKey, notesKey].filter((k): k is string => !!k);
+                        const otherKeys = ["outcome", "position", "new_review_date", "nextReviewDate", "staff_name", "next_review_date"];
+
+                        headers = [
+                            dateKey,
+                            notesKey,
+                            ...headers.filter(k => otherKeys.includes(k))
+                        ].filter((k): k is string => !!k);
                     }
 
                     const rows = filteredItems.map(item =>
                         headers.map(k => {
                             const v = item[k];
                             if (v === null || v === undefined) return "";
-                            // Basic date detection and formatting
-                            if (typeof v === "string" && v.includes("T") && !isNaN(Date.parse(v))) {
+                            // Date detection and formatting (DD MMM YYYY)
+                            if (typeof v === "string" && (v.includes("T") || /^\d{4}-\d{2}-\d{2}$/.test(v)) && !isNaN(Date.parse(v))) {
                                 try {
-                                    return new Date(v).toLocaleDateString('en-GB', {
-                                        day: '2-digit',
-                                        month: 'short',
-                                        year: 'numeric'
-                                    });
+                                    const date = new Date(v);
+                                    const day = date.getDate().toString().padStart(2, '0');
+                                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                    const month = months[date.getMonth()];
+                                    const year = date.getFullYear();
+                                    return `${day} ${month} ${year}`;
                                 } catch (e) { return v; }
                             }
                             return String(v);

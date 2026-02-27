@@ -87,19 +87,23 @@ export default function CarePlanSheetContent({
 
   const fetchEvaluations = async () => {
     if (!carePlan.formId) return;
-    const { data } = await supabase
+    const { data, error: fetchError } = await supabase
       .from('care_plan_evaluations')
       .select('*')
-      // care_plan_id is likely the column
       .eq('care_plan_id', carePlan.formId)
       .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      console.error("Fetch evaluations error:", fetchError);
+    }
 
     if (data) {
       setEvaluations(data.map(e => ({
         ...e,
         _id: e.id,
         evaluationDate: e.evaluation_date || e.created_at,
-        comments: e.progress_notes || e.comments
+        comments: e.progress_notes || e.comments,
+        created_by_name: e.reviewed_by_name
       })));
     }
   };
@@ -155,6 +159,9 @@ export default function CarePlanSheetContent({
   const [openDatePickers, setOpenDatePickers] = useState<{ [key: number]: boolean }>({});
   const [evaluationComments, setEvaluationComments] = useState("");
   const [evaluationTime, setEvaluationTime] = useState("");
+  const [outcome, setOutcome] = useState("Reviewed Remain Valid");
+  const [position, setPosition] = useState("");
+  const [nextReviewDate, setNextReviewDate] = useState<string>("");
 
   const generateTimeOptions = () => {
     const options: string[] = [];
@@ -170,7 +177,13 @@ export default function CarePlanSheetContent({
 
   useEffect(() => {
     if (showEvaluationForm) {
-      setEvaluationTime(formatInTimeZone(new Date(), UK_TIMEZONE, "HH:mm"));
+      const now = new Date();
+      setEvaluationTime(formatInTimeZone(now, UK_TIMEZONE, "HH:mm"));
+
+      // Set next review date to 1 month from now
+      const nextMonth = new Date(now);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      setNextReviewDate(format(nextMonth, "yyyy-MM-dd"));
     }
   }, [showEvaluationForm]);
 
@@ -243,33 +256,39 @@ export default function CarePlanSheetContent({
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from('care_plan_evaluations').insert({
+      const evalDate = formatInTimeZone(new Date(), UK_TIMEZONE, 'yyyy-MM-dd');
+
+      const insertPayload = {
         care_plan_id: carePlan.formId,
-        evaluation_date: (() => {
-          // If evaluationTime is set, combine it with today's date in UK time
-          if (evaluationTime) {
-            // Get today's date in UK YYYY-MM-DD
-            const todayUK = formatInTimeZone(new Date(), UK_TIMEZONE, 'yyyy-MM-dd');
-            // Combine with selected time
-            const dateTimeString = `${todayUK}T${evaluationTime}:00`;
-            // Convert to UTC object from the Zoned Time
-            return fromZonedTime(dateTimeString, UK_TIMEZONE).toISOString();
-          }
-          return new Date().toISOString();
-        })(),
+        evaluation_date: evalDate,
         progress_notes: evaluationComments.trim(),
         created_by: profile.id,
+        reviewed_by_name: profile.name || profile.email,
         organization_id: profile.active_organization_id,
-        resident_id: carePlanData.resident_id
-      });
+        resident_id: carePlanData.resident_id,
+        outcome,
+        position: position || null,
+        new_review_date: nextReviewDate || null
+      };
 
-      if (error) throw error;
+      const { error } = await supabase
+        .from('care_plan_evaluations')
+        .insert(insertPayload)
+        .select();
+
+      if (error) {
+        console.error("Evaluation insert error:", error);
+        toast.error(`Failed to submit: ${error.message}`);
+        return;
+      }
 
       toast.success("Evaluation submitted successfully!");
       setEvaluationComments("");
+      setPosition("");
+      setOutcome("Reviewed Remain Valid");
       setShowEvaluationForm(false);
-      fetchEvaluations(); // Refresh
-    } catch (error) {
+      await fetchEvaluations(); // Refresh
+    } catch (error: any) {
       console.error("Error submitting evaluation:", error);
       toast.error("Failed to submit evaluation. Please try again.");
     } finally {
@@ -305,35 +324,22 @@ export default function CarePlanSheetContent({
     setIsSubmitting(true);
 
     try {
-      // Create new version
-      // We need to fetch original to copy other fields if needed, 
-      // or just insert what we have + references.
-      // Ideally we should copy resident_id etc from carePlanData.
       if (!carePlanData) return;
 
-      const { error } = await supabase.from('care_plan_assessments').insert({
-        resident_id: carePlanData.resident_id, // Ensure this is available in carePlanData
-        name_of_care_plan: carePlanData.nameOfCarePlan,
-        care_plan_number: (carePlanData.carePlanNumber || 0) + 1, // Increment version or number
-        identified_needs: identifiedNeeds.trim(),
-        aims: aims.trim(),
-        planned_care_date: plannedCareEntries,
-        user_id: profile.id,
-        written_by: profile.name,
-        previous_care_plan_id: carePlan.formId,
-        status: 'active', // New one is active
-        care_plan_type: carePlanData.care_plan_type || 'General'
-      });
+      // Update the existing care plan in-place so evaluations stay linked
+      const { error } = await supabase
+        .from('care_plan_assessments')
+        .update({
+          identified_needs: identifiedNeeds.trim(),
+          aims: aims.trim(),
+          planned_care_date: plannedCareEntries,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', carePlan.formId);
 
       if (error) throw error;
 
-      // Archive the old one? Or does backend handle it?
-      // Usually we set old one to 'archived'.
-      await supabase.from('care_plan_assessments').update({ status: 'archived' }).eq('id', carePlan.formId);
-
-      toast.success(
-        "Care plan updated successfully! A new version has been created."
-      );
+      toast.success("Care plan updated successfully!");
 
       // Reset modified state and close the sheet after successful update
       setHasModified(false);
@@ -359,9 +365,13 @@ export default function CarePlanSheetContent({
       data: {
         ...carePlanData,
         evaluations: evaluations.slice(0, 5).map(e => ({
-          evaluationDate: e.evaluation_date || e.created_at,
-          progress_notes: e.progress_notes || e.comments
-        })) // Include ONLY 5 most recent evaluations in the PDF, with clean mapping
+          evaluation_date: e.evaluation_date || e.created_at,
+          progress_notes: e.progress_notes || e.comments,
+          outcome: e.outcome,
+          position: e.position,
+          staff_name: e.reviewed_by_name,
+          next_review_date: e.new_review_date
+        })) // Include 5 most recent evaluations with the new fields
       },
       resident: resident,
       orgLogoUrl: activeOrganization?.logo_url,
@@ -687,13 +697,13 @@ export default function CarePlanSheetContent({
                     </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">
-                      Time of Evaluation
-                    </label>
-                    <div className="w-[150px]">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">
+                        Time of Evaluation
+                      </label>
                       <select
-                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         value={evaluationTime}
                         onChange={(e) => setEvaluationTime(e.target.value)}
                       >
@@ -701,6 +711,40 @@ export default function CarePlanSheetContent({
                           <option key={t} value={t}>{t}</option>
                         ))}
                       </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">Care Plan Outcome</label>
+                      <select
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        value={outcome}
+                        onChange={(e) => setOutcome(e.target.value)}
+                      >
+                        <option value="Reviewed Remain Valid">Reviewed Remain Valid</option>
+                        <option value="Care Plan Amended">Care Plan Amended</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">Position (Optional)</label>
+                      <Input
+                        type="text"
+                        value={position}
+                        onChange={(e) => setPosition(e.target.value)}
+                        placeholder="e.g. Registered Nurse"
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">Next Review Date</label>
+                      <Input
+                        type="date"
+                        value={nextReviewDate}
+                        onChange={(e) => setNextReviewDate(e.target.value)}
+                        className="h-9"
+                      />
                     </div>
                   </div>
 
@@ -748,22 +792,70 @@ export default function CarePlanSheetContent({
                   {evaluations.map((evaluation) => (
                     <div
                       key={evaluation._id}
-                      className="rounded-lg border p-4 bg-background space-y-2"
+                      className="rounded-lg border p-4 bg-background space-y-3 hover:border-primary/20 transition-colors"
                     >
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <div className="flex items-center gap-3">
+                          <p className="font-medium flex items-center gap-2">
+                            <span className="text-muted-foreground/60 italic text-[10px]">Evaluation {evaluations.length - evaluations.indexOf(evaluation)}</span>
+                            {evaluation.outcome && (
+                              <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase border ${evaluation.outcome === "Care Plan Amended"
+                                ? "bg-orange-50 text-orange-600 border-orange-200"
+                                : "bg-blue-50 text-blue-600 border-blue-200"
+                                }`}>
+                                {evaluation.outcome === "Care Plan Amended" ? "CARE PLAN CHANGE" : evaluation.outcome}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <p className="font-medium">
                           {evaluation.evaluationDate
                             ? formatInTimeZone(
                               new Date(evaluation.evaluationDate),
                               UK_TIMEZONE,
-                              "dd MMMM yyyy 'at' HH:mm"
+                              "dd MMM yyyy HH:mm"
                             )
                             : "Unknown Date"}
                         </p>
                       </div>
-                      <p className="text-sm text-foreground whitespace-pre-wrap">
-                        {evaluation.comments}
-                      </p>
+
+                      <Separator className="opacity-50" />
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Reviewed Staff</span>
+                            <div className="space-y-0.5">
+                              <p className="text-sm font-semibold text-foreground">
+                                {evaluation.created_by_name || "Unknown Staff"}
+                              </p>
+                              {evaluation.position && (
+                                <p className="text-xs text-muted-foreground">
+                                  {evaluation.position}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Comments</span>
+                            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                              {evaluation.progress_notes || evaluation.comments}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          {evaluation.new_review_date && (
+                            <div className="space-y-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Next Review Date</span>
+                              <p className="text-sm font-medium text-foreground">
+                                {format(new Date(evaluation.new_review_date), "dd MMM yyyy")}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

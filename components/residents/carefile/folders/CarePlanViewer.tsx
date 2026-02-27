@@ -48,11 +48,11 @@ export function CarePlanViewer({ data, onAddEvaluation }: CarePlanViewerProps) {
     const staffSignature = goals.staffSignature || data.staffSignature || "N/A";
 
     return (
-        <div className="space-y-12 pb-12">
+        <div className="columns-1 lg:columns-2 gap-8 w-full pb-12">
             {/* BASIC INFORMATION */}
-            <section className="space-y-6">
+            <section className="break-inside-avoid mb-10 space-y-6">
                 <h3 className="text-[11px] font-bold text-foreground uppercase tracking-wider">BASIC INFORMATION</h3>
-                <div className="space-y-4 max-w-2xl px-2">
+                <div className="space-y-4 w-full px-2">
                     <div className="grid grid-cols-[200px,1fr] gap-4">
                         <p className="text-sm font-bold text-foreground">Resident Name</p>
                         <p className="text-sm text-foreground">{residentName}</p>
@@ -82,7 +82,7 @@ export function CarePlanViewer({ data, onAddEvaluation }: CarePlanViewerProps) {
             </section>
 
             {/* CARE PLAN DETAILS */}
-            <section className="space-y-6">
+            <section className="break-inside-avoid mb-10 space-y-6">
                 <h3 className="text-[11px] font-bold text-foreground uppercase tracking-wider">CARE PLAN DETAILS</h3>
 
                 <div className="space-y-4">
@@ -104,7 +104,7 @@ export function CarePlanViewer({ data, onAddEvaluation }: CarePlanViewerProps) {
             </section>
 
             {/* PLANNED CARE / INTERVENTIONS */}
-            <section className="space-y-6">
+            <section className="break-inside-avoid mb-10 space-y-6">
                 <h3 className="text-[11px] font-bold text-foreground uppercase tracking-wider">PLANNED CARE / INTERVENTIONS</h3>
 
                 <div className="space-y-4">
@@ -145,11 +145,11 @@ export function CarePlanViewer({ data, onAddEvaluation }: CarePlanViewerProps) {
             </section>
 
             {/* REVIEW OF PATIENT OR REPRESENTATIVE */}
-            <section className="space-y-6">
+            <section className="break-inside-avoid mb-10 space-y-6">
                 <div className="h-px bg-gray-100 mb-6" />
                 <h3 className="text-[11px] font-bold text-foreground uppercase tracking-wider">REVIEW OF PATIENT OR REPRESENTATIVE</h3>
 
-                <div className="space-y-4 max-w-2xl px-2">
+                <div className="space-y-4 w-full px-2">
                     <div className="grid grid-cols-[200px,1fr] gap-4">
                         <p className="text-sm font-bold text-foreground">Discussed With</p>
                         <p className="text-sm text-foreground">{discussedWith}</p>
@@ -166,7 +166,7 @@ export function CarePlanViewer({ data, onAddEvaluation }: CarePlanViewerProps) {
             </section>
 
             {/* ADD EVALUATION BUTTON */}
-            <div className="flex justify-center pt-8">
+            <div className="break-inside-avoid flex justify-start lg:justify-center pt-8 w-full">
                 <Button
                     onClick={onAddEvaluation}
                     className="bg-black text-white hover:bg-black/90 rounded-lg px-6 h-10 gap-2"

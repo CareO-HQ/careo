@@ -195,36 +195,33 @@ export default function CarePlanDialog({
         };
 
         if (isEditMode && initialData?.id) {
-          // Update mode: Archive the old plan and create a new version
-          const archivePayload = {
-            status: 'archived',
-            archived_at: new Date().toISOString()
-          };
-
-          const { error: archiveError } = await supabase
+          // Update the existing care plan in-place so evaluations stay linked
+          const { error: updateError } = await supabase
             .from('care_plan_assessments')
-            .update(archivePayload)
+            .update({
+              care_plan_type: values.nameOfCarePlan,
+              need_identified: values.identifiedNeeds,
+              interventions: values.plannedCareDate as any,
+              goals: {
+                aims: values.aims,
+                discussedWith: values.discussedWith || "",
+                signature: values.signature || "",
+                staffSignature: values.staffSignature || "",
+                residentName: values.residentName,
+                dob: values.dob,
+                bedroomNumber: values.bedroomNumber,
+                writtenBy: values.writtenBy,
+                dateWritten: values.dateWritten,
+                carePlanNumber: values.carePlanNumber,
+                folderKey: folderKey
+              },
+              updated_at: new Date().toISOString()
+            })
             .eq('id', initialData.id);
 
-          if (archiveError) throw archiveError;
+          if (updateError) throw updateError;
 
-          const oldVersion = initialData.version_number || 1;
-          const newVersion = oldVersion + 1;
-
-          const newVersionPayload = {
-            ...payload,
-            previous_version_id: initialData.id,
-            previous_care_plan_id: initialData.id, // Keep for backward compatibility
-            version_number: newVersion
-          };
-
-          const { error: insertError } = await supabase
-            .from('care_plan_assessments')
-            .insert(newVersionPayload);
-
-          if (insertError) throw insertError;
-
-          toast.success("Care plan assessment updated successfully. Previous version archived.");
+          toast.success("Care plan assessment updated successfully.");
         } else {
           const newPayload = {
             ...payload,
