@@ -399,6 +399,16 @@ export function AppSidebar() {
           <SidebarGroup className="mt-0">
             <SidebarGroupLabel>Audit</SidebarGroupLabel>
             <SidebarGroupContent>
+              {/* Care File Audit */}
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/manager-audit/0">
+                    <FileTextIcon />
+                    <span>Care File Audit</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
               {/* Audit / CareO Audit */}
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>

@@ -29,11 +29,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Plus, X, CalendarIcon, Trash2, ArrowUpRight } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -80,6 +82,7 @@ interface Question {
   id: string;
   text: string;
   type: "compliance" | "yesno" | "text";
+  isSection?: boolean; // For grid audit sections
 }
 
 interface Answer {
@@ -131,14 +134,25 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [residentDates, setResidentDates] = useState<{ [residentId: string]: string }>({});
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
+
+  // State for grid-based audit (ID: 1)
+  const [rowQuestions, setRowQuestions] = useState<Question[]>([]);
+  const [columnQuestions, setColumnQuestions] = useState<Question[]>([]);
+  const [fixedColumnData, setFixedColumnData] = useState<{
+    [rowId: string]: {
+      comment?: string;
+      actionRequired?: string;
+      actionCompleted?: string;
+    };
+  }>({});
 
   // State for action plan creation
   const [selectedResidentForActionPlan, setSelectedResidentForActionPlan] = useState<any>(null);
 
   // UI State
   const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false);
+  const [questionDialogMode, setQuestionDialogMode] = useState<"row" | "column" | "standard">("standard");
   const [newQuestionText, setNewQuestionText] = useState("");
   const [newQuestionType, setNewQuestionType] = useState<"compliance" | "yesno" | "text">("compliance");
   const [isActionPlanDialogOpen, setIsActionPlanDialogOpen] = useState(false);
@@ -160,6 +174,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       setIsLoading(true);
 
       // Load ALL residents from the entire organization (all units/teams)
+      let allResidentsData: any[] = [];
       if (activeOrganizationId) {
         const { data: resData } = await supabase.from('residents').select('*').eq('organization_id', activeOrganizationId);
         if (resData) {
@@ -171,6 +186,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
             imageUrl: r.image_url || r.imageUrl
           }));
           setAllResidents(mapped);
+          allResidentsData = mapped;
         }
       }
 
@@ -183,40 +199,66 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         setOrgMembers(members || []);
       }
 
-      // Load saved selected residents from localStorage
+      // FLEXIBLE AUDIT SYSTEM:
+      // 1. First time or after completion: Load ALL residents (manager can remove unwanted ones)
+      // 2. Work in progress: Keep exactly what manager has selected/removed
+      // 3. Questions persist forever (each care home customizes their own)
       const savedSelectedResidents = localStorage.getItem(`manager-audit-selected-residents-${auditId}`);
       if (savedSelectedResidents) {
+        // Restore work-in-progress state (residents manager is currently auditing)
         setSelectedResidents(JSON.parse(savedSelectedResidents));
+      } else {
+
+        // Special handling for Grid-based audits (ID: 1, 2, 9, 18)
+        if (auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18") {
+          // Start with empty array - manager adds numbered entries manually
+          setSelectedResidents([]);
+          localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify([]));
+        } else {
+          // First time or fresh start: Load ALL residents, manager removes unwanted ones
+          setSelectedResidents(allResidentsData);
+          localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify(allResidentsData));
+        }
       }
 
-      // Load saved questions from localStorage (can be moved to DB later)
+      // Questions are permanent for this audit type (each care home customizes)
       const savedQuestions = localStorage.getItem(`manager-audit-questions-${auditId}`);
       if (savedQuestions) {
         setQuestions(JSON.parse(savedQuestions));
       }
 
-      // Load saved answers from localStorage
+      // Load work-in-progress answers
       const savedAnswers = localStorage.getItem(`manager-audit-answers-${auditId}`);
       if (savedAnswers) {
         setAnswers(JSON.parse(savedAnswers));
       }
 
-      // Load saved comments from localStorage
+      // Load work-in-progress comments
       const savedComments = localStorage.getItem(`manager-audit-comments-${auditId}`);
       if (savedComments) {
         setComments(JSON.parse(savedComments));
-      }
-
-      // Load saved dates from localStorage
-      const savedDates = localStorage.getItem(`manager-audit-dates-${auditId}`);
-      if (savedDates) {
-        setResidentDates(JSON.parse(savedDates));
       }
 
       // Load saved action plans from localStorage
       const savedActionPlans = localStorage.getItem(`manager-audit-action-plans-${auditId}`);
       if (savedActionPlans) {
         setActionPlans(JSON.parse(savedActionPlans));
+      }
+
+      // Load grid questions for Grid-based Audits (ID 1, 2, 9, 18)
+      if (auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18") {
+        const savedRowQuestions = localStorage.getItem(`manager-audit-row-questions-${auditId}`);
+        if (savedRowQuestions) {
+          setRowQuestions(JSON.parse(savedRowQuestions));
+        }
+        const savedColumnQuestions = localStorage.getItem(`manager-audit-column-questions-${auditId}`);
+        if (savedColumnQuestions) {
+          setColumnQuestions(JSON.parse(savedColumnQuestions));
+        }
+        const savedFixedColumnData = localStorage.getItem(`manager-audit-fixed-columns-${auditId}`);
+        if (savedFixedColumnData) {
+          setFixedColumnData(JSON.parse(savedFixedColumnData));
+        }
       }
 
       // Load saved resident audit data for Care File Audit (ID 0)
@@ -264,11 +306,9 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     const updatedResidents = selectedResidents.filter((r) => r._id !== residentId);
     setSelectedResidents(updatedResidents);
 
-    // Also remove their answers, comments, and dates
+    // Also remove their answers and comments
     setAnswers(answers.filter((a) => a.residentId !== residentId));
     setComments(comments.filter((c) => c.residentId !== residentId));
-    const { [residentId]: removed, ...remainingDates } = residentDates;
-    setResidentDates(remainingDates);
 
     // Remove action plans for this resident
     setActionPlans(actionPlans.filter((p) => p.residentId !== residentId));
@@ -276,7 +316,6 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify(updatedResidents));
     localStorage.setItem(`manager-audit-answers-${auditId}`, JSON.stringify(answers.filter((a) => a.residentId !== residentId)));
     localStorage.setItem(`manager-audit-comments-${auditId}`, JSON.stringify(comments.filter((c) => c.residentId !== residentId)));
-    localStorage.setItem(`manager-audit-dates-${auditId}`, JSON.stringify(remainingDates));
 
     toast.success(`${resident?.firstName} ${resident?.lastName} removed from audit`);
   };
@@ -399,16 +438,11 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
 
   const getComment = (residentId: string) => comments.find(c => c.residentId === residentId)?.text || "";
 
-  const handleResidentDateChange = (residentId: string, dateValue: string) => {
-    const updatedDates = { ...residentDates, [residentId]: dateValue };
-    setResidentDates(updatedDates);
-    localStorage.setItem(`manager-audit-dates-${auditId}`, JSON.stringify(updatedDates));
-  };
-
   // Completion
   const handleCompleteAudit = async () => {
     if (selectedResidents.length === 0) {
-      toast.error("Please add at least one resident to the audit");
+      const itemType = (auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18") ? "entry" : "resident";
+      toast.error(`Please add at least one ${itemType} to the audit`);
       return;
     }
 
@@ -432,8 +466,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
             value: answer?.value || null
           };
         }),
-        comment: getComment(resident._id),
-        date: residentDates[resident._id] || new Date().toISOString()
+        comment: getComment(resident._id)
       })),
       questions: questions,
       actionPlans: actionPlans.map(plan => ({
@@ -462,13 +495,16 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     history.unshift(newHistoryRecord);
     localStorage.setItem(historyKey, JSON.stringify(history));
 
-    // Clear current audit data but keep action plans in history
+    // RESET FOR NEXT AUDIT CYCLE:
+    // ✓ KEEP: Questions (each care home has custom questions)
+    // ✗ CLEAR: Residents (will load all residents again next time)
+    // ✗ CLEAR: Answers, Comments, Action Plans (fresh start for next audit)
     localStorage.removeItem(`manager-audit-selected-residents-${auditId}`);
-    localStorage.removeItem(`manager-audit-questions-${auditId}`);
+    // Questions INTENTIONALLY NOT removed - they persist forever for this audit type
     localStorage.removeItem(`manager-audit-answers-${auditId}`);
     localStorage.removeItem(`manager-audit-comments-${auditId}`);
-    localStorage.removeItem(`manager-audit-dates-${auditId}`);
     localStorage.removeItem(`manager-audit-action-plans-${auditId}`);
+    localStorage.removeItem(`manager-audit-fixed-columns-${auditId}`);
 
     toast.success(`Audit completed! ${actionPlans.length} action plan(s) attached.`);
     router.push('/dashboard/manager-audit');
@@ -628,6 +664,421 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     );
   }
 
+  // Grid-based Audits (ID: 1, 2, 9, 18) - Grid-based with row and column questions
+  if (auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18") {
+    const handleAddRowQuestion = () => {
+      if (!newQuestionText.trim()) {
+        toast.error("Please enter a question");
+        return;
+      }
+      const newQuestion: Question = {
+        id: `row-q${Date.now()}`,
+        text: newQuestionText,
+        type: "text",
+      };
+      const updatedRowQuestions = [...rowQuestions, newQuestion];
+      setRowQuestions(updatedRowQuestions);
+      localStorage.setItem(`manager-audit-row-questions-${auditId}`, JSON.stringify(updatedRowQuestions));
+      toast.success("Row added");
+      setNewQuestionText("");
+      setIsQuestionDialogOpen(false);
+    };
+
+    const handleAddColumnQuestion = () => {
+      if (!newQuestionText.trim()) {
+        toast.error("Please enter a question");
+        return;
+      }
+      const newQuestion: Question = {
+        id: `col-q${Date.now()}`,
+        text: newQuestionText,
+        type: newQuestionType,
+      };
+      const updatedColumnQuestions = [...columnQuestions, newQuestion];
+      setColumnQuestions(updatedColumnQuestions);
+      localStorage.setItem(`manager-audit-column-questions-${auditId}`, JSON.stringify(updatedColumnQuestions));
+      toast.success("Column added");
+      setNewQuestionText("");
+      setNewQuestionType("compliance");
+      setIsQuestionDialogOpen(false);
+    };
+
+    const openAddRowDialog = () => {
+      setQuestionDialogMode("row");
+      setNewQuestionText("");
+      setIsQuestionDialogOpen(true);
+    };
+
+    const openAddColumnDialog = () => {
+      setQuestionDialogMode("column");
+      setNewQuestionText("");
+      setNewQuestionType("compliance");
+      setIsQuestionDialogOpen(true);
+    };
+
+    const handleAddSection = () => {
+      const sectionText = prompt("Enter section title:");
+      if (!sectionText?.trim()) return;
+
+      const newSection: Question = {
+        id: `section-${Date.now()}`,
+        text: sectionText,
+        type: "text",
+        isSection: true
+      };
+      const updatedRowQuestions = [...rowQuestions, newSection];
+      setRowQuestions(updatedRowQuestions);
+      localStorage.setItem(`manager-audit-row-questions-${auditId}`, JSON.stringify(updatedRowQuestions));
+      toast.success("Section added");
+    };
+
+    const handleUpdateSectionText = (sectionId: string, text: string) => {
+      const updatedRowQuestions = rowQuestions.map(q =>
+        q.id === sectionId ? { ...q, text } : q
+      );
+      setRowQuestions(updatedRowQuestions);
+      localStorage.setItem(`manager-audit-row-questions-${auditId}`, JSON.stringify(updatedRowQuestions));
+    };
+
+    const handleRemoveRowQuestion = (questionId: string) => {
+      const updatedRowQuestions = rowQuestions.filter(q => q.id !== questionId);
+      setRowQuestions(updatedRowQuestions);
+      setAnswers(answers.filter(a => a.residentId !== questionId));
+      localStorage.setItem(`manager-audit-row-questions-${auditId}`, JSON.stringify(updatedRowQuestions));
+      toast.success("Row question removed");
+    };
+
+    const handleRemoveColumnQuestion = (questionId: string) => {
+      const updatedColumnQuestions = columnQuestions.filter(q => q.id !== questionId);
+      setColumnQuestions(updatedColumnQuestions);
+      setAnswers(answers.filter(a => a.questionId !== questionId));
+      localStorage.setItem(`manager-audit-column-questions-${auditId}`, JSON.stringify(updatedColumnQuestions));
+      toast.success("Column question removed");
+    };
+
+    const handleGridAnswerChange = (rowQuestionId: string, columnQuestionId: string, value: string) => {
+      const existingAnswer = answers.find(a => a.residentId === rowQuestionId && a.questionId === columnQuestionId);
+      let updatedAnswers;
+      if (existingAnswer) {
+        updatedAnswers = answers.map(a =>
+          a.residentId === rowQuestionId && a.questionId === columnQuestionId ? { ...a, value } : a
+        );
+      } else {
+        updatedAnswers = [...answers, { residentId: rowQuestionId, questionId: columnQuestionId, value }];
+      }
+      setAnswers(updatedAnswers);
+      localStorage.setItem(`manager-audit-answers-${auditId}`, JSON.stringify(updatedAnswers));
+    };
+
+    const getGridAnswer = (rowQuestionId: string, columnQuestionId: string) => {
+      return answers.find(a => a.residentId === rowQuestionId && a.questionId === columnQuestionId);
+    };
+
+    const handleFixedColumnChange = (rowId: string, field: 'comment' | 'actionRequired' | 'actionCompleted', value: string) => {
+      const updatedData = {
+        ...fixedColumnData,
+        [rowId]: {
+          ...fixedColumnData[rowId],
+          [field]: value
+        }
+      };
+      setFixedColumnData(updatedData);
+      localStorage.setItem(`manager-audit-fixed-columns-${auditId}`, JSON.stringify(updatedData));
+    };
+
+    const getFixedColumnValue = (rowId: string, field: 'comment' | 'actionRequired' | 'actionCompleted') => {
+      return fixedColumnData[rowId]?.[field] || '';
+    };
+
+    return (
+      <div className="flex-1 space-y-4 p-8 pt-6 h-full flex flex-col">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Button variant="ghost" onClick={handleBack}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Button>
+            <h2 className="text-3xl font-bold tracking-tight">{auditName}</h2>
+          </div>
+          <Button onClick={handleCompleteAudit}>Complete Audit</Button>
+        </div>
+
+        {/* Grid Table */}
+        <div className="rounded-md border flex-1 overflow-auto bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="w-[250px] font-semibold sticky left-0 bg-muted/50 z-10">Questions</TableHead>
+                {columnQuestions.map(q => (
+                  <TableHead key={q.id} className="min-w-[140px] max-w-[180px] font-semibold">
+                    <div className="flex items-center justify-between px-2 gap-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-xs leading-tight truncate flex-1 cursor-help">
+                            {q.text.length > 20 ? `${q.text.substring(0, 20)}...` : q.text}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-sm">{q.text}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveColumnQuestion(q.id)}
+                        className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive flex-shrink-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </TableHead>
+                ))}
+                <TableHead className="min-w-[200px] font-semibold bg-blue-50">Comment</TableHead>
+                <TableHead className="min-w-[200px] font-semibold bg-green-50">Action Required</TableHead>
+                <TableHead className="min-w-[200px] font-semibold bg-orange-50">Action Completed</TableHead>
+                <TableHead className="w-[60px] bg-muted/50 sticky right-0 z-10">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={openAddColumnDialog}
+                        className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-sm">Add Column</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+
+              {rowQuestions.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={columnQuestions.length + 5} className="h-24 text-center text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <p className="text-sm">No questions added yet.</p>
+                      <p className="text-xs">Click the buttons below to add rows and columns</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+
+              {rowQuestions.map((rowQ) => {
+                // Section Row - spans full width
+                if (rowQ.isSection) {
+                  return (
+                    <TableRow key={rowQ.id} className="bg-slate-100 hover:bg-slate-200 transition-colors border-y-2 border-slate-300">
+                      <TableCell colSpan={columnQuestions.length + 5} className="sticky left-0 py-3">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={rowQ.text}
+                            onChange={(e) => handleUpdateSectionText(rowQ.id, e.target.value)}
+                            placeholder="Section title..."
+                            className="font-bold text-base border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 h-10 bg-transparent"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveRowQuestion(rowQ.id)}
+                            className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive flex-shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                }
+
+                // Regular Question Row
+                const getAnswerColor = (value?: string) => {
+                  if (!value) return "text-muted-foreground";
+                  if (value === "yes" || value === "compliant") return "text-green-600 font-medium";
+                  if (value === "no" || value === "non-compliant") return "text-red-600 font-medium";
+                  if (value === "not-applicable") return "text-gray-500 font-medium";
+                  return "";
+                };
+
+                return (
+                  <TableRow key={rowQ.id} className="hover:bg-muted/30 transition-colors">
+                    <TableCell className="font-medium sticky left-0 bg-white">
+                      <div className="flex items-center justify-between gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-sm truncate flex-1 cursor-help">
+                              {rowQ.text.length > 30 ? `${rowQ.text.substring(0, 30)}...` : rowQ.text}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="text-sm">{rowQ.text}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveRowQuestion(rowQ.id)}
+                          className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive flex-shrink-0"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    {columnQuestions.map(colQ => {
+                      const answer = getGridAnswer(rowQ.id, colQ.id);
+
+                      return (
+                        <TableCell key={colQ.id} className="px-2 py-3">
+                          {colQ.type === 'text' ? (
+                            <Input
+                              value={answer?.value || ""}
+                              onChange={(e) => handleGridAnswerChange(rowQ.id, colQ.id, e.target.value)}
+                              placeholder="..."
+                              className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                            />
+                          ) : (
+                            <Select
+                              value={answer?.value}
+                              onValueChange={(val) => handleGridAnswerChange(rowQ.id, colQ.id, val)}
+                            >
+                              <SelectTrigger className={`w-full border-none shadow-none text-sm h-8 ${getAnswerColor(answer?.value)}`}>
+                                <SelectValue placeholder="-" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {colQ.type === 'yesno' ? (
+                                  <>
+                                    <SelectItem value="yes" className="text-green-600 font-medium">✓ Yes</SelectItem>
+                                    <SelectItem value="no" className="text-red-600 font-medium">✗ No</SelectItem>
+                                  </>
+                                ) : (
+                                  <>
+                                    <SelectItem value="compliant" className="text-green-600 font-medium">✓ Compliant</SelectItem>
+                                    <SelectItem value="non-compliant" className="text-red-600 font-medium">✗ Non-Compliant</SelectItem>
+                                    <SelectItem value="not-applicable" className="text-gray-500 font-medium">— N/A</SelectItem>
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </TableCell>
+                      );
+                    })}
+                    <TableCell className="px-2 py-3 bg-blue-50/30">
+                      <Input
+                        value={getFixedColumnValue(rowQ.id, 'comment')}
+                        onChange={(e) => handleFixedColumnChange(rowQ.id, 'comment', e.target.value)}
+                        placeholder="Add comment..."
+                        className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                      />
+                    </TableCell>
+                    <TableCell className="px-2 py-3 bg-green-50/30">
+                      <Input
+                        value={getFixedColumnValue(rowQ.id, 'actionRequired')}
+                        onChange={(e) => handleFixedColumnChange(rowQ.id, 'actionRequired', e.target.value)}
+                        placeholder="Action required..."
+                        className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                      />
+                    </TableCell>
+                    <TableCell className="px-2 py-3 bg-orange-50/30">
+                      <Input
+                        value={getFixedColumnValue(rowQ.id, 'actionCompleted')}
+                        onChange={(e) => handleFixedColumnChange(rowQ.id, 'actionCompleted', e.target.value)}
+                        placeholder="Action completed..."
+                        className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                      />
+                    </TableCell>
+                    <TableCell className="sticky right-0 bg-white"></TableCell>
+                  </TableRow>
+                );
+              })}
+
+              {/* Add Row and Section Buttons - Always visible */}
+              <TableRow className="hover:bg-muted/20 transition-colors border-t-2">
+                <TableCell colSpan={columnQuestions.length + 5} className="sticky left-0 bg-white p-2">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={openAddRowDialog}
+                      className="flex-1 h-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Row
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleAddSection}
+                      className="flex-1 h-8 text-muted-foreground hover:text-slate-700 hover:bg-slate-100"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Section
+                    </Button>
+                  </div>
+                </TableCell>
+                <TableCell className="sticky right-0 bg-white"></TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Unified Dialog for Adding Rows/Columns */}
+        <Dialog open={isQuestionDialogOpen} onOpenChange={setIsQuestionDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {questionDialogMode === "row" ? "Add Row Question" : "Add Column Question"}
+              </DialogTitle>
+              <DialogDescription>
+                {questionDialogMode === "row"
+                  ? "This will appear as a new row on the left side"
+                  : "This will appear as a new column header"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Question</Label>
+                <Input
+                  value={newQuestionText}
+                  onChange={(e) => setNewQuestionText(e.target.value)}
+                  className="col-span-3"
+                  placeholder={questionDialogMode === "row" ? "Enter row question..." : "Enter column question..."}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      questionDialogMode === "row" ? handleAddRowQuestion() : handleAddColumnQuestion();
+                    }
+                  }}
+                />
+              </div>
+              {questionDialogMode === "column" && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right">Type</Label>
+                  <Select value={newQuestionType} onValueChange={(val: any) => setNewQuestionType(val)}>
+                    <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="compliance">Compliance (C/NC/NA)</SelectItem>
+                      <SelectItem value="yesno">Yes/No</SelectItem>
+                      <SelectItem value="text">Text</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsQuestionDialogOpen(false)}>Cancel</Button>
+              <Button onClick={questionDialogMode === "row" ? handleAddRowQuestion : handleAddColumnQuestion}>
+                Add {questionDialogMode === "row" ? "Row" : "Column"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
   // Standard Audit Layout (for all other audits)
   return (
     <div className="flex-1 space-y-4 p-8 pt-6 h-full flex flex-col">
@@ -643,7 +1094,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           <Button variant="outline" onClick={() => setIsAddResidentDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Add Resident
           </Button>
-          <Button variant="outline" onClick={() => setIsQuestionDialogOpen(true)}>
+          <Button variant="outline" onClick={() => { setQuestionDialogMode("standard"); setIsQuestionDialogOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" /> Add Question
           </Button>
           <Button onClick={handleCompleteAudit}>Complete Audit</Button>
@@ -656,16 +1107,24 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead className="w-[200px] font-semibold">Resident</TableHead>
-              <TableHead className="w-[80px] text-center font-semibold">Room</TableHead>
               {questions.map(q => (
-                <TableHead key={q.id} className="min-w-[140px] font-semibold">
-                  <div className="flex items-center justify-between px-2">
-                    <span className="text-xs leading-tight">{q.text}</span>
+                <TableHead key={q.id} className="min-w-[140px] max-w-[180px] font-semibold">
+                  <div className="flex items-center justify-between px-2 gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-xs leading-tight truncate flex-1 cursor-help">
+                          {q.text.length > 20 ? `${q.text.substring(0, 20)}...` : q.text}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-sm">{q.text}</p>
+                      </TooltipContent>
+                    </Tooltip>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleRemoveQuestion(q.id)}
-                      className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive ml-2 flex-shrink-0"
+                      className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive flex-shrink-0"
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -673,7 +1132,6 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                 </TableHead>
               ))}
               <TableHead className="w-[250px] font-semibold">Comment</TableHead>
-              <TableHead className="w-[110px] text-center font-semibold">Date</TableHead>
               <TableHead className="w-[80px] text-center font-semibold">Action</TableHead>
               <TableHead className="w-[70px] text-center font-semibold">Remove</TableHead>
             </TableRow>
@@ -681,7 +1139,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           <TableBody>
             {selectedResidents.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={questions.length + 6} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={questions.length + 4} className="h-32 text-center text-muted-foreground">
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <p className="text-sm">No residents added yet.</p>
                     <p className="text-xs">Click "Add Resident" to begin the audit.</p>
@@ -697,10 +1155,14 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                       <AvatarImage src={resident.imageUrl} />
                       <AvatarFallback className="text-xs">{resident.firstName[0]}{resident.lastName[0]}</AvatarFallback>
                     </Avatar>
-                    <span className="text-sm">{resident.firstName} {resident.lastName}</span>
+                    <div>
+                      <div className="text-sm">{resident.firstName} {resident.lastName}</div>
+                      {resident.roomNumber && (
+                        <div className="text-xs text-muted-foreground">Room {resident.roomNumber}</div>
+                      )}
+                    </div>
                   </div>
                 </TableCell>
-                <TableCell className="text-center text-sm text-muted-foreground">{resident.roomNumber || "-"}</TableCell>
                 {questions.map(q => {
                   const answer = getAnswer(resident._id, q.id);
 
@@ -756,30 +1218,6 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                     placeholder="Add comment..."
                     className="border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
                   />
-                </TableCell>
-                <TableCell className="text-center px-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="w-full h-8 justify-center text-sm font-normal border-none shadow-none p-0 hover:bg-accent"
-                      >
-                        {residentDates[resident._id] ? format(new Date(residentDates[resident._id]), "dd/MM/yy") : format(new Date(), "dd/MM/yy")}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="center">
-                      <Calendar
-                        mode="single"
-                        selected={residentDates[resident._id] ? new Date(residentDates[resident._id]) : new Date()}
-                        onSelect={(date) => {
-                          if (date) {
-                            handleResidentDateChange(resident._id, date.toISOString());
-                          }
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
                 </TableCell>
                 <TableCell className="text-center px-2">
                   <Button

@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { withRoleGuard } from "@/lib/route-guards";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { supabase } from "@/lib/supabase";
@@ -49,18 +50,10 @@ interface ManagerAudit {
   lastAudited: string;
   dueDate: string;
   frequency: "monthly" | "quarterly" | "6month" | "yearly";
+  category: "staff" | "clinical" | "operational" | "general";
 }
 
 const initialAudits: ManagerAudit[] = [
-  {
-    id: "0",
-    name: "Care File Audit",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
-  },
   {
     id: "1",
     name: "Accidents and Incidents Analysis",
@@ -69,6 +62,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "2",
@@ -78,6 +72,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "quarterly",
+    category: "staff",
   },
   {
     id: "3",
@@ -87,6 +82,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "4",
@@ -96,15 +92,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
-  },
-  {
-    id: "5",
-    name: "CARE Documentation (10% to be checked)",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
+    category: "operational",
   },
   {
     id: "6",
@@ -114,6 +102,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "operational",
   },
   {
     id: "7",
@@ -123,6 +112,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "quarterly",
+    category: "staff",
   },
   {
     id: "8",
@@ -132,6 +122,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "general",
   },
   {
     id: "9",
@@ -141,6 +132,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "10",
@@ -150,6 +142,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "quarterly",
+    category: "operational",
   },
   {
     id: "11",
@@ -159,6 +152,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "12",
@@ -168,6 +162,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "operational",
   },
   {
     id: "13",
@@ -177,6 +172,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "14",
@@ -186,6 +182,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "15",
@@ -195,6 +192,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "quarterly",
+    category: "clinical",
   },
   {
     id: "16",
@@ -204,6 +202,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "17",
@@ -213,6 +212,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "staff",
   },
   {
     id: "18",
@@ -222,6 +222,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "19",
@@ -231,6 +232,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "20",
@@ -240,6 +242,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "quarterly",
+    category: "staff",
   },
   {
     id: "21",
@@ -249,6 +252,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "quarterly",
+    category: "clinical",
   },
   {
     id: "22",
@@ -258,6 +262,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "staff",
   },
   {
     id: "23",
@@ -267,6 +272,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "24",
@@ -276,6 +282,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "general",
   },
   {
     id: "25",
@@ -285,6 +292,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "quarterly",
+    category: "clinical",
   },
   {
     id: "26",
@@ -294,6 +302,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "quarterly",
+    category: "staff",
   },
   {
     id: "27",
@@ -303,6 +312,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "28",
@@ -312,6 +322,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
+    category: "clinical",
   },
   {
     id: "29",
@@ -321,6 +332,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "yearly",
+    category: "general",
   },
   {
     id: "30",
@@ -330,6 +342,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "quarterly",
+    category: "staff",
   },
   {
     id: "31",
@@ -339,6 +352,7 @@ const initialAudits: ManagerAudit[] = [
     lastAudited: "-",
     dueDate: "-",
     frequency: "yearly",
+    category: "general",
   },
 ];
 
@@ -353,6 +367,7 @@ function ManagerAuditPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [frequencyFilter, setFrequencyFilter] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("clinical");
 
   // Care File Audit resident selector
   const [isResidentSelectorOpen, setIsResidentSelectorOpen] = useState(false);
@@ -467,9 +482,12 @@ function ManagerAuditPage() {
       // Frequency filter
       const matchesFrequency = frequencyFilter === "all" || audit.frequency === frequencyFilter;
 
-      return matchesSearch && matchesStatus && matchesFrequency;
+      // Category filter (based on active tab) - only show audits matching the selected category
+      const matchesCategory = audit.category === activeTab;
+
+      return matchesSearch && matchesStatus && matchesFrequency && matchesCategory;
     });
-  }, [audits, searchQuery, statusFilter, frequencyFilter]);
+  }, [audits, searchQuery, statusFilter, frequencyFilter, activeTab]);
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -500,7 +518,16 @@ function ManagerAuditPage() {
         </div>
       </div>
 
-      {/* Filters Section */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList>
+          <TabsTrigger value="clinical">Clinical Audits</TabsTrigger>
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="operational">Operational Audits</TabsTrigger>
+          <TabsTrigger value="staff">Staff Audits</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={activeTab} className="space-y-4">
+          {/* Filters Section */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -735,6 +762,8 @@ function ManagerAuditPage() {
           </div>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
