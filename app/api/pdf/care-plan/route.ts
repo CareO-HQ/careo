@@ -8,7 +8,11 @@ function formatDate(dateString?: string | number): string {
   if (!dateString) return "Not specified";
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return "Not specified";
-  return date.toLocaleDateString("en-GB");
+  const day = date.getDate().toString().padStart(2, '0');
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  return `${day} ${month} ${year}`;
 }
 
 // Helper function to generate PDF filename
@@ -269,10 +273,11 @@ function generateCarePlanHTML(assessment: any): string {
       </div>
 
       <div class="section">
-        <div class="section-title">Planned Care</div>
+        <div class="section-title">Planned Care / Interventions (${assessment.plannedCareDate?.length || 0})</div>
         <table class="table">
           <thead>
             <tr>
+              <th style="width: 40px; text-align: center;">#</th>
               <th>Date</th>
               <th>Time</th>
               <th>Details</th>
@@ -282,8 +287,9 @@ function generateCarePlanHTML(assessment: any): string {
           <tbody>
             ${assessment.plannedCareDate
       .map(
-        (entry: any) => `
+        (entry: any, index: number) => `
               <tr>
+                <td style="text-align: center; font-weight: bold;">${index + 1}</td>
                 <td>${formatDate(entry.date)}</td>
                 <td>${formatTime(entry.time)}</td>
                 <td>${entry.details}</td>

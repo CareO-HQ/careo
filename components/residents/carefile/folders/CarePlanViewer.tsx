@@ -47,126 +47,102 @@ export function CarePlanViewer({ data, onAddEvaluation }: CarePlanViewerProps) {
     const signature = goals.signature || data.signature || "N/A";
     const staffSignature = goals.staffSignature || data.staffSignature || "N/A";
 
+    // Reusable row component for label-value pairs with bottom border
+    const FieldRow = ({ label, value, isLast = false }: { label: string; value: string; isLast?: boolean }) => (
+        <div className={`grid grid-cols-[minmax(200px,2fr),3fr] gap-6 py-3 ${!isLast ? "border-b border-gray-100" : ""}`}>
+            <p className="text-sm font-bold text-foreground">{label}</p>
+            <p className="text-sm text-foreground">{value}</p>
+        </div>
+    );
+
     return (
-        <div className="columns-1 lg:columns-2 gap-8 w-full pb-12">
-            {/* BASIC INFORMATION */}
-            <section className="break-inside-avoid mb-10 space-y-6">
-                <h3 className="text-[11px] font-bold text-foreground uppercase tracking-wider">BASIC INFORMATION</h3>
-                <div className="space-y-4 w-full px-2">
-                    <div className="grid grid-cols-[200px,1fr] gap-4">
-                        <p className="text-sm font-bold text-foreground">Resident Name</p>
-                        <p className="text-sm text-foreground">{residentName}</p>
-                    </div>
-                    <div className="grid grid-cols-[200px,1fr] gap-4">
-                        <p className="text-sm font-bold text-foreground">Room Number</p>
-                        <p className="text-sm text-foreground">{bedroomNumber}</p>
-                    </div>
-                    <div className="grid grid-cols-[200px,1fr] gap-4">
-                        <p className="text-sm font-bold text-foreground">Date of Birth</p>
-                        <p className="text-sm text-foreground">{safeFormat(dob, "dd MMM yyyy")}</p>
-                    </div>
-                    <div className="grid grid-cols-[200px,1fr] gap-4">
-                        <p className="text-sm font-bold text-foreground">Care Plan Number</p>
-                        <p className="text-sm text-foreground">{carePlanNumber}</p>
-                    </div>
-                    <div className="grid grid-cols-[200px,1fr] gap-4">
-                        <p className="text-sm font-bold text-foreground">Written By</p>
-                        <p className="text-sm text-foreground">{writtenBy}</p>
-                    </div>
-                    <div className="grid grid-cols-[200px,1fr] gap-4">
-                        <p className="text-sm font-bold text-foreground">Date Written</p>
-                        <p className="text-sm text-foreground">{safeFormat(dateWritten, "dd MMM yyyy")}</p>
-                    </div>
-                </div>
-                <div className="h-px bg-gray-100" />
+        <div className="w-full max-w-4xl mx-auto space-y-10 pb-12">
+
+            {/* ── BASIC INFORMATION ─────────────────────────────────── */}
+            <section className="border border-gray-200 rounded-xl p-6 sm:p-8 bg-white">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider mb-4">
+                    Basic Information
+                </h3>
+
+                <FieldRow label="Resident Name" value={residentName} />
+                <FieldRow label="Room Number" value={bedroomNumber} />
+                <FieldRow label="Date of Birth" value={safeFormat(dob, "dd MMM yyyy")} />
+                <FieldRow label="Care Plan Number" value={carePlanNumber} />
+                <FieldRow label="Written By" value={writtenBy} />
+                <FieldRow label="Date Written" value={safeFormat(dateWritten, "dd MMM yyyy")} isLast />
             </section>
 
-            {/* CARE PLAN DETAILS */}
-            <section className="break-inside-avoid mb-10 space-y-6">
-                <h3 className="text-[11px] font-bold text-foreground uppercase tracking-wider">CARE PLAN DETAILS</h3>
+            {/* ── CARE PLAN DETAILS ─────────────────────────────────── */}
+            <section className="space-y-5">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                    Care Plan Details
+                </h3>
 
-                <div className="space-y-4">
-                    <div className="space-y-2">
-                        <p className="text-sm font-bold text-foreground">Identified Needs / Problem Statement</p>
-                        <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
-                            {identifiedNeeds}
-                        </p>
-                    </div>
-
-                    <div className="space-y-2">
-                        <p className="text-sm font-bold text-foreground">Goals / Aims</p>
-                        <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
-                            {aims}
-                        </p>
-                    </div>
+                <div className="space-y-1">
+                    <p className="text-sm font-bold text-foreground">Identified Needs / Problem Statement</p>
+                    <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+                        {identifiedNeeds}
+                    </p>
                 </div>
-                <div className="h-px bg-gray-100" />
+
+                <div className="border-t border-gray-100 pt-4 space-y-1">
+                    <p className="text-sm font-bold text-foreground">Goals / Aims</p>
+                    <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+                        {aims}
+                    </p>
+                </div>
+                <div className="border-t border-gray-100" />
             </section>
 
-            {/* PLANNED CARE / INTERVENTIONS */}
-            <section className="break-inside-avoid mb-10 space-y-6">
-                <h3 className="text-[11px] font-bold text-foreground uppercase tracking-wider">PLANNED CARE / INTERVENTIONS</h3>
+            {/* ── PLANNED CARE / INTERVENTIONS ──────────────────────── */}
+            <section className="space-y-5">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                    Planned Care / Interventions
+                </h3>
 
-                <div className="space-y-4">
-                    {plannedCareDate && plannedCareDate.length > 0 ? (
-                        plannedCareDate.map((entry: any, index: number) => (
-                            <div key={index} className="border border-gray-100 rounded-lg p-6 space-y-4">
-                                <p className="text-sm font-bold text-foreground">{index + 1}</p>
+                {plannedCareDate && plannedCareDate.length > 0 ? (
+                    <div className="space-y-4">
+                        {plannedCareDate.map((entry: any, index: number) => (
+                            <div key={index} className="border border-gray-200 rounded-xl p-6 sm:p-8 bg-white space-y-1">
+                                <p className="text-sm font-bold text-foreground mb-3">{index + 1}</p>
 
-                                <div className="grid grid-cols-[200px,1fr] gap-4">
-                                    <p className="text-sm font-bold text-foreground">Date</p>
-                                    <p className="text-sm text-foreground">{safeFormat(entry.date, "dd MMM yyyy")}</p>
-                                </div>
+                                <FieldRow label="Date" value={safeFormat(entry.date, "dd MMM yyyy")} />
 
                                 {entry.time && (
-                                    <div className="grid grid-cols-[200px,1fr] gap-4">
-                                        <p className="text-sm font-bold text-foreground">Time</p>
-                                        <p className="text-sm text-foreground">{entry.time}</p>
-                                    </div>
+                                    <FieldRow label="Time" value={entry.time} />
                                 )}
 
-                                <div className="space-y-2">
+                                <div className="py-3 border-b border-gray-100 space-y-1">
                                     <p className="text-sm font-bold text-foreground">Care Details / Actions</p>
                                     <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
                                         {entry.details || "N/A"}
                                     </p>
                                 </div>
 
-                                <div className="grid grid-cols-[200px,1fr] gap-4">
-                                    <p className="text-sm font-bold text-foreground">Staff Signature</p>
-                                    <p className="text-sm text-foreground">{entry.signature || "N/A"}</p>
-                                </div>
+                                <FieldRow label="Staff Signature" value={entry.signature || "N/A"} isLast />
                             </div>
-                        ))
-                    ) : (
-                        <p className="text-sm text-muted-foreground italic px-2">No entries yet</p>
-                    )}
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-muted-foreground italic">No entries yet</p>
+                )}
+            </section>
+
+            {/* ── REVIEW OF PATIENT OR REPRESENTATIVE ───────────────── */}
+            <section className="space-y-5">
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                    Review of Patient or Representative
+                </h3>
+
+                <div>
+                    <FieldRow label="Discussed With" value={discussedWith} />
+                    <FieldRow label="Patient/Representative Signature" value={signature} />
+                    <FieldRow label="Staff Signature" value={staffSignature} isLast />
                 </div>
             </section>
 
-            {/* REVIEW OF PATIENT OR REPRESENTATIVE */}
-            <section className="break-inside-avoid mb-10 space-y-6">
-                <div className="h-px bg-gray-100 mb-6" />
-                <h3 className="text-[11px] font-bold text-foreground uppercase tracking-wider">REVIEW OF PATIENT OR REPRESENTATIVE</h3>
-
-                <div className="space-y-4 w-full px-2">
-                    <div className="grid grid-cols-[200px,1fr] gap-4">
-                        <p className="text-sm font-bold text-foreground">Discussed With</p>
-                        <p className="text-sm text-foreground">{discussedWith}</p>
-                    </div>
-                    <div className="grid grid-cols-[200px,1fr] gap-4">
-                        <p className="text-sm font-bold text-foreground">Patient/Representative Signature</p>
-                        <p className="text-sm text-foreground">{signature}</p>
-                    </div>
-                    <div className="grid grid-cols-[200px,1fr] gap-4">
-                        <p className="text-sm font-bold text-foreground">Staff Signature</p>
-                        <p className="text-sm text-foreground">{staffSignature}</p>
-                    </div>
-                </div>
-            </section>
-
-            {/* ADD EVALUATION BUTTON */}
-            <div className="break-inside-avoid flex justify-start lg:justify-center pt-8 w-full">
+            {/* ── ADD EVALUATION BUTTON ─────────────────────────────── */}
+            <div className="flex justify-center pt-4">
                 <Button
                     onClick={onAddEvaluation}
                     className="bg-black text-white hover:bg-black/90 rounded-lg px-6 h-10 gap-2"

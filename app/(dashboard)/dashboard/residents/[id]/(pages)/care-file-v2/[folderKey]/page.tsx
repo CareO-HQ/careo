@@ -114,7 +114,6 @@ function FileViewer({ file }: { file: UploadedFile }) {
                 {isPdf && <iframe src={url} className="w-full h-full border-none" title={file.name} />}
                 {isImage && (
                     <div className="flex items-center justify-center h-full p-6">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={url} alt={file.name} className="max-w-full max-h-full object-contain rounded shadow-sm" />
                     </div>
                 )}

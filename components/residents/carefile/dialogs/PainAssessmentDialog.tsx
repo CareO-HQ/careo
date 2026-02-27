@@ -62,7 +62,7 @@ export default function PainAssessmentDialog({
     mode: "onChange",
     defaultValues: initialData ? {
       residentId, teamId, organizationId, userId,
-      residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
+      residentName: initialData.residentName || `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
       dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : ""),
       roomNumber: initialData.roomNumber || resident.room_number || "",
       nameOfHome: initialData.nameOfHome || careHomeName || "",

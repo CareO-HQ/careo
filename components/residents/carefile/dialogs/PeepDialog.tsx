@@ -90,20 +90,56 @@ export default function PeepDialog({
                 ? new Date(resident.date_of_birth).getTime()
                 : Date.now(),
         bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
-        understands: initialData.understands ?? false,
-        staffNeeded: initialData.staffNeeded ?? 1,
-        equipmentNeeded: initialData.equipmentNeeded ?? "",
-        communicationNeeds: initialData.communicationNeeds ?? "",
-        steps: initialData.steps ?? [],
-        oxigenInUse: initialData.oxigenInUse ?? false,
-        oxigenComments: initialData.oxigenComments ?? "",
-        residentSmokes: initialData.residentSmokes ?? false,
-        residentSmokesComments: initialData.residentSmokesComments ?? "",
-        furnitureFireRetardant: initialData.furnitureFireRetardant ?? false,
+        // Assistance needed is stored in JSONB column assistance_needed
+        understands:
+          initialData.assistance_needed?.understands ??
+          initialData.understands ??
+          false,
+        staffNeeded:
+          initialData.assistance_needed?.staffNeeded ??
+          initialData.staffNeeded ??
+          1,
+        equipmentNeeded:
+          initialData.assistance_needed?.equipmentNeeded ??
+          initialData.equipmentNeeded ??
+          "",
+        communicationNeeds:
+          initialData.assistance_needed?.communicationNeeds ??
+          initialData.communicationNeeds ??
+          "",
+        // Steps stored as evacuation_steps array
+        steps: initialData.evacuation_steps ?? initialData.steps ?? [],
+        // Hazard info stored in JSONB column hazard_info
+        oxigenInUse:
+          initialData.hazard_info?.oxigenInUse ??
+          initialData.oxigenInUse ??
+          false,
+        oxigenComments:
+          initialData.hazard_info?.oxigenComments ??
+          initialData.oxigenComments ??
+          "",
+        residentSmokes:
+          initialData.hazard_info?.residentSmokes ??
+          initialData.residentSmokes ??
+          false,
+        residentSmokesComments:
+          initialData.hazard_info?.residentSmokesComments ??
+          initialData.residentSmokesComments ??
+          "",
+        furnitureFireRetardant:
+          initialData.hazard_info?.furnitureFireRetardant ??
+          initialData.furnitureFireRetardant ??
+          false,
         furnitureFireRetardantComments:
-          initialData.furnitureFireRetardantComments ?? "",
-        completedBy: isEditMode ? userName : (initialData.completedBy ?? userName),
-        completedBySignature: isEditMode ? userName : (initialData.completedBySignature ?? userName),
+          initialData.hazard_info?.furnitureFireRetardantComments ??
+          initialData.furnitureFireRetardantComments ??
+          "",
+        completedBy: isEditMode
+          ? userName
+          : (initialData.completedBy ?? initialData.completed_by ?? userName),
+        completedBySignature: isEditMode
+          ? userName
+          : (initialData.completedBySignature ?? userName),
         assessmentDate:
           typeof (initialData.assessment_date || initialData.completion_date || initialData.date) === "number"
             ? (initialData.assessment_date || initialData.completion_date || initialData.date)

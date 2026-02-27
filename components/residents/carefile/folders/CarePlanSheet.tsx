@@ -821,40 +821,34 @@ export default function CarePlanSheetContent({
 
                       <Separator className="opacity-50" />
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                          <div className="space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Reviewed Staff</span>
-                            <div className="space-y-0.5">
-                              <p className="text-sm font-semibold text-foreground">
-                                {evaluation.created_by_name || "Unknown Staff"}
-                              </p>
-                              {evaluation.position && (
-                                <p className="text-xs text-muted-foreground">
-                                  {evaluation.position}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Comments</span>
-                            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                              {evaluation.progress_notes || evaluation.comments}
+                      <div className="flex items-baseline justify-between gap-4 flex-wrap">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 whitespace-nowrap">Reviewed Staff:</span>
+                          <p className="text-sm font-semibold text-foreground">
+                            {evaluation.created_by_name || "Unknown Staff"}
+                          </p>
+                          {evaluation.position && (
+                            <p className="text-xs text-muted-foreground">
+                              ({evaluation.position})
                             </p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3">
-                          {evaluation.new_review_date && (
-                            <div className="space-y-1">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Next Review Date</span>
-                              <p className="text-sm font-medium text-foreground">
-                                {format(new Date(evaluation.new_review_date), "dd MMM yyyy")}
-                              </p>
-                            </div>
                           )}
                         </div>
+
+                        {evaluation.new_review_date && (
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 whitespace-nowrap">Next Review Date:</span>
+                            <p className="text-sm font-medium text-foreground">
+                              {format(new Date(evaluation.new_review_date), "dd MMM yyyy")}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-1 w-full">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 text-center">Comments</p>
+                        <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed w-full">
+                          {evaluation.progress_notes || evaluation.comments}
+                        </p>
                       </div>
                     </div>
                   ))}

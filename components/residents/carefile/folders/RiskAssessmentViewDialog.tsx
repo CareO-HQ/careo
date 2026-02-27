@@ -29,6 +29,92 @@ const getPath = (obj: any, path: string): any => {
 /** Format a raw value for display */
 const formatValue = (v: any, fmt?: "date" | "bool" | string): string => {
   if (v === null || v === undefined || v === "") return "—";
+
+  // Custom format handlers for complex/nested values
+  if (typeof fmt === "string") {
+    // PEEP: steps array
+    if (fmt === "peep_steps") {
+      if (!v) return "—";
+      const stepsArray = Array.isArray(v)
+        ? (v as any[])
+        : (typeof v === "object"
+          ? Object.values(v as any)
+          : []);
+      if (!stepsArray.length) return "—";
+      const items = stepsArray.map((step: any, idx: number) => {
+        const name = step?.name || `Step ${idx + 1}`;
+        const desc = step?.description;
+        return desc ? `${idx + 1}) ${name}: ${desc}` : `${idx + 1}) ${name}`;
+      });
+      return items.join(" | ");
+    }
+
+    // Pain assessment: entry count
+    if (fmt === "pain_entries_count") {
+      if (!Array.isArray(v)) return "0 entries";
+      const count = v.length;
+      return `${count} entr${count === 1 ? "y" : "ies"}`;
+    }
+
+    // Pain assessment: latest entry field (e.g. pain_latest.painLocation)
+    if (fmt.startsWith("pain_latest.")) {
+      const field = fmt.slice("pain_latest.".length);
+      if (Array.isArray(v) && v.length > 0) {
+        const latest = v[v.length - 1] ?? {};
+        const val = latest?.[field];
+        return val === null || val === undefined || val === "" ? "—" : String(val);
+      }
+      return "—";
+    }
+
+    // Resident valuables: simple lists
+    if (fmt === "valuables_list") {
+      if (!Array.isArray(v) || v.length === 0) return "—";
+      const items = (v as any[])
+        .map((item) => item?.value)
+        .filter((x) => x && String(x).trim().length > 0);
+      if (!items.length) {
+        const count = v.length;
+        return `${count} item${count === 1 ? "" : "s"}`;
+      }
+      return items.join(", ");
+    }
+
+    if (fmt === "clothing_list") {
+      if (!Array.isArray(v) || v.length === 0) return "—";
+      const items = (v as any[])
+        .map((item) => item?.value)
+        .filter((x) => x && String(x).trim().length > 0);
+      if (!items.length) {
+        const count = v.length;
+        return `${count} item${count === 1 ? "" : "s"}`;
+      }
+      return items.join(", ");
+    }
+
+    if (fmt === "other_items_list") {
+      if (!Array.isArray(v) || v.length === 0) return "—";
+      const items = (v as any[])
+        .map((item, idx) => {
+          const details = item?.details;
+          if (!details) return null;
+          const time = item?.time;
+          const who = item?.receivedBy || item?.witnessedBy;
+          const parts = [details];
+          if (who) parts.push(`(${who})`);
+          if (time) parts.push(`@ ${time}`);
+          return `${idx + 1}) ${parts.join(" ")}`;
+        })
+        .filter((x) => x);
+      if (!items.length) {
+        const count = v.length;
+        return `${count} item${count === 1 ? "" : "s"}`;
+      }
+      return items.join(" | ");
+    }
+  }
+
+  // Generic booleans & dates
   if (fmt === "bool" || typeof v === "boolean") return v ? "Yes" : "No";
   if (fmt === "date" || (typeof v === "number" && v > 1_000_000_000_000)) {
     return safeFormat(v, "dd MMM yyyy");
@@ -36,8 +122,31 @@ const formatValue = (v: any, fmt?: "date" | "bool" | string): string => {
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}(T|\s)/.test(v)) {
     return safeFormat(v, "dd MMM yyyy");
   }
-  if (typeof v === "object" && !Array.isArray(v)) return JSON.stringify(v);
-  if (Array.isArray(v)) return v.join(", ");
+
+  // Arrays: render primitives inline, objects as a compact count
+  if (Array.isArray(v)) {
+    if (v.length === 0) return "—";
+    const first = v[0];
+    if (
+      typeof first === "string" ||
+      typeof first === "number" ||
+      typeof first === "boolean"
+    ) {
+      return (v as any[]).join(", ");
+    }
+    const count = v.length;
+    return `${count} item${count === 1 ? "" : "s"}`;
+  }
+
+  if (typeof v === "object") {
+    // Fallback: JSON representation for unexpected complex objects
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
+
   return String(v);
 };
 
@@ -376,7 +485,7 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
     {
       title: "Resident Information",
       fields: [
-        { label: "Resident Name", path: "mobility_assessment.residentName" },
+        { label: "Resident Name", path: "residentName" },
         { label: "Weight (kg)", path: "mobility_assessment.weight" },
         { label: "Height (cm)", path: "mobility_assessment.height" },
         { label: "History of Falls", path: "risk_factors.historyOfFalls", fmt: "bool" },
@@ -596,6 +705,201 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
     },
   ],
 
+  // ── PEEP (Personal Emergency Evacuation Plan) ────────────────────────────────
+  "peep": [
+    {
+      title: "Resident Information",
+      fields: [
+        { label: "Resident Name", path: "residentName" },
+        { label: "Bedroom Number", path: "bedroomNumber" },
+        { label: "Date of Birth", path: "residentDateOfBirth", fmt: "date" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Completed By", path: "completed_by" },
+      ],
+    },
+    {
+      title: "Assistance Needed",
+      fields: [
+        { label: "Understands Evacuation Procedure", path: "assistance_needed.understands", fmt: "bool" },
+        { label: "Number of Staff Needed", path: "assistance_needed.staffNeeded" },
+        { label: "Equipment Needed", path: "assistance_needed.equipmentNeeded" },
+        { label: "Communication Needs", path: "assistance_needed.communicationNeeds" },
+      ],
+    },
+    {
+      title: "Evacuation Steps",
+      fields: [
+        // Render the whole steps array with a specialised formatter
+        { label: "Steps", path: "evacuation_steps", fmt: "peep_steps" },
+      ],
+    },
+    {
+      title: "Fire Safety / Hazards",
+      fields: [
+        { label: "Oxygen In Use", path: "hazard_info.oxigenInUse", fmt: "bool" },
+        { label: "Oxygen Comments", path: "hazard_info.oxigenComments" },
+        { label: "Resident Smokes", path: "hazard_info.residentSmokes", fmt: "bool" },
+        { label: "Smoking Comments", path: "hazard_info.residentSmokesComments" },
+        { label: "Furniture Fire Retardant", path: "hazard_info.furnitureFireRetardant", fmt: "bool" },
+        { label: "Furniture Comments", path: "hazard_info.furnitureFireRetardantComments" },
+      ],
+    },
+  ],
+
+  // ── Pain Assessment & Evaluation ─────────────────────────────────────────────
+  "pain-assessment-form": [
+    {
+      title: "Assessment Summary",
+      fields: [
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Number of Entries", path: "assessment_entries", fmt: "pain_entries_count" },
+      ],
+    },
+    {
+      title: "Latest Entry (Summary)",
+      fields: [
+        { label: "Date / Time", path: "assessment_entries", fmt: "pain_latest.dateTime" },
+        { label: "Pain Location", path: "assessment_entries", fmt: "pain_latest.painLocation" },
+        { label: "Description of Pain", path: "assessment_entries", fmt: "pain_latest.descriptionOfPain" },
+        { label: "Behaviour", path: "assessment_entries", fmt: "pain_latest.residentBehaviour" },
+        { label: "Intervention", path: "assessment_entries", fmt: "pain_latest.interventionType" },
+        { label: "Pain After Intervention", path: "assessment_entries", fmt: "pain_latest.painAfterIntervention" },
+      ],
+    },
+  ],
+
+  // ── Resident Handling Profile ────────────────────────────────────────────────
+  "resident-handling-profile-form": [
+    {
+      title: "Summary",
+      fields: [
+        { label: "Completed By", path: "completed_by" },
+        { label: "Job Role", path: "job_role" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Weight (kg)", path: "weight" },
+        { label: "Weight Bearing", path: "weight_bearing" },
+      ],
+    },
+    {
+      title: "Activities - Transfers & Mobility",
+      fields: [
+        { label: "Transfer: Bed - Staff", path: "activities.transferBed.nStaff" },
+        { label: "Transfer: Bed - Equipment", path: "activities.transferBed.equipment" },
+        { label: "Transfer: Chair - Staff", path: "activities.transferChair.nStaff" },
+        { label: "Transfer: Chair - Equipment", path: "activities.transferChair.equipment" },
+        { label: "Walking - Staff", path: "activities.walking.nStaff" },
+        { label: "Walking - Equipment", path: "activities.walking.equipment" },
+      ],
+    },
+    {
+      title: "Activities - Personal Care",
+      fields: [
+        { label: "Toileting - Staff", path: "activities.toileting.nStaff" },
+        { label: "Toileting - Equipment", path: "activities.toileting.equipment" },
+        { label: "Movement In Bed - Staff", path: "activities.movementInBed.nStaff" },
+        { label: "Movement In Bed - Equipment", path: "activities.movementInBed.equipment" },
+        { label: "Bathing - Staff", path: "activities.bath.nStaff" },
+        { label: "Bathing - Equipment", path: "activities.bath.equipment" },
+        { label: "Outdoor Mobility - Staff", path: "activities.outdoorMobility.nStaff" },
+        { label: "Outdoor Mobility - Equipment", path: "activities.outdoorMobility.equipment" },
+      ],
+    },
+  ],
+
+  // ── Bed Rails Risk Assessment ───────────────────────────────────────────────
+  "bed-rails-risk-assessment-form": [
+    {
+      title: "Administrative Details",
+      fields: [
+        { label: "Resident Name", path: "residentName" },
+        { label: "Bedroom Number", path: "bedroomNumber" },
+        { label: "Completed By", path: "completed_by" },
+        { label: "Job Role", path: "jobRole" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+      ],
+    },
+    {
+      title: "Exclusion Criteria (Rails SHOULD NOT Be Used)",
+      fields: [
+        { label: "Resident Refuses", path: "risks_identified.residentRefuses", fmt: "bool" },
+        { label: "Climbing Risk", path: "risks_identified.climbingRisk", fmt: "bool" },
+        { label: "Entrapment Risk", path: "risks_identified.entrapmentRisk", fmt: "bool" },
+        { label: "Abnormal Body Size", path: "risks_identified.abnormalBodySize", fmt: "bool" },
+        { label: "Used for Restraint", path: "risks_identified.restraintPurpose", fmt: "bool" },
+        { label: "Freedom Limitation", path: "risks_identified.freedomLimitation", fmt: "bool" },
+        { label: "Any Exclusion Checked", path: "anyExclusionChecked", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Benefits & Authorization",
+      fields: [
+        { label: "Resident Requests", path: "benefits_identified.residentRequests", fmt: "bool" },
+        { label: "MDT Meeting Completed", path: "benefits_identified.mdtMeetingCompleted", fmt: "bool" },
+        { label: "Risk Outweighs Benefit", path: "benefits_identified.riskOutweighsBenefit", fmt: "bool" },
+        { label: "Alternatives Explored", path: "benefits_identified.alternativesExplored", fmt: "bool" },
+        { label: "Best Interest Decision", path: "benefits_identified.bestInterestDecision", fmt: "bool" },
+        { label: "Reason Explained to Resident", path: "decision.reasonExplainedToResident" },
+      ],
+    },
+    {
+      title: "Decision & Equipment",
+      fields: [
+        { label: "Type of Bed", path: "decision.typeOfBed" },
+        { label: "Type of Mattress", path: "decision.typeOfMattress" },
+        { label: "Type of Bedrails", path: "decision.typeOfBedrails" },
+        { label: "Any Safety Check Failed", path: "decision.anySafetyCheckFailed", fmt: "bool" },
+        { label: "Has Extended Height Rails", path: "decision.hasExtendedHeightRails", fmt: "bool" },
+        { label: "Consent Obtained", path: "decision.consentObtained" },
+        { label: "Care Plan Completed", path: "decision.carePlanCompleted" },
+      ],
+    },
+  ],
+
+  // ── Resident Valuables & Personal Property ──────────────────────────────────
+  "resident-valuables-form": [
+    {
+      title: "Resident Information",
+      fields: [
+        { label: "Resident Name", path: "assessment_data.residentName" },
+        { label: "Bedroom Number", path: "assessment_data.bedroomNumber" },
+        { label: "Assessment Date", path: "assessment_data.date", fmt: "date" },
+        { label: "Completed By", path: "assessment_data.completedBy" },
+        { label: "Witnessed By", path: "assessment_data.witnessedBy" },
+      ],
+    },
+    {
+      title: "Cash Held",
+      fields: [
+        { label: "£50 Notes", path: "assessment_data.n50" },
+        { label: "£20 Notes", path: "assessment_data.n20" },
+        { label: "£10 Notes", path: "assessment_data.n10" },
+        { label: "£5 Notes", path: "assessment_data.n5" },
+        { label: "£2 Coins", path: "assessment_data.n2" },
+        { label: "£1 Coins", path: "assessment_data.n1" },
+        { label: "50p Coins", path: "assessment_data.p50" },
+        { label: "20p Coins", path: "assessment_data.p20" },
+        { label: "10p Coins", path: "assessment_data.p10" },
+        { label: "5p Coins", path: "assessment_data.p5" },
+        { label: "2p Coins", path: "assessment_data.p2" },
+        { label: "1p Coins", path: "assessment_data.p1" },
+        { label: "Total (£)", path: "assessment_data.total" },
+      ],
+    },
+    {
+      title: "Valuables & Clothing",
+      fields: [
+        { label: "Valuables", path: "assessment_data.valuables", fmt: "valuables_list" },
+        { label: "Clothing Items", path: "assessment_data.clothing", fmt: "clothing_list" },
+      ],
+    },
+    {
+      title: "Other Items",
+      fields: [
+        { label: "Other Items Log", path: "assessment_data.other", fmt: "other_items_list" },
+      ],
+    },
+  ],
+
 };
 
 // ─── Compact Schema Renderer ──────────────────────────────────────────────────
@@ -611,11 +915,14 @@ function SchemaViewer({ data, schema }: { data: any; schema: SectionDef[] }) {
           </div>
           {/* Fields — compact label : value rows, always shown */}
           <div className="space-y-0.5">
-            {section.fields.map((f) => {
+            {section.fields.map((f, idx) => {
               const rawVal = getPath(data, f.path);
               const display = formatValue(rawVal, f.fmt);
               return (
-                <div key={f.path} className="flex items-baseline gap-2 py-0.5">
+                <div
+                  key={`${section.title}-${f.path}-${f.label}-${idx}`}
+                  className="flex items-baseline gap-2 py-0.5"
+                >
                   <span className="text-[11px] text-muted-foreground min-w-[160px] shrink-0 leading-relaxed">
                     {f.label}
                   </span>
@@ -756,7 +1063,38 @@ export function RiskAssessmentViewer({ assessment }: RiskAssessmentViewerProps) 
             .select("*")
             .eq("id", assessment.formId)
             .single();
-          setData(row);
+
+          if (!row) {
+            setData(null);
+            return;
+          }
+
+          // Enrich with resident information for viewer (for schemas that expect residentName/bedroomNumber)
+          let enriched: any = row;
+          const residentId = row.resident_id || row.residentId;
+
+          if (residentId) {
+            const { data: resident } = await supabase
+              .from("residents")
+              .select("first_name,last_name,room_number")
+              .eq("id", residentId)
+              .single();
+
+            if (resident) {
+              const fullName = `${resident.first_name || ""} ${resident.last_name || ""}`.trim();
+              enriched = {
+                ...row,
+                residentName: row.residentName || fullName,
+                bedroomNumber:
+                  row.bedroomNumber ||
+                  row.bedroom_number ||
+                  resident.room_number ||
+                  "",
+              };
+            }
+          }
+
+          setData(enriched);
         }
       } catch { /**/ } finally {
         setLoading(false);

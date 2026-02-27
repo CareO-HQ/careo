@@ -60,22 +60,37 @@ export default function ResidentValuables({
     mode: "onChange",
     defaultValues: initialData
       ? {
-        residentName: initialData.residentName ??
+        // Data is stored in assessment_data JSONB in the DB row
+        ...(initialData.assessment_data || {}),
+        residentName:
+          (initialData.assessment_data?.residentName ?? initialData.residentName) ??
           (`${resident.first_name || ""} ${resident.last_name || ""}`.trim() || ""),
-        bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
-        date: initialData.date ?? Date.now(),
-        completedBy: initialData.completedBy ?? userName,
-        witnessedBy: initialData.witnessedBy ?? "",
-        valuables: initialData.valuables ?? [],
-        n50: initialData.n50 ?? undefined, n20: initialData.n20 ?? undefined,
-        n10: initialData.n10 ?? undefined, n5: initialData.n5 ?? undefined,
-        n2: initialData.n2 ?? undefined, n1: initialData.n1 ?? undefined,
-        p50: initialData.p50 ?? undefined, p20: initialData.p20 ?? undefined,
-        p10: initialData.p10 ?? undefined, p5: initialData.p5 ?? undefined,
-        p2: initialData.p2 ?? undefined, p1: initialData.p1 ?? undefined,
-        total: initialData.total ?? 0,
-        clothing: initialData.clothing ?? [],
-        other: initialData.other ?? []
+        bedroomNumber:
+          (initialData.assessment_data?.bedroomNumber ?? initialData.bedroomNumber) ??
+          resident.room_number ?? "",
+        date: (initialData.assessment_data?.date ?? initialData.date) ?? Date.now(),
+        completedBy:
+          (initialData.assessment_data?.completedBy ?? initialData.completedBy) ??
+          userName,
+        witnessedBy:
+          (initialData.assessment_data?.witnessedBy ?? initialData.witnessedBy) ??
+          "",
+        valuables: initialData.assessment_data?.valuables ?? initialData.valuables ?? [],
+        n50: initialData.assessment_data?.n50 ?? initialData.n50 ?? undefined,
+        n20: initialData.assessment_data?.n20 ?? initialData.n20 ?? undefined,
+        n10: initialData.assessment_data?.n10 ?? initialData.n10 ?? undefined,
+        n5: initialData.assessment_data?.n5 ?? initialData.n5 ?? undefined,
+        n2: initialData.assessment_data?.n2 ?? initialData.n2 ?? undefined,
+        n1: initialData.assessment_data?.n1 ?? initialData.n1 ?? undefined,
+        p50: initialData.assessment_data?.p50 ?? initialData.p50 ?? undefined,
+        p20: initialData.assessment_data?.p20 ?? initialData.p20 ?? undefined,
+        p10: initialData.assessment_data?.p10 ?? initialData.p10 ?? undefined,
+        p5: initialData.assessment_data?.p5 ?? initialData.p5 ?? undefined,
+        p2: initialData.assessment_data?.p2 ?? initialData.p2 ?? undefined,
+        p1: initialData.assessment_data?.p1 ?? initialData.p1 ?? undefined,
+        total: initialData.assessment_data?.total ?? initialData.total ?? 0,
+        clothing: initialData.assessment_data?.clothing ?? initialData.clothing ?? [],
+        other: initialData.assessment_data?.other ?? initialData.other ?? []
       }
       : {
         residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim() || "",

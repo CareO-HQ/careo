@@ -78,8 +78,8 @@ export default function SkinIntegrityDialog({
         teamId,
         organizationId,
         userId,
-        residentName: initialData.residentName ?? `${resident.first_name} ${resident.last_name}`,
-        bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
+        residentName: initialData.residentName ?? `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+        bedroomNumber: initialData.bedroomNumber ?? initialData.bedroom_number ?? resident.room_number ?? "",
         assessmentDate: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
         completedBy: initialData.completed_by || userName,
 
