@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+
+import { format } from "date-fns";
 import {
   Table,
   TableBody,
@@ -15,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Plus, MoreHorizontal, Eye, Download, Trash2, Search, SlidersHorizontal, X, ArrowUpRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -356,6 +359,51 @@ const initialAudits: ManagerAudit[] = [
   },
 ];
 
+// Helper function to calculate due date based on frequency and last audited date
+const calculateDueDate = (lastAuditedDate: string, frequency: ManagerAudit["frequency"]): string => {
+  const lastDate = new Date(lastAuditedDate);
+
+  switch (frequency) {
+    case "monthly":
+      lastDate.setMonth(lastDate.getMonth() + 1);
+      break;
+    case "quarterly":
+      lastDate.setMonth(lastDate.getMonth() + 3);
+      break;
+    case "6month":
+      lastDate.setMonth(lastDate.getMonth() + 6);
+      break;
+    case "yearly":
+      lastDate.setFullYear(lastDate.getFullYear() + 1);
+      break;
+  }
+
+  return lastDate.toISOString().split('T')[0];
+};
+
+// Helper function to determine audit status based on due date
+const determineAuditStatus = (dueDate: string | null): ManagerAudit["status"] => {
+  if (!dueDate || dueDate === "-") return "new";
+
+  const due = new Date(dueDate);
+  const today = new Date();
+  const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return "due"; // Past due
+  if (diffDays <= 7) return "due"; // Due within 7 days
+  return "completed"; // Completed and not due yet
+};
+
+// Helper function to format dates for display
+const formatDisplayDate = (dateString: string): string => {
+  if (dateString === "-") return "-";
+  try {
+    return format(new Date(dateString), "dd/MM/yyyy");
+  } catch {
+    return dateString;
+  }
+};
+
 function ManagerAuditPage() {
   const router = useRouter();
   const { activeOrganizationId } = useActiveTeam();
@@ -374,8 +422,140 @@ function ManagerAuditPage() {
   const [allResidents, setAllResidents] = useState<any[]>([]);
   const [residentSearchQuery, setResidentSearchQuery] = useState("");
 
+  // New Audit Template Dialog
+  const [isNewAuditDialogOpen, setIsNewAuditDialogOpen] = useState(false);
+  const [newAuditStep, setNewAuditStep] = useState(1);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [newAuditName, setNewAuditName] = useState('');
+  const [newAuditCategory, setNewAuditCategory] = useState<'staff' | 'clinical' | 'operational' | 'general'>('clinical');
+  const [staffType, setStaffType] = useState<'nurses' | 'care-staff' | 'both'>('both');
+
+  // Load audit completion data from localStorage
+  useEffect(() => {
+    const loadAuditCompletionData = () => {
+      // Load custom audits from localStorage
+      const customAuditsKey = 'manager-custom-audits';
+      const customAuditsData = localStorage.getItem(customAuditsKey);
+      let customAudits: ManagerAudit[] = [];
+
+      if (customAuditsData) {
+        customAudits = JSON.parse(customAuditsData);
+      }
+
+      // Update initial audits with completion data
+      const updatedInitialAudits = initialAudits.map(audit => {
+        const historyKey = `manager-audit-history-${audit.id}`;
+        const historyData = localStorage.getItem(historyKey);
+
+        if (historyData) {
+          const history = JSON.parse(historyData);
+          if (history.length > 0) {
+            const latestCompletion = history[0]; // Most recent completion
+            const lastAuditedDate = latestCompletion.completedDate.split('T')[0];
+            const dueDate = calculateDueDate(lastAuditedDate, audit.frequency);
+            const status = determineAuditStatus(dueDate);
+
+            return {
+              ...audit,
+              status,
+              auditor: latestCompletion.auditor,
+              lastAudited: lastAuditedDate,
+              dueDate
+            };
+          }
+        }
+
+        return audit;
+      });
+
+      // Update custom audits with completion data
+      const updatedCustomAudits = customAudits.map(audit => {
+        const historyKey = `manager-audit-history-${audit.id}`;
+        const historyData = localStorage.getItem(historyKey);
+
+        if (historyData) {
+          const history = JSON.parse(historyData);
+          if (history.length > 0) {
+            const latestCompletion = history[0];
+            const lastAuditedDate = latestCompletion.completedDate.split('T')[0];
+            const dueDate = calculateDueDate(lastAuditedDate, audit.frequency);
+            const status = determineAuditStatus(dueDate);
+
+            return {
+              ...audit,
+              status,
+              auditor: latestCompletion.auditor,
+              lastAudited: lastAuditedDate,
+              dueDate
+            };
+          }
+        }
+
+        return audit;
+      });
+
+      // Combine initial and custom audits
+      setAudits([...updatedInitialAudits, ...updatedCustomAudits]);
+    };
+
+    loadAuditCompletionData();
+  }, []);
+
   const handleNewAudit = () => {
-    toast.info("Create new audit functionality coming soon");
+    // Reset form
+    setNewAuditStep(1);
+    setSelectedTemplate('');
+    setNewAuditName('');
+    setNewAuditCategory('clinical');
+    setStaffType('both');
+    setIsNewAuditDialogOpen(true);
+  };
+
+  const handleSelectAuditTemplate = (templateType: string) => {
+    setSelectedTemplate(templateType);
+    // If staff-based, go to staff type selection (step 2)
+    // Otherwise, go to name input (step 2)
+    setNewAuditStep(2);
+  };
+
+  const handleNextStep = () => {
+    // Validation for name step
+    const isStaffBased = selectedTemplate === 'staff-based';
+    const nameStep = isStaffBased ? 3 : 2;
+
+    if (newAuditStep === nameStep && !newAuditName.trim()) {
+      toast.error("Please enter an audit name");
+      return;
+    }
+    setNewAuditStep(newAuditStep + 1);
+  };
+
+  const handlePreviousStep = () => {
+    setNewAuditStep(newAuditStep - 1);
+  };
+
+  const handleCreateAudit = () => {
+    if (!newAuditName.trim()) {
+      toast.error("Please enter an audit name");
+      return;
+    }
+
+    // Create a new audit ID
+    const newAuditId = `custom-${Date.now()}`;
+
+    // Store audit metadata in localStorage
+    localStorage.setItem(`manager-audit-template-${newAuditId}`, selectedTemplate);
+    localStorage.setItem(`manager-audit-name-${newAuditId}`, newAuditName.trim());
+    localStorage.setItem(`manager-audit-category-${newAuditId}`, newAuditCategory);
+
+    if (newAuditCategory === 'staff') {
+      localStorage.setItem(`manager-audit-staff-type-${newAuditId}`, staffType);
+    }
+
+    // Close dialog and navigate
+    setIsNewAuditDialogOpen(false);
+    toast.success("Audit created successfully");
+    router.push(`/dashboard/manager-audit/${newAuditId}`);
   };
 
   const handleViewEdit = (auditId: string) => {
@@ -402,7 +582,7 @@ function ManagerAuditPage() {
   const getStatusBadgeVariant = (status: ManagerAudit["status"]) => {
     switch (status) {
       case "completed":
-        return "default";
+        return "default"; // Will apply custom green styling
       case "in-progress":
         return "secondary";
       case "due":
@@ -412,11 +592,46 @@ function ManagerAuditPage() {
     }
   };
 
+  const getStatusBadgeClassName = (status: ManagerAudit["status"]) => {
+    if (status === "completed") {
+      return "bg-green-500 hover:bg-green-600 text-white";
+    }
+    return "";
+  };
+
+  const getStatusDisplayText = (status: ManagerAudit["status"]) => {
+    switch (status) {
+      case "completed":
+        return "Up to date";
+      case "new":
+        return "New";
+      case "in-progress":
+        return "In Progress";
+      case "due":
+        return "Due";
+      default:
+        return status;
+    }
+  };
+
   const handleFrequencyChange = (auditId: string, newFrequency: ManagerAudit["frequency"]) => {
     setAudits(prevAudits =>
-      prevAudits.map(audit =>
-        audit.id === auditId ? { ...audit, frequency: newFrequency } : audit
-      )
+      prevAudits.map(audit => {
+        if (audit.id === auditId) {
+          // If audit has been completed, recalculate due date with new frequency
+          let newDueDate = audit.dueDate;
+          if (audit.lastAudited !== "-") {
+            newDueDate = calculateDueDate(audit.lastAudited, newFrequency);
+          }
+          return {
+            ...audit,
+            frequency: newFrequency,
+            dueDate: newDueDate,
+            status: newDueDate !== "-" ? determineAuditStatus(newDueDate) : audit.status
+          };
+        }
+        return audit;
+      })
     );
     toast.success("Frequency updated successfully");
   };
@@ -650,13 +865,16 @@ function ManagerAuditPage() {
                     </Select>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getStatusBadgeVariant(audit.status)}>
-                      {audit.status}
+                    <Badge
+                      variant={getStatusBadgeVariant(audit.status)}
+                      className={getStatusBadgeClassName(audit.status)}
+                    >
+                      {getStatusDisplayText(audit.status)}
                     </Badge>
                   </TableCell>
                   <TableCell>{audit.auditor}</TableCell>
-                  <TableCell>{audit.lastAudited}</TableCell>
-                  <TableCell>{audit.dueDate}</TableCell>
+                  <TableCell>{formatDisplayDate(audit.lastAudited)}</TableCell>
+                  <TableCell>{formatDisplayDate(audit.dueDate)}</TableCell>
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="ghost"
@@ -705,6 +923,366 @@ function ManagerAuditPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* New Audit Template Dialog */}
+      <Dialog open={isNewAuditDialogOpen} onOpenChange={setIsNewAuditDialogOpen}>
+        <DialogContent className="sm:max-w-[550px]">
+          <DialogHeader>
+            <DialogTitle>
+              {newAuditStep === 1 && "Create New Audit - Select Template"}
+              {newAuditStep === 2 && selectedTemplate === 'staff-based' && "Create New Audit - Staff Type"}
+              {newAuditStep === 2 && selectedTemplate !== 'staff-based' && "Create New Audit - Enter Name"}
+              {newAuditStep === 3 && selectedTemplate === 'staff-based' && "Create New Audit - Enter Name"}
+              {newAuditStep === 3 && selectedTemplate !== 'staff-based' && "Create New Audit - Select Category"}
+              {newAuditStep === 4 && "Create New Audit - Select Category"}
+            </DialogTitle>
+            <DialogDescription>
+              Step {newAuditStep} of {selectedTemplate === 'staff-based' ? 4 : 3}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Step 1: Select Template */}
+          {newAuditStep === 1 && (
+            <div className="space-y-3 py-4">
+              <div
+                className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                  selectedTemplate === 'resident-based'
+                    ? 'border-primary bg-accent'
+                    : 'border-transparent hover:border-primary hover:bg-accent'
+                }`}
+                onClick={() => handleSelectAuditTemplate('resident-based')}
+              >
+                <div className="flex-1">
+                  <h3 className="font-semibold text-base mb-1">Resident-based Audit</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Audit multiple residents with customizable questions. Ideal for care quality assessments.
+                  </p>
+                </div>
+                <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
+              </div>
+
+              <div
+                className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                  selectedTemplate === 'home-based'
+                    ? 'border-primary bg-accent'
+                    : 'border-transparent hover:border-primary hover:bg-accent'
+                }`}
+                onClick={() => handleSelectAuditTemplate('home-based')}
+              >
+                <div className="flex-1">
+                  <h3 className="font-semibold text-base mb-1">Home-based Audit</h3>
+                  <p className="text-sm text-muted-foreground">
+                    General home audit with grid layout. Perfect for facility inspections and operational reviews.
+                  </p>
+                </div>
+                <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
+              </div>
+
+              <div
+                className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                  selectedTemplate === 'staff-based'
+                    ? 'border-primary bg-accent'
+                    : 'border-transparent hover:border-primary hover:bg-accent'
+                }`}
+                onClick={() => handleSelectAuditTemplate('staff-based')}
+              >
+                <div className="flex-1">
+                  <h3 className="font-semibold text-base mb-1">Staff-based Audit</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Audit staff members for training, competency assessments, and performance evaluations.
+                  </p>
+                </div>
+                <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
+              </div>
+
+              <div
+                className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                  selectedTemplate === 'plain-template'
+                    ? 'border-primary bg-accent'
+                    : 'border-transparent hover:border-primary hover:bg-accent'
+                }`}
+                onClick={() => handleSelectAuditTemplate('plain-template')}
+              >
+                <div className="flex-1">
+                  <h3 className="font-semibold text-base mb-1">Plain Template</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Blank audit template. Build your own custom audit from scratch with full flexibility.
+                  </p>
+                </div>
+                <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Staff Type (for staff-based) or Name (for others) */}
+          {newAuditStep === 2 && selectedTemplate === 'staff-based' && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-3">
+                <Label>Select Staff Type</Label>
+                <div className="space-y-3">
+                  <div
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      staffType === 'nurses'
+                        ? 'border-primary bg-accent'
+                        : 'border-gray-200 hover:border-primary hover:bg-accent'
+                    }`}
+                    onClick={() => setStaffType('nurses')}
+                  >
+                    <h3 className="font-semibold">Nurses Only</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Audit registered nurses and nursing staff
+                    </p>
+                  </div>
+
+                  <div
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      staffType === 'care-staff'
+                        ? 'border-primary bg-accent'
+                        : 'border-gray-200 hover:border-primary hover:bg-accent'
+                    }`}
+                    onClick={() => setStaffType('care-staff')}
+                  >
+                    <h3 className="font-semibold">Care Staff Only</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Audit care assistants and support workers
+                    </p>
+                  </div>
+
+                  <div
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      staffType === 'both'
+                        ? 'border-primary bg-accent'
+                        : 'border-gray-200 hover:border-primary hover:bg-accent'
+                    }`}
+                    onClick={() => setStaffType('both')}
+                  >
+                    <h3 className="font-semibold">Both</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Audit all nursing and care staff members
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-4">
+                <Button variant="outline" onClick={handlePreviousStep}>
+                  Back
+                </Button>
+                <Button onClick={handleNextStep}>
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {newAuditStep === 2 && selectedTemplate !== 'staff-based' && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="audit-name">Audit Name</Label>
+                <Input
+                  id="audit-name"
+                  value={newAuditName}
+                  onChange={(e) => setNewAuditName(e.target.value)}
+                  placeholder="e.g., Monthly Resident Care Review"
+                  className="w-full"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleNextStep();
+                  }}
+                  autoFocus
+                />
+                <p className="text-sm text-muted-foreground">
+                  Choose a descriptive name for your audit
+                </p>
+              </div>
+              <div className="flex items-center justify-between pt-4">
+                <Button variant="outline" onClick={handlePreviousStep}>
+                  Back
+                </Button>
+                <Button onClick={handleNextStep}>
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Name (for staff-based) or Category (for others) */}
+          {newAuditStep === 3 && selectedTemplate === 'staff-based' && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="audit-name">Audit Name</Label>
+                <Input
+                  id="audit-name"
+                  value={newAuditName}
+                  onChange={(e) => setNewAuditName(e.target.value)}
+                  placeholder="e.g., Monthly Staff Competency Review"
+                  className="w-full"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleNextStep();
+                  }}
+                  autoFocus
+                />
+                <p className="text-sm text-muted-foreground">
+                  Choose a descriptive name for your audit
+                </p>
+              </div>
+              <div className="flex items-center justify-between pt-4">
+                <Button variant="outline" onClick={handlePreviousStep}>
+                  Back
+                </Button>
+                <Button onClick={handleNextStep}>
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {newAuditStep === 3 && selectedTemplate !== 'staff-based' && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-3">
+                <Label>Select Category</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      newAuditCategory === 'clinical'
+                        ? 'border-primary bg-accent'
+                        : 'border-gray-200 hover:border-primary hover:bg-accent'
+                    }`}
+                    onClick={() => setNewAuditCategory('clinical')}
+                  >
+                    <h3 className="font-semibold">Clinical Audits</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Health, care quality, clinical procedures
+                    </p>
+                  </div>
+
+                  <div
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      newAuditCategory === 'general'
+                        ? 'border-primary bg-accent'
+                        : 'border-gray-200 hover:border-primary hover:bg-accent'
+                    }`}
+                    onClick={() => setNewAuditCategory('general')}
+                  >
+                    <h3 className="font-semibold">General</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      General audits, compliance, safety
+                    </p>
+                  </div>
+
+                  <div
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      newAuditCategory === 'operational'
+                        ? 'border-primary bg-accent'
+                        : 'border-gray-200 hover:border-primary hover:bg-accent'
+                    }`}
+                    onClick={() => setNewAuditCategory('operational')}
+                  >
+                    <h3 className="font-semibold">Operational Audits</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Facility operations, environment checks
+                    </p>
+                  </div>
+
+                  <div
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      newAuditCategory === 'staff'
+                        ? 'border-primary bg-accent'
+                        : 'border-gray-200 hover:border-primary hover:bg-accent'
+                    }`}
+                    onClick={() => setNewAuditCategory('staff')}
+                  >
+                    <h3 className="font-semibold">Staff Audits</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Staff training, competency, performance
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-4">
+                <Button variant="outline" onClick={handlePreviousStep}>
+                  Back
+                </Button>
+                <Button onClick={handleCreateAudit}>
+                  Create Audit
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Category (only for staff-based audits) */}
+          {newAuditStep === 4 && selectedTemplate === 'staff-based' && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-3">
+                <Label>Select Category</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      newAuditCategory === 'clinical'
+                        ? 'border-primary bg-accent'
+                        : 'border-gray-200 hover:border-primary hover:bg-accent'
+                    }`}
+                    onClick={() => setNewAuditCategory('clinical')}
+                  >
+                    <h3 className="font-semibold">Clinical Audits</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Health, care quality, clinical procedures
+                    </p>
+                  </div>
+
+                  <div
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      newAuditCategory === 'general'
+                        ? 'border-primary bg-accent'
+                        : 'border-gray-200 hover:border-primary hover:bg-accent'
+                    }`}
+                    onClick={() => setNewAuditCategory('general')}
+                  >
+                    <h3 className="font-semibold">General</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      General audits, compliance, safety
+                    </p>
+                  </div>
+
+                  <div
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      newAuditCategory === 'operational'
+                        ? 'border-primary bg-accent'
+                        : 'border-gray-200 hover:border-primary hover:bg-accent'
+                    }`}
+                    onClick={() => setNewAuditCategory('operational')}
+                  >
+                    <h3 className="font-semibold">Operational Audits</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Facility operations, environment checks
+                    </p>
+                  </div>
+
+                  <div
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      newAuditCategory === 'staff'
+                        ? 'border-primary bg-accent'
+                        : 'border-gray-200 hover:border-primary hover:bg-accent'
+                    }`}
+                    onClick={() => setNewAuditCategory('staff')}
+                  >
+                    <h3 className="font-semibold">Staff Audits</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Staff training, competency, performance
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-4">
+                <Button variant="outline" onClick={handlePreviousStep}>
+                  Back
+                </Button>
+                <Button onClick={handleCreateAudit}>
+                  Create Audit
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Care File Audit - Resident Selector Dialog */}
       <Dialog open={isResidentSelectorOpen} onOpenChange={setIsResidentSelectorOpen}>

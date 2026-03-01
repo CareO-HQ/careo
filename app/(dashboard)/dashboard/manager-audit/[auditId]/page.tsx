@@ -81,7 +81,7 @@ const auditNames: Record<string, string> = {
 interface Question {
   id: string;
   text: string;
-  type: "compliance" | "yesno" | "text";
+  type: "compliance" | "yesno" | "text" | "date";
   isSection?: boolean; // For grid audit sections
 }
 
@@ -120,7 +120,27 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   const router = useRouter();
   const resolvedParams = React.use(params);
   const auditId = resolvedParams.auditId;
-  const auditName = auditNames[auditId] || "Unknown Audit";
+
+  // Check if this is a custom audit
+  const isCustomAudit = auditId.startsWith('custom-');
+  const templateType = isCustomAudit ? localStorage.getItem(`manager-audit-template-${auditId}`) : null;
+  const savedCategory = isCustomAudit ? localStorage.getItem(`manager-audit-category-${auditId}`) : null;
+  const savedStaffType = isCustomAudit ? localStorage.getItem(`manager-audit-staff-type-${auditId}`) : null;
+
+  // Determine audit name
+  let auditName = auditNames[auditId];
+  if (isCustomAudit) {
+    const savedName = localStorage.getItem(`manager-audit-name-${auditId}`);
+    auditName = savedName || (
+      templateType === 'resident-based' ? 'New Resident-based Audit' :
+      templateType === 'home-based' ? 'New Home-based Audit' :
+      templateType === 'staff-based' ? 'New Staff-based Audit' :
+      templateType === 'plain-template' ? 'New Custom Audit' :
+      'New Audit'
+    );
+  } else if (!auditName) {
+    auditName = "Unknown Audit";
+  }
 
   const { profile } = useProfile();
   const { activeTeamId, activeOrganizationId } = useActiveTeam();
@@ -129,6 +149,23 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   const [allResidents, setAllResidents] = useState<any[]>([]); // All available residents
   const [selectedResidents, setSelectedResidents] = useState<any[]>([]); // Residents in the audit
   const [residentAuditData, setResidentAuditData] = useState<{ [residentId: string]: { frequency: string; lastAudited: string; nextAudit: string; auditor: string } }>({});
+
+  // State for custom audit name editing
+  const [editableAuditName, setEditableAuditName] = useState(auditName);
+  const [isEditingName, setIsEditingName] = useState(false);
+
+  // Update audit name when it changes
+  React.useEffect(() => {
+    setEditableAuditName(auditName);
+  }, [auditName]);
+
+  const handleSaveAuditName = () => {
+    if (isCustomAudit && editableAuditName.trim()) {
+      localStorage.setItem(`manager-audit-name-${auditId}`, editableAuditName.trim());
+      setIsEditingName(false);
+      toast.success("Audit name updated");
+    }
+  };
 
   // State for form
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -153,8 +190,10 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   // UI State
   const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false);
   const [questionDialogMode, setQuestionDialogMode] = useState<"row" | "column" | "standard">("standard");
+  const [isSectionDialogOpen, setIsSectionDialogOpen] = useState(false);
+  const [sectionText, setSectionText] = useState("");
   const [newQuestionText, setNewQuestionText] = useState("");
-  const [newQuestionType, setNewQuestionType] = useState<"compliance" | "yesno" | "text">("compliance");
+  const [newQuestionType, setNewQuestionType] = useState<"compliance" | "yesno" | "text" | "date">("compliance");
   const [isActionPlanDialogOpen, setIsActionPlanDialogOpen] = useState(false);
   const [actionPlanText, setActionPlanText] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
@@ -205,13 +244,26 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       // 3. Questions persist forever (each care home customizes their own)
       const savedSelectedResidents = localStorage.getItem(`manager-audit-selected-residents-${auditId}`);
       if (savedSelectedResidents) {
+        const parsedResidents = JSON.parse(savedSelectedResidents);
         // Restore work-in-progress state (residents manager is currently auditing)
-        setSelectedResidents(JSON.parse(savedSelectedResidents));
+        setSelectedResidents(parsedResidents);
+
+        // If saved data is empty but we have residents available (and not a grid audit), reload all residents
+        const isGridBasedAudit = auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18" || templateType === 'home-based';
+        if (parsedResidents.length === 0 && allResidentsData.length > 0 && !isGridBasedAudit) {
+          setSelectedResidents(allResidentsData);
+          localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify(allResidentsData));
+        }
       } else {
 
-        // Special handling for Grid-based audits (ID: 1, 2, 9, 18)
-        if (auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18") {
+        // Special handling for Grid-based audits (ID: 1, 2, 9, 18, or home-based template)
+        const isGridBasedAudit = auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18" || templateType === 'home-based';
+        if (isGridBasedAudit) {
           // Start with empty array - manager adds numbered entries manually
+          setSelectedResidents([]);
+          localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify([]));
+        } else if (templateType === 'staff-based') {
+          // For staff-based audits, start empty (will load staff members instead)
           setSelectedResidents([]);
           localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify([]));
         } else {
@@ -242,7 +294,13 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       // Load saved action plans from localStorage
       const savedActionPlans = localStorage.getItem(`manager-audit-action-plans-${auditId}`);
       if (savedActionPlans) {
-        setActionPlans(JSON.parse(savedActionPlans));
+        const parsedPlans = JSON.parse(savedActionPlans);
+        // Convert dueDate strings back to Date objects
+        const plansWithDates = parsedPlans.map((plan: ActionPlan) => ({
+          ...plan,
+          dueDate: plan.dueDate ? new Date(plan.dueDate) : undefined
+        }));
+        setActionPlans(plansWithDates);
       }
 
       // Load grid questions for Grid-based Audits (ID 1, 2, 9, 18)
@@ -440,74 +498,126 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
 
   // Completion
   const handleCompleteAudit = async () => {
-    if (selectedResidents.length === 0) {
-      const itemType = (auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18") ? "entry" : "resident";
-      toast.error(`Please add at least one ${itemType} to the audit`);
-      return;
+    // Check if this is a grid-based audit
+    const isGridAudit = auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18";
+
+    // Validation for grid-based audits
+    if (isGridAudit) {
+      if (rowQuestions.length === 0) {
+        toast.error("Please add at least one row to the audit", {
+          description: "Click 'Add Row' to add questions to the audit"
+        });
+        return;
+      }
+    } else {
+      // Validation for standard audits
+      if (selectedResidents.length === 0) {
+        toast.error("Please add at least one resident to the audit", {
+          description: `Click "Add Resident" to select residents for this audit`
+        });
+        return;
+      }
     }
 
-    // Prepare audit completion data
-    const auditCompletionData = {
-      auditId: auditId,
-      auditName: auditName,
-      completedDate: new Date().toISOString(),
-      auditor: profile?.name || profile?.email || "Unknown",
-      residents: selectedResidents.map(resident => ({
-        id: resident._id,
-        firstName: resident.firstName,
-        lastName: resident.lastName,
-        roomNumber: resident.roomNumber,
-        answers: questions.map(q => {
-          const answer = getAnswer(resident._id, q.id);
-          return {
-            questionId: q.id,
-            questionText: q.text,
-            questionType: q.type,
-            value: answer?.value || null
-          };
-        }),
-        comment: getComment(resident._id)
-      })),
-      questions: questions,
-      actionPlans: actionPlans.map(plan => ({
-        ...plan,
-        dueDate: plan.dueDate?.toISOString()
-      })),
-      status: 'completed'
-    };
+    try {
+      // Prepare audit completion data
+      const auditCompletionData = {
+        auditId: auditId,
+        auditName: auditName,
+        completedDate: new Date().toISOString(),
+        auditor: profile?.name || profile?.email || "Unknown",
+        residents: selectedResidents.map(resident => ({
+          id: resident._id,
+          firstName: resident.firstName,
+          lastName: resident.lastName,
+          roomNumber: resident.roomNumber,
+          answers: questions.map(q => {
+            const answer = getAnswer(resident._id, q.id);
+            return {
+              questionId: q.id,
+              questionText: q.text,
+              questionType: q.type,
+              value: answer?.value || null
+            };
+          }),
+          comment: getComment(resident._id)
+        })),
+        questions: questions,
+        actionPlans: actionPlans.map(plan => ({
+          ...plan,
+          dueDate: plan.dueDate
+            ? (plan.dueDate instanceof Date ? plan.dueDate.toISOString() : plan.dueDate)
+            : undefined
+        })),
+        status: 'completed'
+      };
 
-    // Save completed audit to localStorage history
-    const historyKey = `manager-audit-history-${auditId}`;
-    const existingHistory = localStorage.getItem(historyKey);
-    const history = existingHistory ? JSON.parse(existingHistory) : [];
+      // Save completed audit to localStorage history
+      const historyKey = `manager-audit-history-${auditId}`;
+      const existingHistory = localStorage.getItem(historyKey);
+      const history = existingHistory ? JSON.parse(existingHistory) : [];
 
-    // Add new completion to history
-    const newHistoryRecord = {
-      id: `completion-${Date.now()}`,
-      completedDate: auditCompletionData.completedDate,
-      auditor: auditCompletionData.auditor,
-      residentsAudited: selectedResidents.length,
-      status: 'completed',
-      notes: `${actionPlans.length} action plan(s) created`,
-      data: auditCompletionData
-    };
+      // Add new completion to history
+      const newHistoryRecord = {
+        id: `completion-${Date.now()}`,
+        completedDate: auditCompletionData.completedDate,
+        auditor: auditCompletionData.auditor,
+        residentsAudited: selectedResidents.length,
+        status: 'completed',
+        notes: `${actionPlans.length} action plan(s) created`,
+        data: auditCompletionData
+      };
 
-    history.unshift(newHistoryRecord);
-    localStorage.setItem(historyKey, JSON.stringify(history));
+      history.unshift(newHistoryRecord);
+      localStorage.setItem(historyKey, JSON.stringify(history));
 
-    // RESET FOR NEXT AUDIT CYCLE:
-    // ✓ KEEP: Questions (each care home has custom questions)
-    // ✗ CLEAR: Residents (will load all residents again next time)
-    // ✗ CLEAR: Answers, Comments, Action Plans (fresh start for next audit)
-    localStorage.removeItem(`manager-audit-selected-residents-${auditId}`);
-    // Questions INTENTIONALLY NOT removed - they persist forever for this audit type
-    localStorage.removeItem(`manager-audit-answers-${auditId}`);
-    localStorage.removeItem(`manager-audit-comments-${auditId}`);
-    localStorage.removeItem(`manager-audit-action-plans-${auditId}`);
-    localStorage.removeItem(`manager-audit-fixed-columns-${auditId}`);
+      // If this is a custom audit being completed for the first time, add it to the main listing
+      if (isCustomAudit && history.length === 1) {
+        const customAuditsKey = 'manager-custom-audits';
+        const existingCustomAudits = localStorage.getItem(customAuditsKey);
+        const customAudits = existingCustomAudits ? JSON.parse(existingCustomAudits) : [];
 
-    toast.success(`Audit completed! ${actionPlans.length} action plan(s) attached.`);
-    router.push('/dashboard/manager-audit');
+        // Use saved category or fallback to determining from template type
+        const category = (savedCategory as 'staff' | 'clinical' | 'operational' | 'general') || (
+          templateType === 'staff-based' ? 'staff' :
+          templateType === 'home-based' ? 'operational' :
+          'general'
+        );
+
+        const newCustomAudit = {
+          id: auditId,
+          name: editableAuditName,
+          status: 'completed' as const,
+          auditor: auditCompletionData.auditor,
+          lastAudited: auditCompletionData.completedDate.split('T')[0],
+          dueDate: '-',
+          frequency: 'monthly' as const,
+          category: category
+        };
+
+        customAudits.push(newCustomAudit);
+        localStorage.setItem(customAuditsKey, JSON.stringify(customAudits));
+      }
+
+      // RESET FOR NEXT AUDIT CYCLE:
+      // ✓ KEEP: Questions (each care home has custom questions)
+      // ✗ CLEAR: Residents (will load all residents again next time)
+      // ✗ CLEAR: Answers, Comments, Action Plans (fresh start for next audit)
+      localStorage.removeItem(`manager-audit-selected-residents-${auditId}`);
+      // Questions INTENTIONALLY NOT removed - they persist forever for this audit type
+      localStorage.removeItem(`manager-audit-answers-${auditId}`);
+      localStorage.removeItem(`manager-audit-comments-${auditId}`);
+      localStorage.removeItem(`manager-audit-action-plans-${auditId}`);
+      localStorage.removeItem(`manager-audit-fixed-columns-${auditId}`);
+
+      toast.success(`Audit completed! ${actionPlans.length} action plan(s) attached.`);
+      router.push('/dashboard/manager-audit');
+    } catch (error) {
+      console.error('Error completing audit:', error);
+      toast.error('Failed to complete audit', {
+        description: error instanceof Error ? error.message : 'An unknown error occurred'
+      });
+    }
   };
 
   const handleBack = () => {
@@ -664,8 +774,11 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     );
   }
 
-  // Grid-based Audits (ID: 1, 2, 9, 18) - Grid-based with row and column questions
-  if (auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18") {
+  // Grid-based Audits (ID: 1, 2, 9, 18, or home-based custom audits)
+  const isGridAudit = auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18" || templateType === 'home-based';
+  const isPlainTemplate = auditId === "1" || templateType === 'plain-template'; // Plain template has no fixed columns
+
+  if (isGridAudit) {
     const handleAddRowQuestion = () => {
       if (!newQuestionText.trim()) {
         toast.error("Please enter a question");
@@ -716,19 +829,29 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       setIsQuestionDialogOpen(true);
     };
 
+    const openAddSectionDialog = () => {
+      setSectionText("");
+      setIsSectionDialogOpen(true);
+    };
+
     const handleAddSection = () => {
-      const sectionText = prompt("Enter section title:");
-      if (!sectionText?.trim()) return;
+      if (!sectionText.trim()) {
+        toast.error("Please enter a section title");
+        return;
+      }
 
       const newSection: Question = {
         id: `section-${Date.now()}`,
-        text: sectionText,
+        text: sectionText.trim(),
         type: "text",
         isSection: true
       };
       const updatedRowQuestions = [...rowQuestions, newSection];
       setRowQuestions(updatedRowQuestions);
       localStorage.setItem(`manager-audit-row-questions-${auditId}`, JSON.stringify(updatedRowQuestions));
+
+      setSectionText("");
+      setIsSectionDialogOpen(false);
       toast.success("Section added");
     };
 
@@ -790,6 +913,14 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       return fixedColumnData[rowId]?.[field] || '';
     };
 
+    // Calculate colSpan for plain template vs grid audits
+    const getColSpan = () => {
+      if (isPlainTemplate) {
+        return columnQuestions.length + 2; // Row header + columns + add button
+      }
+      return columnQuestions.length + 5; // Row header + columns + 3 fixed columns + add button
+    };
+
     return (
       <div className="flex-1 space-y-4 p-8 pt-6 h-full flex flex-col">
         <div className="flex items-center justify-between">
@@ -797,7 +928,44 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
             <Button variant="ghost" onClick={handleBack}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
-            <h2 className="text-3xl font-bold tracking-tight">{auditName}</h2>
+            {isCustomAudit && isEditingName ? (
+              <div className="flex items-center space-x-2">
+                <Input
+                  value={editableAuditName}
+                  onChange={(e) => setEditableAuditName(e.target.value)}
+                  className="text-2xl font-bold h-12 w-[400px]"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveAuditName();
+                    if (e.key === 'Escape') setIsEditingName(false);
+                  }}
+                  autoFocus
+                />
+                <Button size="sm" onClick={handleSaveAuditName}>Save</Button>
+                <Button size="sm" variant="ghost" onClick={() => setIsEditingName(false)}>Cancel</Button>
+              </div>
+            ) : (
+              <h2
+                className={`text-3xl font-bold tracking-tight ${isCustomAudit ? 'cursor-pointer hover:text-primary' : ''}`}
+                onClick={() => isCustomAudit && setIsEditingName(true)}
+              >
+                {editableAuditName}
+              </h2>
+            )}
+            {isCustomAudit && savedCategory && (
+              <Badge variant="secondary" className="capitalize">
+                {savedCategory === 'staff' ? 'Staff Audits' :
+                 savedCategory === 'clinical' ? 'Clinical Audits' :
+                 savedCategory === 'operational' ? 'Operational Audits' :
+                 'General'}
+              </Badge>
+            )}
+            {savedStaffType && savedCategory === 'staff' && (
+              <Badge variant="outline" className="capitalize">
+                {savedStaffType === 'nurses' ? 'Nurses Only' :
+                 savedStaffType === 'care-staff' ? 'Care Staff Only' :
+                 'All Staff'}
+              </Badge>
+            )}
           </div>
           <Button onClick={handleCompleteAudit}>Complete Audit</Button>
         </div>
@@ -832,9 +1000,13 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                     </div>
                   </TableHead>
                 ))}
-                <TableHead className="min-w-[200px] font-semibold bg-blue-50">Comment</TableHead>
-                <TableHead className="min-w-[200px] font-semibold bg-green-50">Action Required</TableHead>
-                <TableHead className="min-w-[200px] font-semibold bg-orange-50">Action Completed</TableHead>
+                {!isPlainTemplate && (
+                  <>
+                    <TableHead className="min-w-[200px] font-semibold bg-blue-50">Comment</TableHead>
+                    <TableHead className="min-w-[200px] font-semibold bg-green-50">Action Required</TableHead>
+                    <TableHead className="min-w-[200px] font-semibold bg-orange-50">Action Completed</TableHead>
+                  </>
+                )}
                 <TableHead className="w-[60px] bg-muted/50 sticky right-0 z-10">
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -858,7 +1030,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
 
               {rowQuestions.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={columnQuestions.length + 5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={getColSpan()} className="h-24 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <p className="text-sm">No questions added yet.</p>
                       <p className="text-xs">Click the buttons below to add rows and columns</p>
@@ -872,7 +1044,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                 if (rowQ.isSection) {
                   return (
                     <TableRow key={rowQ.id} className="bg-slate-100 hover:bg-slate-200 transition-colors border-y-2 border-slate-300">
-                      <TableCell colSpan={columnQuestions.length + 5} className="sticky left-0 py-3">
+                      <TableCell colSpan={getColSpan()} className="sticky left-0 py-3">
                         <div className="flex items-center gap-2">
                           <Input
                             value={rowQ.text}
@@ -939,6 +1111,13 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                               placeholder="..."
                               className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
                             />
+                          ) : colQ.type === 'date' ? (
+                            <Input
+                              type="date"
+                              value={answer?.value || ""}
+                              onChange={(e) => handleGridAnswerChange(rowQ.id, colQ.id, e.target.value)}
+                              className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                            />
                           ) : (
                             <Select
                               value={answer?.value}
@@ -966,30 +1145,34 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                         </TableCell>
                       );
                     })}
-                    <TableCell className="px-2 py-3 bg-blue-50/30">
-                      <Input
-                        value={getFixedColumnValue(rowQ.id, 'comment')}
-                        onChange={(e) => handleFixedColumnChange(rowQ.id, 'comment', e.target.value)}
-                        placeholder="Add comment..."
-                        className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
-                      />
-                    </TableCell>
-                    <TableCell className="px-2 py-3 bg-green-50/30">
-                      <Input
-                        value={getFixedColumnValue(rowQ.id, 'actionRequired')}
-                        onChange={(e) => handleFixedColumnChange(rowQ.id, 'actionRequired', e.target.value)}
-                        placeholder="Action required..."
-                        className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
-                      />
-                    </TableCell>
-                    <TableCell className="px-2 py-3 bg-orange-50/30">
-                      <Input
-                        value={getFixedColumnValue(rowQ.id, 'actionCompleted')}
-                        onChange={(e) => handleFixedColumnChange(rowQ.id, 'actionCompleted', e.target.value)}
-                        placeholder="Action completed..."
-                        className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
-                      />
-                    </TableCell>
+                    {!isPlainTemplate && (
+                      <>
+                        <TableCell className="px-2 py-3 bg-blue-50/30">
+                          <Input
+                            value={getFixedColumnValue(rowQ.id, 'comment')}
+                            onChange={(e) => handleFixedColumnChange(rowQ.id, 'comment', e.target.value)}
+                            placeholder="Add comment..."
+                            className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                          />
+                        </TableCell>
+                        <TableCell className="px-2 py-3 bg-green-50/30">
+                          <Input
+                            value={getFixedColumnValue(rowQ.id, 'actionRequired')}
+                            onChange={(e) => handleFixedColumnChange(rowQ.id, 'actionRequired', e.target.value)}
+                            placeholder="Action required..."
+                            className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                          />
+                        </TableCell>
+                        <TableCell className="px-2 py-3 bg-orange-50/30">
+                          <Input
+                            value={getFixedColumnValue(rowQ.id, 'actionCompleted')}
+                            onChange={(e) => handleFixedColumnChange(rowQ.id, 'actionCompleted', e.target.value)}
+                            placeholder="Action completed..."
+                            className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                          />
+                        </TableCell>
+                      </>
+                    )}
                     <TableCell className="sticky right-0 bg-white"></TableCell>
                   </TableRow>
                 );
@@ -997,7 +1180,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
 
               {/* Add Row and Section Buttons - Always visible */}
               <TableRow className="hover:bg-muted/20 transition-colors border-t-2">
-                <TableCell colSpan={columnQuestions.length + 5} className="sticky left-0 bg-white p-2">
+                <TableCell colSpan={getColSpan()} className="sticky left-0 bg-white p-2">
                   <div className="flex items-center gap-2">
                     <Button
                       variant="ghost"
@@ -1011,7 +1194,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={handleAddSection}
+                      onClick={openAddSectionDialog}
                       className="flex-1 h-8 text-muted-foreground hover:text-slate-700 hover:bg-slate-100"
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -1062,6 +1245,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                       <SelectItem value="compliance">Compliance (C/NC/NA)</SelectItem>
                       <SelectItem value="yesno">Yes/No</SelectItem>
                       <SelectItem value="text">Text</SelectItem>
+                      <SelectItem value="date">Date</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1071,6 +1255,41 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
               <Button variant="outline" onClick={() => setIsQuestionDialogOpen(false)}>Cancel</Button>
               <Button onClick={questionDialogMode === "row" ? handleAddRowQuestion : handleAddColumnQuestion}>
                 Add {questionDialogMode === "row" ? "Row" : "Column"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Section Dialog */}
+        <Dialog open={isSectionDialogOpen} onOpenChange={setIsSectionDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Section</DialogTitle>
+              <DialogDescription>
+                Create a section header to organize your audit questions
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Title</Label>
+                <Input
+                  value={sectionText}
+                  onChange={(e) => setSectionText(e.target.value)}
+                  className="col-span-3"
+                  placeholder="e.g., Safety Checks, Environment, etc."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddSection();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsSectionDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleAddSection}>
+                Add Section
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1087,19 +1306,89 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           <Button variant="ghost" onClick={handleBack}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
-          <h2 className="text-3xl font-bold tracking-tight">{auditName}</h2>
-          <Badge variant="outline">{selectedResidents.length} Residents</Badge>
+          {isCustomAudit && isEditingName ? (
+            <div className="flex items-center space-x-2">
+              <Input
+                value={editableAuditName}
+                onChange={(e) => setEditableAuditName(e.target.value)}
+                className="text-2xl font-bold h-12 w-[400px]"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveAuditName();
+                  if (e.key === 'Escape') setIsEditingName(false);
+                }}
+                autoFocus
+              />
+              <Button size="sm" onClick={handleSaveAuditName}>Save</Button>
+              <Button size="sm" variant="ghost" onClick={() => setIsEditingName(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <h2
+              className={`text-3xl font-bold tracking-tight ${isCustomAudit ? 'cursor-pointer hover:text-primary' : ''}`}
+              onClick={() => isCustomAudit && setIsEditingName(true)}
+            >
+              {editableAuditName}
+            </h2>
+          )}
+          <Badge variant="outline">{selectedResidents.length} {savedCategory === 'staff' || templateType === 'staff-based' ? 'Staff' : 'Residents'}</Badge>
+          {isCustomAudit && savedCategory && (
+            <Badge variant="secondary" className="capitalize">
+              {savedCategory === 'staff' ? 'Staff Audits' :
+               savedCategory === 'clinical' ? 'Clinical Audits' :
+               savedCategory === 'operational' ? 'Operational Audits' :
+               'General'}
+            </Badge>
+          )}
+          {savedStaffType && savedCategory === 'staff' && (
+            <Badge variant="outline" className="capitalize">
+              {savedStaffType === 'nurses' ? 'Nurses Only' :
+               savedStaffType === 'care-staff' ? 'Care Staff Only' :
+               'All Staff'}
+            </Badge>
+          )}
         </div>
         <div className="flex items-center space-x-2">
           <Button variant="outline" onClick={() => setIsAddResidentDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Add Resident
+            <Plus className="mr-2 h-4 w-4" /> {templateType === 'staff-based' ? 'Add Staff' : 'Add Resident'}
           </Button>
           <Button variant="outline" onClick={() => { setQuestionDialogMode("standard"); setIsQuestionDialogOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" /> Add Question
           </Button>
-          <Button onClick={handleCompleteAudit}>Complete Audit</Button>
+          <Button
+            onClick={handleCompleteAudit}
+            disabled={selectedResidents.length === 0}
+          >
+            Complete Audit
+          </Button>
         </div>
       </div>
+
+      {/* Info message when no residents */}
+      {selectedResidents.length === 0 && allResidents.length > 0 && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="flex items-start space-x-3">
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-blue-900">No residents added to this audit</h3>
+              <p className="mt-1 text-sm text-blue-700">
+                Click "Add Resident" to select residents for this audit. You have {allResidents.length} resident{allResidents.length !== 1 ? 's' : ''} available.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Info message when no residents exist in organization */}
+      {allResidents.length === 0 && (
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+          <div className="flex items-start space-x-3">
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-yellow-900">No residents in your organization</h3>
+              <p className="mt-1 text-sm text-yellow-700">
+                You need to add residents to your organization before you can complete this audit.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Questions Table */}
       <div className="rounded-md border flex-1 overflow-auto bg-white">
@@ -1184,6 +1473,13 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                           placeholder="Enter text..."
                           className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
                         />
+                      ) : q.type === 'date' ? (
+                        <Input
+                          type="date"
+                          value={answer?.value || ""}
+                          onChange={(e) => handleAnswerChange(resident._id, q.id, e.target.value)}
+                          className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                        />
                       ) : (
                         <Select
                           value={answer?.value}
@@ -1249,9 +1545,11 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       <Dialog open={isAddResidentDialogOpen} onOpenChange={setIsAddResidentDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Resident to Audit</DialogTitle>
+            <DialogTitle>{templateType === 'staff-based' ? 'Add Staff to Audit' : 'Add Resident to Audit'}</DialogTitle>
             <DialogDescription>
-              Select a resident from the list below to add to this audit
+              {templateType === 'staff-based'
+                ? 'Select a staff member from the list below to add to this audit'
+                : 'Select a resident from the list below to add to this audit'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1346,6 +1644,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                   <SelectItem value="compliance">Compliance (C/NC/NA)</SelectItem>
                   <SelectItem value="yesno">Yes/No</SelectItem>
                   <SelectItem value="text">Text</SelectItem>
+                  <SelectItem value="date">Date</SelectItem>
                 </SelectContent>
               </Select>
             </div>
