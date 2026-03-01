@@ -38,7 +38,7 @@ export default function CreateResidentMedication({
           <DialogTitle>Create Medication</DialogTitle>
           {residentName && (
             <DialogDescription>
-              Add a new medication for {residentName}
+              Add a new medication, supplement, or vitamin for {residentName}
             </DialogDescription>
           )}
         </DialogHeader>

@@ -186,7 +186,6 @@ export default function CreateMedicationForm({
       "name",
       "strength",
       "strengthUnit",
-      "totalCount",
       "dosageForm",
       "route",
       "frequency",
@@ -210,18 +209,23 @@ export default function CreateMedicationForm({
   };
 
   const handleSecondStep = async () => {
-    const fieldsToValidate = ["times"] as const;
-    // At least one time is required
-    if (form.getValues("times")?.length === 0) {
-      toast.error("Please add at least one time");
-      return;
-    }
+    const scheduleType = form.getValues("scheduleType");
 
-    const isValid = await form.trigger(fieldsToValidate);
+    // PRN medications don't need time validation
+    if (scheduleType !== "PRN (As Needed)") {
+      const fieldsToValidate = ["times"] as const;
+      // At least one time is required for non-PRN medications
+      if (form.getValues("times")?.length === 0) {
+        toast.error("Please add at least one time");
+        return;
+      }
 
-    if (!isValid) {
-      toast.error("Please fill in all required fields correctly");
-      return;
+      const isValid = await form.trigger(fieldsToValidate);
+
+      if (!isValid) {
+        toast.error("Please fill in all required fields correctly");
+        return;
+      }
     }
 
     setStep(step + 1);
@@ -321,7 +325,14 @@ export default function CreateMedicationForm({
                   <FormItem>
                     <FormLabel required>Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Paracetamol" {...field} />
+                      <Input
+                        placeholder={
+                          medicationType === "Supplement"
+                            ? "e.g., Vitamin D3, Omega-3, Calcium"
+                            : "e.g., Paracetamol"
+                        }
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -337,7 +348,11 @@ export default function CreateMedicationForm({
                       <FormControl>
                         <div className="relative">
                           <Input
-                            placeholder="100"
+                            placeholder={
+                              medicationType === "Supplement"
+                                ? "e.g., 1000, 10, 5"
+                                : "100"
+                            }
                             {...field}
                             className="pr-16"
                           />
@@ -354,13 +369,23 @@ export default function CreateMedicationForm({
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="mg">mg</SelectItem>
+                                  <SelectItem value="mcg">mcg</SelectItem>
                                   <SelectItem value="g">g</SelectItem>
+                                  <SelectItem value="mL">mL</SelectItem>
+                                  <SelectItem value="drops">drops</SelectItem>
+                                  <SelectItem value="IU">IU</SelectItem>
+                                  <SelectItem value="%">%</SelectItem>
                                 </SelectContent>
                               </Select>
                             )}
                           />
                         </div>
                       </FormControl>
+                      {medicationType === "Supplement" && (
+                        <FormDescription className="text-xs">
+                          Units: mg/mcg (tablets), mL (liquid), drops, IU (vitamins A/D/E)
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -370,18 +395,22 @@ export default function CreateMedicationForm({
                   name="totalCount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel required>Total Count</FormLabel>
+                      <FormLabel>Total Count (Optional)</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="100"
+                          placeholder="e.g., 30, 60, 100"
                           type="number"
                           {...field}
-                          onChange={(e) =>
-                            field.onChange(parseInt(e.target.value) || 0)
-                          }
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            field.onChange(value ? parseInt(value) : undefined);
+                          }}
                           value={field.value?.toString() || ""}
                         />
                       </FormControl>
+                      <FormDescription className="text-xs">
+                        Number of tablets/doses in the package
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -406,14 +435,29 @@ export default function CreateMedicationForm({
                         <SelectContent>
                           <SelectItem value="Tablet">Tablet</SelectItem>
                           <SelectItem value="Capsule">Capsule</SelectItem>
+                          <SelectItem value="Softgel">Softgel</SelectItem>
+                          <SelectItem value="Chewable Tablet">Chewable Tablet</SelectItem>
+                          <SelectItem value="Gummy">Gummy</SelectItem>
                           <SelectItem value="Liquid">Liquid</SelectItem>
+                          <SelectItem value="Syrup">Syrup</SelectItem>
+                          <SelectItem value="Drops">Drops</SelectItem>
+                          <SelectItem value="Powder">Powder</SelectItem>
+                          <SelectItem value="Effervescent Tablet">Effervescent Tablet</SelectItem>
+                          <SelectItem value="Spray">Spray</SelectItem>
+                          <SelectItem value="Lozenge">Lozenge</SelectItem>
                           <SelectItem value="Injection">Injection</SelectItem>
                           <SelectItem value="Cream">Cream</SelectItem>
                           <SelectItem value="Ointment">Ointment</SelectItem>
+                          <SelectItem value="Gel">Gel</SelectItem>
                           <SelectItem value="Patch">Patch</SelectItem>
                           <SelectItem value="Inhaler">Inhaler</SelectItem>
                         </SelectContent>
                       </Select>
+                      {medicationType === "Supplement" && (
+                        <FormDescription className="text-xs">
+                          Common forms: Tablets, Softgels, Drops (liquid), Gummies, Powder
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -462,52 +506,90 @@ export default function CreateMedicationForm({
                 </p>
               </div>
 
-              <FormField
-                control={form.control}
-                name="frequency"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Frequency</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={scheduleType === "PRN (As Needed)"}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select a frequency" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Once daily (OD)">
-                          Once daily (OD)
-                        </SelectItem>
-                        <SelectItem value="Twice daily (BD)">
-                          Twice daily (BD)
-                        </SelectItem>
-                        <SelectItem value="Three times daily (TD)">
-                          Three times daily (TD)
-                        </SelectItem>
-                        <SelectItem value="Four times daily (QDS)">
-                          Four times daily (QDS)
-                        </SelectItem>
-                        <SelectItem value="Four times daily (QIS)">
-                          Four times daily (QIS)
-                        </SelectItem>
-                        <SelectItem value="As Needed (PRN)">
-                          As Needed (PRN)
-                        </SelectItem>
-                        <SelectItem value="One time (STAT)">
-                          One time (STAT)
-                        </SelectItem>
-                        <SelectItem value="Weekly">Weekly</SelectItem>
-                        <SelectItem value="Monthly">Monthly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Show frequency field only for Scheduled and Topical medications */}
+              {scheduleType !== "PRN (As Needed)" && scheduleType !== "Supplement" && (
+                <FormField
+                  control={form.control}
+                  name="frequency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Frequency</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a frequency" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Once daily (OD)">
+                            Once daily (OD)
+                          </SelectItem>
+                          <SelectItem value="Twice daily (BD)">
+                            Twice daily (BD)
+                          </SelectItem>
+                          <SelectItem value="Three times daily (TD)">
+                            Three times daily (TD)
+                          </SelectItem>
+                          <SelectItem value="Four times daily (QDS)">
+                            Four times daily (QDS)
+                          </SelectItem>
+                          <SelectItem value="Four times daily (QIS)">
+                            Four times daily (QIS)
+                          </SelectItem>
+                          <SelectItem value="One time (STAT)">
+                            One time (STAT)
+                          </SelectItem>
+                          <SelectItem value="Weekly">Weekly</SelectItem>
+                          <SelectItem value="Monthly">Monthly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* For PRN and Supplements, show dosage unit selector */}
+              {(scheduleType === "PRN (As Needed)" || scheduleType === "Supplement") && (
+                <FormField
+                  control={form.control}
+                  name="frequency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Default Dosage Unit</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select dosage unit" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Tablets/Capsules">Tablets/Capsules</SelectItem>
+                          <SelectItem value="Drops">Drops</SelectItem>
+                          <SelectItem value="mL (Milliliters)">mL (Milliliters)</SelectItem>
+                          <SelectItem value="Puffs (Inhaler)">Puffs (Inhaler)</SelectItem>
+                          <SelectItem value="Applications (Topical)">Applications (Topical)</SelectItem>
+                          <SelectItem value="Sprays">Sprays</SelectItem>
+                          <SelectItem value="Patches">Patches</SelectItem>
+                          <SelectItem value="Injections">Injections</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription className="text-xs">
+                        {scheduleType === "PRN (As Needed)"
+                          ? "Select the unit type for PRN administration"
+                          : "Select the unit type for supplement administration"}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <div className="flex justify-end">
                 <Button type="button" onClick={handleFirstStep}>
                   Continue
@@ -517,134 +599,162 @@ export default function CreateMedicationForm({
           )}
           {step === 2 && (
             <>
-              <FormField
-                control={form.control}
-                name="times"
-                render={() => {
-                  const frequency = form.watch("frequency");
-                  const getMaxTimes = () => {
-                    if (frequency?.includes("Once")) return 1;
-                    if (frequency?.includes("Twice")) return 2;
-                    if (frequency?.includes("Three")) return 3;
-                    if (frequency?.includes("Four")) return 4;
-                    return 99; // No limit for PRN, Weekly, Monthly, etc.
-                  };
+              {/* Skip time selection for PRN medications */}
+              {scheduleType === "PRN (As Needed)" ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm font-medium text-blue-900">PRN Medication</p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      PRN medications are administered as needed. No scheduled times required.
+                    </p>
+                  </div>
+                  <div className="flex justify-between">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setStep(1)}
+                    >
+                      Back
+                    </Button>
+                    <Button type="button" onClick={handleSecondStep}>
+                      Continue
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="times"
+                    render={() => {
+                      const frequency = form.watch("frequency");
+                      const getMaxTimes = () => {
+                        if (frequency?.includes("Once")) return 1;
+                        if (frequency?.includes("Twice")) return 2;
+                        if (frequency?.includes("Three")) return 3;
+                        if (frequency?.includes("Four")) return 4;
+                        return 99; // No limit for Supplements, Weekly, Monthly, etc.
+                      };
 
-                  const maxTimes = getMaxTimes();
+                      const maxTimes = getMaxTimes();
 
-                  return (
-                    <FormItem>
-                      <div className="mb-4">
-                        <FormLabel className="text-base">
-                          Medication Times
-                        </FormLabel>
-                        <FormDescription>
-                          Select the times when this medication should be
-                          administered. {maxTimes < 99 && `(Select up to ${maxTimes} time${maxTimes > 1 ? 's' : ''})`}
-                        </FormDescription>
-                      </div>
-                      {config.times.map((timeGroup) => (
-                        <div key={timeGroup.name} className="mb-6">
-                          <h4 className="mb-3 text-sm font-medium text-muted-foreground">
-                            {timeGroup.name}
-                          </h4>
-                          <div className="grid grid-cols-1 gap-3">
-                            {timeGroup.values.map((time) => (
-                              <FormField
-                                key={time}
-                                control={form.control}
-                                name="times"
-                                render={({ field }) => {
-                                  const isSelected = field.value?.includes(time);
-                                  const isDisabled = !isSelected && (field.value?.length || 0) >= maxTimes;
-                                  const timeQuantities = form.watch("timeQuantities") || {};
-
-                                  return (
-                                    <FormItem key={time} className="space-y-0">
-                                      <FormControl>
-                                        <div className="flex items-center gap-2">
-                                          <button
-                                            type="button"
-                                            disabled={isDisabled}
-                                            onClick={() => {
-                                              const checked = !isSelected;
-                                              if (checked) {
-                                                field.onChange([...(field.value || []), time]);
-                                                // Set default quantity to 1 when time is selected
-                                                form.setValue("timeQuantities", {
-                                                  ...timeQuantities,
-                                                  [time]: 1
-                                                });
-                                              } else {
-                                                field.onChange(
-                                                  field.value?.filter((value) => value !== time)
-                                                );
-                                                // Remove quantity when time is deselected
-                                                const newQuantities = { ...timeQuantities };
-                                                delete newQuantities[time];
-                                                form.setValue("timeQuantities", newQuantities);
-                                              }
-                                            }}
-                                            className={cn(
-                                              "flex-1 px-3 py-2 text-sm font-medium rounded-md border transition-colors",
-                                              "hover:bg-accent hover:text-accent-foreground",
-                                              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                                              "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background",
-                                              isSelected
-                                                ? "bg-accent border-primary hover:bg-primary/10"
-                                                : "bg-background text-foreground border-input"
-                                            )}
-                                          >
-                                            {time}
-                                          </button>
-                                          {isSelected && (
-                                            <Input
-                                              type="number"
-                                              min="1"
-                                              placeholder="Qty"
-                                              className="w-20"
-                                              value={timeQuantities[time] || 1}
-                                              onChange={(e) => {
-                                                const qty = parseInt(e.target.value) || 1;
-                                                form.setValue("timeQuantities", {
-                                                  ...timeQuantities,
-                                                  [time]: qty
-                                                });
-                                              }}
-                                            />
-                                          )}
-                                        </div>
-                                      </FormControl>
-                                    </FormItem>
-                                  );
-                                }}
-                              />
-                            ))}
+                      return (
+                        <FormItem>
+                          <div className="mb-4">
+                            <FormLabel className="text-base">
+                              {scheduleType === "Supplement" ? "Supplement Times" : "Medication Times"}
+                            </FormLabel>
+                            <FormDescription>
+                              {scheduleType === "Supplement"
+                                ? "Select the times when this supplement should be taken."
+                                : `Select the times when this medication should be administered. ${maxTimes < 99 ? `(Select up to ${maxTimes} time${maxTimes > 1 ? 's' : ''})` : ''}`
+                              }
+                            </FormDescription>
                           </div>
-                        </div>
-                      ))}
-                      <FormMessage />
-                    </FormItem>
-                  );
-                }}
-              />
+                        {config.times.map((timeGroup) => (
+                          <div key={timeGroup.name} className="mb-6">
+                            <h4 className="mb-3 text-sm font-medium text-muted-foreground">
+                              {timeGroup.name}
+                            </h4>
+                            <div className="grid grid-cols-1 gap-3">
+                              {timeGroup.values.map((time) => (
+                                <FormField
+                                  key={time}
+                                  control={form.control}
+                                  name="times"
+                                  render={({ field }) => {
+                                    const isSelected = field.value?.includes(time);
+                                    const isDisabled = !isSelected && (field.value?.length || 0) >= maxTimes;
+                                    const timeQuantities = form.watch("timeQuantities") || {};
 
-              <div className="flex justify-between items-center">
-                <Button
-                  type="button"
-                  onClick={() => setStep(0)}
-                  variant="outline"
-                >
-                  Back
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleSecondStep}
-                  disabled={isLoading}
-                >
-                  Continue
-                </Button>
-              </div>
+                                    return (
+                                      <FormItem key={time} className="space-y-0">
+                                        <FormControl>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              disabled={isDisabled}
+                                              onClick={() => {
+                                                const checked = !isSelected;
+                                                if (checked) {
+                                                  field.onChange([...(field.value || []), time]);
+                                                  // Set default quantity to 1 when time is selected
+                                                  form.setValue("timeQuantities", {
+                                                    ...timeQuantities,
+                                                    [time]: 1
+                                                  });
+                                                } else {
+                                                  field.onChange(
+                                                    field.value?.filter((value) => value !== time)
+                                                  );
+                                                  // Remove quantity when time is deselected
+                                                  const newQuantities = { ...timeQuantities };
+                                                  delete newQuantities[time];
+                                                  form.setValue("timeQuantities", newQuantities);
+                                                }
+                                              }}
+                                              className={cn(
+                                                "flex-1 px-3 py-2 text-sm font-medium rounded-md border transition-colors",
+                                                "hover:bg-accent hover:text-accent-foreground",
+                                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                                "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background",
+                                                isSelected
+                                                  ? "bg-accent border-primary hover:bg-primary/10"
+                                                  : "bg-background text-foreground border-input"
+                                              )}
+                                            >
+                                              {time}
+                                            </button>
+                                            {isSelected && (
+                                              <Input
+                                                type="number"
+                                                min="1"
+                                                placeholder="Qty"
+                                                className="w-20"
+                                                value={timeQuantities[time] || 1}
+                                                onChange={(e) => {
+                                                  const qty = parseInt(e.target.value) || 1;
+                                                  form.setValue("timeQuantities", {
+                                                    ...timeQuantities,
+                                                    [time]: qty
+                                                  });
+                                                }}
+                                              />
+                                            )}
+                                          </div>
+                                        </FormControl>
+                                      </FormItem>
+                                    );
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+
+                  <div className="flex justify-between items-center">
+                    <Button
+                      type="button"
+                      onClick={() => setStep(0)}
+                      variant="outline"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleSecondStep}
+                      disabled={isLoading}
+                    >
+                      Continue
+                    </Button>
+                  </div>
+                </>
+              )}
             </>
           )}
           {step === 3 && (

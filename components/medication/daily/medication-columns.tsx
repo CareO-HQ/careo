@@ -91,8 +91,18 @@ export const createMedicationColumns = (
     },
     {
       id: "frequency",
-      header: "Frequency",
+      header: "Frequency / Unit",
       cell: ({ row }) => {
+        const med = row.original;
+        // For PRN and Supplements, frequency field contains dosage unit
+        if (med.schedule_type === "PRN (As Needed)" || med.schedule_type === "Supplement") {
+          return (
+            <div className="flex flex-col">
+              <p className="text-xs text-muted-foreground">Dosage Unit:</p>
+              <p className="font-medium">{med.frequency || "Not specified"}</p>
+            </div>
+          );
+        }
         return <p>{row.original.frequency}</p>;
       }
     },
@@ -180,6 +190,50 @@ export const createMedicationColumns = (
               const [time, setTime] = useState<Date>(new Date());
               const [units, setUnits] = useState(1);
 
+              // Determine unit label and type based on frequency field (for PRN/Supplements) or dosage form
+              const getUnitInfo = () => {
+                // For PRN and Supplements, use the frequency field which stores dosage unit
+                if (medication.schedule_type === "PRN (As Needed)" || medication.schedule_type === "Supplement") {
+                  const dosageUnit = medication.frequency || "";
+
+                  if (dosageUnit.includes('Drops')) {
+                    return { label: 'Drops', type: 'number', step: '1' };
+                  } else if (dosageUnit.includes('mL')) {
+                    return { label: 'mL (Milliliters)', type: 'number', step: '0.1' };
+                  } else if (dosageUnit.includes('Puffs')) {
+                    return { label: 'Puffs', type: 'number', step: '1' };
+                  } else if (dosageUnit.includes('Applications')) {
+                    return { label: 'Applications', type: 'number', step: '1' };
+                  } else if (dosageUnit.includes('Sprays')) {
+                    return { label: 'Sprays', type: 'number', step: '1' };
+                  } else if (dosageUnit.includes('Patches')) {
+                    return { label: 'Patches', type: 'number', step: '1' };
+                  } else if (dosageUnit.includes('Injections')) {
+                    return { label: 'Injections (mL)', type: 'number', step: '0.1' };
+                  } else {
+                    return { label: 'Tablets/Capsules', type: 'number', step: '1' };
+                  }
+                }
+
+                // For scheduled medications, determine from dosage form
+                const dosageForm = medication.dosage_form.toLowerCase();
+
+                if (dosageForm.includes('liquid') || dosageForm.includes('syrup') || dosageForm.includes('drops')) {
+                  return { label: 'Dose (mL or drops)', type: 'number', step: '0.1' };
+                } else if (dosageForm.includes('inhaler') || dosageForm.includes('spray')) {
+                  return { label: 'Puffs', type: 'number', step: '1' };
+                } else if (dosageForm.includes('cream') || dosageForm.includes('ointment') || dosageForm.includes('gel') || dosageForm.includes('patch')) {
+                  return { label: 'Applications', type: 'number', step: '1' };
+                } else if (dosageForm.includes('injection')) {
+                  return { label: 'Dose (mL)', type: 'number', step: '0.1' };
+                } else {
+                  // Default for tablets, capsules, etc.
+                  return { label: 'Tablets/Capsules', type: 'number', step: '1' };
+                }
+              };
+
+              const unitInfo = getUnitInfo();
+
               const handleAdministrate = async () => {
                 if (!createAndAdministerMedicationIntake) {
                   toast.error("Administration function not available");
@@ -192,8 +246,8 @@ export const createMedicationColumns = (
                   return;
                 }
 
-                if (units < 1) {
-                  toast.error("Units must be at least 1");
+                if (units < 0.1) {
+                  toast.error(`${unitInfo.label} must be at least 0.1`);
                   return;
                 }
 
@@ -322,16 +376,18 @@ export const createMedicationColumns = (
 
                       <div className="space-y-2">
                         <Label htmlFor="units">
-                          Units <span className="text-red-500">*</span>
+                          {unitInfo.label} <span className="text-red-500">*</span>
                         </Label>
                         <Input
                           id="units"
-                          type="number"
-                          min="1"
+                          type={unitInfo.type}
+                          min="0.1"
+                          step={unitInfo.step}
                           value={units}
                           onChange={(e) =>
-                            setUnits(parseInt(e.target.value) || 1)
+                            setUnits(parseFloat(e.target.value) || 1)
                           }
+                          placeholder={`Enter ${unitInfo.label.toLowerCase()}`}
                         />
                       </div>
 

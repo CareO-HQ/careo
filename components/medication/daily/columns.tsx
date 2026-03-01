@@ -87,7 +87,7 @@ export const createColumns = (
   saveMedicationIntakeComment?: (intakeId: string, comment: string) => Promise<void>,
   currentUser?: { name: string; userId: string },
   isRoundCompleted?: boolean
-): ColumnDef<MedicationIntake>[] => [
+): ColumnDef<any>[] => [
     {
       id: "medication",
       header: "Medication",

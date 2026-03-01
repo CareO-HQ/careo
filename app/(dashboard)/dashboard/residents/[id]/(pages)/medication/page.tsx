@@ -350,30 +350,83 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   }, [id]);
 
   const markMedicationIntakeAsPoppedOut = async (intakeId: string, isPoppedOut: boolean) => {
+    const now = new Date().toISOString();
+
+    // Find the intake to get medication info
+    const intake = selectedDateIntakes.find(i => i.id === intakeId);
+    if (!intake) return;
+
     const { error } = await supabase
       .from("medication_intakes")
-      .update({ popped_out_at: isPoppedOut ? new Date().toISOString() : null, popped_out_by_id: profile?.id })
+      .update({ popped_out_at: isPoppedOut ? now : null, popped_out_by_id: profile?.id })
       .eq("id", intakeId);
     if (error) throw error;
-    fetchData();
+
+    // Update medication total_count if popping out
+    if (isPoppedOut && intake.medication?.id && intake.medication?.total_count) {
+      const newCount = intake.medication.total_count - (intake.quantity || 1);
+      if (newCount >= 0) {
+        await supabase
+          .from("medications")
+          .update({ total_count: newCount })
+          .eq("id", intake.medication.id);
+
+        // Update local medication state
+        setAllActiveMedications(prev => prev.map(med =>
+          med.id === intake.medication.id
+            ? { ...med, total_count: newCount }
+            : med
+        ));
+      }
+    }
+
+    // Optimistic update - update local state without full refresh
+    setSelectedDateIntakes(prev => prev.map(i => {
+      if (i.id === intakeId) {
+        const updatedIntake = { ...i, popped_out_at: isPoppedOut ? now : null, popped_out_by_id: profile?.id };
+        if (isPoppedOut && i.medication) {
+          const newCount = (i.medication.total_count || 0) - (i.quantity || 1);
+          updatedIntake.medication = {
+            ...i.medication,
+            total_count: newCount >= 0 ? newCount : 0
+          };
+        }
+        return updatedIntake;
+      }
+      return i;
+    }));
   };
 
   const setWithnessForMedicationIntake = async (intakeId: string, witnessId: string | null) => {
+    const now = new Date().toISOString();
     const { error } = await supabase
       .from("medication_intakes")
-      .update({ witness_id: witnessId, witness_at: witnessId ? new Date().toISOString() : null })
+      .update({ witness_id: witnessId, witness_at: witnessId ? now : null })
       .eq("id", intakeId);
     if (error) throw error;
-    fetchData();
+
+    // Optimistic update
+    setSelectedDateIntakes(prev => prev.map(intake =>
+      intake.id === intakeId
+        ? { ...intake, witness_id: witnessId, witness_at: witnessId ? now : null }
+        : intake
+    ));
   };
 
   const updateMedicationIntakeStatus = async (intakeId: string, state: "given" | "refused" | "missed") => {
+    const now = new Date().toISOString();
     const { error } = await supabase
       .from("medication_intakes")
-      .update({ status: state, administered_by_id: profile?.id, administered_at: new Date().toISOString() })
+      .update({ status: state, administered_by_id: profile?.id, administered_at: now })
       .eq("id", intakeId);
     if (error) throw error;
-    fetchData();
+
+    // Optimistic update
+    setSelectedDateIntakes(prev => prev.map(intake =>
+      intake.id === intakeId
+        ? { ...intake, status: state, administered_by_id: profile?.id, administered_at: now }
+        : intake
+    ));
   };
 
   const saveMedicationIntakeComment = async (intakeId: string, comment: string) => {
@@ -382,7 +435,13 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       .update({ comment: comment })
       .eq("id", intakeId);
     if (error) throw error;
-    fetchData();
+
+    // Optimistic update
+    setSelectedDateIntakes(prev => prev.map(intake =>
+      intake.id === intakeId
+        ? { ...intake, comment: comment }
+        : intake
+    ));
   };
 
   const handleUpdateMedicationIntakeStatus = async (args: {
@@ -657,6 +716,84 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     [availableMembers, profile]
   );
 
+  const supplementColumns: ColumnDef<any>[] = useMemo(
+    () => [
+      {
+        accessorKey: "name",
+        header: "Medication",
+        cell: ({ row }) => {
+          const med = row.original;
+          return (
+            <div className="flex flex-col">
+              <p className="font-medium">{med.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {med.strength} {med.strength_unit} - {med.dosage_form}
+              </p>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "qty",
+        header: "Qty",
+        cell: ({ row }) => {
+          const med = row.original;
+          // Get default quantity from time_quantities or fallback to 1
+          const defaultQty = med.time_quantities ? Object.values(med.time_quantities)[0] : 1;
+          return <span>{defaultQty}</span>;
+        },
+      },
+      {
+        accessorKey: "popped_out",
+        header: "Popped Out",
+        cell: ({ row }) => {
+          return (
+            <input
+              type="checkbox"
+              className="w-4 h-4 cursor-pointer"
+              disabled
+            />
+          );
+        },
+      },
+      {
+        accessorKey: "total_count",
+        header: "Total Count",
+        cell: ({ row }) => {
+          const med = row.original;
+          return <span>{med.total_count || "-"}</span>;
+        },
+      },
+      {
+        accessorKey: "dispensed_by",
+        header: "Dispensed by",
+        cell: () => {
+          return <span className="text-muted-foreground">-</span>;
+        },
+      },
+      {
+        accessorKey: "witnessed_by",
+        header: "Witnessed By",
+        cell: () => {
+          return <span className="text-muted-foreground">-</span>;
+        },
+      },
+      {
+        accessorKey: "state",
+        header: "State",
+        cell: ({ row }) => {
+          const med = row.original;
+          return (
+            <Badge variant="outline" className="bg-blue-50 text-blue-700">
+              {med.status || "active"}
+            </Badge>
+          );
+        },
+      },
+    ],
+    []
+  );
+
   useEffect(() => {
     if (selectedTime && selectedDateIntakes) {
       const filtered = selectedDateIntakes.filter((intake) => {
@@ -770,7 +907,33 @@ export default function MedicationPage({ params }: MedicationPageProps) {
             <ShiftTimes selectedTime={selectedTime} setSelectedTime={setSelectedTime} />
           </div>
 
-          <DataTable columns={dailyMedicationColumns} data={filteredIntakes} />
+          {(() => {
+            // Separate regular medications from supplements
+            const regularMeds = filteredIntakes.filter((intake) => {
+              const isSupplement = intake.medication?.schedule_type === 'Supplement' ||
+                                  intake.medication?.type === 'Supplement' ||
+                                  intake.medication?.category === 'Supplement';
+              return !isSupplement;
+            });
+
+            const supplementIntakes = filteredIntakes.filter((intake) => {
+              const isSupplement = intake.medication?.schedule_type === 'Supplement' ||
+                                  intake.medication?.type === 'Supplement' ||
+                                  intake.medication?.category === 'Supplement';
+              return isSupplement;
+            });
+
+            // Combine with a divider marker
+            const combinedData = [
+              ...regularMeds,
+              ...(supplementIntakes.length > 0 ? [{ isDivider: true, dividerLabel: 'Supplements' }] : []),
+              ...supplementIntakes
+            ];
+
+            return (
+              <DataTable columns={dailyMedicationColumns} data={combinedData} />
+            );
+          })()}
 
           {selectedTime && (
             <div className="w-full">
@@ -819,18 +982,6 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               </div>
             ) : (
               <DataTable columns={prnTopicalColumns} data={topicalMedications} />
-            )}
-          </div>
-
-          <div className="flex flex-col gap-4 mt-6">
-            <p className="font-semibold">Supplements</p>
-            {supplementMedications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border rounded-lg">
-                <p className="text-sm font-medium text-muted-foreground">No supplements</p>
-                <p className="text-xs text-muted-foreground">Supplements and vitamins will appear here.</p>
-              </div>
-            ) : (
-              <DataTable columns={prnTopicalColumns} data={supplementMedications} />
             )}
           </div>
         </TabsContent>
