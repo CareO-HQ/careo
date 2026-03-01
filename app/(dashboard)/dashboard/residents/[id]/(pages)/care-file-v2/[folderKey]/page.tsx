@@ -18,6 +18,12 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
@@ -164,6 +170,8 @@ export default function CareFileV2FolderPage() {
     const [activeOrganization, setActiveOrganization] = useState<any>(null);
     const [selectedCarePlanName, setSelectedCarePlanName] = useState<string | undefined>(undefined);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [uploadDefaultFileName, setUploadDefaultFileName] = useState("");
     // SidebarTrigger handles the left sidebar, hook used for state if needed.
     const { toggleSidebar, state: leftSidebarState } = useSidebar();
 
@@ -228,6 +236,8 @@ export default function CareFileV2FolderPage() {
         }
 
         if (!canFillForms) return;
+
+
         setActiveFileId(null);
         if (activeFormKey === key) {
             setActiveFormKey(null);
@@ -436,7 +446,25 @@ export default function CareFileV2FolderPage() {
                                 </div>
                                 <div className="p-6 sm:p-10">
                                     {isViewOnly ? (
-                                        <RiskAssessmentViewer assessment={{ formKey: activeFormKey, formId: formDataForEdit?.id || formDataForEdit?._id, name: activeFormKey === "care-plan-form" ? (formDataForEdit?.care_plan_type || "Care Plan") : (folder.forms.find(f => f.key === activeFormKey)?.value || "Form"), completedAt: formDataForEdit?.created_at || formDataForEdit?._creationTime }} />
+                                        <div className="relative">
+                                            <CareFileDialogRenderer
+                                                formKey={activeFormKey}
+                                                residentId={residentId}
+                                                teamId={activeTeamId ?? ""}
+                                                organizationId={profile?.active_organization_id ?? ""}
+                                                userId={profile?.id ?? ""}
+                                                userName={profile?.name || profile?.email || "User"}
+                                                userRole={profile?.role ?? ""}
+                                                resident={resident}
+                                                careHomeName={profile?.care_home_name ?? ""}
+                                                folderKey={folderKey}
+                                                formDataForEdit={formDataForEdit}
+                                                isReviewMode={isReviewMode}
+                                                onClose={handleCloseForm}
+                                                isInline={true}
+                                                viewOnly={true}
+                                            />
+                                        </div>
                                     ) : (
                                         <Dialog open={true} modal={false}>
                                             <DialogPrimitive.Title className="sr-only">
@@ -538,8 +566,112 @@ export default function CareFileV2FolderPage() {
                         <div>
                             <div className="flex items-center justify-between mb-2">
                                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">Documents</p>
-                                <UploadFileModal folderName={folder.value || folderKey} residentId={residentId} variant="icon" onUploaded={fetchUploadedFiles} />
+                                {folderKey === "v2-mobility" ? (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-5 w-5 hover:bg-muted"
+                                                title="Upload PDF"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("Physiotherapy");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                Physiotherapy
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("OT");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                OT
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("Falls Team");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                Falls Team
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                ) : folderKey === "v2-nutrition-hydration" ? (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-5 w-5 hover:bg-muted"
+                                                title="Upload PDF"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("GP input");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                GP input
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("SALT");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                SALT
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("Dietitian");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                Dietitian
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                ) : folderKey === "v2-incontinence" ? (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-5 w-5 hover:bg-muted"
+                                                title="Upload PDF"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("Incontinence Team reports");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                Incontinence Team reports
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                ) : (
+                                    <UploadFileModal
+                                        folderName={folder.value || folderKey}
+                                        residentId={residentId}
+                                        variant="icon"
+                                        onUploaded={fetchUploadedFiles}
+                                    />
+                                )}
                             </div>
+
+                            <UploadFileModal
+                                folderName={folder.value || folderKey}
+                                residentId={residentId}
+                                variant="none"
+                                open={isUploadModalOpen}
+                                onOpenChange={setIsUploadModalOpen}
+                                defaultFileName={uploadDefaultFileName}
+                                onUploaded={fetchUploadedFiles}
+                            />
                             {filesLoading ? (
                                 <div className="flex items-center justify-center p-3"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
                             ) : uploadedFiles.length === 0 ? (
@@ -566,11 +698,11 @@ export default function CareFileV2FolderPage() {
             </div>
 
             <Dialog open={isCarePlanSelectionOpen} onOpenChange={setIsCarePlanSelectionOpen}>
-                <DialogPrimitive.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-md translate-x-[-50%] translate-y-[-50%] border bg-background p-6 shadow-lg rounded-lg overflow-hidden">
-                    <div className="mb-4 text-center sm:text-left">
-                        <DialogPrimitive.Title className="text-sm font-semibold">Select Care Plan Type</DialogPrimitive.Title>
+                <DialogContent className="max-w-md p-6">
+                    <DialogHeader className="mb-4 text-center sm:text-left">
+                        <DialogTitle className="text-sm font-semibold">Select Care Plan Type</DialogTitle>
                         <DialogPrimitive.Description className="text-[10px]">Choose a care plan to add</DialogPrimitive.Description>
-                    </div>
+                    </DialogHeader>
                     <div className="grid grid-cols-2 gap-3">
                         <Card className="cursor-pointer hover:bg-muted/50 p-2.5 border" onClick={() => handleCarePlanSelect("General Care Plan")}>
                             <div className="flex items-start gap-2">
@@ -592,8 +724,185 @@ export default function CareFileV2FolderPage() {
                                 </div>
                             </Card>
                         )}
+                        {folderKey === "v2-additional-cp" && (
+                            <>
+                                {[
+                                    { title: "Altered State of Consciousness", desc: "ASC Care Plan" },
+                                    { title: "Behaviour", desc: "Behaviour Care Plan" },
+                                    { title: "Breathing", desc: "Breathing Care Plan" },
+                                    { title: "Hypertension", desc: "Hypertension Care Plan" },
+                                    { title: "Diabetes Management", desc: "Diabetes Management Care Plan" },
+                                    { title: "Anaemia", desc: "Anaemia Care Plan" },
+                                    { title: "Cognition", desc: "Cognition Care Plan" },
+                                    { title: "Communication", desc: "Communication Care Plan" },
+                                    { title: "Pain Assessment", desc: "Pain Assessment Care Plan" },
+                                    { title: "Pain Management", desc: "Pain Management Care Plan" },
+                                    { title: "Sleep", desc: "Sleep Care Plan" },
+                                    { title: "End of Life", desc: "End of Life Care Plan" },
+                                    { title: "DNACPR", desc: "DNACPR Care Plan" },
+                                    { title: "Infection Control / Environmental", desc: "Infection Control Care Plan" },
+                                    { title: "Expressing Sexuality", desc: "Expressing Sexuality Care Plan" },
+                                    { title: "Sexual Needs", desc: "Sexual Needs Care Plan" },
+                                    { title: "Spiritual Needs", desc: "Spiritual Needs Care Plan" }
+                                ].map((plan) => (
+                                    <Card
+                                        key={plan.title}
+                                        className="cursor-pointer hover:bg-muted/50 p-2.5 border"
+                                        onClick={() => handleCarePlanSelect(`${plan.title} Care Plan`)}
+                                    >
+                                        <div className="flex items-start gap-2">
+                                            <div className="p-1.5 rounded-md bg-purple-100 text-purple-600">
+                                                <FileText className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-semibold text-xs text-left">{plan.title}</h3>
+                                                <p className="text-[10px] text-muted-foreground line-clamp-1">
+                                                    {plan.desc}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                ))}
+                            </>
+                        )}
+                        {folderKey === "v2-hygiene" && (
+                            <>
+                                <Card
+                                    className="cursor-pointer hover:bg-muted/50 p-2.5 border"
+                                    onClick={() => handleCarePlanSelect("Care Plan for Level of Assistance")}
+                                >
+                                    <div className="flex items-start gap-2">
+                                        <div className="p-1.5 rounded-md bg-blue-100 text-blue-600">
+                                            <FileText className="w-4 h-4" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-semibold text-xs text-left">Level of Assistance</h3>
+                                            <p className="text-[10px] text-muted-foreground line-clamp-1">
+                                                Care Plan for Level of Assistance
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Card>
+                                <Card
+                                    className="cursor-pointer hover:bg-muted/50 p-2.5 border"
+                                    onClick={() => handleCarePlanSelect("Pressure Ulcer Care Plan")}
+                                >
+                                    <div className="flex items-start gap-2">
+                                        <div className="p-1.5 rounded-md bg-red-100 text-red-600">
+                                            <FileText className="w-4 h-4" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-semibold text-xs text-left">Pressure Ulcer</h3>
+                                            <p className="text-[10px] text-muted-foreground line-clamp-1">
+                                                Pressure Ulcer Care Plan
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </>
+                        )}
+                        {folderKey === "v2-medication" && (
+                            <>
+                                <Card className="cursor-pointer hover:bg-muted/50 p-2.5 border col-span-2 sm:col-span-1" onClick={() => handleCarePlanSelect("PRN Medication Care Plan")}>
+                                    <div className="flex items-start gap-2">
+                                        <div className="p-1.5 rounded-md bg-purple-100 text-purple-600"><FileText className="w-4 h-4" /></div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-semibold text-xs">PRN Medication Care Plan</h3>
+                                            <p className="text-[10px] text-muted-foreground line-clamp-1">Specialized documentation for PRN medications</p>
+                                        </div>
+                                    </div>
+                                </Card>
+                                <Card className="cursor-pointer hover:bg-muted/50 p-2.5 border col-span-2 sm:col-span-1" onClick={() => handleCarePlanSelect("Topical Creams Care Plan")}>
+                                    <div className="flex items-start gap-2">
+                                        <div className="p-1.5 rounded-md bg-pink-100 text-pink-600"><FileText className="w-4 h-4" /></div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-semibold text-xs">Topical Creams Care Plan</h3>
+                                            <p className="text-[10px] text-muted-foreground line-clamp-1">Specialized documentation for topical creams</p>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </>
+                        )}
+                        {folderKey === "v2-safe-environment" && (
+                            <Card className="cursor-pointer hover:bg-muted/50 p-2.5 border col-span-2" onClick={() => handleCarePlanSelect("Dementia/brain injury Care Plan")}>
+                                <div className="flex items-start gap-2">
+                                    <div className="p-1.5 rounded-md bg-orange-100 text-orange-600"><FileText className="w-4 h-4" /></div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-semibold text-xs">Dementia/brain injury Care Plan</h3>
+                                        <p className="text-[10px] text-muted-foreground line-clamp-1">Specialized documentation for dementia and brain injury</p>
+                                    </div>
+                                </div>
+                            </Card>
+                        )}
+                        {folderKey === "v2-mobility" && (
+                            <Card
+                                className="cursor-pointer hover:bg-muted/50 p-2.5 border col-span-2 sm:col-span-1"
+                                onClick={() => handleCarePlanSelect("Assistance care plan")}
+                            >
+                                <div className="flex items-start gap-2">
+                                    <div className="p-1.5 rounded-md bg-orange-100 text-orange-600">
+                                        <FileText className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-semibold text-xs">Assistance Plan</h3>
+                                        <p className="text-[10px] text-muted-foreground line-clamp-1">
+                                            Care plan for assistance
+                                        </p>
+                                    </div>
+                                </div>
+                            </Card>
+                        )}
+                        {folderKey === "v2-valuables" && (
+                            <Card
+                                className="cursor-pointer hover:bg-muted/50 p-2.5 border col-span-2"
+                                onClick={() => handleCarePlanSelect("Residents’ Valuables and Personal Property Care Plan")}
+                            >
+                                <div className="flex items-start gap-2">
+                                    <div className="p-1.5 rounded-md bg-yellow-100 text-yellow-600">
+                                        <FileText className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-semibold text-xs text-left">Valuables Care Plan</h3>
+                                        <p className="text-[10px] text-muted-foreground line-clamp-1">
+                                            Care plan for residents&apos; valuables and personal property
+                                        </p>
+                                    </div>
+                                </div>
+                            </Card>
+                        )}
+                        {folderKey === "v2-nutrition-hydration" && (
+                            <>
+                                {[
+                                    { title: "Risk of Malnutrition", desc: "Care plan for malnutrition risk" },
+                                    { title: "Supplements", desc: "Care plan for nutritional supplements" },
+                                    { title: "Thickener", desc: "Care plan for fluid thickeners" },
+                                    { title: "Risk of Choking", desc: "Care plan for choking risk" },
+                                    { title: "Weight Loss", desc: "Care plan for weight loss management" },
+                                    { title: "Diabetic Diet", desc: "Care plan for diabetic management" },
+                                    { title: "Fluid Restriction", desc: "Care plan for fluid restriction" }
+                                ].map((plan) => (
+                                    <Card
+                                        key={plan.title}
+                                        className="cursor-pointer hover:bg-muted/50 p-2.5 border"
+                                        onClick={() => handleCarePlanSelect(`Care Plan: ${plan.title}`)}
+                                    >
+                                        <div className="flex items-start gap-2">
+                                            <div className="p-1.5 rounded-md bg-green-100 text-green-600">
+                                                <FileText className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-semibold text-xs">{plan.title}</h3>
+                                                <p className="text-[10px] text-muted-foreground line-clamp-1">
+                                                    {plan.desc}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                ))}
+                            </>
+                        )}
                     </div>
-                </DialogPrimitive.Content>
+                </DialogContent>
             </Dialog>
         </div >
     );

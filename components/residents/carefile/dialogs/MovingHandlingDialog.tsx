@@ -47,6 +47,7 @@ interface MovingHandlingDialogProps {
   initialData?: any;
   isEditMode?: boolean;
   isInline?: boolean;
+  viewOnly?: boolean;
 }
 
 export default function MovingHandlingDialog({
@@ -60,6 +61,7 @@ export default function MovingHandlingDialog({
   initialData,
   isEditMode = false,
   isInline = false,
+  viewOnly = false,
 }: MovingHandlingDialogProps) {
   const [isLoading, startTransition] = useTransition();
 
@@ -298,140 +300,142 @@ export default function MovingHandlingDialog({
 
       <div className="space-y-12">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-            <button type="submit" id="care-file-submit-btn" className="hidden" />
-            {/* Section 1: Resident Information */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Resident Information</h3>
-              </div>
-              <div className="grid gap-6">
-                <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-                <div className="grid grid-cols-2 gap-6">
-                  <FormField control={form.control} name="weight" render={({ field }) => <FormItem><FormLabel>Weight (kg)</FormLabel><FormControl><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl></FormItem>} />
-                  <FormField control={form.control} name="height" render={({ field }) => <FormItem><FormLabel>Height (cm)</FormLabel><FormControl><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl></FormItem>} />
+          <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              {/* Section 1: Resident Information */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Resident Information</h3>
                 </div>
-                <FormField control={form.control} name="historyOfFalls" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-card/50">
-                    <div className="space-y-0.5"><FormLabel>History of Falls?</FormLabel></div>
-                    <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                  </FormItem>
-                )} />
+                <div className="grid gap-6">
+                  <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <div className="grid grid-cols-2 gap-6">
+                    <FormField control={form.control} name="weight" render={({ field }) => <FormItem><FormLabel>Weight (kg)</FormLabel><FormControl><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl></FormItem>} />
+                    <FormField control={form.control} name="height" render={({ field }) => <FormItem><FormLabel>Height (cm)</FormLabel><FormControl><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl></FormItem>} />
+                  </div>
+                  <FormField control={form.control} name="historyOfFalls" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-card/50">
+                      <div className="space-y-0.5"><FormLabel>History of Falls?</FormLabel></div>
+                      <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    </FormItem>
+                  )} />
+                </div>
               </div>
-            </div>
 
-            {/* Section 2: Mobility Assessment */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Mobility Assessment</h3>
+              {/* Section 2: Mobility Assessment */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Mobility Assessment</h3>
+                </div>
+                <div className="grid gap-6">
+                  <FormField control={form.control} name="independentMobility" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-card/50">
+                      <div className="space-y-0.5"><FormLabel>Independent Mobility?</FormLabel></div>
+                      <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="canWeightBear" render={({ field }) => (
+                    <FormItem><FormLabel>Weight Bearing Capacity</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="FULLY">Fully</SelectItem>
+                        <SelectItem value="PARTIALLY">Partially</SelectItem>
+                        <SelectItem value="WITH-AID">With Aid</SelectItem>
+                        <SelectItem value="NO-WEIGHTBEARING">No Weightbearing</SelectItem>
+                      </SelectContent>
+                    </Select></FormItem>
+                  )} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {["limbUpperRight", "limbUpperLeft", "limbLowerRight", "limbLowerLeft"].map(k => (
+                      <FormField key={k} control={form.control} name={k as any} render={({ field }) => (
+                        <FormItem className="p-4 border rounded-lg bg-card/30">
+                          <FormLabel className="capitalize font-medium">{k.replace('limb', '').replace(/([A-Z])/g, ' $1')}</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent><SelectItem value="FULLY">Fully</SelectItem><SelectItem value="PARTIALLY">Partially</SelectItem><SelectItem value="NONE">None</SelectItem></SelectContent>
+                          </Select></FormItem>
+                      )} />
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div className="grid gap-6">
-                <FormField control={form.control} name="independentMobility" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-card/50">
-                    <div className="space-y-0.5"><FormLabel>Independent Mobility?</FormLabel></div>
-                    <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="canWeightBear" render={({ field }) => (
-                  <FormItem><FormLabel>Weight Bearing Capacity</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      <SelectItem value="FULLY">Fully</SelectItem>
-                      <SelectItem value="PARTIALLY">Partially</SelectItem>
-                      <SelectItem value="WITH-AID">With Aid</SelectItem>
-                      <SelectItem value="NO-WEIGHTBEARING">No Weightbearing</SelectItem>
-                    </SelectContent>
-                  </Select></FormItem>
-                )} />
+
+              {/* Section 3: Risk Factors */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Risk Factors</h3>
+                </div>
+
+                <div className="space-y-8">
+                  <div>
+                    <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Sensory & Behavioral</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <RiskEntry name="deafness" label="Deafness" />
+                      <RiskEntry name="blindness" label="Blindness" />
+                      <RiskEntry name="unpredictableBehaviour" label="Unpredictable Behaviour" />
+                      <RiskEntry name="uncooperativeBehaviour" label="Uncooperative Behaviour" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Cognitive & Emotional</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <RiskEntry name="distressedReaction" label="Distressed Reaction" />
+                      <RiskEntry name="disorientated" label="Disorientated" />
+                      <RiskEntry name="unconscious" label="Unconscious" />
+                      <RiskEntry name="unbalance" label="Unbalance" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Physical & Other</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <RiskEntry name="spasms" label="Spasms" />
+                      <RiskEntry name="stiffness" label="Stiffness" />
+                      <RiskEntry name="catheters" label="Catheters" />
+                      <RiskEntry name="incontinence" label="Incontinence" />
+                      <RiskEntry name="localisedPain" label="Localised Pain" />
+                      <RiskEntry name="other" label="Other Risks" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Requirements */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Requirements & Equipment</h3>
+                </div>
+                <div className="grid gap-6">
+                  <FormField control={form.control} name="needsRiskStaff" render={({ field }) => (<FormItem><FormLabel>Specific Risk Staff Requirements</FormLabel><FormControl><Textarea placeholder="Details..." className="min-h-[100px]" {...field} /></FormControl></FormItem>)} />
+                  <FormField control={form.control} name="equipmentUsed" render={({ field }) => (<FormItem><FormLabel>Equipment Required</FormLabel><FormControl><Input placeholder="Hoist, Slide sheets, etc." {...field} /></FormControl></FormItem>)} />
+                </div>
+              </div>
+
+              {/* Section 5: Completion */}
+              <div className="space-y-6 pt-4">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Completion & Signature</h3>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {["limbUpperRight", "limbUpperLeft", "limbLowerRight", "limbLowerLeft"].map(k => (
-                    <FormField key={k} control={form.control} name={k as any} render={({ field }) => (
-                      <FormItem className="p-4 border rounded-lg bg-card/30">
-                        <FormLabel className="capitalize font-medium">{k.replace('limb', '').replace(/([A-Z])/g, ' $1')}</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger></FormControl>
-                          <SelectContent><SelectItem value="FULLY">Fully</SelectItem><SelectItem value="PARTIALLY">Partially</SelectItem><SelectItem value="NONE">None</SelectItem></SelectContent>
-                        </Select></FormItem>
-                    )} />
-                  ))}
+                  <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted" /></FormControl></FormItem>} />
+                  <FormField control={form.control} name="jobRole" render={({ field }) => <FormItem><FormLabel>Job Role</FormLabel><FormControl><Input placeholder="e.g. Care Manager" {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel>Digital Signature (Name)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="assessmentDate" render={({ field }) => <FormItem><FormLabel>Completion Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} />
                 </div>
               </div>
-            </div>
-
-            {/* Section 3: Risk Factors */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Risk Factors</h3>
-              </div>
-
-              <div className="space-y-8">
-                <div>
-                  <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Sensory & Behavioral</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <RiskEntry name="deafness" label="Deafness" />
-                    <RiskEntry name="blindness" label="Blindness" />
-                    <RiskEntry name="unpredictableBehaviour" label="Unpredictable Behaviour" />
-                    <RiskEntry name="uncooperativeBehaviour" label="Uncooperative Behaviour" />
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Cognitive & Emotional</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <RiskEntry name="distressedReaction" label="Distressed Reaction" />
-                    <RiskEntry name="disorientated" label="Disorientated" />
-                    <RiskEntry name="unconscious" label="Unconscious" />
-                    <RiskEntry name="unbalance" label="Unbalance" />
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Physical & Other</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <RiskEntry name="spasms" label="Spasms" />
-                    <RiskEntry name="stiffness" label="Stiffness" />
-                    <RiskEntry name="catheters" label="Catheters" />
-                    <RiskEntry name="incontinence" label="Incontinence" />
-                    <RiskEntry name="localisedPain" label="Localised Pain" />
-                    <RiskEntry name="other" label="Other Risks" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Section 4: Requirements */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Requirements & Equipment</h3>
-              </div>
-              <div className="grid gap-6">
-                <FormField control={form.control} name="needsRiskStaff" render={({ field }) => (<FormItem><FormLabel>Specific Risk Staff Requirements</FormLabel><FormControl><Textarea placeholder="Details..." className="min-h-[100px]" {...field} /></FormControl></FormItem>)} />
-                <FormField control={form.control} name="equipmentUsed" render={({ field }) => (<FormItem><FormLabel>Equipment Required</FormLabel><FormControl><Input placeholder="Hoist, Slide sheets, etc." {...field} /></FormControl></FormItem>)} />
-              </div>
-            </div>
-
-            {/* Section 5: Completion */}
-            <div className="space-y-6 pt-4">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Completion & Signature</h3>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted" /></FormControl></FormItem>} />
-                <FormField control={form.control} name="jobRole" render={({ field }) => <FormItem><FormLabel>Job Role</FormLabel><FormControl><Input placeholder="e.g. Care Manager" {...field} /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel>Digital Signature (Name)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="assessmentDate" render={({ field }) => <FormItem><FormLabel>Completion Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} />
-              </div>
-            </div>
-          </form>
+            </form>
+          </fieldset>
         </Form>
       </div>
 
-      {!isInline && (
+      {!isInline && !viewOnly && (
         <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
           <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
             Cancel

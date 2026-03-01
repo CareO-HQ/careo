@@ -47,11 +47,12 @@ interface ResidentValuablesProps {
   initialData?: any;
   isEditMode?: boolean;
   isInline?: boolean;
+  viewOnly?: boolean;
 }
 
 export default function ResidentValuables({
   teamId, residentId, organizationId, userId, userName, resident,
-  onClose, initialData, isEditMode = false, isInline = false
+  onClose, initialData, isEditMode = false, isInline = false, viewOnly = false
 }: ResidentValuablesProps) {
   const [isLoading, startTransition] = useTransition();
 
@@ -179,259 +180,261 @@ export default function ResidentValuables({
       )}
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-          <button type="submit" id="care-file-submit-btn" className="hidden" />
-          <div className="space-y-8 px-1">
+        <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            <div className="space-y-8 px-1">
 
-            {/* Section 1: Resident Information */}
-            <div className="space-y-4">
-              <div className="space-y-1 pb-2 border-b">
-                <h4 className="text-sm font-medium">Resident Information</h4>
-                <p className="text-sm text-muted-foreground">
-                  Enter the resident&apos;s information and assessment details
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="residentName"
-                  render={({ field }) => (
-                    <FormItem><FormLabel required>Resident Name</FormLabel>
-                      <FormControl><Input {...field} /></FormControl><FormMessage />
-                    </FormItem>)} />
-                <FormField control={form.control} name="bedroomNumber"
-                  render={({ field }) => (
-                    <FormItem><FormLabel required>Bedroom Number</FormLabel>
-                      <FormControl><Input {...field} /></FormControl><FormMessage />
-                    </FormItem>)} />
-              </div>
-              <FormField control={form.control} name="date"
-                render={({ field }) => (
-                  <FormItem><FormLabel required>Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button variant="outline"
-                            className={cn("w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground")}>
-                            {field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single"
-                          selected={field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? new Date(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date?.getTime())}
-                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")} />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>)} />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="completedBy"
-                  render={({ field }) => (
-                    <FormItem><FormLabel required>Completed By</FormLabel>
-                      <FormControl><Input {...field} /></FormControl><FormMessage />
-                    </FormItem>)} />
-                <FormField control={form.control} name="witnessedBy"
-                  render={({ field }) => (
-                    <FormItem><FormLabel required>Witnessed By</FormLabel>
-                      <FormControl><Input {...field} /></FormControl><FormMessage />
-                    </FormItem>)} />
-              </div>
-            </div>
-
-            {/* Section 2: Valuables */}
-            <div className="space-y-4">
-              <div className="space-y-1 pb-2 border-b">
-                <div className="flex justify-between items-center">
-                  <h4 className="text-sm font-medium">Valuables</h4>
-                  <Button type="button" variant="outline" size="sm"
-                    onClick={() => appendValuable({ value: "" })}>
-                    <Plus className="h-4 w-4 mr-2" />Add Item
-                  </Button>
+              {/* Section 1: Resident Information */}
+              <div className="space-y-4">
+                <div className="space-y-1 pb-2 border-b">
+                  <h4 className="text-sm font-medium">Resident Information</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Enter the resident&apos;s information and assessment details
+                  </p>
                 </div>
-              </div>
-              {valuablesFields.map((field, index) => (
-                <div key={field.id} className="flex items-center gap-2">
-                  <FormField control={form.control} name={`valuables.${index}.value`}
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="residentName"
                     render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormControl>
-                          <Input {...field} placeholder="Valuable item description" />
-                        </FormControl><FormMessage />
+                      <FormItem><FormLabel required>Resident Name</FormLabel>
+                        <FormControl><Input {...field} /></FormControl><FormMessage />
                       </FormItem>)} />
-                  <Button type="button" variant="ghost" size="sm"
-                    onClick={() => removeValuable(index)}>
-                    <Trash className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              {valuablesFields.length === 0 && (
-                <p className="text-sm text-muted-foreground italic">No valuables added yet</p>
-              )}
-            </div>
-
-            {/* Section 3: Money */}
-            <div className="space-y-4">
-              <div className="space-y-1 pb-2 border-b">
-                <h4 className="text-sm font-medium">Money</h4>
-                <p className="text-sm text-muted-foreground">
-                  Record any money in the resident&apos;s possession
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <h4 className="col-span-2 font-medium">Pounds</h4>
-                {renderMoneyField("n50", "£50 Notes")}
-                {renderMoneyField("n20", "£20 Notes")}
-                {renderMoneyField("n10", "£10 Notes")}
-                {renderMoneyField("n5", "£5 Notes")}
-                {renderMoneyField("n2", "£2 Coins")}
-                {renderMoneyField("n1", "£1 Coins")}
-                <h4 className="col-span-2 font-medium mt-4">Pence</h4>
-                {renderMoneyField("p50", "50p Coins")}
-                {renderMoneyField("p20", "20p Coins")}
-                {renderMoneyField("p10", "10p Coins")}
-                {renderMoneyField("p5", "5p Coins")}
-                {renderMoneyField("p2", "2p Coins")}
-                {renderMoneyField("p1", "1p Coins")}
-              </div>
-              <div className="bg-muted p-4 rounded-md mt-4">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-medium">Total Amount</h4>
-                  <FormField control={form.control} name="total"
+                  <FormField control={form.control} name="bedroomNumber"
                     render={({ field }) => (
-                      <div className="font-bold text-lg">£{field.value.toFixed(2)}</div>
-                    )} />
+                      <FormItem><FormLabel required>Bedroom Number</FormLabel>
+                        <FormControl><Input {...field} /></FormControl><FormMessage />
+                      </FormItem>)} />
+                </div>
+                <FormField control={form.control} name="date"
+                  render={({ field }) => (
+                    <FormItem><FormLabel required>Date</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button variant="outline"
+                              className={cn("w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground")}>
+                              {field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar mode="single"
+                            selected={field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? new Date(field.value) : undefined}
+                            onSelect={(date) => field.onChange(date?.getTime())}
+                            disabled={(date) => date > new Date() || date < new Date("1900-01-01")} />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>)} />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="completedBy"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Completed By</FormLabel>
+                        <FormControl><Input {...field} /></FormControl><FormMessage />
+                      </FormItem>)} />
+                  <FormField control={form.control} name="witnessedBy"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Witnessed By</FormLabel>
+                        <FormControl><Input {...field} /></FormControl><FormMessage />
+                      </FormItem>)} />
                 </div>
               </div>
-            </div>
 
-            {/* Section 4: Clothing & Other */}
-            <div className="space-y-6">
+              {/* Section 2: Valuables */}
               <div className="space-y-4">
                 <div className="space-y-1 pb-2 border-b">
                   <div className="flex justify-between items-center">
-                    <h4 className="text-sm font-medium">Clothing</h4>
+                    <h4 className="text-sm font-medium">Valuables</h4>
                     <Button type="button" variant="outline" size="sm"
-                      onClick={() => appendClothing({ value: "" })}>
-                      <Plus className="h-4 w-4 mr-2" />Add Clothing
+                      onClick={() => appendValuable({ value: "" })}>
+                      <Plus className="h-4 w-4 mr-2" />Add Item
                     </Button>
                   </div>
                 </div>
-                {clothingFields.map((field, index) => (
+                {valuablesFields.map((field, index) => (
                   <div key={field.id} className="flex items-center gap-2">
-                    <FormField control={form.control} name={`clothing.${index}.value`}
+                    <FormField control={form.control} name={`valuables.${index}.value`}
                       render={({ field }) => (
                         <FormItem className="flex-1">
                           <FormControl>
-                            <Input {...field} placeholder="Clothing item description" />
+                            <Input {...field} placeholder="Valuable item description" />
                           </FormControl><FormMessage />
                         </FormItem>)} />
                     <Button type="button" variant="ghost" size="sm"
-                      onClick={() => removeClothing(index)}>
+                      onClick={() => removeValuable(index)}>
                       <Trash className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
-                {clothingFields.length === 0 && (
-                  <p className="text-sm text-muted-foreground italic">No clothing items added</p>
+                {valuablesFields.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">No valuables added yet</p>
                 )}
               </div>
 
+              {/* Section 3: Money */}
               <div className="space-y-4">
                 <div className="space-y-1 pb-2 border-b">
+                  <h4 className="text-sm font-medium">Money</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Record any money in the resident&apos;s possession
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <h4 className="col-span-2 font-medium">Pounds</h4>
+                  {renderMoneyField("n50", "£50 Notes")}
+                  {renderMoneyField("n20", "£20 Notes")}
+                  {renderMoneyField("n10", "£10 Notes")}
+                  {renderMoneyField("n5", "£5 Notes")}
+                  {renderMoneyField("n2", "£2 Coins")}
+                  {renderMoneyField("n1", "£1 Coins")}
+                  <h4 className="col-span-2 font-medium mt-4">Pence</h4>
+                  {renderMoneyField("p50", "50p Coins")}
+                  {renderMoneyField("p20", "20p Coins")}
+                  {renderMoneyField("p10", "10p Coins")}
+                  {renderMoneyField("p5", "5p Coins")}
+                  {renderMoneyField("p2", "2p Coins")}
+                  {renderMoneyField("p1", "1p Coins")}
+                </div>
+                <div className="bg-muted p-4 rounded-md mt-4">
                   <div className="flex justify-between items-center">
-                    <h4 className="text-sm font-medium">Other Items</h4>
-                    <Button type="button" variant="outline" size="sm"
-                      onClick={() => appendOther({
-                        details: "", receivedBy: "", witnessedBy: "",
-                        date: Date.now(), time: "12:00"
-                      })}>
-                      <Plus className="h-4 w-4 mr-2" />Add Other Item
-                    </Button>
+                    <h4 className="font-medium">Total Amount</h4>
+                    <FormField control={form.control} name="total"
+                      render={({ field }) => (
+                        <div className="font-bold text-lg">£{field.value.toFixed(2)}</div>
+                      )} />
                   </div>
                 </div>
-                {otherFields.map((field, index) => (
-                  <div key={field.id} className="border rounded-md p-4 space-y-4">
+              </div>
+
+              {/* Section 4: Clothing & Other */}
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-1 pb-2 border-b">
                     <div className="flex justify-between items-center">
-                      <h4 className="font-medium">Item {index + 1}</h4>
+                      <h4 className="text-sm font-medium">Clothing</h4>
+                      <Button type="button" variant="outline" size="sm"
+                        onClick={() => appendClothing({ value: "" })}>
+                        <Plus className="h-4 w-4 mr-2" />Add Clothing
+                      </Button>
+                    </div>
+                  </div>
+                  {clothingFields.map((field, index) => (
+                    <div key={field.id} className="flex items-center gap-2">
+                      <FormField control={form.control} name={`clothing.${index}.value`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormControl>
+                              <Input {...field} placeholder="Clothing item description" />
+                            </FormControl><FormMessage />
+                          </FormItem>)} />
                       <Button type="button" variant="ghost" size="sm"
-                        onClick={() => removeOther(index)}>
+                        onClick={() => removeClothing(index)}>
                         <Trash className="h-4 w-4" />
                       </Button>
                     </div>
-                    <FormField control={form.control} name={`other.${index}.details`}
-                      render={({ field }) => (
-                        <FormItem><FormLabel>Item Details</FormLabel>
-                          <FormControl><Textarea {...field} placeholder="Describe the item" /></FormControl>
-                          <FormMessage />
-                        </FormItem>)} />
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name={`other.${index}.receivedBy`}
-                        render={({ field }) => (
-                          <FormItem><FormLabel>Received By</FormLabel>
-                            <FormControl><Input {...field} /></FormControl><FormMessage />
-                          </FormItem>)} />
-                      <FormField control={form.control} name={`other.${index}.witnessedBy`}
-                        render={({ field }) => (
-                          <FormItem><FormLabel>Witnessed By</FormLabel>
-                            <FormControl><Input {...field} /></FormControl><FormMessage />
-                          </FormItem>)} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name={`other.${index}.date`}
-                        render={({ field }) => (
-                          <FormItem><FormLabel>Date</FormLabel>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button variant="outline"
-                                    className={cn("w-full pl-3 text-left font-normal",
-                                      !field.value && "text-muted-foreground")}>
-                                    {field.value ? format(new Date(field.value), "PPP")
-                                      : <span>Pick a date</span>}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar mode="single"
-                                  selected={field.value ? new Date(field.value) : undefined}
-                                  onSelect={(date) => field.onChange(date?.getTime())}
-                                  disabled={(date) =>
-                                    date > new Date() || date < new Date("1900-01-01")} />
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>)} />
-                      <FormField control={form.control} name={`other.${index}.time`}
-                        render={({ field }) => (
-                          <FormItem><FormLabel>Time</FormLabel>
-                            <FormControl><Input type="time" {...field} /></FormControl>
-                            <FormMessage />
-                          </FormItem>)} />
+                  ))}
+                  {clothingFields.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">No clothing items added</p>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1 pb-2 border-b">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-sm font-medium">Other Items</h4>
+                      <Button type="button" variant="outline" size="sm"
+                        onClick={() => appendOther({
+                          details: "", receivedBy: "", witnessedBy: "",
+                          date: Date.now(), time: "12:00"
+                        })}>
+                        <Plus className="h-4 w-4 mr-2" />Add Other Item
+                      </Button>
                     </div>
                   </div>
-                ))}
-                {otherFields.length === 0 && (
-                  <p className="text-sm text-muted-foreground italic">No other items added</p>
-                )}
+                  {otherFields.map((field, index) => (
+                    <div key={field.id} className="border rounded-md p-4 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h4 className="font-medium">Item {index + 1}</h4>
+                        <Button type="button" variant="ghost" size="sm"
+                          onClick={() => removeOther(index)}>
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <FormField control={form.control} name={`other.${index}.details`}
+                        render={({ field }) => (
+                          <FormItem><FormLabel>Item Details</FormLabel>
+                            <FormControl><Textarea {...field} placeholder="Describe the item" /></FormControl>
+                            <FormMessage />
+                          </FormItem>)} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField control={form.control} name={`other.${index}.receivedBy`}
+                          render={({ field }) => (
+                            <FormItem><FormLabel>Received By</FormLabel>
+                              <FormControl><Input {...field} /></FormControl><FormMessage />
+                            </FormItem>)} />
+                        <FormField control={form.control} name={`other.${index}.witnessedBy`}
+                          render={({ field }) => (
+                            <FormItem><FormLabel>Witnessed By</FormLabel>
+                              <FormControl><Input {...field} /></FormControl><FormMessage />
+                            </FormItem>)} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField control={form.control} name={`other.${index}.date`}
+                          render={({ field }) => (
+                            <FormItem><FormLabel>Date</FormLabel>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <FormControl>
+                                    <Button variant="outline"
+                                      className={cn("w-full pl-3 text-left font-normal",
+                                        !field.value && "text-muted-foreground")}>
+                                      {field.value ? format(new Date(field.value), "PPP")
+                                        : <span>Pick a date</span>}
+                                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                    </Button>
+                                  </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <Calendar mode="single"
+                                    selected={field.value ? new Date(field.value) : undefined}
+                                    onSelect={(date) => field.onChange(date?.getTime())}
+                                    disabled={(date) =>
+                                      date > new Date() || date < new Date("1900-01-01")} />
+                                </PopoverContent>
+                              </Popover>
+                              <FormMessage />
+                            </FormItem>)} />
+                        <FormField control={form.control} name={`other.${index}.time`}
+                          render={({ field }) => (
+                            <FormItem><FormLabel>Time</FormLabel>
+                              <FormControl><Input type="time" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>)} />
+                      </div>
+                    </div>
+                  ))}
+                  {otherFields.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">No other items added</p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {!isInline && (
-            <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => onClose?.()}
-                disabled={isLoading}>Cancel</Button>
-              <Button type="button" onClick={handleSubmit} disabled={isLoading}>
-                {isLoading ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-                ) : "Save Assessment"}
-              </Button>
-            </DialogFooter>
-          )}
-        </form>
+            {!isInline && !viewOnly && (
+              <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
+                <Button type="button" variant="outline" onClick={() => onClose?.()}
+                  disabled={isLoading}>Cancel</Button>
+                <Button type="button" onClick={handleSubmit} disabled={isLoading}>
+                  {isLoading ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                  ) : "Save Assessment"}
+                </Button>
+              </DialogFooter>
+            )}
+          </form>
+        </fieldset>
       </Form>
     </>
   );

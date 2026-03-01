@@ -116,6 +116,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -127,6 +128,7 @@
     from {
       opacity: 0;
     }
+
     to {
       opacity: 1;
     }
@@ -146,9 +148,56 @@
 
   /* Prevent flash of unstyled content */
   @supports (view-transition-name: none) {
+
     ::view-transition-old(root),
     ::view-transition-new(root) {
       animation-duration: 150ms;
     }
   }
+}
+
+/* Form View Mode Styling - Hides input boxes/borders to show plain text */
+.form-view-mode input:not([type="checkbox"]):not([type="radio"]),
+.form-view-mode textarea,
+.form-view-mode select,
+.form-view-mode button:not([type="submit"]):not(.btn-keep) {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  opacity: 1 !important;
+  cursor: default !important;
+  height: auto !important;
+  min-height: unset !important;
+  pointer-events: none !important;
+  color: var(--foreground) !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+  gap: 0 !important;
+}
+
+.form-view-mode textarea {
+  resize: none !important;
+}
+
+.form-view-mode select {
+  appearance: none !important;
+  background-image: none !important;
+}
+
+.form-view-mode label {
+  font-weight: 600 !important;
+  color: var(--muted-foreground) !important;
+  margin-bottom: 2px !important;
+}
+
+
+
+/* Hide icons in view mode (calendar, chevrons) */
+.form-view-mode .lucide-calendar,
+.form-view-mode .lucide-chevron-down,
+.form-view-mode .lucide-chevrons-up-down,
+.form-view-mode .lucide-calendar-days {
+  display: none !important;
 }

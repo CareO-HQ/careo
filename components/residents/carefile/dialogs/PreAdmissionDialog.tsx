@@ -57,6 +57,7 @@ interface PreAdmissionDialogProps {
   initialData?: any;
   isEditMode?: boolean;
   isInline?: boolean;
+  viewOnly?: boolean;
 }
 
 export default function PreAdmissionDialog({
@@ -72,6 +73,7 @@ export default function PreAdmissionDialog({
   initialData,
   isEditMode = false,
   isInline = false,
+  viewOnly = false,
 }: PreAdmissionDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopovers, setDatePopovers] = useState<Record<string, boolean>>({});
@@ -252,230 +254,232 @@ export default function PreAdmissionDialog({
 
       <div className="space-y-12 pb-20">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-            <button type="submit" id="care-file-submit-btn" className="hidden" />
+          <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+              <button type="submit" id="care-file-submit-btn" className="hidden" />
 
-            {/* Section 1: Consent */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Consent</h3>
-              </div>
-              <FormField control={form.control} name="consentAcceptedAt" render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-xl border p-6 bg-card">
-                  <FormControl>
-                    <Checkbox checked={!!field.value} onCheckedChange={(checked) => field.onChange(checked ? Date.now() : 0)} />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel className="text-sm font-medium leading-none cursor-pointer">
-                      The person being assessed agrees to the assessment being completed
-                    </FormLabel>
-                    <FormDescription>
-                      Consent must be obtained before storing sensitive information.
-                    </FormDescription>
-                  </div>
-                </FormItem>
-              )} />
-            </div>
-
-            {/* Section 2: Header Information */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Administrative Details</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="careHomeName" render={({ field }) => (<FormItem><FormLabel>Care Home Name</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="nhsHealthCareNumber" render={({ field }) => (<FormItem><FormLabel>NHS Number</FormLabel><FormControl><Input {...field} placeholder="NHS Number" /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="userName" render={({ field }) => (<FormItem><FormLabel>Assessing Worker</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel>Job Role</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
-                <DateField name="date" label="Assessment Date" required />
-              </div>
-            </div>
-
-            {/* Section 3: Resident Basic Info */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Resident Information</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="firstName" render={({ field }) => (<FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="lastName" render={({ field }) => (<FormItem><FormLabel>Last Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="address" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Current Address</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="ethnicity" render={({ field }) => (<FormItem><FormLabel>Ethnicity</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="gender" render={({ field }) => (
-                  <FormItem><FormLabel>Gender</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger></FormControl><SelectContent><SelectItem value="male">Male</SelectItem><SelectItem value="female">Female</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="religion" render={({ field }) => (<FormItem><FormLabel>Religion</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-              </div>
-            </div>
-
-            {/* Section 4: Next of Kin */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Next of Kin</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="kinFirstName" render={({ field }) => <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="kinLastName" render={({ field }) => <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="kinRelationship" render={({ field }) => <FormItem><FormLabel>Relationship</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="kinPhoneNumber" render={({ field }) => <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-              </div>
-            </div>
-
-            {/* Section 5: Professional Contacts */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Professional Contacts</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10">
-                {["careManager", "districtNurse", "generalPractitioner"].map(role => (
-                  <div key={role} className="space-y-4 p-4 rounded-xl border bg-muted/10">
-                    <h4 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">{role.replace(/([A-Z])/g, ' $1').trim()}</h4>
-                    <FormField control={form.control} name={`${role}Name` as any} render={({ field }) => <FormItem><FormLabel>Name</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name={`${role}PhoneNumber` as any} render={({ field }) => <FormItem><FormLabel>Phone</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl><FormMessage /></FormItem>} />
-                  </div>
-                ))}
-                <div className="space-y-4 p-4 rounded-xl border bg-muted/10">
-                  <h4 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Provider Info</h4>
-                  <FormField control={form.control} name="providerHealthcareInfoName" render={({ field }) => <FormItem><FormLabel>Provider Name</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl><FormMessage /></FormItem>} />
-                  <FormField control={form.control} name="providerHealthcareInfoDesignation" render={({ field }) => <FormItem><FormLabel>Designation</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl><FormMessage /></FormItem>} />
-                </div>
-              </div>
-            </div>
-
-            {/* Section 6: Medical History */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Medical Assessment</h3>
-              </div>
+              {/* Section 1: Consent */}
               <div className="space-y-6">
-                <FormField control={form.control} name="allergies" render={({ field }) => <FormItem><FormLabel>Known Allergies</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="medicalHistory" render={({ field }) => <FormItem><FormLabel>Medical History & Diagnoses</FormLabel><FormControl><Textarea className="min-h-[120px]" {...field} /></FormControl><FormMessage /></FormItem>} />
-                <FormField control={form.control} name="medicationPrescribed" render={({ field }) => <FormItem><FormLabel>Medications Prescribed</FormLabel><FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl><FormMessage /></FormItem>} />
-              </div>
-            </div>
-
-            {/* Section 7: Detailed Needs (Grouped) */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Activities of Daily Living</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {[
-                  "consentCapacityRights", "medication", "mobility", "nutrition",
-                  "continence", "hygieneDressing", "skin", "cognition",
-                  "infection", "breathing", "alteredStateOfConsciousness"
-                ].map(key => (
-                  <FormField
-                    key={key}
-                    control={form.control}
-                    name={key as any}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="capitalize font-bold">
-                          {key.replace(/([A-Z])/g, " $1").trim()}
-                        </FormLabel>
-                        <FormControl>
-                          <Textarea
-                            className="min-h-[100px]"
-                            placeholder={`Details regarding ${key}...`}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Section 8: Legal & Palliative */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Legal & End of Life</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {["dnacpr", "advancedDecision", "capacity", "advancedCarePlan"].map(key => (
-                  <FormField key={key} control={form.control} name={key as any} render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</FormLabel>
-                      <Select onValueChange={(val) => field.onChange(val === 'yes')} value={field.value !== undefined ? (field.value ? 'yes' : 'no') : undefined}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
-                        <SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                  />
-                ))}
-                <FormField control={form.control} name="comments" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Palliative Care Comments</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>} />
-              </div>
-            </div>
-
-            {/* Section 9: Preferences & Concerns */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Resident Preferences</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {["roomPreferences", "admissionContact", "foodPreferences", "preferedName", "familyConcerns"].map(key => (
-                  <FormField
-                    key={key}
-                    control={form.control}
-                    name={key as any}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</FormLabel>
-                        <FormControl>
-                          <Textarea className="min-h-[80px]" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Section 10: Financial & Additional */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Financial & Final Details</h3>
-              </div>
-              <div className="grid grid-cols-1 gap-6">
-                <FormField control={form.control} name="attendFinances" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4">
-                    <FormLabel className="text-base">Does anyone attend to finances?</FormLabel>
-                    <Select onValueChange={(val) => field.onChange(val === 'yes')} value={field.value !== undefined ? (field.value ? 'yes' : 'no') : undefined}>
-                      <FormControl><SelectTrigger className="w-32"><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
-                      <SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent>
-                    </Select>
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Consent</h3>
+                </div>
+                <FormField control={form.control} name="consentAcceptedAt" render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-xl border p-6 bg-card">
+                    <FormControl>
+                      <Checkbox checked={!!field.value} onCheckedChange={(checked) => field.onChange(checked ? Date.now() : 0)} />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="text-sm font-medium leading-none cursor-pointer">
+                        The person being assessed agrees to the assessment being completed
+                      </FormLabel>
+                      <FormDescription>
+                        Consent must be obtained before storing sensitive information.
+                      </FormDescription>
+                    </div>
                   </FormItem>
                 )} />
-                <FormField control={form.control} name="additionalConsiderations" render={({ field }) => <FormItem><FormLabel>Additional Considerations</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>} />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border rounded-xl bg-primary/5">
-                  <FormField control={form.control} name="outcome" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel className="text-lg font-bold">Assessment Outcome</FormLabel><FormControl><Textarea className="min-h-[100px] bg-background" placeholder="e.g. Suitability, agreed care package..." {...field} /></FormControl><FormMessage /></FormItem>} />
-                  <DateField name="plannedAdmissionDate" label="Planned Admission Date" />
+              </div>
+
+              {/* Section 2: Header Information */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Administrative Details</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="careHomeName" render={({ field }) => (<FormItem><FormLabel>Care Home Name</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="nhsHealthCareNumber" render={({ field }) => (<FormItem><FormLabel>NHS Number</FormLabel><FormControl><Input {...field} placeholder="NHS Number" /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="userName" render={({ field }) => (<FormItem><FormLabel>Assessing Worker</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel>Job Role</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
+                  <DateField name="date" label="Assessment Date" required />
                 </div>
               </div>
-            </div>
 
-          </form>
+              {/* Section 3: Resident Basic Info */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Resident Information</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="firstName" render={({ field }) => (<FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="lastName" render={({ field }) => (<FormItem><FormLabel>Last Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="address" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Current Address</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="ethnicity" render={({ field }) => (<FormItem><FormLabel>Ethnicity</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="gender" render={({ field }) => (
+                    <FormItem><FormLabel>Gender</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger></FormControl><SelectContent><SelectItem value="male">Male</SelectItem><SelectItem value="female">Female</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="religion" render={({ field }) => (<FormItem><FormLabel>Religion</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                </div>
+              </div>
+
+              {/* Section 4: Next of Kin */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Next of Kin</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="kinFirstName" render={({ field }) => <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="kinLastName" render={({ field }) => <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="kinRelationship" render={({ field }) => <FormItem><FormLabel>Relationship</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="kinPhoneNumber" render={({ field }) => <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                </div>
+              </div>
+
+              {/* Section 5: Professional Contacts */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Professional Contacts</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10">
+                  {["careManager", "districtNurse", "generalPractitioner"].map(role => (
+                    <div key={role} className="space-y-4 p-4 rounded-xl border bg-muted/10">
+                      <h4 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">{role.replace(/([A-Z])/g, ' $1').trim()}</h4>
+                      <FormField control={form.control} name={`${role}Name` as any} render={({ field }) => <FormItem><FormLabel>Name</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name={`${role}PhoneNumber` as any} render={({ field }) => <FormItem><FormLabel>Phone</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl><FormMessage /></FormItem>} />
+                    </div>
+                  ))}
+                  <div className="space-y-4 p-4 rounded-xl border bg-muted/10">
+                    <h4 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Provider Info</h4>
+                    <FormField control={form.control} name="providerHealthcareInfoName" render={({ field }) => <FormItem><FormLabel>Provider Name</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="providerHealthcareInfoDesignation" render={({ field }) => <FormItem><FormLabel>Designation</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl><FormMessage /></FormItem>} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 6: Medical History */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Medical Assessment</h3>
+                </div>
+                <div className="space-y-6">
+                  <FormField control={form.control} name="allergies" render={({ field }) => <FormItem><FormLabel>Known Allergies</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="medicalHistory" render={({ field }) => <FormItem><FormLabel>Medical History & Diagnoses</FormLabel><FormControl><Textarea className="min-h-[120px]" {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="medicationPrescribed" render={({ field }) => <FormItem><FormLabel>Medications Prescribed</FormLabel><FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl><FormMessage /></FormItem>} />
+                </div>
+              </div>
+
+              {/* Section 7: Detailed Needs (Grouped) */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Activities of Daily Living</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {[
+                    "consentCapacityRights", "medication", "mobility", "nutrition",
+                    "continence", "hygieneDressing", "skin", "cognition",
+                    "infection", "breathing", "alteredStateOfConsciousness"
+                  ].map(key => (
+                    <FormField
+                      key={key}
+                      control={form.control}
+                      name={key as any}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="capitalize font-bold">
+                            {key.replace(/([A-Z])/g, " $1").trim()}
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea
+                              className="min-h-[100px]"
+                              placeholder={`Details regarding ${key}...`}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 8: Legal & Palliative */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Legal & End of Life</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {["dnacpr", "advancedDecision", "capacity", "advancedCarePlan"].map(key => (
+                    <FormField key={key} control={form.control} name={key as any} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</FormLabel>
+                        <Select onValueChange={(val) => field.onChange(val === 'yes')} value={field.value !== undefined ? (field.value ? 'yes' : 'no') : undefined}>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                          <SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                    />
+                  ))}
+                  <FormField control={form.control} name="comments" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Palliative Care Comments</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>} />
+                </div>
+              </div>
+
+              {/* Section 9: Preferences & Concerns */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Resident Preferences</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {["roomPreferences", "admissionContact", "foodPreferences", "preferedName", "familyConcerns"].map(key => (
+                    <FormField
+                      key={key}
+                      control={form.control}
+                      name={key as any}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</FormLabel>
+                          <FormControl>
+                            <Textarea className="min-h-[80px]" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 10: Financial & Additional */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Financial & Final Details</h3>
+                </div>
+                <div className="grid grid-cols-1 gap-6">
+                  <FormField control={form.control} name="attendFinances" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4">
+                      <FormLabel className="text-base">Does anyone attend to finances?</FormLabel>
+                      <Select onValueChange={(val) => field.onChange(val === 'yes')} value={field.value !== undefined ? (field.value ? 'yes' : 'no') : undefined}>
+                        <FormControl><SelectTrigger className="w-32"><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                        <SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent>
+                      </Select>
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="additionalConsiderations" render={({ field }) => <FormItem><FormLabel>Additional Considerations</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border rounded-xl bg-primary/5">
+                    <FormField control={form.control} name="outcome" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel className="text-lg font-bold">Assessment Outcome</FormLabel><FormControl><Textarea className="min-h-[100px] bg-background" placeholder="e.g. Suitability, agreed care package..." {...field} /></FormControl><FormMessage /></FormItem>} />
+                    <DateField name="plannedAdmissionDate" label="Planned Admission Date" />
+                  </div>
+                </div>
+              </div>
+
+            </form>
+          </fieldset>
         </Form>
       </div>
 
-      {!isInline && (
+      {!isInline && !viewOnly && (
         <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
           <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
             Cancel

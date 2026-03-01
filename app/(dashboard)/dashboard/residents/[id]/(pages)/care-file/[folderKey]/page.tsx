@@ -19,6 +19,12 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
@@ -186,6 +192,8 @@ export default function GenericFolderPage() {
     const [activeOrganization, setActiveOrganization] = useState<any>(null);
     const [selectedCarePlanName, setSelectedCarePlanName] = useState<string | undefined>(undefined);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [uploadDefaultFileName, setUploadDefaultFileName] = useState("");
     // useSidebar state used to coordinate with SidebarTrigger if needed, but SidebarTrigger handles itself.
     const { toggleSidebar, state: leftSidebarState } = useSidebar();
 
@@ -622,7 +630,6 @@ export default function GenericFolderPage() {
                                                     const evalSection = document.getElementById('care-plan-evaluations-section');
                                                     if (evalSection) {
                                                         evalSection.scrollIntoView({ behavior: 'smooth' });
-                                                        // Trigger "New Evaluation" button click
                                                         const newEvalBtn = document.getElementById('new-evaluation-btn');
                                                         if (newEvalBtn) {
                                                             newEvalBtn.click();
@@ -631,13 +638,22 @@ export default function GenericFolderPage() {
                                                 }}
                                             />
                                         ) : (
-                                            <RiskAssessmentViewer
-                                                assessment={{
-                                                    formKey: activeFormKey,
-                                                    formId: formDataForEdit?.id || formDataForEdit?._id,
-                                                    name: (folderForms.find(f => (f.key as string) === activeFormKey)?.value || "Form"),
-                                                    completedAt: formDataForEdit?.created_at || formDataForEdit?._creationTime
-                                                }}
+                                            <CareFileDialogRenderer
+                                                formKey={activeFormKey}
+                                                residentId={residentId}
+                                                teamId={activeTeamId ?? ""}
+                                                organizationId={profile?.active_organization_id ?? ""}
+                                                userId={profile?.id ?? ""}
+                                                userName={profile?.name || profile?.email || "User"}
+                                                userRole={profile?.role ?? ""}
+                                                resident={resident}
+                                                careHomeName={profile?.care_home_name ?? ""}
+                                                folderKey={folderKey}
+                                                formDataForEdit={formDataForEdit}
+                                                isReviewMode={false}
+                                                viewOnly={true}
+                                                onClose={handleCloseForm}
+                                                isInline={true}
                                             />
                                         )
                                     ) : (
@@ -821,13 +837,91 @@ export default function GenericFolderPage() {
                                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">
                                     Documents
                                 </p>
-                                <UploadFileModal
-                                    folderName={folderConfig.value || folderKey}
-                                    residentId={residentId}
-                                    variant="icon"
-                                    onUploaded={fetchUploadedFiles}
-                                />
+                                {folderKey === "v2-mobility" ? (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-5 w-5 hover:bg-muted"
+                                                title="Upload PDF"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("Physiotherapy");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                Physiotherapy
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("OT");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                OT
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("Falls Team");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                Falls Team
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                ) : folderKey === "v2-nutrition-hydration" ? (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-5 w-5 hover:bg-muted"
+                                                title="Upload PDF"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("GP input");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                GP input
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("SALT");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                SALT
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("Dietitian");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                Dietitian
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                ) : (
+                                    <UploadFileModal
+                                        folderName={folderConfig.value || folderKey}
+                                        residentId={residentId}
+                                        variant="icon"
+                                        onUploaded={fetchUploadedFiles}
+                                    />
+                                )}
                             </div>
+
+                            <UploadFileModal
+                                folderName={folderConfig.value || folderKey}
+                                residentId={residentId}
+                                variant="none"
+                                open={isUploadModalOpen}
+                                onOpenChange={setIsUploadModalOpen}
+                                defaultFileName={uploadDefaultFileName}
+                                onUploaded={fetchUploadedFiles}
+                            />
 
                             {filesLoading ? (
                                 <div className="flex items-center justify-center p-3">
@@ -927,6 +1021,59 @@ export default function GenericFolderPage() {
                                         </div>
                                     </CardContent>
                                 </Card>
+                            )}
+                            {folderKey === "v2-mobility" && (
+                                <Card
+                                    className="cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors border bg-white"
+                                    onClick={() => handleCarePlanSelect("Assistance care plan")}
+                                >
+                                    <CardContent className="p-2.5">
+                                        <div className="flex items-start gap-2">
+                                            <div className="p-1.5 rounded-md bg-orange-100 text-orange-600">
+                                                <FileText className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-semibold text-xs">Assistance Plan</h3>
+                                                <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                                                    Care plan for assistance
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+                            {folderKey === "v2-nutrition-hydration" && (
+                                <>
+                                    {[
+                                        { title: "Risk of Malnutrition", desc: "Care plan for malnutrition risk" },
+                                        { title: "Supplements", desc: "Care plan for nutritional supplements" },
+                                        { title: "Thickener", desc: "Care plan for fluid thickeners" },
+                                        { title: "Risk of Choking", desc: "Care plan for choking risk" },
+                                        { title: "Weight Loss", desc: "Care plan for weight loss management" },
+                                        { title: "Diabetic Diet", desc: "Care plan for diabetic management" },
+                                        { title: "Fluid Restriction", desc: "Care plan for fluid restriction" }
+                                    ].map((plan) => (
+                                        <Card
+                                            key={plan.title}
+                                            className="cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors border bg-white"
+                                            onClick={() => handleCarePlanSelect(`Care Plan: ${plan.title}`)}
+                                        >
+                                            <CardContent className="p-2.5">
+                                                <div className="flex items-start gap-2">
+                                                    <div className="p-1.5 rounded-md bg-green-100 text-green-600">
+                                                        <FileText className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-semibold text-xs">{plan.title}</h3>
+                                                        <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                                                            {plan.desc}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </>
                             )}
                         </div>
                     </div>
