@@ -52,6 +52,7 @@ interface SkinIntegrityDialogProps {
   initialData?: any;
   isEditMode?: boolean;
   isInline?: boolean;
+  viewOnly?: boolean;
 }
 
 export default function SkinIntegrityDialog({
@@ -64,7 +65,8 @@ export default function SkinIntegrityDialog({
   onClose,
   initialData,
   isEditMode = false,
-  isInline = false
+  isInline = false,
+  viewOnly = false
 }: SkinIntegrityDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -78,8 +80,8 @@ export default function SkinIntegrityDialog({
         teamId,
         organizationId,
         userId,
-        residentName: initialData.residentName ?? `${resident.first_name} ${resident.last_name}`,
-        bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
+        residentName: initialData.residentName ?? `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+        bedroomNumber: initialData.bedroomNumber ?? initialData.bedroom_number ?? resident.room_number ?? "",
         assessmentDate: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
         completedBy: initialData.completed_by || userName,
 
@@ -219,99 +221,101 @@ export default function SkinIntegrityDialog({
 
       <div className="space-y-12 pb-20">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-            <button type="submit" id="care-file-submit-btn" className="hidden" />
-            {/* Section 1: Basic Information */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Basic Information</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="residentName" render={({ field }) => (
-                  <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="bedroomNumber" render={({ field }) => (
-                  <FormItem><FormLabel>Bedroom Number</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="assessmentDate" render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel required>Assessment Date</FormLabel>
-                    <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen} modal>
-                      <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(new Date(field.value), "PPP") : <span>Pick date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDatePopoverOpen(false); } }} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} /></PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="completedBy" render={({ field }) => (
-                  <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
-                )} />
-              </div>
-            </div>
-
-            {/* Section 2: Braden Scale Parameters */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Braden Scale Assessment</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10">
-                {["sensoryPerception", "moisture", "activity", "mobility", "nutrition", "frictionShear"].map((key) => (
-                  <FormField key={key} control={form.control} name={key as any} render={({ field }) => (
-                    <FormItem className="space-y-3">
-                      <FormLabel className="text-base font-semibold capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</FormLabel>
-                      <FormControl>
-                        <Select onValueChange={v => field.onChange(Number(v))} value={field.value?.toString()}>
-                          <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {[1, 2, 3, 4].filter(i => !(key === 'frictionShear' && i === 4)).map(i => (
-                              <SelectItem key={i} value={String(i)} className="py-3">
-                                <div className="flex flex-col">
-                                  <span className="font-bold">Score {i}</span>
-                                  <span className="text-xs text-muted-foreground">{getScoreDescription(key, i)}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
+          <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              {/* Section 1: Basic Information */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Basic Information</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="residentName" render={({ field }) => (
+                    <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="bedroomNumber" render={({ field }) => (
+                    <FormItem><FormLabel>Bedroom Number</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="assessmentDate" render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel required>Assessment Date</FormLabel>
+                      <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen} modal>
+                        <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(new Date(field.value), "PPP") : <span>Pick date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDatePopoverOpen(false); } }} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} /></PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )} />
-                ))}
+                  <FormField control={form.control} name="completedBy" render={({ field }) => (
+                    <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
               </div>
-            </div>
 
-            {/* Risk Summary Card */}
-            <div className="p-8 border rounded-2xl bg-muted/30 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Assessment Summary</h4>
-                  <p className="text-3xl font-black mt-2">Braden Score: {currentScore}</p>
+              {/* Section 2: Braden Scale Parameters */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Braden Scale Assessment</h3>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Risk Level</p>
-                  <p className={cn("text-2xl font-black mt-2", riskColor)}>{riskLevel}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10">
+                  {["sensoryPerception", "moisture", "activity", "mobility", "nutrition", "frictionShear"].map((key) => (
+                    <FormField key={key} control={form.control} name={key as any} render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel className="text-base font-semibold capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</FormLabel>
+                        <FormControl>
+                          <Select onValueChange={v => field.onChange(Number(v))} value={field.value?.toString()}>
+                            <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {[1, 2, 3, 4].filter(i => !(key === 'frictionShear' && i === 4)).map(i => (
+                                <SelectItem key={i} value={String(i)} className="py-3">
+                                  <div className="flex flex-col">
+                                    <span className="font-bold">Score {i}</span>
+                                    <span className="text-xs text-muted-foreground">{getScoreDescription(key, i)}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  ))}
                 </div>
               </div>
-              <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
-                <div
-                  className={cn("h-full transition-all duration-500",
-                    currentScore < 12 ? "bg-destructive" : currentScore <= 14 ? "bg-amber-500" : "bg-green-500"
-                  )}
-                  style={{ width: `${(currentScore / 23) * 100}%` }}
-                />
+
+              {/* Risk Summary Card */}
+              <div className="p-8 border rounded-2xl bg-muted/30 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Assessment Summary</h4>
+                    <p className="text-3xl font-black mt-2">Braden Score: {currentScore}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Risk Level</p>
+                    <p className={cn("text-2xl font-black mt-2", riskColor)}>{riskLevel}</p>
+                  </div>
+                </div>
+                <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
+                  <div
+                    className={cn("h-full transition-all duration-500",
+                      currentScore < 12 ? "bg-destructive" : currentScore <= 14 ? "bg-amber-500" : "bg-green-500"
+                    )}
+                    style={{ width: `${(currentScore / 23) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground italic">
+                  * High Risk: &lt; 12 | Moderate Risk: 12-14 | Low Risk: 15-23
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground italic">
-                * High Risk: &lt; 12 | Moderate Risk: 12-14 | Low Risk: 15-23
-              </p>
-            </div>
-          </form>
+            </form>
+          </fieldset>
         </Form>
       </div>
 
-      {!isInline && (
+      {!isInline && !viewOnly && (
         <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
           <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
             Cancel

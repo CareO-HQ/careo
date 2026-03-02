@@ -52,6 +52,7 @@ interface DependencyDialogProps {
   initialData?: any;
   isEditMode?: boolean;
   isInline?: boolean;
+  viewOnly?: boolean;
 }
 
 export default function DependencyDialog({
@@ -65,6 +66,7 @@ export default function DependencyDialog({
   initialData,
   isEditMode = false,
   isInline = false,
+  viewOnly = false,
 }: DependencyDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -154,96 +156,98 @@ export default function DependencyDialog({
 
       <div className="space-y-12 pb-20">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-            <button type="submit" id="care-file-submit-btn" className="hidden" />
-            {/* Section 1: Assessment */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Dependency Determination</h3>
-              </div>
-              <div className="grid grid-cols-1 gap-6">
-                <FormField control={form.control} name="dependencyLevel" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required className="text-base font-medium">Select Dependency Level</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="h-20 w-full text-left">
-                          <SelectValue placeholder="Select a dependency level..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="A" className="py-4">
-                          <div className="flex flex-col">
-                            <span className="font-bold">Level A - High Dependency</span>
-                            <span className="text-sm text-muted-foreground">Requires extensive care, constant supervision, and specialized assistance.</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="B" className="py-4">
-                          <div className="flex flex-col">
-                            <span className="font-bold">Level B - Medium-High Dependency</span>
-                            <span className="text-sm text-muted-foreground">Requires significant care assistance with most daily living tasks.</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="C" className="py-4">
-                          <div className="flex flex-col">
-                            <span className="font-bold">Level C - Medium Dependency</span>
-                            <span className="text-sm text-muted-foreground">Requires moderate assistance or supervision for some daily activities.</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="D" className="py-4">
-                          <div className="flex flex-col">
-                            <span className="font-bold">Level D - Low Dependency</span>
-                            <span className="text-sm text-muted-foreground">Requires minimal assistance; mostly independent with some support.</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-            </div>
-
-            {/* Section 2: Completion Details */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Sign-off & Date</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="completedBy" render={({ field }) => (
-                  <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="completedBySignature" render={({ field }) => (
-                  <FormItem><FormLabel>Digital Signature</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="assessmentDate" render={({ field }) => (
-                  <FormItem className="flex flex-col md:col-span-2">
-                    <FormLabel required>Assessment Date</FormLabel>
-                    <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen} modal>
-                      <PopoverTrigger asChild>
+          <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              {/* Section 1: Assessment */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Dependency Determination</h3>
+                </div>
+                <div className="grid grid-cols-1 gap-6">
+                  <FormField control={form.control} name="dependencyLevel" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required className="text-base font-medium">Select Dependency Level</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                            {field.value ? format(new Date(field.value), "PPP") : <span>Pick date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
+                          <SelectTrigger className="h-20 w-full text-left">
+                            <SelectValue placeholder="Select a dependency level..." />
+                          </SelectTrigger>
                         </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDatePopoverOpen(false); } }} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+                        <SelectContent>
+                          <SelectItem value="A" className="py-4">
+                            <div className="flex flex-col">
+                              <span className="font-bold">Level A - High Dependency</span>
+                              <span className="text-sm text-muted-foreground">Requires extensive care, constant supervision, and specialized assistance.</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="B" className="py-4">
+                            <div className="flex flex-col">
+                              <span className="font-bold">Level B - Medium-High Dependency</span>
+                              <span className="text-sm text-muted-foreground">Requires significant care assistance with most daily living tasks.</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="C" className="py-4">
+                            <div className="flex flex-col">
+                              <span className="font-bold">Level C - Medium Dependency</span>
+                              <span className="text-sm text-muted-foreground">Requires moderate assistance or supervision for some daily activities.</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="D" className="py-4">
+                            <div className="flex flex-col">
+                              <span className="font-bold">Level D - Low Dependency</span>
+                              <span className="text-sm text-muted-foreground">Requires minimal assistance; mostly independent with some support.</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
               </div>
-            </div>
-          </form>
+
+              {/* Section 2: Completion Details */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Sign-off & Date</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="completedBy" render={({ field }) => (
+                    <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="completedBySignature" render={({ field }) => (
+                    <FormItem><FormLabel>Digital Signature</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="assessmentDate" render={({ field }) => (
+                    <FormItem className="flex flex-col md:col-span-2">
+                      <FormLabel required>Assessment Date</FormLabel>
+                      <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen} modal>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                              {field.value ? format(new Date(field.value), "PPP") : <span>Pick date</span>}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDatePopoverOpen(false); } }} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+              </div>
+            </form>
+          </fieldset>
         </Form>
       </div>
 
-      {!isInline && (
+      {!isInline && !viewOnly && (
         <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
           <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
             Cancel

@@ -49,11 +49,12 @@ interface OralAssessmentDialogProps {
   initialData?: any;
   isEditMode?: boolean;
   isInline?: boolean;
+  viewOnly?: boolean;
 }
 
 export default function OralAssessmentDialog({
   teamId, residentId, organizationId, userId, userName, resident,
-  careHomeName = "", onClose, initialData, isEditMode = false, isInline = false
+  careHomeName = "", onClose, initialData, isEditMode = false, isInline = false, viewOnly = false
 }: OralAssessmentDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -185,34 +186,36 @@ export default function OralAssessmentDialog({
       )}
       <div>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit, onValidationError)} className="space-y-4">
-            <button type="submit" id="care-file-submit-btn" className="hidden" />
-            <div className="p-4 bg-muted/30 rounded-lg space-y-4">
-              <h3 className="font-semibold">Resident Info</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Name</FormLabel><Input {...field} /></FormItem>} />
-                <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><Input {...field} /></FormItem>} />
+          <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+            <form onSubmit={form.handleSubmit(onSubmit, onValidationError)} className="space-y-4">
+              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <div className="p-4 bg-muted/30 rounded-lg space-y-4">
+                <h3 className="font-semibold">Resident Info</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Name</FormLabel><Input {...field} /></FormItem>} />
+                  <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><Input {...field} /></FormItem>} />
+                </div>
+                <FormField control={form.control} name="assessmentDate" render={({ field }) => (
+                  <FormItem><FormLabel>Date</FormLabel><Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full text-left">{field.value ? format(new Date(field.value), "PPP") : "Pick date"}</Button></PopoverTrigger><PopoverContent><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.getTime()); setDatePopoverOpen(false); }} /></PopoverContent></Popover></FormItem>
+                )} />
               </div>
-              <FormField control={form.control} name="assessmentDate" render={({ field }) => (
-                <FormItem><FormLabel>Date</FormLabel><Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full text-left">{field.value ? format(new Date(field.value), "PPP") : "Pick date"}</Button></PopoverTrigger><PopoverContent><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.getTime()); setDatePopoverOpen(false); }} /></PopoverContent></Popover></FormItem>
-              )} />
-            </div>
-            <div className="p-4 bg-muted/30 rounded-lg space-y-3">
-              <h3 className="font-semibold">Dental Info</h3>
-              <FormField control={form.control} name="normalOralHygieneRoutine" render={({ field }) => <FormItem><FormLabel>Oral hygiene routine</FormLabel><Textarea {...field} rows={2} /></FormItem>} />
-              <YesNoField fieldName="isRegisteredWithDentist" careField="dentistName" label="Registered with dentist?" />
-            </div>
-            <div className="p-4 bg-muted/30 rounded-lg space-y-3">
-              <h3 className="font-semibold">Examination</h3>
-              <YesNoField fieldName="lipsDryCracked" careField="lipsDryCrackedCare" label="Lips dry/cracked?" />
-              <YesNoField fieldName="dryMouth" careField="dryMouthCare" label="Dry mouth?" />
-              <YesNoField fieldName="hasNaturalTeeth" careField="naturalTeethCare" label="Natural teeth?" />
-              <YesNoField fieldName="difficultySwallowing" careField="difficultySwallowingCare" label="Difficulty swallowing?" />
-            </div>
-          </form>
+              <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                <h3 className="font-semibold">Dental Info</h3>
+                <FormField control={form.control} name="normalOralHygieneRoutine" render={({ field }) => <FormItem><FormLabel>Oral hygiene routine</FormLabel><Textarea {...field} rows={2} /></FormItem>} />
+                <YesNoField fieldName="isRegisteredWithDentist" careField="dentistName" label="Registered with dentist?" />
+              </div>
+              <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                <h3 className="font-semibold">Examination</h3>
+                <YesNoField fieldName="lipsDryCracked" careField="lipsDryCrackedCare" label="Lips dry/cracked?" />
+                <YesNoField fieldName="dryMouth" careField="dryMouthCare" label="Dry mouth?" />
+                <YesNoField fieldName="hasNaturalTeeth" careField="naturalTeethCare" label="Natural teeth?" />
+                <YesNoField fieldName="difficultySwallowing" careField="difficultySwallowingCare" label="Difficulty swallowing?" />
+              </div>
+            </form>
+          </fieldset>
         </Form>
       </div>
-      {!isInline && (
+      {!isInline && !viewOnly && (
         <DialogFooter>
           <Button onClick={() => onClose?.()} variant="outline" disabled={isLoading}>Cancel</Button>
           <Button onClick={form.handleSubmit(onSubmit, onValidationError)} disabled={isLoading}>{isLoading ? "Saving..." : "Save"}</Button>

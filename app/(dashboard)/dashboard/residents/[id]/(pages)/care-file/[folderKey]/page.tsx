@@ -9,12 +9,22 @@ import { canFillCareFileForms } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { CareFileFormKey } from "@/types/care-files";
 import { config } from "@/config";
-import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X, ExternalLink } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X, ExternalLink, PanelRight, PanelRightClose } from "lucide-react";
 import { usePathname, useRouter, useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useSidebar } from "@/components/ui/sidebar";
 import {
     Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
@@ -82,7 +92,7 @@ function FileViewer({ file }: { file: UploadedFile }) {
             </div>
 
             {/* Viewer body */}
-            <div className="flex-1 overflow-auto bg-muted/30">
+            <div className="flex-1 flex overflow-hidden min-h-0 relative">
                 {isPdf && (
                     <iframe
                         src={url}
@@ -181,6 +191,11 @@ export default function GenericFolderPage() {
     const [addedCarePlans, setAddedCarePlans] = useState<CareFileFormKey[]>([]);
     const [activeOrganization, setActiveOrganization] = useState<any>(null);
     const [selectedCarePlanName, setSelectedCarePlanName] = useState<string | undefined>(undefined);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [uploadDefaultFileName, setUploadDefaultFileName] = useState("");
+    // useSidebar state used to coordinate with SidebarTrigger if needed, but SidebarTrigger handles itself.
+    const { toggleSidebar, state: leftSidebarState } = useSidebar();
 
     // HELPER MAPPING for Deletes/Fetches
     const TABLE_MAP: Record<string, string> = {
@@ -396,8 +411,12 @@ export default function GenericFolderPage() {
 
             if (!error && evaluations) {
                 dataToPrint.evaluations = evaluations.map(e => ({
-                    evaluationDate: e.evaluation_date || e.created_at,
-                    progress_notes: e.progress_notes || e.comments
+                    evaluation_date: e.evaluation_date || e.created_at,
+                    progress_notes: e.progress_notes || e.comments,
+                    outcome: e.outcome,
+                    position: e.position,
+                    staff_name: e.reviewed_by_name,
+                    next_review_date: e.new_review_date
                 }));
             }
         }
@@ -449,54 +468,62 @@ export default function GenericFolderPage() {
     }
 
     return (
-        <div className="flex flex-col -mx-16 -mt-16 -mb-6 h-screen overflow-hidden">
+        <div className="flex flex-col gap-6 w-full relative h-[calc(100vh-theme(spacing.24))]">
             {/* Top Bar */}
-            <div className="flex items-center gap-3 px-6 py-3 bg-background border-b flex-shrink-0">
+            <div className="flex items-center gap-2 px-4 py-2 bg-background border-b flex-shrink-0">
                 <button
                     onClick={() => router.push(`/dashboard/residents/${residentId}/care-file` as any)}
                     className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
                 >
                     <ArrowLeft className="w-4 h-4" />
                 </button>
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
                     <span
-                        className="text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                        onClick={() => router.push(`/dashboard/residents/${residentId}/care-file` as any)}
+                        className="cursor-pointer hover:text-foreground transition-colors"
+                        onClick={() => {
+                            setActiveFormKey(null);
+                            setActiveFileId(null);
+                            setFormDataForEdit(undefined);
+                            setIsViewOnly(false);
+                            router.push(`/dashboard/residents/${residentId}/care-file` as any);
+                        }}
                     >
                         Care File
                     </span>
-                    <span className="text-muted-foreground">/</span>
-                    <span
-                        className={`cursor-pointer transition-colors ${activeFormKey || activeFile ? "text-muted-foreground hover:text-foreground" : "font-medium"}`}
-                        onClick={() => {
-                            if (activeFormKey || activeFile) {
-                                setActiveFormKey(null);
-                                setActiveFileId(null);
-                                setFormDataForEdit(undefined);
-                                setIsViewOnly(false);
-                            }
-                        }}
-                    >
-                        {folderConfig.value}
-                    </span>
+                    <span>/</span>
+                    <span className="font-medium text-foreground">{folderConfig.value || folderKey}</span>
                     {activeFormKey && (
                         <>
-                            <span className="text-muted-foreground">/</span>
-                            <span className="text-foreground font-medium">
+                            <span>/</span>
+                            <span className="text-foreground">
                                 {activeFormKey === "care-plan-form"
                                     ? (formDataForEdit?.care_plan_type || "Care Plan")
-                                    : (folderForms.find((f) => (f.key as string) === activeFormKey)?.value || "Form")
+                                    : (folderForms.find(f => (f.key as string) === activeFormKey)?.value || "Form")
                                 }
                             </span>
                         </>
                     )}
                     {activeFile && (
                         <>
-                            <span className="text-muted-foreground">/</span>
-                            <span className="text-foreground font-medium">{activeFile.name}</span>
+                            <span>/</span>
+                            <span className="text-foreground">{activeFile.name}</span>
                         </>
                     )}
                 </div>
+
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground transition-all duration-200"
+                    title={isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"}
+                >
+                    {isSidebarCollapsed ? (
+                        <PanelRight className="h-4 w-4" />
+                    ) : (
+                        <PanelRightClose className="h-4 w-4" />
+                    )}
+                </Button>
             </div>
 
             {/* Body */}
@@ -506,8 +533,8 @@ export default function GenericFolderPage() {
                     {activeFile ? (
                         <FileViewer file={activeFile} />
                     ) : activeFormKey && resident ? (
-                        <div className="flex-1 overflow-y-auto p-4 sm:p-8 scrollbar-thin">
-                            <div className="mx-auto w-full max-w-4xl bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+                            <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
                                 {/* Form Header with Edit/Print */}
                                 <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
                                     <div className="flex items-center gap-3">
@@ -603,7 +630,6 @@ export default function GenericFolderPage() {
                                                     const evalSection = document.getElementById('care-plan-evaluations-section');
                                                     if (evalSection) {
                                                         evalSection.scrollIntoView({ behavior: 'smooth' });
-                                                        // Trigger "New Evaluation" button click
                                                         const newEvalBtn = document.getElementById('new-evaluation-btn');
                                                         if (newEvalBtn) {
                                                             newEvalBtn.click();
@@ -612,13 +638,22 @@ export default function GenericFolderPage() {
                                                 }}
                                             />
                                         ) : (
-                                            <RiskAssessmentViewer
-                                                assessment={{
-                                                    formKey: activeFormKey,
-                                                    formId: formDataForEdit?.id || formDataForEdit?._id,
-                                                    name: (folderForms.find(f => (f.key as string) === activeFormKey)?.value || "Form"),
-                                                    completedAt: formDataForEdit?.created_at || formDataForEdit?._creationTime
-                                                }}
+                                            <CareFileDialogRenderer
+                                                formKey={activeFormKey}
+                                                residentId={residentId}
+                                                teamId={activeTeamId ?? ""}
+                                                organizationId={profile?.active_organization_id ?? ""}
+                                                userId={profile?.id ?? ""}
+                                                userName={profile?.name || profile?.email || "User"}
+                                                userRole={profile?.role ?? ""}
+                                                resident={resident}
+                                                careHomeName={profile?.care_home_name ?? ""}
+                                                folderKey={folderKey}
+                                                formDataForEdit={formDataForEdit}
+                                                isReviewMode={false}
+                                                viewOnly={true}
+                                                onClose={handleCloseForm}
+                                                isInline={true}
                                             />
                                         )
                                     ) : (
@@ -678,7 +713,8 @@ export default function GenericFolderPage() {
                 </main>
 
                 {/* Right Sidebar */}
-                <aside className="w-[200px] flex-shrink-0 border-l bg-background h-full p-3 overflow-y-auto">
+                <aside className={`flex-shrink-0 border-l bg-background h-full transition-all duration-300 ease-in-out ${isSidebarCollapsed ? "w-0 opacity-0 invisible" : "w-[200px] opacity-100"
+                    } overflow-y-auto overflow-x-hidden p-3`}>
                     <div className="flex flex-col gap-6">
                         {/* Forms section */}
                         <div>
@@ -801,13 +837,91 @@ export default function GenericFolderPage() {
                                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">
                                     Documents
                                 </p>
-                                <UploadFileModal
-                                    folderName={folderConfig.value || folderKey}
-                                    residentId={residentId}
-                                    variant="icon"
-                                    onUploaded={fetchUploadedFiles}
-                                />
+                                {folderKey === "v2-mobility" ? (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-5 w-5 hover:bg-muted"
+                                                title="Upload PDF"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("Physiotherapy");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                Physiotherapy
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("OT");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                OT
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("Falls Team");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                Falls Team
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                ) : folderKey === "v2-nutrition-hydration" ? (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-5 w-5 hover:bg-muted"
+                                                title="Upload PDF"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("GP input");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                GP input
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("SALT");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                SALT
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setUploadDefaultFileName("Dietitian");
+                                                setIsUploadModalOpen(true);
+                                            }}>
+                                                Dietitian
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                ) : (
+                                    <UploadFileModal
+                                        folderName={folderConfig.value || folderKey}
+                                        residentId={residentId}
+                                        variant="icon"
+                                        onUploaded={fetchUploadedFiles}
+                                    />
+                                )}
                             </div>
+
+                            <UploadFileModal
+                                folderName={folderConfig.value || folderKey}
+                                residentId={residentId}
+                                variant="none"
+                                open={isUploadModalOpen}
+                                onOpenChange={setIsUploadModalOpen}
+                                defaultFileName={uploadDefaultFileName}
+                                onUploaded={fetchUploadedFiles}
+                            />
 
                             {filesLoading ? (
                                 <div className="flex items-center justify-center p-3">
@@ -907,6 +1021,59 @@ export default function GenericFolderPage() {
                                         </div>
                                     </CardContent>
                                 </Card>
+                            )}
+                            {folderKey === "v2-mobility" && (
+                                <Card
+                                    className="cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors border bg-white"
+                                    onClick={() => handleCarePlanSelect("Assistance care plan")}
+                                >
+                                    <CardContent className="p-2.5">
+                                        <div className="flex items-start gap-2">
+                                            <div className="p-1.5 rounded-md bg-orange-100 text-orange-600">
+                                                <FileText className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-semibold text-xs">Assistance Plan</h3>
+                                                <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                                                    Care plan for assistance
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+                            {folderKey === "v2-nutrition-hydration" && (
+                                <>
+                                    {[
+                                        { title: "Risk of Malnutrition", desc: "Care plan for malnutrition risk" },
+                                        { title: "Supplements", desc: "Care plan for nutritional supplements" },
+                                        { title: "Thickener", desc: "Care plan for fluid thickeners" },
+                                        { title: "Risk of Choking", desc: "Care plan for choking risk" },
+                                        { title: "Weight Loss", desc: "Care plan for weight loss management" },
+                                        { title: "Diabetic Diet", desc: "Care plan for diabetic management" },
+                                        { title: "Fluid Restriction", desc: "Care plan for fluid restriction" }
+                                    ].map((plan) => (
+                                        <Card
+                                            key={plan.title}
+                                            className="cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors border bg-white"
+                                            onClick={() => handleCarePlanSelect(`Care Plan: ${plan.title}`)}
+                                        >
+                                            <CardContent className="p-2.5">
+                                                <div className="flex items-start gap-2">
+                                                    <div className="p-1.5 rounded-md bg-green-100 text-green-600">
+                                                        <FileText className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-semibold text-xs">{plan.title}</h3>
+                                                        <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                                                            {plan.desc}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </>
                             )}
                         </div>
                     </div>

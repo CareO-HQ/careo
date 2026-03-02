@@ -1,4 +1,5 @@
 import { CareFileFormKey } from "@/types/care-files";
+import { cn } from "@/lib/utils";
 import AdmissionDialog from "@/components/residents/carefile/dialogs/AdmissionDialog";
 import BedrailConsentDialog from "@/components/residents/carefile/dialogs/BedrailConsentDialog";
 import BedRailsRiskAssessmentDialog from "@/components/residents/carefile/dialogs/BedRailsRiskAssessmentDialog";
@@ -45,6 +46,7 @@ interface CareFileDialogRendererProps extends BaseDialogProps {
   isReviewMode: boolean;
   isInline?: boolean;
   newCarePlanName?: string;
+  viewOnly?: boolean;
 }
 
 /**
@@ -65,14 +67,15 @@ export function CareFileDialogRenderer({
   isReviewMode,
   isInline,
   newCarePlanName,
+  viewOnly = false,
   onClose
 }: CareFileDialogRendererProps) {
-  const editData = isReviewMode ? formDataForEdit : null;
+  const editData = (isReviewMode || viewOnly) ? formDataForEdit : null;
   // For care plan new creation, pass the pre-selected name as a synthetic initialData
   const carePlanInitialData = editData ?? (newCarePlanName ? { nameOfCarePlan: newCarePlanName } : null);
 
-  // If we're in review mode and still loading data, show loading state
-  if (isReviewMode && formDataForEdit === undefined) {
+  // If we're in review/view mode and still loading data, show loading state
+  if ((isReviewMode || viewOnly) && formDataForEdit === undefined) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
@@ -94,195 +97,204 @@ export function CareFileDialogRenderer({
     userRole,
     isEditMode: isReviewMode,
     isInline,
+    viewOnly,
     onClose
   };
 
-  switch (formKey) {
-    case "preAdmission-form":
-      return (
-        <PreAdmissionDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          userRole={userRole ?? ""}
-          careHomeName={careHomeName ?? ""}
-          initialData={editData}
-        />
-      );
+  const renderForm = () => {
+    switch (formKey) {
+      case "preAdmission-form":
+        return (
+          <PreAdmissionDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            userRole={userRole ?? ""}
+            careHomeName={careHomeName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "admission-form":
-      return (
-        <AdmissionDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "admission-form":
+        return (
+          <AdmissionDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "infection-prevention":
-      return (
-        <InfectionPreventionDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "infection-prevention":
+        return (
+          <InfectionPreventionDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "blader-bowel-form":
-      return (
-        <BladderBowelDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "blader-bowel-form":
+        return (
+          <BladderBowelDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "moving-handling-form":
-      return (
-        <MovingHandlingDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "moving-handling-form":
+        return (
+          <MovingHandlingDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "long-term-fall-risk-form":
-      return (
-        <LongTermFallRiskDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          initialData={editData}
-          isEditMode={!!editData}
-        />
-      );
+      case "long-term-fall-risk-form":
+        return (
+          <LongTermFallRiskDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+            isEditMode={!!editData}
+          />
+        );
 
-    case "care-plan-form":
-      return (
-        <CarePlanDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          folderKey={folderKey ?? ""}
-          initialData={carePlanInitialData}
-        />
-      );
+      case "care-plan-form":
+        return (
+          <CarePlanDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            folderKey={folderKey ?? ""}
+            initialData={carePlanInitialData}
+          />
+        );
 
-    case "photography-consent":
-      return (
-        <PhotographyConsentDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "photography-consent":
+        return (
+          <PhotographyConsentDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "dnacpr":
-      return <DnacprDialog {...commonProps} initialData={editData} />;
+      case "dnacpr":
+        return <DnacprDialog {...commonProps} initialData={editData} />;
 
-    case "peep":
-      return <PeepDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
+      case "peep":
+        return <PeepDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
-    case "dependency-assessment":
-      return <DependencyDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
+      case "dependency-assessment":
+        return <DependencyDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
-    case "timl":
-      return <TimlDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
+      case "timl":
+        return <TimlDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
-    case "skin-integrity-form":
-      return <SkinIntegrityDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
+      case "skin-integrity-form":
+        return <SkinIntegrityDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
-    case "resident-valuables-form":
-      return (
-        <ResidentValuablesDialog {...commonProps} userName={userName ?? ""} initialData={editData} />
-      );
+      case "resident-valuables-form":
+        return (
+          <ResidentValuablesDialog {...commonProps} userName={userName ?? ""} initialData={editData} />
+        );
 
-    case "resident-handling-profile-form":
-      return (
-        <ResidentHandlingProfileDialog {...commonProps} userName={userName ?? ""} initialData={editData} />
-      );
+      case "resident-handling-profile-form":
+        return (
+          <ResidentHandlingProfileDialog {...commonProps} userName={userName ?? ""} initialData={editData} />
+        );
 
-    case "bedrail-consent-form":
-      return (
-        <BedrailConsentDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "bedrail-consent-form":
+        return (
+          <BedrailConsentDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "bed-rails-risk-assessment-form":
-      return (
-        <BedRailsRiskAssessmentDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "bed-rails-risk-assessment-form":
+        return (
+          <BedRailsRiskAssessmentDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "best-interest-decision-form":
-      return (
-        <BestInterestDecisionDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "best-interest-decision-form":
+        return (
+          <BestInterestDecisionDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "pain-assessment-form":
-      return (
-        <PainAssessmentDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          careHomeName={careHomeName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "pain-assessment-form":
+        return (
+          <PainAssessmentDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            careHomeName={careHomeName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "nutritional-assessment-form":
-      return (
-        <NutritionalAssessmentDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          careHomeName={careHomeName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "nutritional-assessment-form":
+        return (
+          <NutritionalAssessmentDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            careHomeName={careHomeName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "oral-assessment-form":
-      return (
-        <OralAssessmentDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          careHomeName={careHomeName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "oral-assessment-form":
+        return (
+          <OralAssessmentDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            careHomeName={careHomeName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "diet-notification-form":
-      return (
-        <DietNotificationDialog
-          {...commonProps}
-          initialData={editData}
-        />
-      );
+      case "diet-notification-form":
+        return (
+          <DietNotificationDialog
+            {...commonProps}
+            initialData={editData}
+          />
+        );
 
-    case "choking-risk-assessment-form":
-      return (
-        <ChokingRiskAssessmentDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "choking-risk-assessment-form":
+        return (
+          <ChokingRiskAssessmentDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    case "cornell-depression-scale-form":
-      return (
-        <CornellDepressionScaleDialog
-          {...commonProps}
-          userName={userName ?? ""}
-          initialData={editData}
-        />
-      );
+      case "cornell-depression-scale-form":
+        return (
+          <CornellDepressionScaleDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
 
-    default:
-      return null;
-  }
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className={cn(viewOnly && "form-view-mode")}>
+      {renderForm()}
+    </div>
+  );
 }

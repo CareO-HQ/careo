@@ -780,6 +780,7 @@ export function useFolderForms({
     allChokingRiskAssessmentForms: allChokingRiskAssessmentFormsMapped,
     allCornellDepressionScaleForms: allCornellDepressionScaleFormsMapped,
     allBestInterestDecisionForms: allBestInterestDecisionFormsMapped,
+    allBedRailsRiskAssessmentForms: allBedRailsRiskAssessmentFormsMapped,
     activeCarePlanForms: filteredActiveCarePlansMapped,
     latestCarePlanForm: filteredActiveCarePlansMapped && filteredActiveCarePlansMapped.length > 0 ? filteredActiveCarePlansMapped[0] : null,
     archivedCarePlans: filteredArchivedCarePlansMapped,

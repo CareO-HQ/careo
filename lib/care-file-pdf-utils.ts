@@ -184,50 +184,240 @@ export const generateCareFilePDF = async ({
                     // Specific field filtering and reordering for evaluations
                     const EVAL_DATE_KEYS = ["evaluationDate", "evaluation_date"];
                     const EVAL_NOTES_KEYS = ["progress_notes", "comments"];
-                    let headers = Object.keys(filteredItems[0]).filter(k => !SKIP_KEYS.has(k));
+                    const headers = Object.keys(filteredItems[0]).filter(k => !SKIP_KEYS.has(k));
 
-                    // If it looks like an evaluation array, restrict to strict columns
+                    // If it looks like an evaluation array, render card-style blocks
                     const isEvaluation = headers.some(k => EVAL_DATE_KEYS.includes(k) || EVAL_NOTES_KEYS.includes(k));
-                    if (isEvaluation) {
-                        // Narrow down to one date and one notes field
-                        const dateKey = headers.find(k => EVAL_DATE_KEYS.includes(k));
-                        const notesKey = headers.find(k => EVAL_NOTES_KEYS.includes(k));
-                        headers = [dateKey, notesKey].filter((k): k is string => !!k);
-                    }
 
-                    const rows = filteredItems.map(item =>
-                        headers.map(k => {
-                            const v = item[k];
-                            if (v === null || v === undefined) return "";
-                            // Basic date detection and formatting
-                            if (typeof v === "string" && v.includes("T") && !isNaN(Date.parse(v))) {
+                    if (isEvaluation) {
+                        const formatDateValue = (v: any): string => {
+                            if (v === null || v === undefined) return "Unknown Date";
+                            if (typeof v === "number" && v > 946684800000) {
                                 try {
-                                    return new Date(v).toLocaleDateString('en-GB', {
-                                        day: '2-digit',
-                                        month: 'short',
-                                        year: 'numeric'
-                                    });
-                                } catch (e) { return v; }
+                                    const date = new Date(v);
+                                    if (!isNaN(date.getTime())) {
+                                        const day = date.getDate().toString().padStart(2, '0');
+                                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                        return `${day} ${months[date.getMonth()]} ${date.getFullYear()}`;
+                                    }
+                                } catch (e) { /* fall through */ }
+                            }
+                            if (typeof v === "string" && (v.includes("T") || /^\d{4}-\d{2}-\d{2}$/.test(v)) && !isNaN(Date.parse(v))) {
+                                try {
+                                    const date = new Date(v);
+                                    const day = date.getDate().toString().padStart(2, '0');
+                                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                    return `${day} ${months[date.getMonth()]} ${date.getFullYear()}`;
+                                } catch (e) { /* fall through */ }
                             }
                             return String(v);
-                        })
-                    );
+                        };
 
-                    const displayHeaders = headers.map(formatFieldKey);
+                        const cardWidth = pageWidth - margin * 2;
 
-                    autoTable(doc, {
-                        startY: rowY,
-                        head: [displayHeaders],
-                        body: rows,
-                        margin: { left: margin, right: margin },
-                        theme: 'grid',
-                        styles: { fontSize: 8, cellPadding: 3 },
-                        headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: 'bold' },
-                        columnStyles: {
-                            0: { cellWidth: 40 }, // Usually date
+                        for (let idx = 0; idx < filteredItems.length; idx++) {
+                            const item = filteredItems[idx];
+                            const evalNumber = filteredItems.length - idx;
+                            const evalDate = formatDateValue(item.evaluationDate || item.evaluation_date || item.created_at);
+                            const outcome = item.outcome || "";
+                            const staffName = item.staff_name || item.reviewed_by_name || item.created_by_name || "Unknown Staff";
+                            const position = item.position || "";
+                            const nextReview = item.next_review_date || item.new_review_date || item.nextReviewDate || "";
+                            const notes = item.progress_notes || item.comments || "No notes provided";
+
+                            // Set font to notes size BEFORE splitTextToSize so width calc is accurate
+                            doc.setFontSize(8.5);
+                            doc.setFont("helvetica", "normal");
+                            const notesMaxWidth = cardWidth - 8; // 4mm padding each side
+                            const notesLines = doc.splitTextToSize(notes, notesMaxWidth);
+                            const cardHeight = 38 + (notesLines.length * 4.5) + (nextReview ? 5 : 0);
+
+                            // Page break if needed
+                            if (rowY + cardHeight > 270) {
+                                doc.addPage();
+                                rowY = 20;
+                            }
+
+                            const cardX = margin;
+                            const cardY = rowY;
+
+                            // Card border
+                            doc.setDrawColor(200, 200, 200);
+                            doc.setLineWidth(0.3);
+                            doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 2, 2, 'S');
+
+                            // Light background fill
+                            doc.setFillColor(250, 250, 250);
+                            doc.roundedRect(cardX + 0.15, cardY + 0.15, cardWidth - 0.3, cardHeight - 0.3, 2, 2, 'F');
+
+                            let innerY = cardY + 5;
+
+                            // Row 1: Evaluation number + outcome badge | date
+                            doc.setFontSize(8);
+                            doc.setFont("helvetica", "italic");
+                            doc.setTextColor(156, 163, 175); // muted gray
+                            doc.text(`Evaluation ${evalNumber}`, cardX + 4, innerY);
+
+                            if (outcome) {
+                                const labelText = outcome === "Care Plan Amended" ? "CARE PLAN CHANGE" : outcome.toUpperCase();
+                                const badgeX = cardX + 4 + doc.getTextWidth(`Evaluation ${evalNumber}  `) + 2;
+
+                                doc.setFontSize(6);
+                                doc.setFont("helvetica", "bold");
+                                const badgeWidth = doc.getTextWidth(labelText) + 6;
+                                const badgeHeight = 5;
+                                const badgeY = innerY - 3.5;
+
+                                if (outcome === "Care Plan Amended") {
+                                    doc.setFillColor(255, 247, 237); // orange-50
+                                    doc.setDrawColor(253, 186, 116); // orange-300
+                                } else {
+                                    doc.setFillColor(239, 246, 255); // blue-50
+                                    doc.setDrawColor(147, 197, 253); // blue-300
+                                }
+                                doc.setLineWidth(0.2);
+                                doc.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 1, 1, 'FD');
+
+                                if (outcome === "Care Plan Amended") {
+                                    doc.setTextColor(234, 88, 12); // orange-600
+                                } else {
+                                    doc.setTextColor(37, 99, 235); // blue-600
+                                }
+                                doc.text(labelText, badgeX + 3, innerY - 0.5);
+                            }
+
+                            // Date on the right
+                            doc.setFontSize(8);
+                            doc.setFont("helvetica", "bold");
+                            doc.setTextColor(107, 114, 128); // gray-500
+                            const dateWidth = doc.getTextWidth(evalDate);
+                            doc.text(evalDate, cardX + cardWidth - 4 - dateWidth, innerY);
+
+                            innerY += 4;
+
+                            // Separator line
+                            doc.setDrawColor(229, 231, 235); // gray-200
+                            doc.setLineWidth(0.2);
+                            doc.line(cardX + 4, innerY, cardX + cardWidth - 4, innerY);
+
+                            innerY += 5;
+
+                            // Row 2: Reviewed Staff + position | Next Review Date
+                            doc.setFontSize(6.5);
+                            doc.setFont("helvetica", "bold");
+                            doc.setTextColor(156, 163, 175);
+                            doc.text("REVIEWED STAFF:", cardX + 4, innerY);
+
+                            doc.setFontSize(9);
+                            doc.setFont("helvetica", "bold");
+                            doc.setTextColor(17, 24, 39);
+                            const staffX = cardX + 4 + doc.getTextWidth("REVIEWED STAFF:") + 6;
+                            doc.text(staffName, staffX, innerY);
+
+                            if (position) {
+                                doc.setFontSize(7);
+                                doc.setFont("helvetica", "normal");
+                                doc.setTextColor(107, 114, 128);
+                                const posX = staffX + doc.getTextWidth(staffName) + 2;
+                                doc.text(`(${position})`, posX, innerY);
+                            }
+
+                            if (nextReview) {
+                                const formattedReview = formatDateValue(nextReview);
+                                doc.setFontSize(6.5);
+                                doc.setFont("helvetica", "bold");
+                                doc.setTextColor(156, 163, 175);
+                                const nrdLabel = "NEXT REVIEW DATE:";
+                                const nrdLabelWidth = doc.getTextWidth(nrdLabel);
+                                doc.setFontSize(9);
+                                const nrdValueWidth = doc.getTextWidth(formattedReview);
+                                const nrdTotalWidth = nrdLabelWidth + 6 + nrdValueWidth;
+                                const nrdX = cardX + cardWidth - 4 - nrdTotalWidth;
+
+                                doc.setFontSize(6.5);
+                                doc.setFont("helvetica", "bold");
+                                doc.setTextColor(156, 163, 175);
+                                doc.text(nrdLabel, nrdX, innerY);
+
+                                doc.setFontSize(9);
+                                doc.setFont("helvetica", "normal");
+                                doc.setTextColor(17, 24, 39);
+                                doc.text(formattedReview, nrdX + nrdLabelWidth + 3, innerY);
+                            }
+
+                            innerY += 6;
+
+                            // "COMMENTS" heading centered
+                            doc.setFontSize(6);
+                            doc.setFont("helvetica", "bold");
+                            doc.setTextColor(156, 163, 175);
+                            const commentsLabel = "COMMENTS";
+                            const commentsLabelWidth = doc.getTextWidth(commentsLabel);
+                            doc.text(commentsLabel, cardX + (cardWidth - commentsLabelWidth) / 2, innerY);
+
+                            innerY += 4;
+
+                            // Progress notes text
+                            doc.setFontSize(8.5);
+                            doc.setFont("helvetica", "normal");
+                            doc.setTextColor(17, 24, 39);
+                            doc.text(notesLines, cardX + 4, innerY);
+
+                            rowY = cardY + cardHeight + 4;
                         }
-                    });
-                    rowY = (doc as any).lastAutoTable.finalY + 10;
+                    } else {
+                        // Non-evaluation arrays: render as table
+                        const formatDateValue = (v: any): string | null => {
+                            if (v === null || v === undefined) return null;
+                            if (typeof v === "number" && v > 946684800000) {
+                                try {
+                                    const date = new Date(v);
+                                    if (!isNaN(date.getTime())) {
+                                        const day = date.getDate().toString().padStart(2, '0');
+                                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                        return `${day} ${months[date.getMonth()]} ${date.getFullYear()}`;
+                                    }
+                                } catch (e) { /* fall through */ }
+                            }
+                            if (typeof v === "string" && (v.includes("T") || /^\d{4}-\d{2}-\d{2}$/.test(v)) && !isNaN(Date.parse(v))) {
+                                try {
+                                    const date = new Date(v);
+                                    const day = date.getDate().toString().padStart(2, '0');
+                                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                    return `${day} ${months[date.getMonth()]} ${date.getFullYear()}`;
+                                } catch (e) { /* fall through */ }
+                            }
+                            return null;
+                        };
+
+                        const rows = filteredItems.map((item, idx) => {
+                            const rowData = headers.map(k => {
+                                const v = item[k];
+                                if (v === null || v === undefined) return "";
+                                const formatted = formatDateValue(v);
+                                if (formatted) return formatted;
+                                return String(v);
+                            });
+                            return [String(idx + 1), ...rowData];
+                        });
+
+                        const displayHeaders = ["#", ...headers.map(formatFieldKey)];
+
+                        autoTable(doc, {
+                            startY: rowY,
+                            head: [displayHeaders],
+                            body: rows,
+                            margin: { left: margin, right: margin },
+                            theme: 'grid',
+                            styles: { fontSize: 8, cellPadding: 3 },
+                            headStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: 'bold' },
+                            columnStyles: {
+                                0: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
+                                1: { cellWidth: 40 },
+                            }
+                        });
+                        rowY = (doc as any).lastAutoTable.finalY + 10;
+                    }
                 } else {
                     doc.setFontSize(10);
                     doc.text("No entries", margin, rowY);

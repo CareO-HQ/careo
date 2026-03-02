@@ -21,19 +21,28 @@ import { supabase } from "@/lib/supabase";
 interface UploadFileModalProps {
   folderName: string;
   residentId: string;
-  variant?: "text" | "button" | "icon";
+  variant?: "text" | "button" | "icon" | "none";
   onUploaded?: () => void;
+  defaultFileName?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export default function UploadFileModal({
   folderName,
   residentId,
   variant = "text",
-  onUploaded
+  onUploaded,
+  defaultFileName = "",
+  open: externalOpen,
+  onOpenChange: externalOnOpenChange
 }: UploadFileModalProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setIsOpen = externalOnOpenChange !== undefined ? externalOnOpenChange : setInternalOpen;
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileName, setFileName] = useState("");
+  const [fileName, setFileName] = useState(defaultFileName);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -162,7 +171,7 @@ export default function UploadFileModal({
 
       // Reset form and close modal
       setSelectedFile(null);
-      setFileName("");
+      setFileName(defaultFileName);
       setIsOpen(false);
       onUploaded?.();
 
@@ -181,7 +190,7 @@ export default function UploadFileModal({
 
   const handleCancel = () => {
     setSelectedFile(null);
-    setFileName("");
+    setFileName(defaultFileName);
     setIsOpen(false);
 
     // Clear file input
@@ -192,27 +201,29 @@ export default function UploadFileModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        {variant === "button" ? (
-          <Button variant="outline" size="sm">
-            <Upload className="h-4 w-4 mr-2" />
-            Upload PDF
-          </Button>
-        ) : variant === "icon" ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-5 w-5 hover:bg-muted"
-            title="Upload PDF"
-          >
-            <Upload className="h-3 w-3" />
-          </Button>
-        ) : (
-          <p className="text-muted-foreground text-xs cursor-pointer hover:text-primary">
-            Upload file
-          </p>
-        )}
-      </DialogTrigger>
+      {variant !== "none" && (
+        <DialogTrigger asChild>
+          {variant === "button" ? (
+            <Button variant="outline" size="sm">
+              <Upload className="h-4 w-4 mr-2" />
+              Upload PDF
+            </Button>
+          ) : variant === "icon" ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 hover:bg-muted"
+              title="Upload PDF"
+            >
+              <Upload className="h-3 w-3" />
+            </Button>
+          ) : (
+            <p className="text-muted-foreground text-xs cursor-pointer hover:text-primary">
+              Upload file
+            </p>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Upload PDF</DialogTitle>

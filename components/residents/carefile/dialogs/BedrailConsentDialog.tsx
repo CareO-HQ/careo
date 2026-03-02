@@ -41,6 +41,7 @@ interface BedrailConsentDialogProps {
   initialData?: any;
   isEditMode?: boolean;
   isInline?: boolean;
+  viewOnly?: boolean;
 }
 
 export default function BedrailConsentDialog({
@@ -53,7 +54,8 @@ export default function BedrailConsentDialog({
   onClose,
   initialData,
   isEditMode = false,
-  isInline = false
+  isInline = false,
+  viewOnly = false
 }: BedrailConsentDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [loadingState, setLoadingState] = useState<string>("");
@@ -218,450 +220,452 @@ export default function BedrailConsentDialog({
       )}
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-          <button type="submit" id="care-file-submit-btn" className="hidden" />
-          <div className="space-y-8 px-1">
+        <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            <div className="space-y-8 px-1">
 
-            {/* Section 1: Header Information */}
-            <div className="space-y-4">
-              <div className="space-y-1 pb-2 border-b">
-                <h4 className="text-sm font-medium">Header Information</h4>
-                <p className="text-sm text-muted-foreground">
-                  Basic resident information for the bedrail consent form
-                </p>
-              </div>
-              <FormField
-                control={form.control}
-                name="residentName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Resident&apos;s Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        value={field.value ?? ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="bedroomNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Bedroom Number</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        value={field.value ?? ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="dateOfBirth"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Date of Birth</FormLabel>
-                    <FormControl>
-                      <Input
-                        value={field.value ? format(new Date(field.value), "PPP") : ""}
-                        readOnly
-                        disabled
-                        className="bg-muted"
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Automatically populated from resident information
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Section 2: Consent Type */}
-            <div className="space-y-6">
-              <div className="space-y-1 pb-2 border-b">
-                <h4 className="text-sm font-medium">Consent Type</h4>
-                <p className="text-sm text-muted-foreground">
-                  Select whether the resident is able to consent themselves
-                </p>
+              {/* Section 1: Header Information */}
+              <div className="space-y-4">
+                <div className="space-y-1 pb-2 border-b">
+                  <h4 className="text-sm font-medium">Header Information</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Basic resident information for the bedrail consent form
+                  </p>
+                </div>
+                <FormField
+                  control={form.control}
+                  name="residentName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Resident&apos;s Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="bedroomNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Bedroom Number</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dateOfBirth"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date of Birth</FormLabel>
+                      <FormControl>
+                        <Input
+                          value={field.value ? format(new Date(field.value), "PPP") : ""}
+                          readOnly
+                          disabled
+                          className="bg-muted"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Automatically populated from resident information
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
-              <FormField
-                control={form.control}
-                name="consentType"
-                render={({ field }) => (
-                  <FormItem className="space-y-3">
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={(value) => {
-                          field.onChange(value);
-                          if (value === "ABLE_TO_CONSENT") {
-                            form.setValue("unableToConsentSection", undefined);
-                          } else {
-                            form.setValue("ableToConsentSection", undefined);
-                          }
-                        }}
-                        value={field.value}
-                        className="flex flex-col space-y-1"
-                      >
-                        <FormItem className="flex items-center space-x-3 space-y-0">
+              {/* Section 2: Consent Type */}
+              <div className="space-y-6">
+                <div className="space-y-1 pb-2 border-b">
+                  <h4 className="text-sm font-medium">Consent Type</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Select whether the resident is able to consent themselves
+                  </p>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="consentType"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            if (value === "ABLE_TO_CONSENT") {
+                              form.setValue("unableToConsentSection", undefined);
+                            } else {
+                              form.setValue("ableToConsentSection", undefined);
+                            }
+                          }}
+                          value={field.value}
+                          className="flex flex-col space-y-1"
+                        >
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="ABLE_TO_CONSENT" />
+                            </FormControl>
+                            <FormLabel className="font-normal">
+                              Resident is able to consent
+                            </FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="UNABLE_TO_CONSENT" />
+                            </FormControl>
+                            <FormLabel className="font-normal">
+                              Resident is unable to consent
+                            </FormLabel>
+                          </FormItem>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Able to Consent Sub-Section */}
+                {consentType === "ABLE_TO_CONSENT" && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-medium">Resident Consent</h4>
+                      <p className="text-sm text-muted-foreground">
+                        The resident&apos;s choice regarding bedrail usage
+                      </p>
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="ableToConsentSection.consentChoice"
+                      render={({ field }) => (
+                        <FormItem className="space-y-3">
+                          <FormLabel required>Consent Choice</FormLabel>
                           <FormControl>
-                            <RadioGroupItem value="ABLE_TO_CONSENT" />
+                            <RadioGroup
+                              onValueChange={field.onChange}
+                              value={field.value}
+                              className="flex flex-col space-y-2"
+                            >
+                              <FormItem className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
+                                <FormControl>
+                                  <RadioGroupItem value="CONSENT_TO_USE" />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                  <FormLabel className="font-normal">
+                                    I understand that I may be at risk of falling
+                                    out of bed and would therefore like bed
+                                    rails/bumpers to be used on my bed.
+                                  </FormLabel>
+                                </div>
+                              </FormItem>
+                              <FormItem className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
+                                <FormControl>
+                                  <RadioGroupItem value="REFUSE_TO_USE" />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                  <FormLabel className="font-normal">
+                                    I understand that I may be at risk of falling
+                                    out of bed, but I do NOT want bed rails or
+                                    bumpers to be used on my bed.
+                                  </FormLabel>
+                                </div>
+                              </FormItem>
+                            </RadioGroup>
                           </FormControl>
-                          <FormLabel className="font-normal">
-                            Resident is able to consent
-                          </FormLabel>
+                          <FormMessage />
                         </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="ableToConsentSection.residentSignature"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Resident Signature</FormLabel>
                           <FormControl>
-                            <RadioGroupItem value="UNABLE_TO_CONSENT" />
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                              placeholder="Type name to sign"
+                            />
                           </FormControl>
-                          <FormLabel className="font-normal">
-                            Resident is unable to consent
-                          </FormLabel>
+                          <FormDescription>
+                            Type the resident&apos;s name to serve as their
+                            signature
+                          </FormDescription>
+                          <FormMessage />
                         </FormItem>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="ableToConsentSection.staffMemberName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name of Staff Member</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Staff member completing this assessment
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="ableToConsentSection.staffMemberSignature"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Staff Member Signature</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Staff signature for confirmation
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="ableToConsentSection.staffSignatureDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Date</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                              type="date"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 )}
-              />
 
-              {/* Able to Consent Sub-Section */}
-              {consentType === "ABLE_TO_CONSENT" && (
-                <div className="space-y-4 pt-4 border-t">
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-medium">Resident Consent</h4>
-                    <p className="text-sm text-muted-foreground">
-                      The resident&apos;s choice regarding bedrail usage
-                    </p>
+                {/* Unable to Consent Sub-Section */}
+                {consentType === "UNABLE_TO_CONSENT" && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-medium">
+                        Representative Information
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        For residents unable to consent, a next of kin, advocate, or
+                        MDT member must provide input
+                      </p>
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="unableToConsentSection.representativeName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>
+                            Next of Kin / Advocate / MDT Member Name
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="rounded-md bg-muted p-4">
+                      <p className="text-sm">
+                        I (Next of Kin/Advocate/MDT member) have discussed the issue
+                        of using bed rails/bumpers with the professionals concerned
+                        and based on my knowledge of the resident&apos;s previously
+                        expressed wishes and beliefs:
+                      </p>
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="unableToConsentSection.residentPreference"
+                      render={({ field }) => (
+                        <FormItem className="space-y-3">
+                          <FormLabel required>Resident Preference</FormLabel>
+                          <FormControl>
+                            <RadioGroup
+                              onValueChange={field.onChange}
+                              value={field.value}
+                              className="flex flex-col space-y-2"
+                            >
+                              <FormItem className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
+                                <FormControl>
+                                  <RadioGroupItem value="WOULD_PREFER_USE" />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                  <FormLabel className="font-normal">
+                                    The resident would have preferred to use bed
+                                    rails/bumpers
+                                  </FormLabel>
+                                </div>
+                              </FormItem>
+                              <FormItem className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
+                                <FormControl>
+                                  <RadioGroupItem value="WOULD_NOT_PREFER_USE" />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                  <FormLabel className="font-normal">
+                                    The resident would not have preferred to use bed
+                                    rails/bumpers
+                                  </FormLabel>
+                                </div>
+                              </FormItem>
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="unableToConsentSection.representativeSignature"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>
+                            Signature of Relative / Next of Kin
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                              placeholder="Type name to sign"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="unableToConsentSection.staffMemberName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name of Staff Member</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Staff member completing this assessment
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="unableToConsentSection.staffMemberSignature"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Staff Member Signature</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Staff signature for confirmation
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="unableToConsentSection.staffSignatureDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel required>Date</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                              type="date"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
-
-                  <FormField
-                    control={form.control}
-                    name="ableToConsentSection.consentChoice"
-                    render={({ field }) => (
-                      <FormItem className="space-y-3">
-                        <FormLabel required>Consent Choice</FormLabel>
-                        <FormControl>
-                          <RadioGroup
-                            onValueChange={field.onChange}
-                            value={field.value}
-                            className="flex flex-col space-y-2"
-                          >
-                            <FormItem className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
-                              <FormControl>
-                                <RadioGroupItem value="CONSENT_TO_USE" />
-                              </FormControl>
-                              <div className="space-y-1 leading-none">
-                                <FormLabel className="font-normal">
-                                  I understand that I may be at risk of falling
-                                  out of bed and would therefore like bed
-                                  rails/bumpers to be used on my bed.
-                                </FormLabel>
-                              </div>
-                            </FormItem>
-                            <FormItem className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
-                              <FormControl>
-                                <RadioGroupItem value="REFUSE_TO_USE" />
-                              </FormControl>
-                              <div className="space-y-1 leading-none">
-                                <FormLabel className="font-normal">
-                                  I understand that I may be at risk of falling
-                                  out of bed, but I do NOT want bed rails or
-                                  bumpers to be used on my bed.
-                                </FormLabel>
-                              </div>
-                            </FormItem>
-                          </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="ableToConsentSection.residentSignature"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Resident Signature</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value ?? ""}
-                            placeholder="Type name to sign"
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Type the resident&apos;s name to serve as their
-                          signature
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="ableToConsentSection.staffMemberName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Name of Staff Member</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value ?? ""}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Staff member completing this assessment
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="ableToConsentSection.staffMemberSignature"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Staff Member Signature</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value ?? ""}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Staff signature for confirmation
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="ableToConsentSection.staffSignatureDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Date</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value ?? ""}
-                            type="date"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
-
-              {/* Unable to Consent Sub-Section */}
-              {consentType === "UNABLE_TO_CONSENT" && (
-                <div className="space-y-4 pt-4 border-t">
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-medium">
-                      Representative Information
-                    </h4>
-                    <p className="text-sm text-muted-foreground">
-                      For residents unable to consent, a next of kin, advocate, or
-                      MDT member must provide input
-                    </p>
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="unableToConsentSection.representativeName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>
-                          Next of Kin / Advocate / MDT Member Name
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value ?? ""}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="rounded-md bg-muted p-4">
-                    <p className="text-sm">
-                      I (Next of Kin/Advocate/MDT member) have discussed the issue
-                      of using bed rails/bumpers with the professionals concerned
-                      and based on my knowledge of the resident&apos;s previously
-                      expressed wishes and beliefs:
-                    </p>
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="unableToConsentSection.residentPreference"
-                    render={({ field }) => (
-                      <FormItem className="space-y-3">
-                        <FormLabel required>Resident Preference</FormLabel>
-                        <FormControl>
-                          <RadioGroup
-                            onValueChange={field.onChange}
-                            value={field.value}
-                            className="flex flex-col space-y-2"
-                          >
-                            <FormItem className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
-                              <FormControl>
-                                <RadioGroupItem value="WOULD_PREFER_USE" />
-                              </FormControl>
-                              <div className="space-y-1 leading-none">
-                                <FormLabel className="font-normal">
-                                  The resident would have preferred to use bed
-                                  rails/bumpers
-                                </FormLabel>
-                              </div>
-                            </FormItem>
-                            <FormItem className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
-                              <FormControl>
-                                <RadioGroupItem value="WOULD_NOT_PREFER_USE" />
-                              </FormControl>
-                              <div className="space-y-1 leading-none">
-                                <FormLabel className="font-normal">
-                                  The resident would not have preferred to use bed
-                                  rails/bumpers
-                                </FormLabel>
-                              </div>
-                            </FormItem>
-                          </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="unableToConsentSection.representativeSignature"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>
-                          Signature of Relative / Next of Kin
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value ?? ""}
-                            placeholder="Type name to sign"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="unableToConsentSection.staffMemberName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Name of Staff Member</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value ?? ""}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Staff member completing this assessment
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="unableToConsentSection.staffMemberSignature"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Staff Member Signature</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value ?? ""}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Staff signature for confirmation
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="unableToConsentSection.staffSignatureDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>Date</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value ?? ""}
-                            type="date"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Sticky Footer */}
-          {!isInline && (
-            <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onClose?.()}
-                disabled={isLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={form.handleSubmit(handleSubmit)}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {loadingState || "Submitting..."}
-                  </>
-                ) : (
-                  "Save"
-                )}
-              </Button>
-            </DialogFooter>
-          )}
-        </form>
+            {/* Sticky Footer */}
+            {!isInline && !viewOnly && (
+              <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onClose?.()}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={form.handleSubmit(handleSubmit)}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {loadingState || "Submitting..."}
+                    </>
+                  ) : (
+                    "Save"
+                  )}
+                </Button>
+              </DialogFooter>
+            )}
+          </form>
+        </fieldset>
       </Form>
     </>
   );

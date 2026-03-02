@@ -57,6 +57,7 @@ export default function AllRiskAssessmentsPage() {
   }, [residentId]);
 
   // Fetch all assessment forms (excluding risk assessments and care plans)
+  // Fetch all assessment forms (excluding risk assessments and care plans)
   const {
     allPreAdmissionForms,
     allAdmissionForms,
@@ -67,7 +68,20 @@ export default function AllRiskAssessmentsPage() {
     allTimlAssessmentForms,
     allSkinIntegrityForms,
     allResidentValuablesForms,
-    allHandlingProfileForms
+    allHandlingProfileForms,
+    allInfectionPreventionForms,
+    allBladderBowelForms,
+    allMovingHandlingForms,
+    allBedrailConsentForms,
+    allBedRailsRiskAssessmentForms,
+    allLongTermFallsForms,
+    allPainAssessmentForms,
+    allNutritionalAssessmentForms,
+    allOralAssessmentForms,
+    allDietNotificationForms,
+    allChokingRiskAssessmentForms,
+    allCornellDepressionScaleForms,
+    allBestInterestDecisionForms
   } = useFolderForms({
     residentId,
     folderFormKeys: [
@@ -80,7 +94,20 @@ export default function AllRiskAssessmentsPage() {
       "timl",
       "skin-integrity-form",
       "resident-valuables-form",
-      "resident-handling-profile-form"
+      "resident-handling-profile-form",
+      "infection-prevention",
+      "blader-bowel-form",
+      "moving-handling-form",
+      "bedrail-consent-form",
+      "bed-rails-risk-assessment-form",
+      "long-term-fall-risk-form",
+      "pain-assessment-form",
+      "nutritional-assessment-form",
+      "oral-assessment-form",
+      "diet-notification-form",
+      "choking-risk-assessment-form",
+      "cornell-depression-scale-form",
+      "best-interest-decision-form"
     ],
     organizationId: resident?.active_organization_id
   });
@@ -124,7 +151,7 @@ export default function AllRiskAssessmentsPage() {
     return forms[0];
   };
 
-  // Collect all assessments (excluding risk assessments and care plans)
+  // Collect all assessments
   const assessments = [
     // Pre-Admission Form
     ...(allPreAdmissionForms && allPreAdmissionForms.length > 0 ? [{
@@ -132,6 +159,16 @@ export default function AllRiskAssessmentsPage() {
       key: "preAdmission-form",
       name: "Pre-Admission Assessment",
       completedAt: getLatestForm(allPreAdmissionForms)?._creationTime,
+      folderName: "Pre-Admission",
+      category: "Pre-Admission"
+    }] : []),
+
+    // Infection Prevention
+    ...(allInfectionPreventionForms && allInfectionPreventionForms.length > 0 ? [{
+      _id: getLatestForm(allInfectionPreventionForms)?._id,
+      key: "infection-prevention",
+      name: "Infection Prevention Assessment",
+      completedAt: getLatestForm(allInfectionPreventionForms)?._creationTime,
       folderName: "Pre-Admission",
       category: "Pre-Admission"
     }] : []),
@@ -152,6 +189,16 @@ export default function AllRiskAssessmentsPage() {
       key: "photography-consent",
       name: "Photography Consent",
       completedAt: getLatestForm(allPhotographyConsentForms)?._creationTime,
+      folderName: "Admission",
+      category: "Consent"
+    }] : []),
+
+    // Best Interest Decision
+    ...(allBestInterestDecisionForms && allBestInterestDecisionForms.length > 0 ? [{
+      _id: getLatestForm(allBestInterestDecisionForms)?._id,
+      key: "best-interest-decision-form",
+      name: "Best Interest Decision",
+      completedAt: getLatestForm(allBestInterestDecisionForms)?._creationTime,
       folderName: "Admission",
       category: "Consent"
     }] : []),
@@ -196,6 +243,116 @@ export default function AllRiskAssessmentsPage() {
       category: "Personal"
     }] : []),
 
+    // Pain Assessment
+    ...(allPainAssessmentForms && allPainAssessmentForms.length > 0 ? [{
+      _id: getLatestForm(allPainAssessmentForms)?._id,
+      key: "pain-assessment-form",
+      name: "Pain Assessment and Evaluation",
+      completedAt: getLatestForm(allPainAssessmentForms)?._creationTime,
+      folderName: "Medication",
+      category: "Clinical"
+    }] : []),
+
+    // Moving & Handling
+    ...(allMovingHandlingForms && allMovingHandlingForms.length > 0 ? [{
+      _id: getLatestForm(allMovingHandlingForms)?._id,
+      key: "moving-handling-form",
+      name: "Moving & Handling Risk Assessment",
+      completedAt: getLatestForm(allMovingHandlingForms)?._creationTime,
+      folderName: "Mobility & Fall",
+      category: "Handling"
+    }] : []),
+
+    // Long Term Fall Risk
+    ...(allLongTermFallsForms && allLongTermFallsForms.length > 0 ? [{
+      _id: getLatestForm(allLongTermFallsForms)?._id,
+      key: "long-term-fall-risk-form",
+      name: "Long Term Fall Risk Assessment",
+      completedAt: getLatestForm(allLongTermFallsForms)?._creationTime,
+      folderName: "Mobility & Fall",
+      category: "Handling"
+    }] : []),
+
+    // Resident Handling Profile
+    ...(allHandlingProfileForms && allHandlingProfileForms.length > 0 ? [{
+      _id: getLatestForm(allHandlingProfileForms)?._id,
+      key: "resident-handling-profile-form",
+      name: "Resident Handling Profile",
+      completedAt: getLatestForm(allHandlingProfileForms)?._creationTime,
+      folderName: "Mobility & Fall",
+      category: "Handling"
+    }] : []),
+
+    // Bedrail Consent
+    ...(allBedrailConsentForms && allBedrailConsentForms.length > 0 ? [{
+      _id: getLatestForm(allBedrailConsentForms)?._id,
+      key: "bedrail-consent-form",
+      name: "Bedrails Consent / Agreement",
+      completedAt: getLatestForm(allBedrailConsentForms)?._creationTime,
+      folderName: "Mobility & Fall",
+      category: "Handling"
+    }] : []),
+
+    // Bed Rails Risk Assessment
+    ...(allBedRailsRiskAssessmentForms && allBedRailsRiskAssessmentForms.length > 0 ? [{
+      _id: getLatestForm(allBedRailsRiskAssessmentForms)?._id,
+      key: "bed-rails-risk-assessment-form",
+      name: "Risk Assessment for Use of Bed Rails",
+      completedAt: getLatestForm(allBedRailsRiskAssessmentForms)?._creationTime,
+      folderName: "Mobility & Fall",
+      category: "Handling"
+    }] : []),
+
+    // Nutritional Assessment
+    ...(allNutritionalAssessmentForms && allNutritionalAssessmentForms.length > 0 ? [{
+      _id: getLatestForm(allNutritionalAssessmentForms)?._id,
+      key: "nutritional-assessment-form",
+      name: "Nutritional Assessment",
+      completedAt: getLatestForm(allNutritionalAssessmentForms)?._creationTime,
+      folderName: "Nutrition & Hydration",
+      category: "Clinical"
+    }] : []),
+
+    // Oral Assessment
+    ...(allOralAssessmentForms && allOralAssessmentForms.length > 0 ? [{
+      _id: getLatestForm(allOralAssessmentForms)?._id,
+      key: "oral-assessment-form",
+      name: "Oral Assessment",
+      completedAt: getLatestForm(allOralAssessmentForms)?._creationTime,
+      folderName: "Nutrition & Hydration",
+      category: "Clinical"
+    }] : []),
+
+    // Diet Notification
+    ...(allDietNotificationForms && allDietNotificationForms.length > 0 ? [{
+      _id: getLatestForm(allDietNotificationForms)?._id,
+      key: "diet-notification-form",
+      name: "Diet Notification",
+      completedAt: getLatestForm(allDietNotificationForms)?._creationTime,
+      folderName: "Nutrition & Hydration",
+      category: "Property"
+    }] : []),
+
+    // Choking Risk Assessment
+    ...(allChokingRiskAssessmentForms && allChokingRiskAssessmentForms.length > 0 ? [{
+      _id: getLatestForm(allChokingRiskAssessmentForms)?._id,
+      key: "choking-risk-assessment-form",
+      name: "Choking Risk Assessment",
+      completedAt: getLatestForm(allChokingRiskAssessmentForms)?._creationTime,
+      folderName: "Nutrition & Hydration",
+      category: "Emergency"
+    }] : []),
+
+    // Bladder & Bowel Continence
+    ...(allBladderBowelForms && allBladderBowelForms.length > 0 ? [{
+      _id: getLatestForm(allBladderBowelForms)?._id,
+      key: "blader-bowel-form",
+      name: "Bladder & Bowel Continence Assessment",
+      completedAt: getLatestForm(allBladderBowelForms)?._creationTime,
+      folderName: "Continence",
+      category: "Clinical"
+    }] : []),
+
     // Skin Integrity
     ...(allSkinIntegrityForms && allSkinIntegrityForms.length > 0 ? [{
       _id: getLatestForm(allSkinIntegrityForms)?._id,
@@ -204,6 +361,16 @@ export default function AllRiskAssessmentsPage() {
       completedAt: getLatestForm(allSkinIntegrityForms)?._creationTime,
       folderName: "Skin Integrity",
       category: "Clinical"
+    }] : []),
+
+    // Cornell Depression Scale
+    ...(allCornellDepressionScaleForms && allCornellDepressionScaleForms.length > 0 ? [{
+      _id: getLatestForm(allCornellDepressionScaleForms)?._id,
+      key: "cornell-depression-scale-form",
+      name: "Cornell Scale for Depression in Dementia",
+      completedAt: getLatestForm(allCornellDepressionScaleForms)?._creationTime,
+      folderName: "Psychological & Emotional",
+      category: "Personal"
     }] : []),
 
     // Resident Valuables
@@ -215,17 +382,8 @@ export default function AllRiskAssessmentsPage() {
       folderName: "Resident Valuables",
       category: "Property"
     }] : []),
-
-    // Resident Handling Profile
-    ...(allHandlingProfileForms && allHandlingProfileForms.length > 0 ? [{
-      _id: getLatestForm(allHandlingProfileForms)?._id,
-      key: "resident-handling-profile-form",
-      name: "Resident Handling Profile",
-      completedAt: getLatestForm(allHandlingProfileForms)?._creationTime,
-      folderName: "Mobility & Fall",
-      category: "Handling"
-    }] : [])
   ].filter(assessment => assessment._id); // Remove any null entries
+  // Remove any null entries
 
   // Sort by completion date (most recent first)
   const sortedAssessments = assessments.sort((a, b) => {

@@ -47,11 +47,12 @@ interface ResidentHandlingProfileProps {
   initialData?: any;
   isEditMode?: boolean;
   isInline?: boolean;
+  viewOnly?: boolean;
 }
 
 export default function ResidentHandlingProfile({
   teamId, residentId, organizationId, userId, userName, resident,
-  onClose, initialData, isEditMode = false, isInline = false
+  onClose, initialData, isEditMode = false, isInline = false, viewOnly = false
 }: ResidentHandlingProfileProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -66,11 +67,11 @@ export default function ResidentHandlingProfile({
     mode: "onChange",
     defaultValues: initialData ? {
       residentId, teamId, organizationId,
-      completedBy: initialData.completed_by || "",
+      completedBy: initialData.completed_by || userName || "",
       jobRole: initialData.job_role || "",
       date: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
-      residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
-      bedroomNumber: initialData.bedroomNumber || resident.room_number || "",
+      residentName: initialData.residentName || `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+      bedroomNumber: initialData.bedroomNumber || initialData.bedroom_number || resident.room_number || "",
       weight: initialData.weight || 0,
       weightBearing: initialData.weight_bearing || "",
       transferBed: initialData.activities?.transferBed || getDefaultActivityValues(),
@@ -227,112 +228,114 @@ export default function ResidentHandlingProfile({
       )}
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6" autoComplete="off">
-          <button type="submit" id="care-file-submit-btn" className="hidden" />
-          <div className="space-y-8 px-1">
-            {/* Completed By */}
-            <div className="space-y-4">
-              <div className="space-y-1 pb-2 border-b">
-                <h4 className="text-sm font-medium">Completed By</h4>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="completedBy"
-                  render={({ field }) => (
-                    <FormItem><FormLabel required>Name</FormLabel>
-                      <FormControl><Input placeholder="John Smith" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                <FormField control={form.control} name="jobRole"
-                  render={({ field }) => (
-                    <FormItem><FormLabel required>Job Role</FormLabel>
-                      <FormControl><Input placeholder="Care Assistant" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                <FormField control={form.control} name="date"
-                  render={({ field }) => (
-                    <FormItem><FormLabel required>Date</FormLabel>
-                      <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen} modal>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button variant="outline"
-                              className={cn("w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground")}>
-                              {field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single"
-                            selected={field.value ? new Date(field.value) : undefined}
-                            captionLayout="dropdown"
-                            onSelect={date => {
-                              if (date) { field.onChange(date.getTime()); setDatePopoverOpen(false); }
-                            }} />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
+        <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6" autoComplete="off">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            <div className="space-y-8 px-1">
+              {/* Completed By */}
+              <div className="space-y-4">
+                <div className="space-y-1 pb-2 border-b">
+                  <h4 className="text-sm font-medium">Completed By</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="completedBy"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Name</FormLabel>
+                        <FormControl><Input placeholder="John Smith" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  <FormField control={form.control} name="jobRole"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Job Role</FormLabel>
+                        <FormControl><Input placeholder="Care Assistant" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  <FormField control={form.control} name="date"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Date</FormLabel>
+                        <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen} modal>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button variant="outline"
+                                className={cn("w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground")}>
+                                {field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar mode="single"
+                              selected={field.value ? new Date(field.value) : undefined}
+                              captionLayout="dropdown"
+                              onSelect={date => {
+                                if (date) { field.onChange(date.getTime()); setDatePopoverOpen(false); }
+                              }} />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                </div>
+
+                <div className="space-y-1 pb-2 border-b mt-4">
+                  <h4 className="text-sm font-medium">Resident Information</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="residentName"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Resident Name</FormLabel>
+                        <FormControl><Input {...field} /></FormControl><FormMessage />
+                      </FormItem>
+                    )} />
+                  <FormField control={form.control} name="bedroomNumber"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Bedroom</FormLabel>
+                        <FormControl><Input {...field} /></FormControl><FormMessage />
+                      </FormItem>
+                    )} />
+                  <FormField control={form.control} name="weight"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Weight (kg)</FormLabel>
+                        <FormControl><Input type="number" min="0" step="0.1" {...field}
+                          onChange={e => field.onChange(Number(e.target.value))} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  <FormField control={form.control} name="weightBearing"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Weight Bearing</FormLabel>
+                        <FormControl><Input placeholder="Full weight bearing" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                </div>
               </div>
 
-              <div className="space-y-1 pb-2 border-b mt-4">
-                <h4 className="text-sm font-medium">Resident Information</h4>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="residentName"
-                  render={({ field }) => (
-                    <FormItem><FormLabel required>Resident Name</FormLabel>
-                      <FormControl><Input {...field} /></FormControl><FormMessage />
-                    </FormItem>
-                  )} />
-                <FormField control={form.control} name="bedroomNumber"
-                  render={({ field }) => (
-                    <FormItem><FormLabel required>Bedroom</FormLabel>
-                      <FormControl><Input {...field} /></FormControl><FormMessage />
-                    </FormItem>
-                  )} />
-                <FormField control={form.control} name="weight"
-                  render={({ field }) => (
-                    <FormItem><FormLabel required>Weight (kg)</FormLabel>
-                      <FormControl><Input type="number" min="0" step="0.1" {...field}
-                        onChange={e => field.onChange(Number(e.target.value))} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                <FormField control={form.control} name="weightBearing"
-                  render={({ field }) => (
-                    <FormItem><FormLabel required>Weight Bearing</FormLabel>
-                      <FormControl><Input placeholder="Full weight bearing" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-              </div>
+              {renderActivityFields("transferBed", "Transfer to or from Bed")}
+              {renderActivityFields("transferChair", "Transfer to or from Chair")}
+              {renderActivityFields("walking", "Walking")}
+              {renderActivityFields("toileting", "Toileting")}
+              {renderActivityFields("movementInBed", "Movement in Bed")}
+              {renderActivityFields("bath", "Bathing")}
+              {renderActivityFields("outdoorMobility", "Outdoor Mobility")}
             </div>
 
-            {renderActivityFields("transferBed", "Transfer to or from Bed")}
-            {renderActivityFields("transferChair", "Transfer to or from Chair")}
-            {renderActivityFields("walking", "Walking")}
-            {renderActivityFields("toileting", "Toileting")}
-            {renderActivityFields("movementInBed", "Movement in Bed")}
-            {renderActivityFields("bath", "Bathing")}
-            {renderActivityFields("outdoorMobility", "Outdoor Mobility")}
-          </div>
-
-          {!isInline && (
-            <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => onClose?.()}
-                disabled={isLoading}>Cancel</Button>
-              <Button type="button" onClick={form.handleSubmit(handleSubmit)} disabled={isLoading}>
-                {isLoading ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-                ) : "Save Profile"}
-              </Button>
-            </DialogFooter>
-          )}
-        </form>
+            {!isInline && !viewOnly && (
+              <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
+                <Button type="button" variant="outline" onClick={() => onClose?.()}
+                  disabled={isLoading}>Cancel</Button>
+                <Button type="button" onClick={form.handleSubmit(handleSubmit)} disabled={isLoading}>
+                  {isLoading ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                  ) : "Save Profile"}
+                </Button>
+              </DialogFooter>
+            )}
+          </form>
+        </fieldset>
       </Form>
     </>
   );

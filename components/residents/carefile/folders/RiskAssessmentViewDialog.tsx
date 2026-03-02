@@ -1,186 +1,1015 @@
 "use client";
 
+import { format } from "date-fns";
+import React, { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { format } from "date-fns";
-import { FileText, BriefcaseIcon } from "lucide-react";
-import React, { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
-import { CarePlanEvaluations } from "../CarePlanEvaluations";
 
-const safeFormat = (dateValue: any, formatStr: string) => {
-  if (!dateValue) return "N/A";
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const safeFormat = (v: any, fmt: string): string => {
+  if (!v) return "";
   try {
-    const date = new Date(dateValue);
-    if (isNaN(date.getTime())) return "N/A";
-    return format(date, formatStr);
-  } catch (e) {
-    return "N/A";
-  }
+    const d = new Date(typeof v === "number" ? v : v);
+    if (isNaN(d.getTime())) return String(v);
+    return format(d, fmt);
+  } catch { return String(v); }
 };
 
-// Internal fields to skip when rendering nested objects
+/** Get a value from an object using dot-path notation (e.g. "mobility_assessment.weight") */
+const getPath = (obj: any, path: string): any => {
+  return path.split(".").reduce((acc, key) => acc?.[key], obj);
+};
+
+/** Format a raw value for display */
+const formatValue = (v: any, fmt?: "date" | "bool" | string): string => {
+  if (v === null || v === undefined || v === "") return "—";
+
+  // Custom format handlers for complex/nested values
+  if (typeof fmt === "string") {
+    // PEEP: steps array
+    if (fmt === "peep_steps") {
+      if (!v) return "—";
+      const stepsArray = Array.isArray(v)
+        ? (v as any[])
+        : (typeof v === "object"
+          ? Object.values(v as any)
+          : []);
+      if (!stepsArray.length) return "—";
+      const items = stepsArray.map((step: any, idx: number) => {
+        const name = step?.name || `Step ${idx + 1}`;
+        const desc = step?.description;
+        return desc ? `${idx + 1}) ${name}: ${desc}` : `${idx + 1}) ${name}`;
+      });
+      return items.join(" | ");
+    }
+
+    // Pain assessment: entry count
+    if (fmt === "pain_entries_count") {
+      if (!Array.isArray(v)) return "0 entries";
+      const count = v.length;
+      return `${count} entr${count === 1 ? "y" : "ies"}`;
+    }
+
+    // Pain assessment: latest entry field (e.g. pain_latest.painLocation)
+    if (fmt.startsWith("pain_latest.")) {
+      const field = fmt.slice("pain_latest.".length);
+      if (Array.isArray(v) && v.length > 0) {
+        const latest = v[v.length - 1] ?? {};
+        const val = latest?.[field];
+        return val === null || val === undefined || val === "" ? "—" : String(val);
+      }
+      return "—";
+    }
+
+    // Resident valuables: simple lists
+    if (fmt === "valuables_list") {
+      if (!Array.isArray(v) || v.length === 0) return "—";
+      const items = (v as any[])
+        .map((item) => item?.value)
+        .filter((x) => x && String(x).trim().length > 0);
+      if (!items.length) {
+        const count = v.length;
+        return `${count} item${count === 1 ? "" : "s"}`;
+      }
+      return items.join(", ");
+    }
+
+    if (fmt === "clothing_list") {
+      if (!Array.isArray(v) || v.length === 0) return "—";
+      const items = (v as any[])
+        .map((item) => item?.value)
+        .filter((x) => x && String(x).trim().length > 0);
+      if (!items.length) {
+        const count = v.length;
+        return `${count} item${count === 1 ? "" : "s"}`;
+      }
+      return items.join(", ");
+    }
+
+    if (fmt === "other_items_list") {
+      if (!Array.isArray(v) || v.length === 0) return "—";
+      const items = (v as any[])
+        .map((item, idx) => {
+          const details = item?.details;
+          if (!details) return null;
+          const time = item?.time;
+          const who = item?.receivedBy || item?.witnessedBy;
+          const parts = [details];
+          if (who) parts.push(`(${who})`);
+          if (time) parts.push(`@ ${time}`);
+          return `${idx + 1}) ${parts.join(" ")}`;
+        })
+        .filter((x) => x);
+      if (!items.length) {
+        const count = v.length;
+        return `${count} item${count === 1 ? "" : "s"}`;
+      }
+      return items.join(" | ");
+    }
+  }
+
+  // Generic booleans & dates
+  if (fmt === "bool" || typeof v === "boolean") return v ? "Yes" : "No";
+  if (fmt === "date" || (typeof v === "number" && v > 1_000_000_000_000)) {
+    return safeFormat(v, "dd MMM yyyy");
+  }
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}(T|\s)/.test(v)) {
+    return safeFormat(v, "dd MMM yyyy");
+  }
+
+  // Arrays: render primitives inline, objects as a compact count
+  if (Array.isArray(v)) {
+    if (v.length === 0) return "—";
+    const first = v[0];
+    if (
+      typeof first === "string" ||
+      typeof first === "number" ||
+      typeof first === "boolean"
+    ) {
+      return (v as any[]).join(", ");
+    }
+    const count = v.length;
+    return `${count} item${count === 1 ? "" : "s"}`;
+  }
+
+  if (typeof v === "object") {
+    // Fallback: JSON representation for unexpected complex objects
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
+
+  return String(v);
+};
+
+// ─── Schema Types ─────────────────────────────────────────────────────────────
+
+type FieldDef = {
+  label: string;
+  path: string;                    // dot-path into the DB row
+  fmt?: "date" | "bool" | string;  // optional formatter hint
+};
+
+type SectionDef = {
+  title: string;
+  fields: FieldDef[];
+};
+
+// ─── Per-form schemas ──────────────────────────────────────────────────────────
+// Each schema mirrors the section order of the corresponding dialog form.
+
+const FORM_SCHEMAS: Record<string, SectionDef[]> = {
+
+  // ── Admission Assessment ──────────────────────────────────────────────────
+  "admission-form": [
+    {
+      title: "Basic Information",
+      fields: [
+        { label: "First Name", path: "assessment_data.firstName" },
+        { label: "Last Name", path: "assessment_data.lastName" },
+        { label: "Date of Birth", path: "assessment_data.dateOfBirth", fmt: "date" },
+        { label: "Bedroom", path: "assessment_data.bedroomNumber" },
+        { label: "NHS Number", path: "assessment_data.NHSNumber" },
+        { label: "Gender", path: "assessment_data.gender" },
+        { label: "Phone", path: "assessment_data.telephoneNumber" },
+        { label: "Ethnicity", path: "assessment_data.ethnicity" },
+        { label: "Religion", path: "assessment_data.religion" },
+        { label: "Admitted From", path: "assessment_data.admittedFrom" },
+      ],
+    },
+    {
+      title: "Next of Kin",
+      fields: [
+        { label: "NOK First Name", path: "assessment_data.kinFirstName" },
+        { label: "NOK Last Name", path: "assessment_data.kinLastName" },
+        { label: "Relationship", path: "assessment_data.kinRelationship" },
+        { label: "Phone", path: "assessment_data.kinTelephoneNumber" },
+        { label: "Email", path: "assessment_data.kinEmail" },
+        { label: "Address", path: "assessment_data.kinAddress" },
+      ],
+    },
+    {
+      title: "Emergency Contacts",
+      fields: [
+        { label: "Name", path: "assessment_data.emergencyContactName" },
+        { label: "Relationship", path: "assessment_data.emergencyContactRelationship" },
+        { label: "Phone", path: "assessment_data.emergencyContactTelephoneNumber" },
+        { label: "Alt. Phone", path: "assessment_data.emergencyContactPhoneNumber" },
+      ],
+    },
+    {
+      title: "Professional Contacts",
+      fields: [
+        { label: "Care Manager", path: "assessment_data.careManagerName" },
+        { label: "Care Manager Role", path: "assessment_data.careManagerJobRole" },
+        { label: "Care Manager Phone", path: "assessment_data.careManagerTelephoneNumber" },
+        { label: "Care Manager Addr", path: "assessment_data.careManagerAddress" },
+        { label: "GP Name", path: "assessment_data.GPName" },
+        { label: "GP Phone", path: "assessment_data.GPPhoneNumber" },
+        { label: "GP Address", path: "assessment_data.GPAddress" },
+      ],
+    },
+    {
+      title: "Medical Information",
+      fields: [
+        { label: "Allergies", path: "assessment_data.allergies" },
+        { label: "Medical History", path: "assessment_data.medicalHistory" },
+        { label: "Prescribed Medications", path: "assessment_data.prescribedMedications" },
+        { label: "Consent & Capacity", path: "assessment_data.consentCapacityRights" },
+      ],
+    },
+    {
+      title: "Care Assessments",
+      fields: [
+        { label: "Skin Integrity & Wounds", path: "assessment_data.skinIntegrityWounds" },
+        { label: "Sleep & Bedtime Routine", path: "assessment_data.bedtimeRoutine" },
+        { label: "Current Infection", path: "assessment_data.currentInfection" },
+        { label: "Antibiotics Prescribed", path: "assessment_data.antibioticsPrescribed", fmt: "bool" },
+        { label: "Respiratory Support", path: "assessment_data.prescribedBreathing" },
+        { label: "Independent Mobility", path: "assessment_data.mobilityIndependent", fmt: "bool" },
+        { label: "Assistance Required", path: "assessment_data.assistanceRequired" },
+        { label: "Mobility Equipment", path: "assessment_data.equipmentRequired" },
+      ],
+    },
+    {
+      title: "Nutrition, Diet & Hydration",
+      fields: [
+        { label: "Weight (kg)", path: "assessment_data.weight" },
+        { label: "Height (cm)", path: "assessment_data.height" },
+        { label: "IDDSI Food Level", path: "assessment_data.iddsiFood" },
+        { label: "IDDSI Fluid Level", path: "assessment_data.iddsiFluid" },
+        { label: "Diet Type / Preferences", path: "assessment_data.dietType" },
+        { label: "Nutritional Supplements", path: "assessment_data.nutritionalSupplements" },
+        { label: "Choking Risk", path: "assessment_data.chockingRisk", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Continence & Personal Hygiene",
+      fields: [
+        { label: "Continence Needs", path: "assessment_data.continence" },
+        { label: "Personal Hygiene", path: "assessment_data.hygiene" },
+        { label: "Additional Comments", path: "assessment_data.additionalComments" },
+      ],
+    },
+  ],
+
+  // ── Pre-Admission Assessment ───────────────────────────────────────────────
+  "preAdmission-form": [
+    {
+      title: "Administrative Details",
+      fields: [
+        { label: "Care Home", path: "care_home_name" },
+        { label: "NHS Number", path: "nhs_number" },
+        { label: "Assessing Worker", path: "assessment_data.userName" },
+        { label: "Job Role", path: "assessment_data.jobRole" },
+        { label: "Assessment Date", path: "assessment_data.date", fmt: "date" },
+        { label: "Consent Given", path: "consent_accepted_at", fmt: "date" },
+      ],
+    },
+    {
+      title: "Resident Information",
+      fields: [
+        { label: "First Name", path: "assessment_data.firstName" },
+        { label: "Last Name", path: "assessment_data.lastName" },
+        { label: "Date of Birth", path: "assessment_data.dateOfBirth", fmt: "date" },
+        { label: "Address", path: "assessment_data.address" },
+        { label: "Phone", path: "assessment_data.phoneNumber" },
+        { label: "Ethnicity", path: "assessment_data.ethnicity" },
+        { label: "Gender", path: "assessment_data.gender" },
+        { label: "Religion", path: "assessment_data.religion" },
+        { label: "Preferred Name", path: "assessment_data.preferedName" },
+      ],
+    },
+    {
+      title: "Next of Kin",
+      fields: [
+        { label: "First Name", path: "assessment_data.kinFirstName" },
+        { label: "Last Name", path: "assessment_data.kinLastName" },
+        { label: "Relationship", path: "assessment_data.kinRelationship" },
+        { label: "Phone", path: "assessment_data.kinPhoneNumber" },
+      ],
+    },
+    {
+      title: "Professional Contacts",
+      fields: [
+        { label: "Care Manager", path: "assessment_data.careManagerName" },
+        { label: "Care Manager Phone", path: "assessment_data.careManagerPhoneNumber" },
+        { label: "District Nurse", path: "assessment_data.districtNurseName" },
+        { label: "District Nurse Ph.", path: "assessment_data.districtNursePhoneNumber" },
+        { label: "GP Name", path: "assessment_data.generalPractitionerName" },
+        { label: "GP Phone", path: "assessment_data.generalPractitionerPhoneNumber" },
+        { label: "Provider Name", path: "assessment_data.providerHealthcareInfoName" },
+        { label: "Provider Role", path: "assessment_data.providerHealthcareInfoDesignation" },
+      ],
+    },
+    {
+      title: "Medical Assessment",
+      fields: [
+        { label: "Known Allergies", path: "assessment_data.allergies" },
+        { label: "Medical History", path: "assessment_data.medicalHistory" },
+        { label: "Medications", path: "assessment_data.medicationPrescribed" },
+      ],
+    },
+    {
+      title: "Activities of Daily Living",
+      fields: [
+        { label: "Consent & Capacity", path: "assessment_data.consentCapacityRights" },
+        { label: "Medication", path: "assessment_data.medication" },
+        { label: "Mobility", path: "assessment_data.mobility" },
+        { label: "Nutrition", path: "assessment_data.nutrition" },
+        { label: "Continence", path: "assessment_data.continence" },
+        { label: "Hygiene & Dressing", path: "assessment_data.hygieneDressing" },
+        { label: "Skin", path: "assessment_data.skin" },
+        { label: "Cognition", path: "assessment_data.cognition" },
+        { label: "Infection", path: "assessment_data.infection" },
+        { label: "Breathing", path: "assessment_data.breathing" },
+        { label: "Altered Consciousness", path: "assessment_data.alteredStateOfConsciousness" },
+      ],
+    },
+    {
+      title: "Legal & End of Life",
+      fields: [
+        { label: "DNACPR", path: "assessment_data.dnacpr", fmt: "bool" },
+        { label: "Advanced Decision", path: "assessment_data.advancedDecision", fmt: "bool" },
+        { label: "Capacity", path: "assessment_data.capacity", fmt: "bool" },
+        { label: "Advanced Care Plan", path: "assessment_data.advancedCarePlan", fmt: "bool" },
+        { label: "Palliative Comments", path: "assessment_data.comments" },
+      ],
+    },
+    {
+      title: "Resident Preferences",
+      fields: [
+        { label: "Room Preferences", path: "assessment_data.roomPreferences" },
+        { label: "Admission Contact", path: "assessment_data.admissionContact" },
+        { label: "Food Preferences", path: "assessment_data.foodPreferences" },
+        { label: "Family Concerns", path: "assessment_data.familyConcerns" },
+        { label: "Equipment", path: "assessment_data.equipment" },
+      ],
+    },
+    {
+      title: "Financial & Final Details",
+      fields: [
+        { label: "Attend Finances", path: "assessment_data.attendFinances", fmt: "bool" },
+        { label: "Other Considerations", path: "assessment_data.additionalConsiderations" },
+        { label: "Other Health Pros", path: "assessment_data.otherHealthCareProfessional" },
+        { label: "Assessment Outcome", path: "assessment_data.outcome" },
+        { label: "Planned Admission", path: "assessment_data.plannedAdmissionDate", fmt: "date" },
+      ],
+    },
+  ],
+
+  // ── Bladder & Bowel (Continence) ──────────────────────────────────────────
+  "blader-bowel-form": [
+    {
+      title: "General Information",
+      fields: [
+        { label: "Resident Name", path: "residentName" },
+        { label: "Bedroom", path: "bedroomNumber" },
+        { label: "Info Obtained From", path: "informationObtainedFrom" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Completed By", path: "completed_by" },
+        { label: "Next Review Date", path: "next_review_date", fmt: "date" },
+      ],
+    },
+    {
+      title: "Infection Risks",
+      fields: [
+        { label: "Hepatitis A/B", path: "symptoms.infections.hepatitisAB", fmt: "bool" },
+        { label: "Blood Borne Viruses", path: "symptoms.infections.bloodBorneVirues", fmt: "bool" },
+        { label: "MRSA", path: "symptoms.infections.mrsa", fmt: "bool" },
+        { label: "ESBL", path: "symptoms.infections.esbl", fmt: "bool" },
+        { label: "Other Infections", path: "symptoms.infections.other" },
+      ],
+    },
+    {
+      title: "Urinalysis Results",
+      fields: [
+        { label: "pH", path: "symptoms.urinalysis.ph", fmt: "bool" },
+        { label: "Nitrates", path: "symptoms.urinalysis.nitrates", fmt: "bool" },
+        { label: "Protein", path: "symptoms.urinalysis.protein", fmt: "bool" },
+        { label: "Leucocytes", path: "symptoms.urinalysis.leucocytes", fmt: "bool" },
+        { label: "Glucose", path: "symptoms.urinalysis.glucose", fmt: "bool" },
+        { label: "Blood", path: "symptoms.urinalysis.bloodResult", fmt: "bool" },
+        { label: "MSSU Sent", path: "symptoms.urinalysis.mssuDate", fmt: "date" },
+      ],
+    },
+    {
+      title: "Relevant Medications",
+      fields: [
+        { label: "Anti-hypertensives", path: "symptoms.medications.antiHypertensives", fmt: "bool" },
+        { label: "Anti-Parkinson", path: "symptoms.medications.antiParkinsonDrugs", fmt: "bool" },
+        { label: "Iron Supplement", path: "symptoms.medications.ironSupplement", fmt: "bool" },
+        { label: "Laxatives", path: "symptoms.medications.laxatives", fmt: "bool" },
+        { label: "Diuretics", path: "symptoms.medications.diuretics", fmt: "bool" },
+        { label: "Histamine Blockers", path: "symptoms.medications.histamine", fmt: "bool" },
+        { label: "Anti-depressants", path: "symptoms.medications.antiDepressants", fmt: "bool" },
+        { label: "Cholinergic", path: "symptoms.medications.cholinergic", fmt: "bool" },
+        { label: "Sedatives/Hypnotics", path: "symptoms.medications.sedativesHypnotic", fmt: "bool" },
+        { label: "Anti-psychotics", path: "symptoms.medications.antiPsychotic", fmt: "bool" },
+        { label: "Antihistamines", path: "symptoms.medications.antihistamines", fmt: "bool" },
+        { label: "Narcotic Analgesics", path: "symptoms.medications.narcoticAnalgesics", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Lifestyle & Physical Factors",
+      fields: [
+        { label: "Smoking Status", path: "lifestyle_factors.smoking" },
+        { label: "Weight Check", path: "lifestyle_factors.weight" },
+        { label: "Skin Condition", path: "lifestyle_factors.skinCondition" },
+        { label: "Constipation History", path: "lifestyle_factors.constipationHistory", fmt: "bool" },
+        { label: "Recurrent UTIs History", path: "lifestyle_factors.historyRecurrentUTIs", fmt: "bool" },
+        { label: "Caffeine (ml/24h)", path: "lifestyle_factors.caffeineMls24h" },
+        { label: "Alcohol (units/day)", path: "lifestyle_factors.alcoholAmount24h" },
+      ],
+    },
+    {
+      title: "Bladder Pattern & Symptoms",
+      fields: [
+        { label: "Urinary Incontinence", path: "bladder_pattern.incontinence" },
+        { label: "Typical Volume", path: "bladder_pattern.volume" },
+        { label: "Onset", path: "bladder_pattern.onset" },
+        { label: "Continent", path: "bladder_pattern.bladderContinent", fmt: "bool" },
+        { label: "Incontinent", path: "bladder_pattern.bladderIncontinent", fmt: "bool" },
+        { label: "Incontinent Type", path: "bladder_pattern.bladderIncontinentType" },
+        { label: "Coughing/Laughing leak", path: "symptoms.specific.leakCoughLaugh", fmt: "bool" },
+        { label: "Standing up leak", path: "symptoms.specific.leakStandingUp", fmt: "bool" },
+        { label: "Frequent voiding", path: "symptoms.specific.passesUrineFrequently", fmt: "bool" },
+        { label: "Urge incontinence", path: "symptoms.specific.leaksBeforeToilet", fmt: "bool" },
+        { label: "Nocturia (>2x)", path: "symptoms.specific.moreThanTwiceAtNight", fmt: "bool" },
+        { label: "Referral Required", path: "bladder_pattern.bladderReferralRequired" },
+        { label: "Plan Commenced", path: "bladder_pattern.bladderPlanCommenced", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Bowel Pattern",
+      fields: [
+        { label: "Bowel Status", path: "bowel_pattern.bowelState" },
+        { label: "Frequency", path: "bowel_pattern.bowelFrequency" },
+        { label: "Usual Time of Day", path: "bowel_pattern.usualTimeOfDat" },
+        { label: "Bristol Stool Type", path: "bowel_pattern.amountAndStoolType" },
+        { label: "Continent", path: "bowel_pattern.bowelContinent", fmt: "bool" },
+        { label: "Incontinent", path: "bowel_pattern.bowelIncontinent", fmt: "bool" },
+        { label: "Referral Required", path: "bowel_pattern.bowelReferralRequired" },
+        { label: "Plan Commenced", path: "bowel_pattern.bowelPlanCommenced", fmt: "bool" },
+        { label: "Record Commenced", path: "bowel_pattern.bowelRecordCommenced", fmt: "bool" },
+        { label: "Medical Officer Consulted", path: "bowel_pattern.medicalOfficerConsulted", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Toileting Habits & Aids",
+      fields: [
+        { label: "Day Pattern", path: "bladder_pattern.dayPattern" },
+        { label: "Evening Pattern", path: "bladder_pattern.eveningPattern" },
+        { label: "Night Pattern", path: "bladder_pattern.nightPattern" },
+        { label: "Continence Pads/Aids", path: "bladder_pattern.typesOfPads" },
+      ],
+    },
+    {
+      title: "Sign-off",
+      fields: [
+        { label: "Staff Name", path: "completed_by" },
+      ],
+    },
+  ],
+
+  // ── Moving & Handling ──────────────────────────────────────────────────────
+  "moving-handling-form": [
+    {
+      title: "Resident Information",
+      fields: [
+        { label: "Resident Name", path: "residentName" },
+        { label: "Weight (kg)", path: "mobility_assessment.weight" },
+        { label: "Height (cm)", path: "mobility_assessment.height" },
+        { label: "History of Falls", path: "risk_factors.historyOfFalls", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Mobility Assessment",
+      fields: [
+        { label: "Independent Mobility", path: "mobility_assessment.independentMobility", fmt: "bool" },
+        { label: "Weight Bearing", path: "mobility_assessment.canWeightBear" },
+        { label: "Upper Right Limb", path: "mobility_assessment.limbUpperRight" },
+        { label: "Upper Left Limb", path: "mobility_assessment.limbUpperLeft" },
+        { label: "Lower Right Limb", path: "mobility_assessment.limbLowerRight" },
+        { label: "Lower Left Limb", path: "mobility_assessment.limbLowerLeft" },
+      ],
+    },
+    {
+      title: "Risk Factors",
+      fields: [
+        { label: "Deafness", path: "risk_factors.deafnessState" },
+        { label: "Deafness Notes", path: "risk_factors.deafnessComments" },
+        { label: "Blindness", path: "risk_factors.blindnessState" },
+        { label: "Blindness Notes", path: "risk_factors.blindnessComments" },
+        { label: "Unpredictable Behaviour", path: "risk_factors.unpredictableBehaviourState" },
+        { label: "Unpredictable Notes", path: "risk_factors.unpredictableBehaviourComments" },
+        { label: "Uncooperative Behaviour", path: "risk_factors.uncooperativeBehaviourState" },
+        { label: "Uncooperative Notes", path: "risk_factors.uncooperativeBehaviourComments" },
+        { label: "Distressed Reaction", path: "risk_factors.distressedReactionState" },
+        { label: "Distressed Notes", path: "risk_factors.distressedReactionComments" },
+        { label: "Disorientated", path: "risk_factors.disorientatedState" },
+        { label: "Disorientated Notes", path: "risk_factors.disorientatedComments" },
+        { label: "Unconscious", path: "risk_factors.unconsciousState" },
+        { label: "Spasms", path: "risk_factors.spasmsState" },
+        { label: "Stiffness", path: "risk_factors.stiffnessState" },
+        { label: "Catheters", path: "risk_factors.cathetersState" },
+        { label: "Incontinence", path: "risk_factors.incontinenceState" },
+        { label: "Localised Pain", path: "risk_factors.localisedPain" },
+        { label: "Other Risks", path: "risk_factors.otherState" },
+      ],
+    },
+    {
+      title: "Requirements & Equipment",
+      fields: [
+        { label: "Staff Requirements", path: "risk_factors.needsRiskStaff" },
+        { label: "Equipment Required", path: "equipment_needed" },
+      ],
+    },
+    {
+      title: "Completion",
+      fields: [
+        { label: "Completed By", path: "completed_by" },
+        { label: "Date", path: "assessment_date", fmt: "date" },
+      ],
+    },
+  ],
+
+  // ── Infection Prevention ────────────────────────────────────────────────────
+  "infection-prevention": [
+    {
+      title: "Resident Details",
+      fields: [
+        { label: "Resident Name", path: "symptoms.details.name" },
+        { label: "Date of Birth", path: "symptoms.details.dateOfBirth", fmt: "date" },
+        { label: "Home Address", path: "symptoms.details.homeAddress" },
+        { label: "Assessment Type", path: "assessment_type" },
+        { label: "Info Provided By", path: "symptoms.details.informationProvidedBy" },
+        { label: "Consultant / GP", path: "symptoms.details.consultantGP" },
+      ],
+    },
+    {
+      title: "Acute Respiratory Illness",
+      fields: [
+        { label: "New Continuous Cough", path: "symptoms.respiratory.newContinuousCough", fmt: "bool" },
+        { label: "Worsening Cough", path: "symptoms.respiratory.worseningCough", fmt: "bool" },
+        { label: "High Temperature", path: "symptoms.respiratory.temperatureHigh", fmt: "bool" },
+        { label: "Other Symptoms", path: "symptoms.respiratory.otherRespiratorySymptoms" },
+        { label: "Tested for COVID-19", path: "symptoms.respiratory.testedForCovid19", fmt: "bool" },
+        { label: "Tested for Influenza A", path: "symptoms.respiratory.testedForInfluenzaA", fmt: "bool" },
+        { label: "Tested for Influenza B", path: "symptoms.respiratory.testedForInfluenzaB", fmt: "bool" },
+        { label: "Resp Screen", path: "symptoms.respiratory.testedForRespiratoryScreen", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Exposure & Isolation",
+      fields: [
+        { label: "Admitted From", path: "exposure_history.admittedFrom" },
+        { label: "Admission Date", path: "exposure_history.dateOfAdmission", fmt: "date" },
+        { label: "Reason for Admission", path: "exposure_history.reasonForAdmission" },
+        { label: "COVID+ Patient Exposure", path: "exposure_history.exposureToPatientsCovid", fmt: "bool" },
+        { label: "COVID+ Staff Exposure", path: "exposure_history.exposureToStaffCovid", fmt: "bool" },
+        { label: "Isolation Required", path: "isolation_required", fmt: "bool" },
+        { label: "Isolation Details", path: "exposure_history.isolationDetails" },
+        { label: "Further Treatment", path: "exposure_history.furtherTreatmentRequired", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Diarrhoea & Vomiting",
+      fields: [
+        { label: "Current Symptoms", path: "symptoms.diarrheaVomiting.currentSymptoms", fmt: "bool" },
+        { label: "Contact With Others", path: "symptoms.diarrheaVomiting.contactWithOthers", fmt: "bool" },
+        { label: "Family History (72h)", path: "symptoms.diarrheaVomiting.familyHistory72h", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Clostridium Difficile",
+      fields: [
+        { label: "Active Case", path: "symptoms.clostridium.active", fmt: "bool" },
+        { label: "Past History", path: "symptoms.clostridium.history", fmt: "bool" },
+        { label: "Stool Count (72h)", path: "symptoms.clostridium.stoolCount72h" },
+        { label: "Last Positive Specimen", path: "symptoms.clostridium.lastPositiveSpecimenDate", fmt: "date" },
+        { label: "Result", path: "symptoms.clostridium.result" },
+        { label: "Treatment Received", path: "symptoms.clostridium.treatmentReceived" },
+        { label: "Treatment Complete", path: "symptoms.clostridium.treatmentComplete", fmt: "bool" },
+        { label: "Ongoing Antibiotic", path: "symptoms.clostridium.ongoingDetails" },
+      ],
+    },
+    {
+      title: "MRSA / MSSA",
+      fields: [
+        { label: "Known Colonisation", path: "symptoms.mrsa.colonised", fmt: "bool" },
+        { label: "Active Infection", path: "symptoms.mrsa.infected", fmt: "bool" },
+        { label: "Last Positive Swab", path: "symptoms.mrsa.lastPositiveSwabDate", fmt: "date" },
+        { label: "Sites Positive", path: "symptoms.mrsa.sitesPositive" },
+        { label: "Treatment Received", path: "symptoms.mrsa.treatmentReceived" },
+        { label: "Decolonisation Details", path: "symptoms.mrsa.mrsaMssaDetails" },
+      ],
+    },
+    {
+      title: "Multi-drug Resistant Organisms",
+      fields: [
+        { label: "ESBL", path: "symptoms.multiDrugResistance.esbl", fmt: "bool" },
+        { label: "VRE / GRE", path: "symptoms.multiDrugResistance.vreGre", fmt: "bool" },
+        { label: "CPE", path: "symptoms.multiDrugResistance.cpe", fmt: "bool" },
+        { label: "Other MDR Organisms", path: "symptoms.multiDrugResistance.other" },
+        { label: "Clinical Notes", path: "symptoms.multiDrugResistance.relevantInformation" },
+      ],
+    },
+    {
+      title: "Vaccinations & Completion",
+      fields: [
+        { label: "Aware of Infection", path: "exposure_history.awarenessOfInfection", fmt: "bool" },
+        { label: "Last Flu Vaccination", path: "exposure_history.lastFluVaccinationDate", fmt: "date" },
+        { label: "Completed By", path: "completed_by" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+      ],
+    },
+  ],
+
+  // ── DNACPR ────────────────────────────────────────────────────────────────
+  "dnacpr": [
+    {
+      title: "Resident & Decision",
+      fields: [
+        { label: "Resident Name", path: "residentName" },
+        { label: "Bedroom Number", path: "bedroomNumber" },
+        { label: "Date of Birth", path: "dateOfBirth", fmt: "date" },
+        { label: "Date of Decision", path: "assessment_date", fmt: "date" },
+        { label: "DNACPR Active", path: "dnacpr_active", fmt: "bool" },
+        { label: "Primary Reason", path: "reason" },
+        { label: "Decision Comments", path: "dnacprComments" },
+      ],
+    },
+    {
+      title: "Discussion Record",
+      fields: [
+        { label: "Discussed with Resident", path: "discussion_history.discussedResident", fmt: "bool" },
+        { label: "Resident Discussion Date", path: "discussion_history.discussedResidentDate", fmt: "date" },
+        { label: "Resident Comments", path: "discussion_history.discussedResidentComments" },
+        { label: "Discussed with Relatives", path: "discussion_history.discussedRelatives", fmt: "bool" },
+        { label: "Relatives Date", path: "discussion_history.discussedRelativeDate", fmt: "date" },
+        { label: "Relatives Comments", path: "discussion_history.discussedRelativesComments" },
+        { label: "Discussed with NOK", path: "discussion_history.discussedNOKs", fmt: "bool" },
+        { label: "NOK Date", path: "discussion_history.discussedNOKsDate", fmt: "date" },
+        { label: "NOK Comments", path: "discussion_history.discussedNOKsComments" },
+        { label: "General Comments", path: "discussion_history.comments" },
+      ],
+    },
+    {
+      title: "Sign-off",
+      fields: [
+        { label: "GP Signature", path: "gp_signature" },
+        { label: "GP Signing Date", path: "gp_date", fmt: "date" },
+        { label: "Resident / NOK Signature", path: "discussion_history.residentNokSignature" },
+        { label: "Registered Nurse", path: "completed_by" },
+      ],
+    },
+  ],
+
+  // ── Skin Integrity (Braden Scale) ─────────────────────────────────────────
+  "skin-integrity-form": [
+    {
+      title: "Basic Information",
+      fields: [
+        { label: "Resident Name", path: "residentName" },
+        { label: "Bedroom Number", path: "bedroomNumber" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Completed By", path: "completed_by" },
+      ],
+    },
+    {
+      title: "Braden Scale Scores",
+      fields: [
+        { label: "Sensory Perception", path: "assessment_details.sensoryPerception" },
+        { label: "Moisture", path: "assessment_details.moisture" },
+        { label: "Activity", path: "assessment_details.activity" },
+        { label: "Mobility", path: "assessment_details.mobility" },
+        { label: "Nutrition", path: "assessment_details.nutrition" },
+        { label: "Friction & Shear", path: "assessment_details.frictionShear" },
+      ],
+    },
+    {
+      title: "Risk Summary",
+      fields: [
+        { label: "Total Braden Score", path: "risk_score" },
+        { label: "Risk Level", path: "risk_level" },
+      ],
+    },
+  ],
+
+  // ── PEEP (Personal Emergency Evacuation Plan) ────────────────────────────────
+  "peep": [
+    {
+      title: "Resident Information",
+      fields: [
+        { label: "Resident Name", path: "residentName" },
+        { label: "Bedroom Number", path: "bedroomNumber" },
+        { label: "Date of Birth", path: "residentDateOfBirth", fmt: "date" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Completed By", path: "completed_by" },
+      ],
+    },
+    {
+      title: "Assistance Needed",
+      fields: [
+        { label: "Understands Evacuation Procedure", path: "assistance_needed.understands", fmt: "bool" },
+        { label: "Number of Staff Needed", path: "assistance_needed.staffNeeded" },
+        { label: "Equipment Needed", path: "assistance_needed.equipmentNeeded" },
+        { label: "Communication Needs", path: "assistance_needed.communicationNeeds" },
+      ],
+    },
+    {
+      title: "Evacuation Steps",
+      fields: [
+        // Render the whole steps array with a specialised formatter
+        { label: "Steps", path: "evacuation_steps", fmt: "peep_steps" },
+      ],
+    },
+    {
+      title: "Fire Safety / Hazards",
+      fields: [
+        { label: "Oxygen In Use", path: "hazard_info.oxigenInUse", fmt: "bool" },
+        { label: "Oxygen Comments", path: "hazard_info.oxigenComments" },
+        { label: "Resident Smokes", path: "hazard_info.residentSmokes", fmt: "bool" },
+        { label: "Smoking Comments", path: "hazard_info.residentSmokesComments" },
+        { label: "Furniture Fire Retardant", path: "hazard_info.furnitureFireRetardant", fmt: "bool" },
+        { label: "Furniture Comments", path: "hazard_info.furnitureFireRetardantComments" },
+      ],
+    },
+  ],
+
+  // ── Pain Assessment & Evaluation ─────────────────────────────────────────────
+  "pain-assessment-form": [
+    {
+      title: "Assessment Summary",
+      fields: [
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Number of Entries", path: "assessment_entries", fmt: "pain_entries_count" },
+      ],
+    },
+    {
+      title: "Latest Entry (Summary)",
+      fields: [
+        { label: "Date / Time", path: "assessment_entries", fmt: "pain_latest.dateTime" },
+        { label: "Pain Location", path: "assessment_entries", fmt: "pain_latest.painLocation" },
+        { label: "Description of Pain", path: "assessment_entries", fmt: "pain_latest.descriptionOfPain" },
+        { label: "Behaviour", path: "assessment_entries", fmt: "pain_latest.residentBehaviour" },
+        { label: "Intervention", path: "assessment_entries", fmt: "pain_latest.interventionType" },
+        { label: "Pain After Intervention", path: "assessment_entries", fmt: "pain_latest.painAfterIntervention" },
+      ],
+    },
+  ],
+
+  // ── Resident Handling Profile ────────────────────────────────────────────────
+  "resident-handling-profile-form": [
+    {
+      title: "Summary",
+      fields: [
+        { label: "Completed By", path: "completed_by" },
+        { label: "Job Role", path: "job_role" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Weight (kg)", path: "weight" },
+        { label: "Weight Bearing", path: "weight_bearing" },
+      ],
+    },
+    {
+      title: "Activities - Transfers & Mobility",
+      fields: [
+        { label: "Transfer: Bed - Staff", path: "activities.transferBed.nStaff" },
+        { label: "Transfer: Bed - Equipment", path: "activities.transferBed.equipment" },
+        { label: "Transfer: Chair - Staff", path: "activities.transferChair.nStaff" },
+        { label: "Transfer: Chair - Equipment", path: "activities.transferChair.equipment" },
+        { label: "Walking - Staff", path: "activities.walking.nStaff" },
+        { label: "Walking - Equipment", path: "activities.walking.equipment" },
+      ],
+    },
+    {
+      title: "Activities - Personal Care",
+      fields: [
+        { label: "Toileting - Staff", path: "activities.toileting.nStaff" },
+        { label: "Toileting - Equipment", path: "activities.toileting.equipment" },
+        { label: "Movement In Bed - Staff", path: "activities.movementInBed.nStaff" },
+        { label: "Movement In Bed - Equipment", path: "activities.movementInBed.equipment" },
+        { label: "Bathing - Staff", path: "activities.bath.nStaff" },
+        { label: "Bathing - Equipment", path: "activities.bath.equipment" },
+        { label: "Outdoor Mobility - Staff", path: "activities.outdoorMobility.nStaff" },
+        { label: "Outdoor Mobility - Equipment", path: "activities.outdoorMobility.equipment" },
+      ],
+    },
+  ],
+
+  // ── Bed Rails Risk Assessment ───────────────────────────────────────────────
+  "bed-rails-risk-assessment-form": [
+    {
+      title: "Administrative Details",
+      fields: [
+        { label: "Resident Name", path: "residentName" },
+        { label: "Bedroom Number", path: "bedroomNumber" },
+        { label: "Completed By", path: "completed_by" },
+        { label: "Job Role", path: "jobRole" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+      ],
+    },
+    {
+      title: "Exclusion Criteria (Rails SHOULD NOT Be Used)",
+      fields: [
+        { label: "Resident Refuses", path: "risks_identified.residentRefuses", fmt: "bool" },
+        { label: "Climbing Risk", path: "risks_identified.climbingRisk", fmt: "bool" },
+        { label: "Entrapment Risk", path: "risks_identified.entrapmentRisk", fmt: "bool" },
+        { label: "Abnormal Body Size", path: "risks_identified.abnormalBodySize", fmt: "bool" },
+        { label: "Used for Restraint", path: "risks_identified.restraintPurpose", fmt: "bool" },
+        { label: "Freedom Limitation", path: "risks_identified.freedomLimitation", fmt: "bool" },
+        { label: "Any Exclusion Checked", path: "anyExclusionChecked", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Benefits & Authorization",
+      fields: [
+        { label: "Resident Requests", path: "benefits_identified.residentRequests", fmt: "bool" },
+        { label: "MDT Meeting Completed", path: "benefits_identified.mdtMeetingCompleted", fmt: "bool" },
+        { label: "Risk Outweighs Benefit", path: "benefits_identified.riskOutweighsBenefit", fmt: "bool" },
+        { label: "Alternatives Explored", path: "benefits_identified.alternativesExplored", fmt: "bool" },
+        { label: "Best Interest Decision", path: "benefits_identified.bestInterestDecision", fmt: "bool" },
+        { label: "Reason Explained to Resident", path: "decision.reasonExplainedToResident" },
+      ],
+    },
+    {
+      title: "Decision & Equipment",
+      fields: [
+        { label: "Type of Bed", path: "decision.typeOfBed" },
+        { label: "Type of Mattress", path: "decision.typeOfMattress" },
+        { label: "Type of Bedrails", path: "decision.typeOfBedrails" },
+        { label: "Any Safety Check Failed", path: "decision.anySafetyCheckFailed", fmt: "bool" },
+        { label: "Has Extended Height Rails", path: "decision.hasExtendedHeightRails", fmt: "bool" },
+        { label: "Consent Obtained", path: "decision.consentObtained" },
+        { label: "Care Plan Completed", path: "decision.carePlanCompleted" },
+      ],
+    },
+  ],
+
+  // ── Resident Valuables & Personal Property ──────────────────────────────────
+  "resident-valuables-form": [
+    {
+      title: "Resident Information",
+      fields: [
+        { label: "Resident Name", path: "assessment_data.residentName" },
+        { label: "Bedroom Number", path: "assessment_data.bedroomNumber" },
+        { label: "Assessment Date", path: "assessment_data.date", fmt: "date" },
+        { label: "Completed By", path: "assessment_data.completedBy" },
+        { label: "Witnessed By", path: "assessment_data.witnessedBy" },
+      ],
+    },
+    {
+      title: "Cash Held",
+      fields: [
+        { label: "£50 Notes", path: "assessment_data.n50" },
+        { label: "£20 Notes", path: "assessment_data.n20" },
+        { label: "£10 Notes", path: "assessment_data.n10" },
+        { label: "£5 Notes", path: "assessment_data.n5" },
+        { label: "£2 Coins", path: "assessment_data.n2" },
+        { label: "£1 Coins", path: "assessment_data.n1" },
+        { label: "50p Coins", path: "assessment_data.p50" },
+        { label: "20p Coins", path: "assessment_data.p20" },
+        { label: "10p Coins", path: "assessment_data.p10" },
+        { label: "5p Coins", path: "assessment_data.p5" },
+        { label: "2p Coins", path: "assessment_data.p2" },
+        { label: "1p Coins", path: "assessment_data.p1" },
+        { label: "Total (£)", path: "assessment_data.total" },
+      ],
+    },
+    {
+      title: "Valuables & Clothing",
+      fields: [
+        { label: "Valuables", path: "assessment_data.valuables", fmt: "valuables_list" },
+        { label: "Clothing Items", path: "assessment_data.clothing", fmt: "clothing_list" },
+      ],
+    },
+    {
+      title: "Other Items",
+      fields: [
+        { label: "Other Items Log", path: "assessment_data.other", fmt: "other_items_list" },
+      ],
+    },
+  ],
+
+};
+
+// ─── Compact Schema Renderer ──────────────────────────────────────────────────
+
+function SchemaViewer({ data, schema }: { data: any; schema: SectionDef[] }) {
+  return (
+    <div className="columns-1 lg:columns-2 gap-8 w-full pb-4">
+      {schema.map((section) => (
+        <div key={section.title} className="break-inside-avoid mb-8 space-y-1">
+          {/* Section heading — matches the form dialog section title exactly */}
+          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b pb-1 mb-2">
+            {section.title}
+          </div>
+          {/* Fields — compact label : value rows, always shown */}
+          <div className="space-y-0.5">
+            {section.fields.map((f, idx) => {
+              const rawVal = getPath(data, f.path);
+              const display = formatValue(rawVal, f.fmt);
+              return (
+                <div
+                  key={`${section.title}-${f.path}-${f.label}-${idx}`}
+                  className="flex items-baseline gap-2 py-0.5"
+                >
+                  <span className="text-[11px] text-muted-foreground min-w-[160px] shrink-0 leading-relaxed">
+                    {f.label}
+                  </span>
+                  <span className={`text-[12px] leading-relaxed break-words ${display === "—" ? "text-muted-foreground/50 italic" : "text-foreground"}`}>
+                    {display}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+// ─── Generic Fallback Renderer ─────────────────────────────────────────────────
+// Used for form types not yet in FORM_SCHEMAS
+
 const SKIP_KEYS = new Set([
   "id", "_id", "resident_id", "residentId", "organization_id", "organizationId",
   "team_id", "teamId", "user_id", "userId", "created_by", "createdBy",
   "created_at", "createdAt", "updated_at", "updatedAt", "updated_by", "updatedBy",
-  "previous_version_id", "previousVersionId", "previous_care_plan_id", "Previous_care_plan_id",
-  "status", "archived_at", "archivedAt", "Archived_at", "version", "is_archived", "isArchived",
-  "Previous_version_id", "Previous_version_ID",
-  "pdf_file_id", "pdfFileId", "pdf_generated", "pdfGenerated",
-  "pdf_generated_at", "pdfGeneratedAt", "saved_as_draft", "savedAsDraft",
-  "__v", "_rev"
+  "previous_version_id", "previousVersionId", "previous_care_plan_id",
+  "status", "archived_at", "version", "is_archived", "isArchived",
+  "pdf_file_id", "pdfFileId", "pdf_generated", "saved_as_draft",
+  "__v", "_rev",
 ]);
 
-// Format a camelCase or snake_case key into a human-readable label
-const formatFieldKey = (key: string): string => {
-  return key
-    .replace(/_/g, " ")
-    .replace(/([A-Z])/g, " $1")
-    .replace(/^./, (str) => str.toUpperCase())
-    .trim();
-};
-
-// Check if a value is effectively empty
-const isEmptyValue = (value: any): boolean => {
-  if (value === null || value === undefined) return true;
-  if (typeof value === "string") return value.trim() === "";
-  if (typeof value === "number") return false; // Zero is a value
-  if (typeof value === "boolean") return false; // false is a valid answer
-  if (Array.isArray(value)) {
-    if (value.length === 0) return true;
-    return value.every(v => isEmptyValue(v));
-  }
-  if (typeof value === "object") {
-    const entries = Object.entries(value).filter(([k]) => !SKIP_KEYS.has(k));
-    if (entries.length === 0) return true;
-    return entries.every(([_, v]) => isEmptyValue(v));
+function isEmptyValue(v: any): boolean {
+  if (v === null || v === undefined) return true;
+  if (typeof v === "string") return v.trim() === "";
+  if (typeof v === "boolean") return false;
+  if (typeof v === "number") return false;
+  if (Array.isArray(v)) return v.length === 0 || v.every(isEmptyValue);
+  if (typeof v === "object") {
+    return Object.entries(v).filter(([k]) => !SKIP_KEYS.has(k)).every(([, val]) => isEmptyValue(val));
   }
   return false;
-};
+}
 
-// Recursively render any value in a human-readable format
-const renderNestedValue = (value: any, label?: string, depth: number = 0): React.ReactNode => {
-  if (value === null || value === undefined) {
-    return label ? (
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="text-sm text-muted-foreground">N/A</p>
-      </div>
-    ) : null;
-  }
-
-  // Boolean
-  if (typeof value === "boolean") {
-    return label ? (
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="text-sm">{value ? "Yes" : "No"}</p>
-      </div>
-    ) : <span>{value ? "Yes" : "No"}</span>;
-  }
-
-  // Number — check if timestamp
-  if (typeof value === "number") {
-    const display = value > 1000000000000 ? safeFormat(value, "dd MMM yyyy") : String(value);
-    return label ? (
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="text-sm">{display}</p>
-      </div>
-    ) : <span>{display}</span>;
-  }
-
-  // String — check if ISO date
-  if (typeof value === "string") {
-    let display = value;
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
-      display = safeFormat(value, "dd MMM yyyy");
-    }
-    return label ? (
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{display || "N/A"}</p>
-      </div>
-    ) : <span>{display}</span>;
-  }
-
-  // Array
-  if (Array.isArray(value)) {
-    const filteredItems = value.filter(item => !isEmptyValue(item));
-    if (filteredItems.length === 0) {
-      return null;
-    }
-
-    // Array of primitives
-    if (typeof filteredItems[0] !== "object" || filteredItems[0] === null) {
-      return label ? (
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="text-sm">{filteredItems.join(", ")}</p>
-        </div>
-      ) : <span>{filteredItems.join(", ")}</span>;
-    }
-
-    // Array of objects
-    return (
-      <div className="space-y-2">
-        {label && <p className="text-xs font-medium text-muted-foreground">{label}</p>}
-        {filteredItems.map((item: any, index: number) => (
-          <div key={index} className={`p-3 border rounded-lg ${depth === 0 ? "bg-muted/30" : "bg-muted/20"} space-y-2`}>
-            <p className="text-xs font-semibold text-muted-foreground">Entry {index + 1}</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {Object.entries(item)
-                .filter(([k, v]) => !SKIP_KEYS.has(k) && !isEmptyValue(v))
-                .map(([k, v]) => (
-                  <div key={k}>
-                    {renderNestedValue(v, formatFieldKey(k), depth + 1)}
-                  </div>
-                ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  // Object
-  if (typeof value === "object" && value !== null) {
-    const entries = Object.entries(value).filter(([k, v]) => !SKIP_KEYS.has(k) && !isEmptyValue(v));
-    if (entries.length === 0) return null;
-
-    return (
-      <div className="space-y-2">
-        {label && <p className={`text-xs font-medium ${depth === 0 ? "text-sm font-semibold text-primary" : "text-muted-foreground"}`}>{label}</p>}
-        <div className={`p-3 border rounded-lg ${depth === 0 ? "bg-muted/30" : "bg-muted/20"} space-y-3`}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {entries.map(([k, v]) => (
-              <div key={k} className={typeof v === "object" && v !== null && !Array.isArray(v) ? "col-span-full" : ""}>
-                {renderNestedValue(v, formatFieldKey(k), depth + 1)}
+function GenericViewer({ data }: { data: any }) {
+  return (
+    <div className="columns-1 lg:columns-2 gap-8 w-full pb-4">
+      {Object.entries(data).map(([key, value]) => {
+        if (key.startsWith("_") || SKIP_KEYS.has(key) || isEmptyValue(value)) return null;
+        const label = key.replace(/_/g, " ").replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()).trim();
+        const display = formatValue(value);
+        if (display === "—") return null;
+        if (typeof value === "object" && value !== null) {
+          return (
+            <div key={key} className="break-inside-avoid mb-8">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b pb-1 mb-2">
+                {label}
               </div>
-            ))}
+              <div className="space-y-0.5 pl-1">
+                {Object.entries(value as any).map(([k, v]) => {
+                  if (SKIP_KEYS.has(k) || isEmptyValue(v)) return null;
+                  const lbl = k.replace(/_/g, " ").replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()).trim();
+                  const disp = formatValue(v);
+                  if (disp === "—") return null;
+                  return (
+                    <div key={k} className="flex items-baseline gap-2 py-0.5">
+                      <span className="text-[11px] text-muted-foreground min-w-[160px] shrink-0">{lbl}</span>
+                      <span className="text-[12px] text-foreground break-words">{disp}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div key={key} className="break-inside-avoid mb-8">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b pb-1 mb-2">
+              {label}
+            </div>
+            <div className="text-[12px] text-foreground break-words pl-1 mt-1">{display}</div>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Fallback
-  if (isEmptyValue(value)) return null;
-
-  return label ? (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-sm">{String(value)}</p>
+        );
+      })}
     </div>
-  ) : <span>{String(value)}</span>;
-};
+  );
+}
+
+// ─── Main Export ───────────────────────────────────────────────────────────────
 
 export interface RiskAssessmentViewerProps {
   assessment: {
@@ -192,714 +1021,131 @@ export interface RiskAssessmentViewerProps {
   };
 }
 
-export function RiskAssessmentViewer({
-  assessment
-}: RiskAssessmentViewerProps) {
-  // Fetch the assessment data based on the form key
-  const [assessmentData, setAssessmentData] = useState<any>(null);
+const TABLE_MAP: Record<string, string> = {
+  "preAdmission-form": "pre_admission_care_files",
+  "infection-prevention": "infection_prevention_assessments",
+  "blader-bowel-form": "bladder_bowel_assessments",
+  "moving-handling-form": "moving_handling_assessments",
+  "bedrail-consent-form": "bedrail_consents",
+  "bed-rails-risk-assessment-form": "bedrails_risk_assessments",
+  "long-term-fall-risk-form": "long_term_falls_risk_assessments",
+  "admission-form": "admission_assessments",
+  "photography-consent": "photography_consents",
+  "dnacpr": "dnacprs",
+  "peep": "peeps",
+  "dependency-assessment": "dependency_assessments",
+  "timl": "timl_assessments",
+  "skin-integrity-form": "skin_integrity_assessments",
+  "resident-valuables-form": "resident_valuables_assessments",
+  "resident-handling-profile-form": "handling_profiles",
+  "pain-assessment-form": "pain_assessments",
+  "nutritional-assessment-form": "nutritional_assessments",
+  "oral-assessment-form": "oral_assessments",
+  "diet-notification-form": "diet_notifications",
+  "choking-risk-assessment-form": "choking_risk_assessments",
+  "cornell-depression-scale-form": "cornell_depression_scales",
+  "best-interest-decision-form": "best_interest_decisions",
+  "care-plan-form": "care_plan_assessments",
+};
+
+export function RiskAssessmentViewer({ assessment }: RiskAssessmentViewerProps) {
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const TABLE_MAP: Record<string, string> = {
-    "preAdmission-form": "pre_admission_care_files",
-    "infection-prevention": "infection_prevention_assessments",
-    "blader-bowel-form": "bladder_bowel_assessments",
-    "moving-handling-form": "moving_handling_assessments",
-    "bedrail-consent-form": "bedrail_consents",
-    "bed-rails-risk-assessment-form": "bedrails_risk_assessments",
-    "long-term-fall-risk-form": "long_term_falls_risk_assessments",
-    "admission-form": "admission_assessments",
-    "photography-consent": "photography_consents",
-    "dnacpr": "dnacprs",
-    "peep": "peeps",
-    "dependency-assessment": "dependency_assessments",
-    "timl": "timl_assessments",
-    "skin-integrity-form": "skin_integrity_assessments",
-    "resident-valuables-form": "resident_valuables_assessments",
-    "resident-handling-profile-form": "handling_profiles",
-    "pain-assessment-form": "pain_assessments",
-    "nutritional-assessment-form": "nutritional_assessments",
-    "oral-assessment-form": "oral_assessments",
-    "diet-notification-form": "diet_notifications",
-    "choking-risk-assessment-form": "choking_risk_assessments",
-    "cornell-depression-scale-form": "cornell_depression_scales",
-    "best-interest-decision-form": "best_interest_decisions",
-    "care-plan-form": "care_plan_assessments"
-  };
-
   useEffect(() => {
-    async function fetchData() {
+    async function fetch() {
       if (!assessment.formId) return;
-
       try {
         const table = TABLE_MAP[assessment.formKey];
         if (table) {
-          const { data } = await supabase
+          const { data: row } = await supabase
             .from(table)
-            .select('*')
-            .eq('id', assessment.formId)
+            .select("*")
+            .eq("id", assessment.formId)
             .single();
-          setAssessmentData(data);
+
+          if (!row) {
+            setData(null);
+            return;
+          }
+
+          // Enrich with resident information for viewer (for schemas that expect residentName/bedroomNumber)
+          let enriched: any = row;
+          const residentId = row.resident_id || row.residentId;
+
+          if (residentId) {
+            const { data: resident } = await supabase
+              .from("residents")
+              .select("first_name,last_name,room_number")
+              .eq("id", residentId)
+              .single();
+
+            if (resident) {
+              const fullName = `${resident.first_name || ""} ${resident.last_name || ""}`.trim();
+              enriched = {
+                ...row,
+                residentName: row.residentName || fullName,
+                bedroomNumber:
+                  row.bedroomNumber ||
+                  row.bedroom_number ||
+                  resident.room_number ||
+                  "",
+              };
+            }
+          }
+
+          setData(enriched);
         }
-      } catch (error) {
-        console.error("Error fetching assessment data:", error);
-      } finally {
+      } catch { /**/ } finally {
         setLoading(false);
       }
     }
-
-    fetchData();
+    fetch();
   }, [assessment.formId, assessment.formKey]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+        <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
       </div>
     );
   }
 
-  if (!assessmentData) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        No data found for this assessment.
-      </div>
-    );
+  if (!data) {
+    return <div className="text-center py-8 text-sm text-muted-foreground">No data available.</div>;
   }
 
-  const renderAssessmentContent = () => {
-    // Render different content based on assessment type
-    const data = assessmentData as any;
+  const schema = FORM_SCHEMAS[assessment.formKey];
 
-    return (
-      <div className="space-y-4">
-        {Object.entries(data).map(([key, value]) => {
-          // Skip internal fields
-          if (
-            key.startsWith("_") ||
-            SKIP_KEYS.has(key) ||
-            isEmptyValue(value) || // Hide empty fields
-            // Skip consent sections as they're handled specially above
-            (key === "ableToConsentSection" && assessment.formKey === "bedrail-consent-form") ||
-            (key === "unableToConsentSection" && assessment.formKey === "bedrail-consent-form") ||
-            // Skip bed rails risk assessment fields that are handled specially
-            (key === "exclusionCriteria" && assessment.formKey === "bed-rails-risk-assessment-form") ||
-            (key === "authorizationRationale" && assessment.formKey === "bed-rails-risk-assessment-form") ||
-            (key === "safetyChecklist" && assessment.formKey === "bed-rails-risk-assessment-form") ||
-            (key === "extendedHeightChecks" && assessment.formKey === "bed-rails-risk-assessment-form")
-          ) {
-            return null;
-          }
-
-          // Format the key to be more readable
-          const formattedKey = key
-            .replace(/([A-Z])/g, " $1")
-            .replace(/^./, (str) => str.toUpperCase())
-            .trim();
-
-          // Special handling for Date of Birth
-          if (key === "dateOfBirth") {
-            return (
-              <div key={key} className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Date of Birth</p>
-                <p className="text-sm leading-relaxed">
-                  {safeFormat(value, "dd MMM yyyy")}
-                </p>
-              </div>
-            );
-          }
-
-          // Special handling for Bed Rails Risk Assessment fields
-          if (assessment.formKey === "bed-rails-risk-assessment-form") {
-            // Type of Bed
-            if (key === "typeOfBed") {
-              const bedTypeMap: Record<string, string> = {
-                "DIVAN": "Divan Bed",
-                "PROFILING_BED": "Profiling Bed"
-              };
-              return (
-                <div key={key} className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Type of Bed</p>
-                  <p className="text-sm leading-relaxed">{(bedTypeMap[value as string] || value) as string}</p>
-                </div>
-              );
-            }
-
-            // Type of Mattress
-            if (key === "typeOfMattress") {
-              const mattressTypeMap: Record<string, string> = {
-                "STANDARD": "Standard Mattress",
-                "LIGHTWEIGHT_FOAM": "Lightweight Foam Mattress",
-                "STANDARD_WITH_OVERLAY": "Standard Mattress with Overlay",
-                "FULL_REPLACEMENT": "Full Replacement Mattress"
-              };
-              return (
-                <div key={key} className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Type of Mattress</p>
-                  <p className="text-sm leading-relaxed">{(mattressTypeMap[value as string] || value) as string}</p>
-                </div>
-              );
-            }
-
-            // Type of Bedrails
-            if (key === "typeOfBedrails") {
-              const bedrailTypeMap: Record<string, string> = {
-                "INTEGRAL_FIXED": "Integral Fixed Bedrails",
-                "EXTENDED_HEIGHT_INTEGRAL": "Extended Height Integral Bedrails",
-                "EXTENDED_HEIGHT_NON_INTEGRAL": "Extended Height Non-Integral Bedrails"
-              };
-              return (
-                <div key={key} className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Type of Bedrails</p>
-                  <p className="text-sm leading-relaxed">{(bedrailTypeMap[value as string] || value) as string}</p>
-                </div>
-              );
-            }
-
-            // Yes/No fields
-            if (key === "reasonExplainedToResident" || key === "consentObtained" || key === "carePlanCompleted") {
-              return (
-                <div key={key} className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">{formattedKey}</p>
-                  <p className="text-sm leading-relaxed">{value === "YES" ? "Yes" : "No"}</p>
-                </div>
-              );
-            }
-
-            // Boolean fields
-            if (key === "anyExclusionChecked" || key === "anySafetyCheckFailed" || key === "hasExtendedHeightRails") {
-              return (
-                <div key={key} className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">{formattedKey}</p>
-                  <p className="text-sm leading-relaxed">{value ? "Yes" : "No"}</p>
-                </div>
-              );
-            }
-          }
-
-          // Special handling for Bedrail Consent Type
-          if (key === "consentType" && assessment.formKey === "bedrail-consent-form") {
-            const consentTypeMap: Record<string, string> = {
-              "ABLE_TO_CONSENT": "Resident is able to consent",
-              "UNABLE_TO_CONSENT": "Resident is unable to consent"
-            };
-            return (
-              <div key={key} className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Consent Type</p>
-                <p className="text-sm leading-relaxed">
-                  {(consentTypeMap[value as string] || value) as string}
-                </p>
-              </div>
-            );
-          }
-
-          // Special handling for Bedrail Consent sections
-          if (key === "ableToConsentSection" && assessment.formKey === "bedrail-consent-form") {
-            const section = value as any;
-            if (!section) return null;
-
-            const consentChoiceMap: Record<string, string> = {
-              "CONSENT_TO_USE": "I would like bed rails/bumpers to be used",
-              "REFUSE_TO_USE": "I do NOT want bed rails or bumpers to be used"
-            };
-
-            return (
-              <div key={key} className="space-y-3">
-                <p className="text-sm font-semibold text-primary">Resident Consent Section</p>
-                <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Consent Decision</p>
-                    <p className="text-sm leading-relaxed">
-                      {consentChoiceMap[section.consentChoice] || section.consentChoice}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Resident Signature</p>
-                    <p className="text-sm font-medium">{section.residentSignature}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Staff Member</p>
-                      <p className="text-sm">{section.staffMemberName}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Staff Signature</p>
-                      <p className="text-sm font-medium">{section.staffMemberSignature}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Date Signed</p>
-                    <p className="text-sm">{section.staffSignatureDate}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
-          if (key === "unableToConsentSection" && assessment.formKey === "bedrail-consent-form") {
-            const section = value as any;
-            if (!section) return null;
-
-            const preferenceMap: Record<string, string> = {
-              "WOULD_PREFER_USE": "Would have preferred to use bed rails/bumpers",
-              "WOULD_NOT_PREFER_USE": "Would not have preferred to use bed rails/bumpers"
-            };
-
-            return (
-              <div key={key} className="space-y-3">
-                <p className="text-sm font-semibold text-primary">Representative Consent Section</p>
-                <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Next of Kin / Advocate / MDT Member</p>
-                    <p className="text-sm font-medium">{section.representativeName}</p>
-                  </div>
-                  <div className="p-3 bg-muted rounded-md">
-                    <p className="text-xs italic text-muted-foreground">
-                      Discussion acknowledged: The representative has discussed the use of bed rails/bumpers
-                      with professionals concerned, based on the resident&apos;s previously expressed wishes and beliefs.
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Resident&apos;s Presumed Preference</p>
-                    <p className="text-sm leading-relaxed">
-                      {preferenceMap[section.residentPreference] || section.residentPreference}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Representative Signature</p>
-                    <p className="text-sm font-medium">{section.representativeSignature}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Staff Member</p>
-                      <p className="text-sm">{section.staffMemberName}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Staff Signature</p>
-                      <p className="text-sm font-medium">{section.staffMemberSignature}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Date Signed</p>
-                    <p className="text-sm">{section.staffSignatureDate}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
-          // Special handling for Dependency Level
-          if (key === "dependencyLevel" && assessment.formKey === "dependency-assessment") {
-            const dependencyLevelMap: Record<string, string> = {
-              "A": "Level A - High Dependency",
-              "B": "Level B - Medium Dependency",
-              "C": "Level C - Low Dependency",
-              "D": "Level D - Independent"
-            };
-            return (
-              <div key={key} className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Dependency Level</p>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words font-medium">
-                  {(dependencyLevelMap[value as string] || value) as string}
-                </p>
-              </div>
-            );
-          }
-
-          // Special handling for Pain Assessment entries
-          if (key === "assessmentEntries" && assessment.formKey === "pain-assessment-form") {
-            return (
-              <div key={key} className="space-y-3">
-                <p className="text-xs font-medium text-muted-foreground">Assessment Entries</p>
-                <div className="space-y-4">
-                  {(value as any[]).map((entry: any, index: number) => (
-                    <div key={index} className="p-4 border rounded-lg bg-muted/30 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold">Entry {index + 1}</h4>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Date and Time</p>
-                          <p className="text-sm">{entry.dateTime}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Pain Location</p>
-                          <p className="text-sm">{entry.painLocation}</p>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Description of Pain</p>
-                        <p className="text-sm">{entry.descriptionOfPain}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Resident Behaviour</p>
-                        <p className="text-sm">{entry.residentBehaviour}</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Type of Intervention</p>
-                          <p className="text-sm">{entry.interventionType}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Intervention Time</p>
-                          <p className="text-sm">{entry.interventionTime}</p>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Pain After Intervention</p>
-                        <p className="text-sm">{entry.painAfterIntervention}</p>
-                      </div>
-                      {entry.comments && (
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Comments</p>
-                          <p className="text-sm">{entry.comments}</p>
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Signature</p>
-                        <p className="text-sm font-medium">{entry.signature}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          }
-
-          // Special handling for Nutritional Assessment IDDSI consistency levels
-          if ((key === "foodConsistency" || key === "fluidConsistency") && assessment.formKey === "nutritional-assessment-form") {
-            const consistencyObj = value as any;
-            const selectedLevels = Object.entries(consistencyObj)
-              .filter(([_, isSelected]) => isSelected)
-              .map(([level]) => {
-                // Format the level name
-                return level
-                  .replace(/([A-Z])/g, " $1")
-                  .replace(/level(\d+)/, "Level $1: ")
-                  .trim();
-              });
-
-            if (selectedLevels.length === 0) return null;
-
-            return (
-              <div key={key} className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">
-                  {key === "foodConsistency" ? "Food Consistency (IDDSI)" : "Fluid Consistency (IDDSI)"}
-                </p>
-                <div className="space-y-1">
-                  {selectedLevels.map((level, idx) => (
-                    <p key={idx} className="text-sm pl-2 border-l-2 border-primary/30">
-                      {level}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            );
-          }
-
-          // Handle different value types
-          let displayValue = value;
-          if (typeof value === "number" && value > 1000000000000) {
-            // Likely a timestamp
-            displayValue = safeFormat(value, "dd MMM yyyy");
-          } else if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
-            // ISO date string
-            displayValue = safeFormat(value, "dd MMM yyyy");
-          } else if (typeof value === "boolean") {
-            displayValue = value ? "Yes" : "No";
-          } else if (Array.isArray(value)) {
-            // Handle arrays of objects
-            if (value.length === 0) {
-              displayValue = "None";
-            } else if (typeof value[0] === "object" && value[0] !== null) {
-              // Check if it's a simple {value: string} structure
-              if ("value" in value[0]) {
-                displayValue = value.map((item: any) => item.value).join(", ");
-              } else {
-                // Array of complex objects — use recursive renderer
-                return (
-                  <div key={key} className="space-y-1">
-                    {renderNestedValue(value, formattedKey)}
-                  </div>
-                );
-              }
-            } else {
-              displayValue = value.join(", ");
-            }
-          } else if (typeof value === "object" && value !== null) {
-            // Check if it's a handling profile activity object
-            if (
-              assessment.formKey === "resident-handling-profile-form" &&
-              "nStaff" in value &&
-              "equipment" in value &&
-              "handlingPlan" in value &&
-              "dateForReview" in value
-            ) {
-              return (
-                <div key={key} className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">{formattedKey}</p>
-                  <div className="p-3 border rounded-lg bg-muted/20 space-y-2">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Number of Staff</p>
-                        <p className="text-sm">{(value as any).nStaff}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Date for Review</p>
-                        <p className="text-sm">{safeFormat((value as any).dateForReview, "dd MMM yyyy")}</p>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Equipment</p>
-                      <p className="text-sm">{(value as any).equipment}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Handling Plan</p>
-                      <p className="text-sm">{(value as any).handlingPlan}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-            // Nested object — use recursive renderer
-            return (
-              <div key={key} className="space-y-1">
-                {renderNestedValue(value, formattedKey)}
-              </div>
-            );
-          }
-
-          return (
-            <div key={key} className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">{formattedKey}</p>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                {displayValue?.toString() || "N/A"}
-              </p>
-            </div>
-          );
-        })}
-
-        {/* Special rendering for Bed Rails Risk Assessment complex objects */}
-        {assessment.formKey === "bed-rails-risk-assessment-form" && (
-          <>
-            {/* Exclusion Criteria */}
-            {data.exclusionCriteria && (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-primary">Exclusion Criteria</p>
-                <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Resident refuses:</span>
-                      <span className="text-sm">{data.exclusionCriteria.residentRefuses ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Climbing risk:</span>
-                      <span className="text-sm">{data.exclusionCriteria.climbingRisk ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Entrapment risk:</span>
-                      <span className="text-sm">{data.exclusionCriteria.entrapmentRisk ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Abnormal body size:</span>
-                      <span className="text-sm">{data.exclusionCriteria.abnormalBodySize ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Restraint purpose:</span>
-                      <span className="text-sm">{data.exclusionCriteria.restraintPurpose ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Freedom limitation:</span>
-                      <span className="text-sm">{data.exclusionCriteria.freedomLimitation ? "Yes" : "No"}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Authorization Rationale */}
-            {data.authorizationRationale && (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-primary">Authorization Rationale</p>
-                <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Resident requests:</span>
-                      <span className="text-sm">{data.authorizationRationale.residentRequests ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">MDT meeting completed:</span>
-                      <span className="text-sm">{data.authorizationRationale.mdtMeetingCompleted ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Risk outweighs benefit:</span>
-                      <span className="text-sm">{data.authorizationRationale.riskOutweighsBenefit ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Alternatives explored:</span>
-                      <span className="text-sm">{data.authorizationRationale.alternativesExplored ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Best interest decision:</span>
-                      <span className="text-sm">{data.authorizationRationale.bestInterestDecision ? "Yes" : "No"}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Safety Checklist */}
-            {data.safetyChecklist && (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-primary">Safety Checklist</p>
-                <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Gap between rail and mattress:</span>
-                      <span className="text-sm">{data.safetyChecklist.gapBetweenRailAndMattress === "YES" ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Mattress compresses easily:</span>
-                      <span className="text-sm">{data.safetyChecklist.mattressCompressesEasily === "YES" ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Gap more than 60mm:</span>
-                      <span className="text-sm">{data.safetyChecklist.gapMoreThan60mm === "YES" ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Bed rail insecure:</span>
-                      <span className="text-sm">{data.safetyChecklist.bedRailInsecure === "YES" ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Bed against wall:</span>
-                      <span className="text-sm">{data.safetyChecklist.bedAgainstWall === "YES" ? "Yes" : "No"}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Extended Height Checks */}
-            {data.extendedHeightChecks && (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-primary">Extended Height Checks</p>
-                <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Positioned correctly:</span>
-                      <span className="text-sm">{data.extendedHeightChecks.positionedCorrectly === "YES" ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Securely fastened:</span>
-                      <span className="text-sm">{data.extendedHeightChecks.securelyFastened === "YES" ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Correct bumpers installed:</span>
-                      <span className="text-sm">{data.extendedHeightChecks.correctBumpersInstalled === "YES" ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Mattress below plimsoll line:</span>
-                      <span className="text-sm">{data.extendedHeightChecks.mattressBelowPlimsollLine === "YES" ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Staff trained:</span>
-                      <span className="text-sm">{data.extendedHeightChecks.staffTrained === "YES" ? "Yes" : "No"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">Checked for damage:</span>
-                      <span className="text-sm">{data.extendedHeightChecks.checkedForDamage === "YES" ? "Yes" : "No"}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-6">
-      {renderAssessmentContent()}
-    </div>
-  );
+  return schema
+    ? <SchemaViewer data={data} schema={schema} />
+    : <GenericViewer data={data} />;
 }
 
-const getCategoryColor = (category?: string) => {
-  switch (category) {
-    case "Infection Control":
-      return "bg-blue-50 text-blue-700";
-    case "Moving & Handling":
-      return "bg-orange-50 text-orange-700";
-    case "Fall Risk":
-      return "bg-red-50 text-red-700";
-    case "Risk Assessment":
-      return "bg-amber-50 text-amber-700";
-    case "Continence":
-      return "bg-purple-50 text-purple-700";
-    case "Medication":
-      return "bg-green-50 text-green-700";
-    case "Nutrition":
-      return "bg-emerald-50 text-emerald-700";
-    case "Capacity":
-      return "bg-indigo-50 text-indigo-700";
-    default:
-      return "bg-gray-50 text-gray-700";
-  }
-};
+// ─── Default Export: Dialog Wrapper ───────────────────────────────────────────
+// Used by pages that import this as a popup dialog
+// e.g. all-risk-assessments/page.tsx and archived-risk-assessments/page.tsx
 
-export interface RiskAssessmentViewDialogProps {
+interface RiskAssessmentViewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assessment: {
-    formKey: string;
-    formId: string;
-    name: string;
-    completedAt: number;
-    category?: string;
-  };
+  assessment: RiskAssessmentViewerProps["assessment"];
 }
 
 export default function RiskAssessmentViewDialog({
   open,
   onOpenChange,
-  assessment
+  assessment,
 }: RiskAssessmentViewDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[calc(100vw-3rem)] max-h-[calc(100vh-3rem)] flex flex-col gap-0 p-0 overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-5 border-b shrink-0">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <DialogTitle className="text-lg font-bold mb-2">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-primary" />
-                  {assessment.name}
-                </div>
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2">
-                {assessment.category && (
-                  <>
-                    <span className={`px-2 py-0.5 rounded-full ${getCategoryColor(assessment.category)}`}>
-                      {assessment.category}
-                    </span>
-                    <span>•</span>
-                  </>
-                )}
-                <span>{safeFormat(assessment.completedAt, "dd MMM yyyy 'at' HH:mm")}</span>
-              </DialogDescription>
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        <ScrollArea className="flex-1 overflow-y-auto">
-          <div className="px-6 py-6 space-y-6 pb-8">
-            <RiskAssessmentViewer assessment={assessment} />
-          </div>
-        </ScrollArea>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">{assessment.name}</DialogTitle>
+        </DialogHeader>
+        <RiskAssessmentViewer assessment={assessment} />
       </DialogContent>
     </Dialog>
   );
 }
+

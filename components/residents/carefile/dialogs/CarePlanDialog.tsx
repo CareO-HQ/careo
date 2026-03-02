@@ -56,6 +56,7 @@ interface CarePlanDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   isInline?: boolean;
+  viewOnly?: boolean;
 }
 
 const generateTimeOptions = () => {
@@ -82,6 +83,7 @@ export default function CarePlanDialog({
   isEditMode = false,
   onClose,
   isInline = false,
+  viewOnly = false,
 }: CarePlanDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
@@ -195,36 +197,33 @@ export default function CarePlanDialog({
         };
 
         if (isEditMode && initialData?.id) {
-          // Update mode: Archive the old plan and create a new version
-          const archivePayload = {
-            status: 'archived',
-            archived_at: new Date().toISOString()
-          };
-
-          const { error: archiveError } = await supabase
+          // Update the existing care plan in-place so evaluations stay linked
+          const { error: updateError } = await supabase
             .from('care_plan_assessments')
-            .update(archivePayload)
+            .update({
+              care_plan_type: values.nameOfCarePlan,
+              need_identified: values.identifiedNeeds,
+              interventions: values.plannedCareDate as any,
+              goals: {
+                aims: values.aims,
+                discussedWith: values.discussedWith || "",
+                signature: values.signature || "",
+                staffSignature: values.staffSignature || "",
+                residentName: values.residentName,
+                dob: values.dob,
+                bedroomNumber: values.bedroomNumber,
+                writtenBy: values.writtenBy,
+                dateWritten: values.dateWritten,
+                carePlanNumber: values.carePlanNumber,
+                folderKey: folderKey
+              },
+              updated_at: new Date().toISOString()
+            })
             .eq('id', initialData.id);
 
-          if (archiveError) throw archiveError;
+          if (updateError) throw updateError;
 
-          const oldVersion = initialData.version_number || 1;
-          const newVersion = oldVersion + 1;
-
-          const newVersionPayload = {
-            ...payload,
-            previous_version_id: initialData.id,
-            previous_care_plan_id: initialData.id, // Keep for backward compatibility
-            version_number: newVersion
-          };
-
-          const { error: insertError } = await supabase
-            .from('care_plan_assessments')
-            .insert(newVersionPayload);
-
-          if (insertError) throw insertError;
-
-          toast.success("Care plan assessment updated successfully. Previous version archived.");
+          toast.success("Care plan assessment updated successfully.");
         } else {
           const newPayload = {
             ...payload,
@@ -260,144 +259,146 @@ export default function CarePlanDialog({
 
       <div className="space-y-12 pb-20">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-            <button type="submit" id="care-file-submit-btn" className="hidden" />
-            {/* Section 1: Basic Information */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Basic Information</h3>
+          <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              {/* Section 1: Basic Information */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Basic Information</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="nameOfCarePlan" render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel required>Name of Care Plan</FormLabel>
+                      <FormControl><Input placeholder="e.g. Personal Care, Nutrition, etc." {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="residentName" render={({ field }) => (
+                    <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="dob" render={({ field }) => (
+                    <FormItem><FormLabel>Date of Birth</FormLabel>
+                      <Popover open={dobPopoverOpen} onOpenChange={setDobPopoverOpen} modal>
+                        <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDobPopoverOpen(false); } }} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} /></PopoverContent>
+                      </Popover>
+                      <FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="bedroomNumber" render={({ field }) => (
+                    <FormItem><FormLabel>Bedroom Number</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="carePlanNumber" render={({ field }) => (
+                    <FormItem><FormLabel>Care Plan Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="writtenBy" render={({ field }) => (
+                    <FormItem><FormLabel>Written By</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="dateWritten" render={({ field }) => (
+                    <FormItem><FormLabel>Date Written</FormLabel>
+                      <Popover open={dateWrittenPopoverOpen} onOpenChange={setDateWrittenPopoverOpen} modal>
+                        <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDateWrittenPopoverOpen(false); } }} /></PopoverContent>
+                      </Popover>
+                      <FormMessage /></FormItem>
+                  )} />
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <FormField control={form.control} name="nameOfCarePlan" render={({ field }) => (
-                  <FormItem className="sm:col-span-2">
-                    <FormLabel required>Name of Care Plan</FormLabel>
-                    <FormControl><Input placeholder="e.g. Personal Care, Nutrition, etc." {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="residentName" render={({ field }) => (
-                  <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="dob" render={({ field }) => (
-                  <FormItem><FormLabel>Date of Birth</FormLabel>
-                    <Popover open={dobPopoverOpen} onOpenChange={setDobPopoverOpen} modal>
-                      <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDobPopoverOpen(false); } }} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} /></PopoverContent>
-                    </Popover>
-                    <FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="bedroomNumber" render={({ field }) => (
-                  <FormItem><FormLabel>Bedroom Number</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="carePlanNumber" render={({ field }) => (
-                  <FormItem><FormLabel>Care Plan Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="writtenBy" render={({ field }) => (
-                  <FormItem><FormLabel>Written By</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="dateWritten" render={({ field }) => (
-                  <FormItem><FormLabel>Date Written</FormLabel>
-                    <Popover open={dateWrittenPopoverOpen} onOpenChange={setDateWrittenPopoverOpen} modal>
-                      <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={(date) => { if (date) { field.onChange(date.getTime()); setDateWrittenPopoverOpen(false); } }} /></PopoverContent>
-                    </Popover>
-                    <FormMessage /></FormItem>
-                )} />
-              </div>
-            </div>
 
-            {/* Section 2: Care Details */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Care Needs & Goals</h3>
+              {/* Section 2: Care Details */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Care Needs & Goals</h3>
+                </div>
+                <div className="grid grid-cols-1 gap-6">
+                  <FormField control={form.control} name="identifiedNeeds" render={({ field }) => (
+                    <FormItem><FormLabel required>Identified Needs</FormLabel><FormControl><Textarea className="min-h-[120px]" placeholder="What does the resident need support with?" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="aims" render={({ field }) => (
+                    <FormItem><FormLabel required>Aims / Desired Outcomes</FormLabel><FormControl><Textarea className="min-h-[120px]" placeholder="What are we trying to achieve?" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
               </div>
-              <div className="grid grid-cols-1 gap-6">
-                <FormField control={form.control} name="identifiedNeeds" render={({ field }) => (
-                  <FormItem><FormLabel required>Identified Needs</FormLabel><FormControl><Textarea className="min-h-[120px]" placeholder="What does the resident need support with?" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="aims" render={({ field }) => (
-                  <FormItem><FormLabel required>Aims / Desired Outcomes</FormLabel><FormControl><Textarea className="min-h-[120px]" placeholder="What are we trying to achieve?" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-              </div>
-            </div>
 
-            {/* Section 3: Planned Care / Interventions */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Planned Care & Interventions</h3>
-              </div>
-              <div className="space-y-4">
-                {fields.map((field, index) => (
-                  <div key={field.id} className="border rounded-xl p-4 space-y-4 bg-muted/20">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Intervention {index + 1}</h4>
-                      {fields.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)} className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <FormField control={form.control} name={`plannedCareDate.${index}.date`} render={({ field }) => (
-                        <FormItem><FormLabel>Date</FormLabel>
-                          <Popover open={plannedCareDatePopovers[index] || false} onOpenChange={(open) => setPlannedCareDatePopovers(prev => ({ ...prev, [index]: open }))} modal>
-                            <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal")}>{field.value ? format(new Date(field.value), "PPP") : <span>Pick date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={(date) => { if (date) { field.onChange(date.getTime()); setPlannedCareDatePopovers(prev => ({ ...prev, [index]: false })); } }} /></PopoverContent>
-                          </Popover>
-                          <FormMessage /></FormItem>
+              {/* Section 3: Planned Care / Interventions */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Planned Care & Interventions</h3>
+                </div>
+                <div className="space-y-4">
+                  {fields.map((field, index) => (
+                    <div key={field.id} className="border rounded-xl p-4 space-y-4 bg-muted/20">
+                      <div className="flex justify-between items-center">
+                        <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Intervention {index + 1}</h4>
+                        {fields.length > 1 && (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)} className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormField control={form.control} name={`plannedCareDate.${index}.date`} render={({ field }) => (
+                          <FormItem><FormLabel>Date</FormLabel>
+                            <Popover open={plannedCareDatePopovers[index] || false} onOpenChange={(open) => setPlannedCareDatePopovers(prev => ({ ...prev, [index]: open }))} modal>
+                              <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal")}>{field.value ? format(new Date(field.value), "PPP") : <span>Pick date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={(date) => { if (date) { field.onChange(date.getTime()); setPlannedCareDatePopovers(prev => ({ ...prev, [index]: false })); } }} /></PopoverContent>
+                            </Popover>
+                            <FormMessage /></FormItem>
+                        )} />
+                        <FormField control={form.control} name={`plannedCareDate.${index}.time`} render={({ field }) => (
+                          <FormItem><FormLabel>Time</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select time" /></SelectTrigger></FormControl><SelectContent>{timeOptions.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                        )} />
+                      </div>
+                      <FormField control={form.control} name={`plannedCareDate.${index}.details`} render={({ field }) => (
+                        <FormItem><FormLabel>Details of Care Provided</FormLabel><FormControl><Textarea placeholder="Specific steps, assistance needed, or routines..." {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
-                      <FormField control={form.control} name={`plannedCareDate.${index}.time`} render={({ field }) => (
-                        <FormItem><FormLabel>Time</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select time" /></SelectTrigger></FormControl><SelectContent>{timeOptions.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                      <FormField control={form.control} name={`plannedCareDate.${index}.signature`} render={({ field }) => (
+                        <FormItem><FormLabel>Signature</FormLabel><FormControl><Input readOnly className="bg-muted" {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                     </div>
-                    <FormField control={form.control} name={`plannedCareDate.${index}.details`} render={({ field }) => (
-                      <FormItem><FormLabel>Details of Care Provided</FormLabel><FormControl><Textarea placeholder="Specific steps, assistance needed, or routines..." {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name={`plannedCareDate.${index}.signature`} render={({ field }) => (
-                      <FormItem><FormLabel>Signature</FormLabel><FormControl><Input readOnly className="bg-muted" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                  </div>
-                ))}
-                <Button type="button" variant="outline" onClick={() => append({ date: Date.now(), time: "", details: "", signature: userName })} className="w-full border-dashed">
-                  <Plus className="h-4 w-4 mr-2" /> Add Another Intervention
-                </Button>
+                  ))}
+                  <Button type="button" variant="outline" onClick={() => append({ date: Date.now(), time: "", details: "", signature: userName })} className="w-full border-dashed">
+                    <Plus className="h-4 w-4 mr-2" /> Add Another Intervention
+                  </Button>
+                </div>
               </div>
-            </div>
 
-            {/* Section 4: Reviews & Signatures */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <div className="h-6 w-1 bg-primary rounded-full" />
-                <h3 className="text-lg font-semibold">Review & Sign-off</h3>
+              {/* Section 4: Reviews & Signatures */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Review & Sign-off</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="discussedWith" render={({ field }) => (
+                    <FormItem className="sm:col-span-2"><FormLabel>Discussed With</FormLabel><FormControl><Input placeholder="Resident, Family, or Staff Member" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="signature" render={({ field }) => (
+                    <FormItem><FormLabel>Resident / Representative Signature</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="staffSignature" render={({ field }) => (
+                    <FormItem><FormLabel>Staff Signature</FormLabel><FormControl><Input readOnly className="bg-muted" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="date" render={({ field }) => (
+                    <FormItem><FormLabel>Next Review Date</FormLabel>
+                      <Popover open={reviewDatePopoverOpen} onOpenChange={setReviewDatePopoverOpen} modal>
+                        <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(date) => { if (date) { field.onChange(date.getTime()); setReviewDatePopoverOpen(false); } }} /></PopoverContent>
+                      </Popover>
+                      <FormMessage /></FormItem>
+                  )} />
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <FormField control={form.control} name="discussedWith" render={({ field }) => (
-                  <FormItem className="sm:col-span-2"><FormLabel>Discussed With</FormLabel><FormControl><Input placeholder="Resident, Family, or Staff Member" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="signature" render={({ field }) => (
-                  <FormItem><FormLabel>Resident / Representative Signature</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="staffSignature" render={({ field }) => (
-                  <FormItem><FormLabel>Staff Signature</FormLabel><FormControl><Input readOnly className="bg-muted" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="date" render={({ field }) => (
-                  <FormItem><FormLabel>Next Review Date</FormLabel>
-                    <Popover open={reviewDatePopoverOpen} onOpenChange={setReviewDatePopoverOpen} modal>
-                      <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={(date) => { if (date) { field.onChange(date.getTime()); setReviewDatePopoverOpen(false); } }} /></PopoverContent>
-                    </Popover>
-                    <FormMessage /></FormItem>
-                )} />
-              </div>
-            </div>
-          </form>
+            </form>
+          </fieldset>
         </Form>
       </div>
 
-      {!isInline && (
+      {!isInline && !viewOnly && (
         <div className="border-t pt-8 flex items-center justify-end gap-3 sticky bottom-0 bg-background/80 backdrop-blur-sm -mx-6 px-6 pb-2">
           <Button variant="outline" onClick={() => onClose?.()} disabled={isLoading} size="lg">
             Cancel

@@ -58,6 +58,7 @@ interface LongTermFallRiskDialogProps {
   initialData?: any;
   isEditMode?: boolean;
   isInline?: boolean;
+  viewOnly?: boolean;
 }
 
 export default function LongTermFallRiskDialog({
@@ -70,7 +71,8 @@ export default function LongTermFallRiskDialog({
   onClose,
   initialData,
   isEditMode = false,
-  isInline = false
+  isInline = false,
+  viewOnly = false
 }: LongTermFallRiskDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -205,101 +207,103 @@ export default function LongTermFallRiskDialog({
       )}
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <button type="submit" id="care-file-submit-btn" className="hidden" />
-          <div className="space-y-8 px-1">
+        <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            <div className="space-y-8 px-1">
 
-            {/* Section 1: Demographics */}
-            <div className="space-y-4">
-              <div className="space-y-1 pb-2 border-b">
-                <h4 className="text-sm font-medium">Demographics</h4>
-                <p className="text-sm text-muted-foreground">Age, gender, and falls history</p>
-              </div>
-              <div className="grid grid-cols-1 gap-4">
-                <FormField control={form.control} name="age" render={({ field }) => <FormItem><FormLabel>Age</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="65-80">65-80</SelectItem><SelectItem value="81-85">81-85</SelectItem><SelectItem value="86+">86+</SelectItem></SelectContent></Select></FormItem>} />
-                <FormField control={form.control} name="gender" render={({ field }) => <FormItem><FormLabel>Gender</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="MALE">Male</SelectItem><SelectItem value="FEMALE">Female</SelectItem></SelectContent></Select></FormItem>} />
-                <FormField control={form.control} name="historyOfFalls" render={({ field }) => <FormItem><FormLabel>Falls History</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NEVER">Never</SelectItem><SelectItem value="FALL-MORE-THAN-12">More than 12 mos</SelectItem><SelectItem value="FALL-LAST-12">Last 12 mos</SelectItem><SelectItem value="RECURRENT-LAST-12">Recurrent last 12 mos</SelectItem></SelectContent></Select></FormItem>} />
-              </div>
-            </div>
-
-            {/* Section 2: Mobility & Activities */}
-            <div className="space-y-4">
-              <div className="space-y-1 pb-2 border-b">
-                <h4 className="text-sm font-medium">Mobility & Activities</h4>
-                <p className="text-sm text-muted-foreground">Mobility level and daily activities</p>
-              </div>
+              {/* Section 1: Demographics */}
               <div className="space-y-4">
-                <FormField control={form.control} name="mobilityLevel" render={({ field }) => <FormItem><FormLabel>Mobility</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="INDEPENDENT-SAFE-UNAIDED">Independent</SelectItem><SelectItem value="INDEPENDENT-WITH-AID">With Aid</SelectItem><SelectItem value="ASSISTANCE-1-AID">Assist 1</SelectItem><SelectItem value="ASSISTANCE-2-AID">Assist 2</SelectItem><SelectItem value="IMMOBILE">Immobile</SelectItem></SelectContent></Select></FormItem>} />
-                <FormField control={form.control} name="standUnsupported" render={({ field }) => <FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Can stand unsupported</FormLabel></FormItem>} />
-                <FormField control={form.control} name="personalActivities" render={({ field }) => <FormItem><FormLabel>Personal Activities</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="INDEPENDENT-SAFE">Independent</SelectItem><SelectItem value="INDEPENDENT-EQUIPMENT">With Equipment</SelectItem><SelectItem value="ASSISTANCE">Assistance</SelectItem></SelectContent></Select></FormItem>} />
-                <FormField control={form.control} name="domesticActivities" render={({ field }) => <FormItem><FormLabel>Domestic Activities</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="INDEPENDENT-SAFE">Independent</SelectItem><SelectItem value="INDEPENDENT-EQUIPMENT">With Equipment</SelectItem><SelectItem value="ASSISTANCE">Assistance</SelectItem></SelectContent></Select></FormItem>} />
+                <div className="space-y-1 pb-2 border-b">
+                  <h4 className="text-sm font-medium">Demographics</h4>
+                  <p className="text-sm text-muted-foreground">Age, gender, and falls history</p>
+                </div>
+                <div className="grid grid-cols-1 gap-4">
+                  <FormField control={form.control} name="age" render={({ field }) => <FormItem><FormLabel>Age</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="65-80">65-80</SelectItem><SelectItem value="81-85">81-85</SelectItem><SelectItem value="86+">86+</SelectItem></SelectContent></Select></FormItem>} />
+                  <FormField control={form.control} name="gender" render={({ field }) => <FormItem><FormLabel>Gender</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="MALE">Male</SelectItem><SelectItem value="FEMALE">Female</SelectItem></SelectContent></Select></FormItem>} />
+                  <FormField control={form.control} name="historyOfFalls" render={({ field }) => <FormItem><FormLabel>Falls History</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NEVER">Never</SelectItem><SelectItem value="FALL-MORE-THAN-12">More than 12 mos</SelectItem><SelectItem value="FALL-LAST-12">Last 12 mos</SelectItem><SelectItem value="RECURRENT-LAST-12">Recurrent last 12 mos</SelectItem></SelectContent></Select></FormItem>} />
+                </div>
               </div>
-            </div>
 
-            {/* Section 3: Physical & Environmental */}
-            <div className="space-y-4">
-              <div className="space-y-1 pb-2 border-b">
-                <h4 className="text-sm font-medium">Physical & Environmental</h4>
-                <p className="text-sm text-muted-foreground">Footwear, vision, and environmental risks</p>
-              </div>
+              {/* Section 2: Mobility & Activities */}
               <div className="space-y-4">
-                <FormField control={form.control} name="footwear" render={({ field }) => <FormItem><FormLabel>Footwear</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="SAFE">Safe</SelectItem><SelectItem value="UNSAFE">Unsafe</SelectItem></SelectContent></Select></FormItem>} />
-                <FormField control={form.control} name="visionProblems" render={({ field }) => <FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Vision Problems</FormLabel></FormItem>} />
-                <FormField control={form.control} name="bladderBowelMovement" render={({ field }) => <FormItem><FormLabel>Bladder/Bowel</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NO-PROBLEMS">No problems</SelectItem><SelectItem value="IDENTIFIED-PROBLEMS">Problems</SelectItem><SelectItem value="FREQUENCY">Frequency</SelectItem></SelectContent></Select></FormItem>} />
-                <FormField control={form.control} name="residentEnvironmentalRisks" render={({ field }) => <FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Environmental Risks</FormLabel></FormItem>} />
+                <div className="space-y-1 pb-2 border-b">
+                  <h4 className="text-sm font-medium">Mobility & Activities</h4>
+                  <p className="text-sm text-muted-foreground">Mobility level and daily activities</p>
+                </div>
+                <div className="space-y-4">
+                  <FormField control={form.control} name="mobilityLevel" render={({ field }) => <FormItem><FormLabel>Mobility</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="INDEPENDENT-SAFE-UNAIDED">Independent</SelectItem><SelectItem value="INDEPENDENT-WITH-AID">With Aid</SelectItem><SelectItem value="ASSISTANCE-1-AID">Assist 1</SelectItem><SelectItem value="ASSISTANCE-2-AID">Assist 2</SelectItem><SelectItem value="IMMOBILE">Immobile</SelectItem></SelectContent></Select></FormItem>} />
+                  <FormField control={form.control} name="standUnsupported" render={({ field }) => <FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Can stand unsupported</FormLabel></FormItem>} />
+                  <FormField control={form.control} name="personalActivities" render={({ field }) => <FormItem><FormLabel>Personal Activities</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="INDEPENDENT-SAFE">Independent</SelectItem><SelectItem value="INDEPENDENT-EQUIPMENT">With Equipment</SelectItem><SelectItem value="ASSISTANCE">Assistance</SelectItem></SelectContent></Select></FormItem>} />
+                  <FormField control={form.control} name="domesticActivities" render={({ field }) => <FormItem><FormLabel>Domestic Activities</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="INDEPENDENT-SAFE">Independent</SelectItem><SelectItem value="INDEPENDENT-EQUIPMENT">With Equipment</SelectItem><SelectItem value="ASSISTANCE">Assistance</SelectItem></SelectContent></Select></FormItem>} />
+                </div>
               </div>
-            </div>
 
-            {/* Section 4: Medical & Social */}
-            <div className="space-y-4">
-              <div className="space-y-1 pb-2 border-b">
-                <h4 className="text-sm font-medium">Medical & Social</h4>
-                <p className="text-sm text-muted-foreground">Social risks, medical conditions, and medications</p>
-              </div>
+              {/* Section 3: Physical & Environmental */}
               <div className="space-y-4">
-                <FormField control={form.control} name="socialRisks" render={({ field }) => <FormItem><FormLabel>Social</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="24H-CARE">24h Care</SelectItem><SelectItem value="LIMITED-SUPPORT">Limited</SelectItem><SelectItem value="LIVES-ALONE">Alone</SelectItem></SelectContent></Select></FormItem>} />
-                <FormField control={form.control} name="medicalCondition" render={({ field }) => <FormItem><FormLabel>Medical</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NO-IDENTIFIED">None</SelectItem><SelectItem value="POSTURAL">Postural</SelectItem><SelectItem value="CARDIAC">Cardiac</SelectItem><SelectItem value="SKELETAL-CONDITION">Skeletal</SelectItem><SelectItem value="FRACTURES">Fractures</SelectItem><SelectItem value="NEUROLOGICAL-PROBLEMS">Neuro</SelectItem><SelectItem value="LISTED-CONDITIONS">Multi</SelectItem></SelectContent></Select></FormItem>} />
-                <FormField control={form.control} name="medicines" render={({ field }) => <FormItem><FormLabel>Meds Count</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NO-MEDICATIONS">None</SelectItem><SelectItem value="LESS-4">Less than 4</SelectItem><SelectItem value="4-OR-MORE">4+</SelectItem></SelectContent></Select></FormItem>} />
+                <div className="space-y-1 pb-2 border-b">
+                  <h4 className="text-sm font-medium">Physical & Environmental</h4>
+                  <p className="text-sm text-muted-foreground">Footwear, vision, and environmental risks</p>
+                </div>
+                <div className="space-y-4">
+                  <FormField control={form.control} name="footwear" render={({ field }) => <FormItem><FormLabel>Footwear</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="SAFE">Safe</SelectItem><SelectItem value="UNSAFE">Unsafe</SelectItem></SelectContent></Select></FormItem>} />
+                  <FormField control={form.control} name="visionProblems" render={({ field }) => <FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Vision Problems</FormLabel></FormItem>} />
+                  <FormField control={form.control} name="bladderBowelMovement" render={({ field }) => <FormItem><FormLabel>Bladder/Bowel</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NO-PROBLEMS">No problems</SelectItem><SelectItem value="IDENTIFIED-PROBLEMS">Problems</SelectItem><SelectItem value="FREQUENCY">Frequency</SelectItem></SelectContent></Select></FormItem>} />
+                  <FormField control={form.control} name="residentEnvironmentalRisks" render={({ field }) => <FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Environmental Risks</FormLabel></FormItem>} />
+                </div>
               </div>
-            </div>
 
-            {/* Section 5: Mental State & Completion */}
-            <div className="space-y-4">
-              <div className="space-y-1 pb-2 border-b">
-                <h4 className="text-sm font-medium">Mental State & Completion</h4>
-                <p className="text-sm text-muted-foreground">Safety awareness, mental state, and assessment details</p>
-              </div>
+              {/* Section 4: Medical & Social */}
               <div className="space-y-4">
-                <FormField control={form.control} name="safetyAwarness" render={({ field }) => <FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Safety Awareness</FormLabel></FormItem>} />
-                <FormField control={form.control} name="mentalState" render={({ field }) => <FormItem><FormLabel>Mental State</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ORIENTATED">Orientated</SelectItem><SelectItem value="CONFUSED">Confused</SelectItem></SelectContent></Select></FormItem>} />
-                <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><Input {...field} /></FormItem>} />
-                <FormField control={form.control} name="assessmentDate" render={({ field }) => <FormItem><FormLabel>Date</FormLabel><Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full text-left">{field.value ? format(new Date(field.value), 'PPP') : 'Pick date'}</Button></PopoverTrigger><PopoverContent><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.toISOString().split('T')[0]); setDatePopoverOpen(false); }} /></PopoverContent></Popover></FormItem>} />
+                <div className="space-y-1 pb-2 border-b">
+                  <h4 className="text-sm font-medium">Medical & Social</h4>
+                  <p className="text-sm text-muted-foreground">Social risks, medical conditions, and medications</p>
+                </div>
+                <div className="space-y-4">
+                  <FormField control={form.control} name="socialRisks" render={({ field }) => <FormItem><FormLabel>Social</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="24H-CARE">24h Care</SelectItem><SelectItem value="LIMITED-SUPPORT">Limited</SelectItem><SelectItem value="LIVES-ALONE">Alone</SelectItem></SelectContent></Select></FormItem>} />
+                  <FormField control={form.control} name="medicalCondition" render={({ field }) => <FormItem><FormLabel>Medical</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NO-IDENTIFIED">None</SelectItem><SelectItem value="POSTURAL">Postural</SelectItem><SelectItem value="CARDIAC">Cardiac</SelectItem><SelectItem value="SKELETAL-CONDITION">Skeletal</SelectItem><SelectItem value="FRACTURES">Fractures</SelectItem><SelectItem value="NEUROLOGICAL-PROBLEMS">Neuro</SelectItem><SelectItem value="LISTED-CONDITIONS">Multi</SelectItem></SelectContent></Select></FormItem>} />
+                  <FormField control={form.control} name="medicines" render={({ field }) => <FormItem><FormLabel>Meds Count</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NO-MEDICATIONS">None</SelectItem><SelectItem value="LESS-4">Less than 4</SelectItem><SelectItem value="4-OR-MORE">4+</SelectItem></SelectContent></Select></FormItem>} />
+                </div>
+              </div>
 
-                <div className="p-4 bg-muted rounded">
-                  <p className="font-bold">Total Score: {scoreResult.totalScore}</p>
-                  <p className="text-sm">Risk Level: {scoreResult.riskLevel}</p>
+              {/* Section 5: Mental State & Completion */}
+              <div className="space-y-4">
+                <div className="space-y-1 pb-2 border-b">
+                  <h4 className="text-sm font-medium">Mental State & Completion</h4>
+                  <p className="text-sm text-muted-foreground">Safety awareness, mental state, and assessment details</p>
+                </div>
+                <div className="space-y-4">
+                  <FormField control={form.control} name="safetyAwarness" render={({ field }) => <FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Safety Awareness</FormLabel></FormItem>} />
+                  <FormField control={form.control} name="mentalState" render={({ field }) => <FormItem><FormLabel>Mental State</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ORIENTATED">Orientated</SelectItem><SelectItem value="CONFUSED">Confused</SelectItem></SelectContent></Select></FormItem>} />
+                  <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><Input {...field} /></FormItem>} />
+                  <FormField control={form.control} name="assessmentDate" render={({ field }) => <FormItem><FormLabel>Date</FormLabel><Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full text-left">{field.value ? format(new Date(field.value), 'PPP') : 'Pick date'}</Button></PopoverTrigger><PopoverContent><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.toISOString().split('T')[0]); setDatePopoverOpen(false); }} /></PopoverContent></Popover></FormItem>} />
+
+                  <div className="p-4 bg-muted rounded">
+                    <p className="font-bold">Total Score: {scoreResult.totalScore}</p>
+                    <p className="text-sm">Risk Level: {scoreResult.riskLevel}</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Sticky Footer */}
-          {!isInline && (
-            <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isLoading}>Cancel</Button>
-              <Button type="button" onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Submit Assessment"
-                )}
-              </Button>
-            </DialogFooter>
-          )}
-        </form>
+            {/* Sticky Footer */}
+            {!isInline && !viewOnly && (
+              <DialogFooter className="flex flex-row justify-end gap-2 pt-4 border-t">
+                <Button type="button" variant="outline" onClick={() => onClose?.()} disabled={isLoading}>Cancel</Button>
+                <Button type="button" onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Submit Assessment"
+                  )}
+                </Button>
+              </DialogFooter>
+            )}
+          </form>
+        </fieldset>
       </Form>
     </>
   );
