@@ -79,8 +79,8 @@ export default function InfectionPreventionDialog({
         residentId: resident.id,
         organizationId: organizationId,
         teamId: teamId,
-        name: initialData.symptoms?.details?.name || `${resident.first_name} ${resident.last_name}`,
-        dateOfBirth: initialData.symptoms?.details?.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
+        name: initialData.name || initialData.symptoms?.details?.name || `${resident.first_name} ${resident.last_name}`,
+        dateOfBirth: initialData.date_of_birth || initialData.symptoms?.details?.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
         homeAddress: initialData.symptoms?.details?.homeAddress || "",
         assessmentType: initialData.assessment_type || "Pre-admission",
         informationProvidedBy: initialData.symptoms?.details?.informationProvidedBy || "",
@@ -297,7 +297,7 @@ export default function InfectionPreventionDialog({
           exposure_history: exposurePayload,
           isolation_required: values.isolationRequired,
           completed_by: values.completedBy,
-          assessment_date: new Date(values.assessmentDate).toISOString(),
+          assessment_date: new Date(values.assessmentDate || Date.now()).toISOString(),
           created_by: userId,
         };
 
@@ -377,8 +377,15 @@ export default function InfectionPreventionDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit, (errors) => {
+                  console.error("Infection Prevention form errors:", errors);
+                  toast.error("Please fill in all required fields correctly.");
+                })}
+              />
               {/* Section 1: Resident Details */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 border-b pb-2">

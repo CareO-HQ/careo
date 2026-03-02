@@ -205,7 +205,15 @@ export default function AdmissionDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-12">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(handleSubmit, (errors) => {
+                  console.error("Admission form errors:", errors);
+                  toast.error("Please fill in all required fields correctly.");
+                })}
+              />
               {/* Section 1: Basic Information */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 border-b pb-2">

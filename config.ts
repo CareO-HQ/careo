@@ -442,7 +442,7 @@ export const config = {
       carePlan: true,
       forms: [
         { type: "form", key: "v2-body-map-hygiene", value: "Body Map (monthly reassessment)", isComingSoon: true },
-        { type: "form", key: "v2-braden-score", value: "Braden Risk Assessment (score required)", isComingSoon: true },
+        { type: "form", key: "braden-risk-assessment-form", value: "Braden Risk Assessment (score required)" },
         { type: "form", key: "oral-assessment-form", value: "Oral Assessment + Evaluation Sheet" },
         { type: "form", key: "v2-skin-dermatology", value: "Skin Integrity / Dermatology Assessment", isComingSoon: true }
       ]
@@ -454,7 +454,7 @@ export const config = {
       description: "Wound care and skin integrity.",
       carePlan: true,
       forms: [
-        { type: "form", key: "v2-braden-skin", value: "Braden Risk Assessment", isComingSoon: true },
+        { type: "form", key: "braden-risk-assessment-form", value: "Braden Risk Assessment" },
         { type: "form", key: "v2-body-map-skin", value: "Body Map", isComingSoon: true },
         { type: "form", key: "v2-wound-assessment", value: "Wound Assessment", isComingSoon: true },
         { type: "form", key: "skin-integrity-form", value: "Skin Integrity / Tissue Viability Assessment" }

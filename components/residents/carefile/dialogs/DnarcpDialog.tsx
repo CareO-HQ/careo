@@ -221,7 +221,15 @@ export default function DnacprDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit, (errors) => {
+                  console.error("DNACPR form errors:", errors);
+                  toast.error("Please fill in all required fields correctly.");
+                })}
+              />
 
               {/* Section 1: Resident & Decision */}
               <div className="space-y-6">

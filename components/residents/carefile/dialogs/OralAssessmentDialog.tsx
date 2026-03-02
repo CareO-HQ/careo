@@ -188,7 +188,12 @@ export default function OralAssessmentDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit, onValidationError)} className="space-y-4">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit, onValidationError)}
+              />
               <div className="p-4 bg-muted/30 rounded-lg space-y-4">
                 <h3 className="font-semibold">Resident Info</h3>
                 <div className="grid grid-cols-2 gap-4">

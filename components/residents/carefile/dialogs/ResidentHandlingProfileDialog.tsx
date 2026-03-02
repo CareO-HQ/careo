@@ -230,7 +230,15 @@ export default function ResidentHandlingProfile({
       <Form {...form}>
         <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6" autoComplete="off">
-            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            <button
+              type="button"
+              id="care-file-submit-btn"
+              className="hidden"
+              onClick={form.handleSubmit(handleSubmit, (errors) => {
+                console.error("Handling Profile form errors:", errors);
+                toast.error("Please fill in all required fields correctly.");
+              })}
+            />
             <div className="space-y-8 px-1">
               {/* Completed By */}
               <div className="space-y-4">

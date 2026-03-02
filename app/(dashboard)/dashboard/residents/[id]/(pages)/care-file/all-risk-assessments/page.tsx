@@ -11,18 +11,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ArrowLeft, Eye, FileText } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useFolderForms } from "@/hooks/use-folder-forms";
 import { useState, useEffect } from "react";
 import RiskAssessmentViewDialog from "@/components/residents/carefile/folders/RiskAssessmentViewDialog";
 import { supabase } from "@/lib/supabase";
+import { config } from "@/config";
 
 export default function AllRiskAssessmentsPage() {
   const router = useRouter();
   const path = usePathname();
   const pathname = path.split("/");
   const residentId = pathname[3];
+
+  const searchParams = useSearchParams();
+  const version = searchParams.get("v");
 
   const [viewingAssessment, setViewingAssessment] = useState<{
     formKey: string;
@@ -151,6 +155,17 @@ export default function AllRiskAssessmentsPage() {
     return forms[0];
   };
 
+  const getFolderName = (formKey: string, defaultFolder: string) => {
+    if (version !== "v2") return defaultFolder;
+
+    // Find the folder in config.careFilesV2 that contains this formKey
+    const folder = config.careFilesV2.find(f =>
+      f.forms.some(form => form.key === formKey)
+    );
+
+    return folder ? folder.value : defaultFolder;
+  };
+
   // Collect all assessments
   const assessments = [
     // Pre-Admission Form
@@ -159,7 +174,7 @@ export default function AllRiskAssessmentsPage() {
       key: "preAdmission-form",
       name: "Pre-Admission Assessment",
       completedAt: getLatestForm(allPreAdmissionForms)?._creationTime,
-      folderName: "Pre-Admission",
+      folderName: getFolderName("preAdmission-form", "Pre-Admission"),
       category: "Pre-Admission"
     }] : []),
 
@@ -169,7 +184,7 @@ export default function AllRiskAssessmentsPage() {
       key: "infection-prevention",
       name: "Infection Prevention Assessment",
       completedAt: getLatestForm(allInfectionPreventionForms)?._creationTime,
-      folderName: "Pre-Admission",
+      folderName: getFolderName("infection-prevention", "Pre-Admission"),
       category: "Pre-Admission"
     }] : []),
 
@@ -179,7 +194,7 @@ export default function AllRiskAssessmentsPage() {
       key: "admission-form",
       name: "Admission Assessment",
       completedAt: getLatestForm(allAdmissionForms)?._creationTime,
-      folderName: "Admission",
+      folderName: getFolderName("admission-form", "Admission"),
       category: "Admission"
     }] : []),
 
@@ -189,7 +204,7 @@ export default function AllRiskAssessmentsPage() {
       key: "photography-consent",
       name: "Photography Consent",
       completedAt: getLatestForm(allPhotographyConsentForms)?._creationTime,
-      folderName: "Admission",
+      folderName: getFolderName("photography-consent", "Admission"),
       category: "Consent"
     }] : []),
 
@@ -199,7 +214,7 @@ export default function AllRiskAssessmentsPage() {
       key: "best-interest-decision-form",
       name: "Best Interest Decision",
       completedAt: getLatestForm(allBestInterestDecisionForms)?._creationTime,
-      folderName: "Admission",
+      folderName: getFolderName("best-interest-decision-form", "Admission"),
       category: "Consent"
     }] : []),
 
@@ -209,7 +224,7 @@ export default function AllRiskAssessmentsPage() {
       key: "dnacpr",
       name: "DNACPR",
       completedAt: getLatestForm(allDnacprForms)?._creationTime,
-      folderName: "DNACPR",
+      folderName: getFolderName("dnacpr", "DNACPR"),
       category: "Medical"
     }] : []),
 
@@ -219,7 +234,7 @@ export default function AllRiskAssessmentsPage() {
       key: "peep",
       name: "PEEP Assessment",
       completedAt: getLatestForm(allPeepForms)?._creationTime,
-      folderName: "PEEP",
+      folderName: getFolderName("peep", "PEEP"),
       category: "Emergency"
     }] : []),
 
@@ -229,7 +244,7 @@ export default function AllRiskAssessmentsPage() {
       key: "dependency-assessment",
       name: "Dependency Assessment",
       completedAt: getLatestForm(allDependencyAssessmentForms)?._creationTime,
-      folderName: "Dependency",
+      folderName: getFolderName("dependency-assessment", "Dependency"),
       category: "Care Assessment"
     }] : []),
 
@@ -239,7 +254,7 @@ export default function AllRiskAssessmentsPage() {
       key: "timl",
       name: "This Is My Life",
       completedAt: getLatestForm(allTimlAssessmentForms)?._creationTime,
-      folderName: "My Life",
+      folderName: getFolderName("timl", "My Life"),
       category: "Personal"
     }] : []),
 
@@ -249,7 +264,7 @@ export default function AllRiskAssessmentsPage() {
       key: "pain-assessment-form",
       name: "Pain Assessment and Evaluation",
       completedAt: getLatestForm(allPainAssessmentForms)?._creationTime,
-      folderName: "Medication",
+      folderName: getFolderName("pain-assessment-form", "Medication"),
       category: "Clinical"
     }] : []),
 
@@ -259,7 +274,7 @@ export default function AllRiskAssessmentsPage() {
       key: "moving-handling-form",
       name: "Moving & Handling Risk Assessment",
       completedAt: getLatestForm(allMovingHandlingForms)?._creationTime,
-      folderName: "Mobility & Fall",
+      folderName: getFolderName("moving-handling-form", "Mobility & Fall"),
       category: "Handling"
     }] : []),
 
@@ -269,7 +284,7 @@ export default function AllRiskAssessmentsPage() {
       key: "long-term-fall-risk-form",
       name: "Long Term Fall Risk Assessment",
       completedAt: getLatestForm(allLongTermFallsForms)?._creationTime,
-      folderName: "Mobility & Fall",
+      folderName: getFolderName("long-term-fall-risk-form", "Mobility & Fall"),
       category: "Handling"
     }] : []),
 
@@ -279,7 +294,7 @@ export default function AllRiskAssessmentsPage() {
       key: "resident-handling-profile-form",
       name: "Resident Handling Profile",
       completedAt: getLatestForm(allHandlingProfileForms)?._creationTime,
-      folderName: "Mobility & Fall",
+      folderName: getFolderName("resident-handling-profile-form", "Mobility & Fall"),
       category: "Handling"
     }] : []),
 
@@ -289,7 +304,7 @@ export default function AllRiskAssessmentsPage() {
       key: "bedrail-consent-form",
       name: "Bedrails Consent / Agreement",
       completedAt: getLatestForm(allBedrailConsentForms)?._creationTime,
-      folderName: "Mobility & Fall",
+      folderName: getFolderName("bedrail-consent-form", "Mobility & Fall"),
       category: "Handling"
     }] : []),
 
@@ -299,7 +314,7 @@ export default function AllRiskAssessmentsPage() {
       key: "bed-rails-risk-assessment-form",
       name: "Risk Assessment for Use of Bed Rails",
       completedAt: getLatestForm(allBedRailsRiskAssessmentForms)?._creationTime,
-      folderName: "Mobility & Fall",
+      folderName: getFolderName("bed-rails-risk-assessment-form", "Mobility & Fall"),
       category: "Handling"
     }] : []),
 
@@ -309,7 +324,7 @@ export default function AllRiskAssessmentsPage() {
       key: "nutritional-assessment-form",
       name: "Nutritional Assessment",
       completedAt: getLatestForm(allNutritionalAssessmentForms)?._creationTime,
-      folderName: "Nutrition & Hydration",
+      folderName: getFolderName("nutritional-assessment-form", "Nutrition & Hydration"),
       category: "Clinical"
     }] : []),
 
@@ -319,7 +334,7 @@ export default function AllRiskAssessmentsPage() {
       key: "oral-assessment-form",
       name: "Oral Assessment",
       completedAt: getLatestForm(allOralAssessmentForms)?._creationTime,
-      folderName: "Nutrition & Hydration",
+      folderName: getFolderName("oral-assessment-form", "Nutrition & Hydration"),
       category: "Clinical"
     }] : []),
 
@@ -329,7 +344,7 @@ export default function AllRiskAssessmentsPage() {
       key: "diet-notification-form",
       name: "Diet Notification",
       completedAt: getLatestForm(allDietNotificationForms)?._creationTime,
-      folderName: "Nutrition & Hydration",
+      folderName: getFolderName("diet-notification-form", "Nutrition & Hydration"),
       category: "Property"
     }] : []),
 
@@ -339,7 +354,7 @@ export default function AllRiskAssessmentsPage() {
       key: "choking-risk-assessment-form",
       name: "Choking Risk Assessment",
       completedAt: getLatestForm(allChokingRiskAssessmentForms)?._creationTime,
-      folderName: "Nutrition & Hydration",
+      folderName: getFolderName("choking-risk-assessment-form", "Nutrition & Hydration"),
       category: "Emergency"
     }] : []),
 
@@ -349,7 +364,7 @@ export default function AllRiskAssessmentsPage() {
       key: "blader-bowel-form",
       name: "Bladder & Bowel Continence Assessment",
       completedAt: getLatestForm(allBladderBowelForms)?._creationTime,
-      folderName: "Continence",
+      folderName: getFolderName("blader-bowel-form", "Continence"),
       category: "Clinical"
     }] : []),
 
@@ -359,7 +374,7 @@ export default function AllRiskAssessmentsPage() {
       key: "skin-integrity-form",
       name: "Skin Integrity Assessment",
       completedAt: getLatestForm(allSkinIntegrityForms)?._creationTime,
-      folderName: "Skin Integrity",
+      folderName: getFolderName("skin-integrity-form", "Skin Integrity"),
       category: "Clinical"
     }] : []),
 
@@ -369,7 +384,7 @@ export default function AllRiskAssessmentsPage() {
       key: "cornell-depression-scale-form",
       name: "Cornell Scale for Depression in Dementia",
       completedAt: getLatestForm(allCornellDepressionScaleForms)?._creationTime,
-      folderName: "Psychological & Emotional",
+      folderName: getFolderName("cornell-depression-scale-form", "Psychological & Emotional"),
       category: "Personal"
     }] : []),
 
@@ -379,7 +394,7 @@ export default function AllRiskAssessmentsPage() {
       key: "resident-valuables-form",
       name: "Resident Valuables",
       completedAt: getLatestForm(allResidentValuablesForms)?._creationTime,
-      folderName: "Resident Valuables",
+      folderName: getFolderName("resident-valuables-form", "Resident Valuables"),
       category: "Property"
     }] : []),
   ].filter(assessment => assessment._id); // Remove any null entries
@@ -437,7 +452,7 @@ export default function AllRiskAssessmentsPage() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => router.push(`/dashboard/residents/${residentId}/care-file`)}
+          onClick={() => router.push(`/dashboard/residents/${residentId}/${version === 'v2' ? 'care-file-v2' : 'care-file'}`)}
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>

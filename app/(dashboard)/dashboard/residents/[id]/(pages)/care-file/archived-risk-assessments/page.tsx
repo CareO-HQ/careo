@@ -11,17 +11,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ArrowLeft, Eye, Archive } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
 import RiskAssessmentViewDialog from "@/components/residents/carefile/folders/RiskAssessmentViewDialog";
 import { supabase } from "@/lib/supabase";
+import { config } from "@/config";
 
 export default function ArchivedRiskAssessmentsPage() {
   const router = useRouter();
   const path = usePathname();
   const pathname = path.split("/");
   const residentId = pathname[3];
+  const searchParams = useSearchParams();
+  const version = searchParams.get("v");
 
   const [viewingAssessment, setViewingAssessment] = useState<{
     formKey: string;
@@ -230,6 +233,17 @@ export default function ArchivedRiskAssessmentsPage() {
   const fullName = `${resident.first_name} ${resident.last_name}`;
   const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
+  const getFolderName = (formKey: string, defaultFolder: string) => {
+    if (version !== "v2") return defaultFolder;
+
+    // Find the folder in config.careFilesV2 that contains this formKey
+    const folder = config.careFilesV2.find(f =>
+      f.forms.some(form => form.key === formKey)
+    );
+
+    return folder ? folder.value : defaultFolder;
+  };
+
   // Collect all archived assessments from all 23 assessment types
   const archivedAssessments = [
     ...(archivedPreAdmission?.map(form => ({
@@ -237,7 +251,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "preAdmission-form",
       name: "Pre-Admission Assessment",
       completedAt: form._creationTime,
-      folderName: "Pre-Admission",
+      folderName: getFolderName("preAdmission-form", "Pre-Admission"),
       category: "Pre-Admission"
     })) || []),
     ...(archivedAdmission?.map(form => ({
@@ -245,7 +259,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "admission-form",
       name: "Admission Assessment",
       completedAt: form._creationTime,
-      folderName: "Admission",
+      folderName: getFolderName("admission-form", "Admission"),
       category: "Admission"
     })) || []),
     ...(archivedPhotographyConsent?.map(form => ({
@@ -253,7 +267,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "photography-consent",
       name: "Photography Consent",
       completedAt: form._creationTime,
-      folderName: "Admission",
+      folderName: getFolderName("photography-consent", "Admission"),
       category: "Consent"
     })) || []),
     ...(archivedDnacpr?.map(form => ({
@@ -261,7 +275,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "dnacpr",
       name: "DNACPR",
       completedAt: form._creationTime,
-      folderName: "DNACPR",
+      folderName: getFolderName("dnacpr", "DNACPR"),
       category: "Medical"
     })) || []),
     ...(archivedPeep?.map(form => ({
@@ -269,7 +283,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "peep",
       name: "PEEP Assessment",
       completedAt: form._creationTime,
-      folderName: "PEEP",
+      folderName: getFolderName("peep", "PEEP"),
       category: "Emergency"
     })) || []),
     ...(archivedDependency?.map(form => ({
@@ -277,7 +291,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "dependency-assessment",
       name: "Dependency Assessment",
       completedAt: form._creationTime,
-      folderName: "Dependency",
+      folderName: getFolderName("dependency-assessment", "Dependency"),
       category: "Care Assessment"
     })) || []),
     ...(archivedTiml?.map(form => ({
@@ -285,7 +299,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "timl",
       name: "This Is My Life",
       completedAt: form._creationTime,
-      folderName: "My Life",
+      folderName: getFolderName("timl", "My Life"),
       category: "Personal"
     })) || []),
     ...(archivedSkinIntegrity?.map(form => ({
@@ -293,7 +307,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "skin-integrity-form",
       name: "Skin Integrity Assessment",
       completedAt: form._creationTime,
-      folderName: "Skin Integrity",
+      folderName: getFolderName("skin-integrity-form", "Skin Integrity"),
       category: "Clinical"
     })) || []),
     ...(archivedResidentValuables?.map(form => ({
@@ -301,7 +315,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "resident-valuables-form",
       name: "Resident Valuables",
       completedAt: form._creationTime,
-      folderName: "Resident Valuables",
+      folderName: getFolderName("resident-valuables-form", "Resident Valuables"),
       category: "Property"
     })) || []),
     ...(archivedHandlingProfile?.map(form => ({
@@ -309,7 +323,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "resident-handling-profile-form",
       name: "Resident Handling Profile",
       completedAt: form._creationTime,
-      folderName: "Mobility & Fall",
+      folderName: getFolderName("resident-handling-profile-form", "Mobility & Fall"),
       category: "Handling"
     })) || []),
     ...(archivedPainAssessment?.map(form => ({
@@ -317,7 +331,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "pain-assessment-form",
       name: "Pain Assessment and Evaluation",
       completedAt: form._creationTime,
-      folderName: "Medication",
+      folderName: getFolderName("pain-assessment-form", "Medication"),
       category: "Medication"
     })) || []),
     ...(archivedNutritionalAssessment?.map(form => ({
@@ -325,7 +339,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "nutritional-assessment-form",
       name: "Nutritional Assessment",
       completedAt: form._creationTime,
-      folderName: "Nutrition & Hydration",
+      folderName: getFolderName("nutritional-assessment-form", "Nutrition & Hydration"),
       category: "Nutrition"
     })) || []),
     ...(archivedOralAssessment?.map(form => ({
@@ -333,7 +347,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "oral-assessment-form",
       name: "Oral Assessment",
       completedAt: form._creationTime,
-      folderName: "Nutrition & Hydration",
+      folderName: getFolderName("oral-assessment-form", "Nutrition & Hydration"),
       category: "Nutrition"
     })) || []),
     ...(archivedDietNotification?.map(form => ({
@@ -341,7 +355,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "diet-notification-form",
       name: "Diet Notification",
       completedAt: form._creationTime,
-      folderName: "Nutrition & Hydration",
+      folderName: getFolderName("diet-notification-form", "Nutrition & Hydration"),
       category: "Nutrition"
     })) || []),
     ...(archivedChokingRiskAssessment?.map(form => ({
@@ -349,7 +363,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "choking-risk-assessment-form",
       name: "Choking Risk Assessment",
       completedAt: form._creationTime,
-      folderName: "Nutrition & Hydration",
+      folderName: getFolderName("choking-risk-assessment-form", "Nutrition & Hydration"),
       category: "Nutrition"
     })) || []),
     ...(archivedCornellDepressionScale?.map(form => ({
@@ -357,7 +371,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "cornell-depression-scale-form",
       name: "Cornell Scale for Depression in Dementia",
       completedAt: form._creationTime,
-      folderName: "Psychological & Emotional Needs",
+      folderName: getFolderName("cornell-depression-scale-form", "Psychological & Emotional Needs"),
       category: "Psychological"
     })) || []),
     ...(archivedBestInterestDecision?.map(form => ({
@@ -365,7 +379,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "best-interest-decision-form",
       name: "Best Interest Decision",
       completedAt: form._creationTime,
-      folderName: "Capacity & Consent",
+      folderName: getFolderName("best-interest-decision-form", "Capacity & Consent"),
       category: "Capacity"
     })) || []),
     ...(archivedInfectionPrevention?.map(form => ({
@@ -373,7 +387,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "infection-prevention",
       name: "Infection Prevention Assessment",
       completedAt: form._creationTime,
-      folderName: "Pre-Admission",
+      folderName: getFolderName("infection-prevention", "Pre-Admission"),
       category: "Infection Control"
     })) || []),
     ...(archivedBladderBowel?.map(form => ({
@@ -381,7 +395,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "blader-bowel-form",
       name: "Continence Assessment",
       completedAt: form._creationTime,
-      folderName: "Continence",
+      folderName: getFolderName("blader-bowel-form", "Continence"),
       category: "Continence"
     })) || []),
     ...(archivedMovingHandling?.map(form => ({
@@ -389,7 +403,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "moving-handling-form",
       name: "Moving & Handling Assessment",
       completedAt: form._creationTime,
-      folderName: "Mobility & Fall",
+      folderName: getFolderName("moving-handling-form", "Mobility & Fall"),
       category: "Moving & Handling"
     })) || []),
     ...(archivedBedrailConsent?.map(form => ({
@@ -397,7 +411,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "bedrail-consent-form",
       name: "Bedrails Consent / Agreement",
       completedAt: form._creationTime,
-      folderName: "Mobility & Fall",
+      folderName: getFolderName("bedrail-consent-form", "Mobility & Fall"),
       category: "Consent"
     })) || []),
     ...(archivedBedRailsRiskAssessment?.map(form => ({
@@ -405,7 +419,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "bed-rails-risk-assessment-form",
       name: "Risk Assessment for Use of Bed Rails",
       completedAt: form._creationTime,
-      folderName: "Mobility & Fall",
+      folderName: getFolderName("bed-rails-risk-assessment-form", "Mobility & Fall"),
       category: "Risk Assessment"
     })) || []),
     ...(archivedLongTermFalls?.map(form => ({
@@ -413,7 +427,7 @@ export default function ArchivedRiskAssessmentsPage() {
       key: "long-term-fall-risk-form",
       name: "Fall Risk Assessment",
       completedAt: form._creationTime,
-      folderName: "Mobility & Fall",
+      folderName: getFolderName("long-term-fall-risk-form", "Mobility & Fall"),
       category: "Fall Risk"
     })) || [])
   ];
@@ -488,7 +502,7 @@ export default function ArchivedRiskAssessmentsPage() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => router.push(`/dashboard/residents/${residentId}/care-file`)}
+          onClick={() => router.push(`/dashboard/residents/${residentId}/${version === 'v2' ? 'care-file-v2' : 'care-file'}`)}
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>

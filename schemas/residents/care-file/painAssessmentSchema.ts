@@ -2,15 +2,15 @@ import { z } from "zod";
 
 // Schema for individual pain assessment entry
 export const painAssessmentEntrySchema = z.object({
-  dateTime: z.string().min(1, "Date and time is required"),
-  painLocation: z.string().min(1, "Pain location is required"),
-  descriptionOfPain: z.string().min(1, "Description of pain is required"),
-  residentBehaviour: z.string().min(1, "Resident behaviour is required"),
-  interventionType: z.string().min(1, "Type of intervention is required"),
-  interventionTime: z.string().min(1, "Intervention time is required"),
-  painAfterIntervention: z.string().min(1, "Pain description after intervention is required"),
+  dateTime: z.string().optional(),
+  painLocation: z.string().optional(),
+  descriptionOfPain: z.string().optional(),
+  residentBehaviour: z.string().optional(),
+  interventionType: z.string().optional(),
+  interventionTime: z.string().optional(),
+  painAfterIntervention: z.string().optional(),
   comments: z.string().optional(),
-  signature: z.string().min(1, "Signature is required")
+  signature: z.string().optional()
 });
 
 export const painAssessmentSchema = z.object({

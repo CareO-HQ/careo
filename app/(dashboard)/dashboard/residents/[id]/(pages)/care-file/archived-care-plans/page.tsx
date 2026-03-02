@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ArrowLeft, Eye, FileText, Archive } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
 import CarePlanViewDialog from "@/components/residents/carefile/folders/CarePlanViewDialog";
@@ -22,6 +22,8 @@ export default function ArchivedCarePlansPage() {
   const path = usePathname();
   const pathname = path.split("/");
   const residentId = pathname[3];
+  const searchParams = useSearchParams();
+  const version = searchParams.get("v");
 
   const [viewingCarePlan, setViewingCarePlan] = useState<{
     formKey: string;
@@ -127,7 +129,7 @@ export default function ArchivedCarePlansPage() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => router.push(`/dashboard/residents/${residentId}/care-file`)}
+          onClick={() => router.push(`/dashboard/residents/${residentId}/${version === 'v2' ? 'care-file-v2' : 'care-file'}`)}
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>

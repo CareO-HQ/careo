@@ -3,13 +3,13 @@ import { z } from "zod";
 export const InfectionPreventionAssessmentSchema = z.object({
   // Metadata
   residentId: z.string().min(1, "Resident ID is required"),
-  teamId: z.string().min(1, "Team ID is required"),
-  organizationId: z.string().min(1, "Organization ID is required"),
+  teamId: z.string().optional(),
+  organizationId: z.string().optional(),
 
   // Person's details
   name: z.string().min(1, "Name is required"),
-  dateOfBirth: z.string().min(1, "Date of Birth is required"),
-  homeAddress: z.string().min(1, "Home address is required"),
+  dateOfBirth: z.string().optional(),
+  homeAddress: z.string().optional(),
   assessmentType: z.enum(["Pre-admission", "Admission"]),
   informationProvidedBy: z.string().optional(),
   admittedFrom: z.string().optional(),
@@ -78,8 +78,8 @@ export const InfectionPreventionAssessmentSchema = z.object({
   lastFluVaccinationDate: z.number().optional(),
 
   // 9 Assessment Completion
-  completedBy: z.string().min(1, "Completed by is required"),
-  jobRole: z.string().min(1, "Job role is required"),
-  signature: z.string().min(1, "Signature is required"),
-  assessmentDate: z.number().min(1, "Date is required")
+  completedBy: z.string().optional(),
+  jobRole: z.string().optional(),
+  signature: z.string().optional(),
+  assessmentDate: z.number().optional()
 });

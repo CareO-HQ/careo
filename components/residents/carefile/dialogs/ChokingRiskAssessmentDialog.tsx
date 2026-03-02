@@ -203,7 +203,15 @@ export default function ChokingRiskAssessmentDialog({
 
       <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
-          <button type="submit" id="care-file-submit-btn" className="hidden" />
+          <button
+            type="button"
+            id="care-file-submit-btn"
+            className="hidden"
+            onClick={form.handleSubmit(onSubmit, (errors) => {
+              console.error("Choking Risk form errors:", errors);
+              toast.error("Please fill in all required fields correctly.");
+            })}
+          />
           <div className="space-y-4 p-4 border rounded-lg bg-card">
             <h3 className="font-semibold text-sm border-b pb-2">Administrative Information</h3>
             <div className="grid grid-cols-2 gap-4">

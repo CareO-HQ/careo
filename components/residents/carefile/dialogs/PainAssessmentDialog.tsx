@@ -146,7 +146,15 @@ export default function PainAssessmentDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit, (errors) => {
+                  console.error("Pain Assessment form errors:", errors);
+                  toast.error("Please fill in all required fields correctly.");
+                })}
+              />
               <div className="p-4 bg-muted/30 rounded-lg space-y-4">
                 <h3 className="font-semibold">Header Info</h3>
                 <div className="grid grid-cols-2 gap-4">

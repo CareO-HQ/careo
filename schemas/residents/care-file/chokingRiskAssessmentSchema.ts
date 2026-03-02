@@ -14,10 +14,10 @@ import { z } from "zod";
 
 export const chokingRiskAssessmentSchema = z.object({
   // Administrative Information
-  residentName: z.string().min(1, "Resident name is required"),
-  dateOfBirth: z.string().min(1, "Date of birth is required"),
-  dateOfAssessment: z.string().min(1, "Date of assessment is required"),
-  time: z.string().min(1, "Time is required"),
+  residentName: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  dateOfAssessment: z.string().optional(),
+  time: z.string().optional(),
 
   // Respiratory Risks (10 points each if YES)
   weakCough: z.boolean().optional(),
@@ -59,7 +59,7 @@ export const chokingRiskAssessmentSchema = z.object({
   eatsIndependently: z.boolean().optional(),
 
   // Additional fields
-  completedBy: z.string().min(1, "Completed by is required"),
+  completedBy: z.string().optional(),
   signature: z.string().optional(),
 
   // System fields

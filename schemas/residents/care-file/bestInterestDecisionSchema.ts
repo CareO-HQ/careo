@@ -19,12 +19,18 @@ export const bestInterestDecisionSchema = z.object({
   // Section C - Capacity Assessment
   ableToUnderstand: z.enum(["YES", "NO"]),
   reasonsForLackOfCapacity: z.object({
-    cognitiveImpairment: z.boolean(),
-    communicationDifficulty: z.boolean(),
-    fluctuatingCapacity: z.boolean(),
-    other: z.boolean(),
-    otherDetails: z.string().optional()
-  }).optional(),
+    cognitiveImpairment: z.boolean().default(false),
+    communicationDifficulty: z.boolean().default(false),
+    fluctuatingCapacity: z.boolean().default(false),
+    other: z.boolean().default(false),
+    otherDetails: z.string().optional().default("")
+  }).optional().default({
+    cognitiveImpairment: false,
+    communicationDifficulty: false,
+    fluctuatingCapacity: false,
+    other: false,
+    otherDetails: ""
+  }),
   assessorName: z.string().min(1, "Assessor name is required"),
   assessorRole: z.string().min(1, "Assessor role is required"),
   assessorSignature: z.string().min(1, "Assessor signature is required"),
