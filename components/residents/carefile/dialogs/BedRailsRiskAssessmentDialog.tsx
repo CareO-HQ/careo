@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
@@ -71,10 +71,10 @@ export default function BedRailsRiskAssessmentDialog({
     resolver: zodResolver(bedRailsRiskAssessmentSchema) as any,
     mode: "onChange",
     defaultValues: initialData ? {
-      residentId: residentId,
-      teamId,
-      organizationId,
-      userId,
+      residentId: initialData.assessment_data?.residentId || initialData.residentId || initialData.resident_id || residentId,
+      teamId: initialData.assessment_data?.teamId || initialData.teamId || initialData.team_id || teamId,
+      organizationId: initialData.assessment_data?.organizationId || initialData.organizationId || initialData.organization_id || organizationId,
+      userId: initialData.assessment_data?.userId || initialData.userId || initialData.user_id || initialData.created_by || userId,
       residentName: initialData.residentName || (resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : ""),
       bedroomNumber: initialData.bedroomNumber || resident?.room_number || "",
       dateOfBirth: initialData.dateOfBirth || (resident?.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now()),
@@ -175,6 +175,40 @@ export default function BedRailsRiskAssessmentDialog({
   const watchSafetyChecklist = form.watch("safetyChecklist");
   const watchTypeOfBedrails = form.watch("typeOfBedrails");
 
+  // Sync summary booleans for validation
+  useEffect(() => {
+    const values = form.getValues("exclusionCriteria");
+    if (values) {
+      const anyChecked = Object.values(values).some(val => val === true);
+      form.setValue("anyExclusionChecked", anyChecked, { shouldValidate: true });
+      form.trigger("anyExclusionChecked");
+    }
+  }, [
+    form.watch("exclusionCriteria.residentRefuses"),
+    form.watch("exclusionCriteria.climbingRisk"),
+    form.watch("exclusionCriteria.entrapmentRisk"),
+    form.watch("exclusionCriteria.abnormalBodySize"),
+    form.watch("exclusionCriteria.restraintPurpose"),
+    form.watch("exclusionCriteria.freedomLimitation"),
+    form
+  ]);
+
+  useEffect(() => {
+    const values = form.getValues("safetyChecklist");
+    if (values) {
+      const anyFailed = Object.values(values).some(val => val === "YES");
+      form.setValue("anySafetyCheckFailed", anyFailed, { shouldValidate: true });
+      form.trigger("anySafetyCheckFailed");
+    }
+  }, [
+    form.watch("safetyChecklist.gapBetweenRailAndMattress"),
+    form.watch("safetyChecklist.mattressCompressesEasily"),
+    form.watch("safetyChecklist.gapMoreThan60mm"),
+    form.watch("safetyChecklist.bedRailInsecure"),
+    form.watch("safetyChecklist.bedAgainstWall"),
+    form
+  ]);
+
   const checkExclusions = () => {
     const exclusions = form.getValues("exclusionCriteria");
     const anyChecked = Object.values(exclusions).some(val => val === true);
@@ -254,7 +288,15 @@ export default function BedRailsRiskAssessmentDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit, (errors) => {
+                  console.error("Bed Rails form errors:", errors);
+                  toast.error("Please fill in all required fields correctly.");
+                })}
+              />
 
               {/* Section 1: Administrative */}
               <div className="space-y-6">

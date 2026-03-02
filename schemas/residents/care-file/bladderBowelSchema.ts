@@ -12,7 +12,7 @@ export const bladderBowelAssessmentSchema = z.object({
   residentName: z.string(),
   dateOfBirth: z.number(),
   bedroomNumber: z.string(),
-  informationObtainedFrom: z.string().min(1, { message: "Required" }),
+  informationObtainedFrom: z.string().optional(),
   assessmentDate: z.number(),
   completedBy: z.string(),
 

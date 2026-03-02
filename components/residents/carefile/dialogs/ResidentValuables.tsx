@@ -182,7 +182,15 @@ export default function ResidentValuables({
       <Form {...form}>
         <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            <button
+              type="button"
+              id="care-file-submit-btn"
+              className="hidden"
+              onClick={form.handleSubmit(handleSubmit, (errors) => {
+                console.error("Resident Valuables form errors:", errors);
+                toast.error("Please fill in all required fields correctly.");
+              })}
+            />
             <div className="space-y-8 px-1">
 
               {/* Section 1: Resident Information */}

@@ -42,6 +42,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       "diet-notification-form",
       "choking-risk-assessment-form",
       "cornell-depression-scale-form",
+      "braden-risk-assessment-form",
       "best-interest-decision-form"
     ];
 
@@ -68,6 +69,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       "diet-notification-form": "diet_notifications",
       "choking-risk-assessment-form": "choking_risk_assessments",
       "cornell-depression-scale-form": "cornell_depression_scales",
+      "braden-risk-assessment-form": "braden_risk_assessments",
       "best-interest-decision-form": "best_interest_decisions",
       "care-plan-form": "care_plan_assessments" // Included for completeness
     };

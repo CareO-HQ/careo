@@ -143,7 +143,7 @@ export default function SkinIntegrityDialog({
           risk_score: totalScore,
           risk_level: riskLevel,
           assessment_details: assessmentDetails,
-          assessment_date: new Date(values.assessmentDate).toISOString().split('T')[0],
+          assessment_date: new Date(values.assessmentDate || Date.now()).toISOString().split('T')[0],
           completed_by: values.completedBy,
           created_by: currentUserId
         };
@@ -223,7 +223,15 @@ export default function SkinIntegrityDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit, (errors) => {
+                  console.error("Skin Integrity form errors:", errors);
+                  toast.error("Please fill in all required fields correctly.");
+                })}
+              />
               {/* Section 1: Basic Information */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 border-b pb-2">

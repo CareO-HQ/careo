@@ -2,11 +2,9 @@ import { z } from "zod";
 
 export const peepSchema = z.object({
   // Resident information
-  residentName: z.string().min(1, "Resident name is required"),
-  residentDateOfBirth: z.number().refine((val) => !isNaN(val), {
-    message: "Date of birth is required"
-  }),
-  bedroomNumber: z.string().min(1, "Bedroom number is required"),
+  residentName: z.string().optional(),
+  residentDateOfBirth: z.number().optional(),
+  bedroomNumber: z.string().optional(),
 
   // Questions
   understands: z.boolean(),
@@ -33,9 +31,9 @@ export const peepSchema = z.object({
   furnitureFireRetardantComments: z.string().optional(),
 
   // Completion details
-  completedBy: z.string().min(1, "Completed by is required"),
-  completedBySignature: z.string().min(1, "Signature is required"),
-  assessmentDate: z.number().positive("Date is required"),
+  completedBy: z.string().optional(),
+  completedBySignature: z.string().optional(),
+  assessmentDate: z.number().optional(),
 
   // Optional metadata fields for drafts
   status: z.enum(["draft", "submitted", "reviewed"]).optional()

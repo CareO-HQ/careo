@@ -209,6 +209,18 @@ export default function ContinenceDialog({
         skinCondition: "HEALTHY",
         mentalState: "ALERT",
         mobilityIssues: "INDEPENDENT",
+        constipationHistory: false,
+        historyRecurrentUTIs: false,
+        caffeineMls24h: 0,
+        caffeineFrequency: "",
+        caffeineTimeOfDay: "",
+        excersiceType: "",
+        excersiceFrequency: "",
+        excersiceTimeOfDay: "",
+        alcoholAmount24h: 0,
+        alcoholFrequency: "",
+        alcoholTimeOfDay: "",
+
         incontinence: "NONE",
         volume: "UNABLE-DETERMINE",
         onset: "GRADUAL",
@@ -219,9 +231,19 @@ export default function ContinenceDialog({
         bladderIncontinentType: "FUNCTIONAL",
         bladderReferralRequired: "NONE",
         bladderPlanFollowed: "URGE",
+        bladderContinent: false,
+        bladderIncontinent: false,
+        bladderPlanCommenced: false,
+        symptompsLastSix: "STABLE",
+        physicianConsulted: false,
+
         bowelState: "NORMAL",
         bowelReferralRequired: "NONE",
-        symptompsLastSix: "STABLE",
+        bowelContinent: false,
+        bowelIncontinent: false,
+        bowelPlanCommenced: false,
+        bowelRecordCommenced: false,
+        medicalOfficerConsulted: false,
 
         bowelFrequency: "",
         usualTimeOfDat: "",
@@ -230,6 +252,55 @@ export default function ContinenceDialog({
         otherFactors: "",
         otherRemedies: "",
         typesOfPads: "",
+
+        hepatitisAB: false,
+        bloodBorneVirues: false,
+        mrsa: false,
+        esbl: false,
+        other: "",
+
+        ph: false,
+        nitrates: false,
+        protein: false,
+        leucocytes: false,
+        glucose: false,
+        bloodResult: false,
+        mssuDate: 0,
+
+        antiHypertensives: false,
+        antiParkinsonDrugs: false,
+        ironSupplement: false,
+        laxatives: false,
+        diuretics: false,
+        histamine: false,
+        antiDepressants: false,
+        cholinergic: false,
+        sedativesHypnotic: false,
+        antiPsychotic: false,
+        antihistamines: false,
+        narcoticAnalgesics: false,
+
+        leakCoughLaugh: false,
+        leakStandingUp: false,
+        leakUpstairsDownhill: false,
+        passesUrineFrequently: false,
+        desirePassUrine: false,
+        leaksBeforeToilet: false,
+        moreThanTwiceAtNight: false,
+        anxiety: false,
+        difficultyStarting: false,
+        hesintancy: false,
+        dribbles: false,
+        feelsFull: false,
+        recurrentTractInfections: false,
+        pain: false,
+
+        limitedMobility: false,
+        unableOnTime: false,
+        notHoldUrinalOrSeat: false,
+        notuseCallBell: false,
+        poorVision: false,
+        assistedTransfer: false,
 
         dateNextReview: new Date().getTime() + (30 * 24 * 60 * 60 * 1000)
       }
@@ -305,7 +376,7 @@ export default function ContinenceDialog({
           symptoms: symptoms,
           plan_commenced: values.bladderPlanCommenced || values.bowelPlanCommenced,
           next_review_date: values.dateNextReview ? new Date(values.dateNextReview).toISOString().split('T')[0] : null,
-          assessment_date: new Date(values.assessmentDate).toISOString().split('T')[0],
+          assessment_date: new Date(values.assessmentDate || Date.now()).toISOString().split('T')[0],
           completed_by: values.completedBy,
           created_by: userId,
         };
@@ -350,7 +421,15 @@ export default function ContinenceDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit, (errors) => {
+                  console.error("Continence form errors:", errors);
+                  toast.error("Please fill in all required fields correctly.");
+                })}
+              />
               {/* Section 1: General Information */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 border-b pb-2">

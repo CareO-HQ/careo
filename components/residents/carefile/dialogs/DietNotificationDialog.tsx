@@ -39,53 +39,79 @@ export default function DietNotificationDialog({
   const { profile } = useProfile();
 
   const form = useForm<z.infer<typeof dietNotificationSchema>>({
-    resolver: zodResolver(dietNotificationSchema),
+    resolver: zodResolver(dietNotificationSchema) as any,
     defaultValues: initialData ? {
-      residentName: initialData.residentName || `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
-      roomNumber: initialData.roomNumber || resident.room_number || "",
-      completedBy: initialData.completed_by || profile?.name || "",
-      printName: initialData.printName || profile?.name || "",
-      jobRole: initialData.jobRole || "",
-      signature: initialData.signature || "",
-      dateCompleted: initialData.dateCompleted || Date.now(),
-      reviewDate: initialData.reviewDate || Date.now() + 30 * 24 * 60 * 60 * 1000,
-      chokingRiskAssessment: initialData.choking_risk || "Low Risk",
-      preferredMealSize: initialData.preferred_meal_size || "Standard",
+      residentId: initialData.assessment_data?.residentId || initialData.residentId || initialData.resident_id || residentId,
+      teamId: initialData.assessment_data?.teamId || initialData.teamId || initialData.team_id || teamId,
+      organizationId: initialData.assessment_data?.organizationId || initialData.organizationId || initialData.organization_id || organizationId,
+      userId: initialData.assessment_data?.userId || initialData.userId || initialData.user_id || initialData.created_by || userId,
+      residentName: initialData.assessment_data?.residentName || initialData.residentName || `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
+      roomNumber: initialData.assessment_data?.roomNumber || initialData.roomNumber || resident.room_number || "",
+      completedBy: initialData.assessment_data?.completedBy || initialData.completed_by || profile?.name || "",
+      printName: initialData.assessment_data?.printName || initialData.printName || profile?.name || "",
+      jobRole: initialData.assessment_data?.jobRole || initialData.jobRole || "",
+      signature: initialData.assessment_data?.signature || initialData.signature || "",
+      dateCompleted: initialData.assessment_data?.dateCompleted || initialData.date_completed || initialData.dateCompleted || Date.now(),
+      reviewDate: initialData.assessment_data?.reviewDate || initialData.review_date || initialData.reviewDate || Date.now() + 30 * 24 * 60 * 60 * 1000,
+      chokingRiskAssessment: initialData.assessment_data?.chokingRiskAssessment || initialData.choking_risk || "Low Risk",
+      preferredMealSize: initialData.assessment_data?.preferredMealSize || initialData.preferred_meal_size || "Standard",
       // Flatten from JSONB
-      likesFavouriteFoods: initialData.dietary_preferences?.likesFavouriteFoods || "",
-      dislikes: initialData.dietary_preferences?.dislikes || "",
-      foodsToBeAvoided: initialData.dietary_preferences?.foodsToBeAvoided || "",
-      dietType: initialData.dietary_preferences?.dietType || "",
-      assistanceRequired: initialData.dietary_preferences?.assistanceRequired || "",
-      fluidRequirements: initialData.dietary_preferences?.fluidRequirements || "",
-      foodAllergyOrIntolerance: initialData.dietary_preferences?.foodAllergyOrIntolerance || "",
+      likesFavouriteFoods: initialData.assessment_data?.likesFavouriteFoods || initialData.dietary_preferences?.likesFavouriteFoods || "",
+      dislikes: initialData.assessment_data?.dislikes || initialData.dietary_preferences?.dislikes || "",
+      foodsToBeAvoided: initialData.assessment_data?.foodsToBeAvoided || initialData.dietary_preferences?.foodsToBeAvoided || "",
+      dietType: initialData.assessment_data?.dietType || initialData.dietary_preferences?.dietType || "",
+      assistanceRequired: initialData.assessment_data?.assistanceRequired || initialData.dietary_preferences?.assistanceRequired || "",
+      fluidRequirements: initialData.assessment_data?.fluidRequirements || initialData.dietary_preferences?.fluidRequirements || "",
+      foodAllergyOrIntolerance: initialData.assessment_data?.foodAllergyOrIntolerance || initialData.dietary_preferences?.foodAllergyOrIntolerance || "",
       // Food consistency
-      foodConsistencyLevel7Regular: initialData.food_consistency?.level7Regular || false,
-      foodConsistencyLevel7EasyChew: initialData.food_consistency?.level7EasyChew || false,
-      foodConsistencyLevel6SoftBiteSized: initialData.food_consistency?.level6SoftBiteSized || false,
-      foodConsistencyLevel5MincedMoist: initialData.food_consistency?.level5MincedMoist || false,
-      foodConsistencyLevel4Pureed: initialData.food_consistency?.level4Pureed || false,
-      foodConsistencyLevel3Liquidised: initialData.food_consistency?.level3Liquidised || false,
+      foodConsistencyLevel7Regular: initialData.assessment_data?.foodConsistencyLevel7Regular ?? initialData.food_consistency?.level7Regular ?? false,
+      foodConsistencyLevel7EasyChew: initialData.assessment_data?.foodConsistencyLevel7EasyChew ?? initialData.food_consistency?.level7EasyChew ?? false,
+      foodConsistencyLevel6SoftBiteSized: initialData.assessment_data?.foodConsistencyLevel6SoftBiteSized ?? initialData.food_consistency?.level6SoftBiteSized ?? false,
+      foodConsistencyLevel5MincedMoist: initialData.assessment_data?.foodConsistencyLevel5MincedMoist ?? initialData.food_consistency?.level5MincedMoist ?? false,
+      foodConsistencyLevel4Pureed: initialData.assessment_data?.foodConsistencyLevel4Pureed ?? initialData.food_consistency?.level4Pureed ?? false,
+      foodConsistencyLevel3Liquidised: initialData.assessment_data?.foodConsistencyLevel3Liquidised ?? initialData.food_consistency?.level3Liquidised ?? false,
       // Fluid consistency
-      fluidConsistencyLevel4ExtremelyThick: initialData.fluid_consistency?.level4ExtremelyThick || false,
-      fluidConsistencyLevel3ModeratelyThick: initialData.fluid_consistency?.level3ModeratelyThick || false,
-      fluidConsistencyLevel2MildlyThick: initialData.fluid_consistency?.level2MildlyThick || false,
-      fluidConsistencyLevel1SlightlyThick: initialData.fluid_consistency?.level1SlightlyThick || false,
-      fluidConsistencyLevel0Thin: initialData.fluid_consistency?.level0Thin || false,
+      fluidConsistencyLevel4ExtremelyThick: initialData.assessment_data?.fluidConsistencyLevel4ExtremelyThick ?? initialData.fluid_consistency?.level4ExtremelyThick ?? false,
+      fluidConsistencyLevel3ModeratelyThick: initialData.assessment_data?.fluidConsistencyLevel3ModeratelyThick ?? initialData.fluid_consistency?.level3ModeratelyThick ?? false,
+      fluidConsistencyLevel2MildlyThick: initialData.assessment_data?.fluidConsistencyLevel2MildlyThick ?? initialData.fluid_consistency?.level2MildlyThick ?? false,
+      fluidConsistencyLevel1SlightlyThick: initialData.assessment_data?.fluidConsistencyLevel1SlightlyThick ?? initialData.fluid_consistency?.level1SlightlyThick ?? false,
+      fluidConsistencyLevel0Thin: initialData.assessment_data?.fluidConsistencyLevel0Thin ?? initialData.fluid_consistency?.level0Thin ?? false,
       // Kitchen review
-      reviewedByCookChef: initialData.kitchen_review?.reviewedByCookChef || "",
-      reviewerPrintName: initialData.kitchen_review?.reviewerPrintName || "",
-      reviewerJobTitle: initialData.kitchen_review?.reviewerJobTitle || ""
+      reviewedByCookChef: initialData.assessment_data?.reviewedByCookChef || initialData.kitchen_review?.reviewedByCookChef || "",
+      reviewerPrintName: initialData.assessment_data?.reviewerPrintName || initialData.kitchen_review?.reviewerPrintName || "",
+      reviewerJobTitle: initialData.assessment_data?.reviewerJobTitle || initialData.kitchen_review?.reviewerJobTitle || ""
     } : {
       residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
       roomNumber: resident.room_number || "",
       completedBy: profile?.name || "",
       printName: profile?.name || "",
-      jobRole: "", signature: "",
+      jobRole: "",
+      signature: "",
       dateCompleted: Date.now(),
       reviewDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
       chokingRiskAssessment: "Low Risk",
-      preferredMealSize: "Standard"
+      preferredMealSize: "Standard",
+      likesFavouriteFoods: "",
+      dislikes: "",
+      foodsToBeAvoided: "",
+      dietType: "",
+      assistanceRequired: "",
+      fluidRequirements: "",
+      foodAllergyOrIntolerance: "",
+      foodConsistencyLevel7Regular: false,
+      foodConsistencyLevel7EasyChew: false,
+      foodConsistencyLevel6SoftBiteSized: false,
+      foodConsistencyLevel5MincedMoist: false,
+      foodConsistencyLevel4Pureed: false,
+      foodConsistencyLevel3Liquidised: false,
+      fluidConsistencyLevel4ExtremelyThick: false,
+      fluidConsistencyLevel3ModeratelyThick: false,
+      fluidConsistencyLevel2MildlyThick: false,
+      fluidConsistencyLevel1SlightlyThick: false,
+      fluidConsistencyLevel0Thin: false,
+      reviewedByCookChef: "",
+      reviewerPrintName: "",
+      reviewerJobTitle: ""
     }
   });
 
@@ -172,7 +198,15 @@ export default function DietNotificationDialog({
       <Form {...form}>
         <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
-            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            <button
+              type="button"
+              id="care-file-submit-btn"
+              className="hidden"
+              onClick={form.handleSubmit(onSubmit, (errors) => {
+                console.error("Diet Notification form errors:", errors);
+                toast.error("Please fill in all required fields correctly.");
+              })}
+            />
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Administrative Information</h3>
               <div className="grid grid-cols-2 gap-4">

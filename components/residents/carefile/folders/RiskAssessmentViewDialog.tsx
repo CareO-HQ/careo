@@ -704,6 +704,35 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
       ],
     },
   ],
+  "braden-risk-assessment-form": [
+    {
+      title: "Basic Information",
+      fields: [
+        { label: "Resident Name", path: "residentName" },
+        { label: "Bedroom Number", path: "bedroomNumber" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Completed By", path: "completed_by" },
+      ],
+    },
+    {
+      title: "Braden Scale Scores",
+      fields: [
+        { label: "Sensory Perception", path: "assessment_details.sensoryPerception" },
+        { label: "Moisture", path: "assessment_details.moisture" },
+        { label: "Activity", path: "assessment_details.activity" },
+        { label: "Mobility", path: "assessment_details.mobility" },
+        { label: "Nutrition", path: "assessment_details.nutrition" },
+        { label: "Friction & Shear", path: "assessment_details.frictionShear" },
+      ],
+    },
+    {
+      title: "Risk Summary",
+      fields: [
+        { label: "Total Braden Score", path: "risk_score" },
+        { label: "Risk Level", path: "risk_level" },
+      ],
+    },
+  ],
 
   // ── PEEP (Personal Emergency Evacuation Plan) ────────────────────────────────
   "peep": [
@@ -1046,6 +1075,7 @@ const TABLE_MAP: Record<string, string> = {
   "cornell-depression-scale-form": "cornell_depression_scales",
   "best-interest-decision-form": "best_interest_decisions",
   "care-plan-form": "care_plan_assessments",
+  "braden-risk-assessment-form": "braden_risk_assessments",
 };
 
 export function RiskAssessmentViewer({ assessment }: RiskAssessmentViewerProps) {

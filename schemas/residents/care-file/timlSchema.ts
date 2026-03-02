@@ -61,9 +61,9 @@ export const CreateTimlAssessmentSchema = z.object({
   whatLikeRead: z.string(),
 
   // Completed by
-  completedBy: z.string().min(1, "Completed by is required"),
-  completedByJobRole: z.string().min(1, "Job role is required"),
-  completedBySignature: z.string().min(1, "Signature is required"),
+  completedBy: z.string().optional(),
+  completedByJobRole: z.string().optional(),
+  completedBySignature: z.string().optional(),
   assessmentDate: z.number(),
   status: z.string().optional(),
   managementPlan: z.string().optional(),

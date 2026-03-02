@@ -24,6 +24,7 @@ import DietNotificationDialog from "@/components/residents/carefile/dialogs/Diet
 import ChokingRiskAssessmentDialog from "@/components/residents/carefile/dialogs/ChokingRiskAssessmentDialog";
 import CornellDepressionScaleDialog from "@/components/residents/carefile/dialogs/CornellDepressionScaleDialog";
 import BestInterestDecisionDialog from "@/components/residents/carefile/dialogs/BestInterestDecisionDialog";
+import BradenRiskAssessmentDialog from "@/components/residents/carefile/dialogs/BradenRiskAssessmentDialog";
 
 interface BaseDialogProps {
   residentId: string;
@@ -281,6 +282,15 @@ export function CareFileDialogRenderer({
       case "cornell-depression-scale-form":
         return (
           <CornellDepressionScaleDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
+
+      case "braden-risk-assessment-form":
+        return (
+          <BradenRiskAssessmentDialog
             {...commonProps}
             userName={userName ?? ""}
             initialData={editData}

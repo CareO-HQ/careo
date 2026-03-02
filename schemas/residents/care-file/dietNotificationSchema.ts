@@ -1,6 +1,12 @@
 import { z } from "zod";
 
 export const dietNotificationSchema = z.object({
+  // technical fields
+  residentId: z.string().optional(),
+  teamId: z.string().optional(),
+  organizationId: z.string().optional(),
+  userId: z.string().optional(),
+
   // Header & Administrative Information
   residentName: z.string().min(1, "Resident name is required"),
   roomNumber: z.string().min(1, "Room number is required"),

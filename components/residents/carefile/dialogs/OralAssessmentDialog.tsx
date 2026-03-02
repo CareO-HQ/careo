@@ -130,7 +130,7 @@ export default function OralAssessmentDialog({
           symptoms: { painWhenEating: values.painWhenEating, gumsUlceration: values.gumsUlceration, difficultySwallowing: values.difficultySwallowing, poorFluidDietaryIntake: values.poorFluidDietaryIntake, dehydrated: values.dehydrated, speechDifficultyDryMouth: values.speechDifficultyDryMouth, speechDifficultyDenturesSlipping: values.speechDifficultyDenturesSlipping, dexterityProblems: values.dexterityProblems, cognitiveImpairment: values.cognitiveImpairment },
           care_recommendations: { lipsDryCrackedCare: values.lipsDryCrackedCare, tongueDryCrackedCare: values.tongueDryCrackedCare, tongueUlcerationCare: values.tongueUlcerationCare, topDentureCare: values.topDentureCare, lowerDentureCare: values.lowerDentureCare, denturesAndNaturalTeethCare: values.denturesAndNaturalTeethCare, naturalTeethCare: values.naturalTeethCare, plaqueDebrisCare: values.plaqueDebrisCare, dryMouthCare: values.dryMouthCare, painWhenEatingCare: values.painWhenEatingCare, gumsUlcerationCare: values.gumsUlcerationCare, difficultySwallowingCare: values.difficultySwallowingCare, poorFluidDietaryIntakeCare: values.poorFluidDietaryIntakeCare, dehydratedCare: values.dehydratedCare, speechDifficultyDryMouthCare: values.speechDifficultyDryMouthCare, speechDifficultyDenturesSlippingCare: values.speechDifficultyDenturesSlippingCare, dexterityProblemsCare: values.dexterityProblemsCare, cognitiveImpairmentCare: values.cognitiveImpairmentCare },
           assessment_details: { height: values.height, weight: values.weight, signature: values.signature },
-          assessment_date: new Date(values.assessmentDate).toISOString().split('T')[0],
+          assessment_date: new Date(values.assessmentDate || Date.now()).toISOString().split('T')[0],
           completed_by: values.completedBy, status: 'completed', created_by: currentUserId
         };
 
@@ -188,7 +188,12 @@ export default function OralAssessmentDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit, onValidationError)} className="space-y-4">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit, onValidationError)}
+              />
               <div className="p-4 bg-muted/30 rounded-lg space-y-4">
                 <h3 className="font-semibold">Resident Info</h3>
                 <div className="grid grid-cols-2 gap-4">

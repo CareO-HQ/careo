@@ -26,12 +26,12 @@ export const nutritionalAssessmentSchema = z.object({
   userId: z.string(),
 
   // Section 1: Resident Information
-  residentName: z.string().min(1, "Resident name is required"),
-  dateOfBirth: z.string().min(1, "Date of birth is required"),
-  bedroomNumber: z.string().min(1, "Bedroom number is required"),
-  height: z.string().min(1, "Height is required"),
-  weight: z.string().min(1, "Weight is required"),
-  mustScore: z.string().min(1, "MUST score is required"),
+  residentName: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  bedroomNumber: z.string().optional(),
+  height: z.string().optional(),
+  weight: z.string().optional(),
+  mustScore: z.string().optional(),
 
   // Section 2: Clinical Involvement
   hasSaltInvolvement: z.boolean(),
@@ -50,11 +50,11 @@ export const nutritionalAssessmentSchema = z.object({
   fluidConsistency: iddsiFluidConsistencySchema,
 
   // Section 5: Assistance & Administration
-  assistanceRequired: z.string().min(1, "Assistance details are required"),
-  completedBy: z.string().min(1, "Completed by is required"),
-  jobRole: z.string().min(1, "Job role is required"),
-  signature: z.string().min(1, "Signature is required"),
-  assessmentDate: z.number().min(1, "Assessment date is required"),
+  assistanceRequired: z.string().optional(),
+  completedBy: z.string().optional(),
+  jobRole: z.string().optional(),
+  signature: z.string().optional(),
+  assessmentDate: z.number().optional(),
 
   // Optional metadata fields for form state management
   savedAsDraft: z.boolean().optional()

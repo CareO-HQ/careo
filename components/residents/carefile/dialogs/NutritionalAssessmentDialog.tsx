@@ -161,7 +161,7 @@ export default function NutritionalAssessmentDialog({
           food_consistency: values.foodConsistency,
           fluid_consistency: values.fluidConsistency,
           assessment_details: assessmentDetails,
-          assessment_date: new Date(values.assessmentDate).toISOString().split('T')[0],
+          assessment_date: new Date(values.assessmentDate || Date.now()).toISOString().split('T')[0],
           completed_by: values.completedBy,
           created_by: userId
         };
@@ -207,7 +207,15 @@ export default function NutritionalAssessmentDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit, (errors) => {
+                  console.error("Nutritional Assessment form errors:", errors);
+                  toast.error("Please fill in all required fields correctly.");
+                })}
+              />
               {/* Section 1: Resident Information */}
               <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
                 <h3 className="text-sm font-semibold">1. Resident Information</h3>

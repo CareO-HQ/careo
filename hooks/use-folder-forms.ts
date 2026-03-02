@@ -41,6 +41,7 @@ export function useFolderForms({
   const [allChokingRiskAssessmentForms, setAllChokingRiskAssessmentForms] = useState<any[] | undefined>(undefined);
   const [allCornellDepressionScaleForms, setAllCornellDepressionScaleForms] = useState<any[] | undefined>(undefined);
   const [allBestInterestDecisionForms, setAllBestInterestDecisionForms] = useState<any[] | undefined>(undefined);
+  const [allBradenRiskAssessmentForms, setAllBradenRiskAssessmentForms] = useState<any[] | undefined>(undefined);
 
   const [activeCarePlanForms, setActiveCarePlanForms] = useState<any[] | undefined>(undefined);
   const [archivedCarePlans, setArchivedCarePlans] = useState<any[] | undefined>(undefined);
@@ -318,6 +319,16 @@ export function useFolderForms({
         .then(({ data }) => setAllBestInterestDecisionForms(data || [])));
     }
 
+    // Braden Risk Assessment
+    if (folderFormKeys?.includes("braden-risk-assessment-form")) {
+      promises.push(supabase
+        .from('braden_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllBradenRiskAssessmentForms(data || [])));
+    }
+
     // Care Plans
     if (includeCarePlans && folderKey) {
       // Fetch is handled in separate fetchAllCarePlans effect
@@ -564,6 +575,16 @@ export function useFolderForms({
         .then(({ data }) => setAllBestInterestDecisionForms(data || [])));
     }
 
+    // Braden Risk Assessment
+    if (folderFormKeys?.includes("braden-risk-assessment-form")) {
+      promises.push(supabase
+        .from('braden_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllBradenRiskAssessmentForms(data || [])));
+    }
+
     Promise.all(promises).finally(() => setIsLoading(false));
   }, [residentId]);
 
@@ -618,6 +639,7 @@ export function useFolderForms({
   const allChokingRiskAssessmentFormsMapped = useMemo(() => mapToConvexLike(allChokingRiskAssessmentForms), [allChokingRiskAssessmentForms]);
   const allCornellDepressionScaleFormsMapped = useMemo(() => mapToConvexLike(allCornellDepressionScaleForms), [allCornellDepressionScaleForms]);
   const allBestInterestDecisionFormsMapped = useMemo(() => mapToConvexLike(allBestInterestDecisionForms), [allBestInterestDecisionForms]);
+  const allBradenRiskAssessmentFormsMapped = useMemo(() => mapToConvexLike(allBradenRiskAssessmentForms), [allBradenRiskAssessmentForms]);
 
   const activeCarePlanFormsMapped = useMemo(() => mapToConvexLike(activeCarePlanForms), [activeCarePlanForms]);
   const archivedCarePlansMapped = useMemo(() => mapToConvexLike(archivedCarePlans), [archivedCarePlans]);
@@ -703,6 +725,7 @@ export function useFolderForms({
     processForms(allChokingRiskAssessmentFormsMapped, "choking-risk-assessment-form", "Choking Risk Assessment");
     processForms(allCornellDepressionScaleFormsMapped, "cornell-depression-scale-form", "Cornell Scale for Depression in Dementia");
     processForms(allBestInterestDecisionFormsMapped, "best-interest-decision-form", "Best Interest Decision");
+    processForms(allBradenRiskAssessmentFormsMapped, "braden-risk-assessment-form", "Braden Risk Assessment");
 
     // Process Care Plans
     if (includeCarePlans) {
@@ -745,6 +768,7 @@ export function useFolderForms({
     allChokingRiskAssessmentFormsMapped,
     allCornellDepressionScaleFormsMapped,
     allBestInterestDecisionFormsMapped,
+    allBradenRiskAssessmentFormsMapped,
     filteredActiveCarePlansMapped,
     filteredArchivedCarePlansMapped,
     folderFormKeys
@@ -780,6 +804,7 @@ export function useFolderForms({
     allChokingRiskAssessmentForms: allChokingRiskAssessmentFormsMapped,
     allCornellDepressionScaleForms: allCornellDepressionScaleFormsMapped,
     allBestInterestDecisionForms: allBestInterestDecisionFormsMapped,
+    allBradenRiskAssessmentForms: allBradenRiskAssessmentFormsMapped,
     allBedRailsRiskAssessmentForms: allBedRailsRiskAssessmentFormsMapped,
     activeCarePlanForms: filteredActiveCarePlansMapped,
     latestCarePlanForm: filteredActiveCarePlansMapped && filteredActiveCarePlansMapped.length > 0 ? filteredActiveCarePlansMapped[0] : null,

@@ -81,17 +81,24 @@ export default function PeepDialog({
     defaultValues: initialData
       ? {
         residentName:
+          initialData.assistance_needed?.residentName ??
           initialData.residentName ??
           `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
         residentDateOfBirth:
-          typeof initialData.residentDateOfBirth === "number"
-            ? initialData.residentDateOfBirth
-            : typeof resident.date_of_birth === "number"
-              ? resident.date_of_birth
-              : resident.date_of_birth
-                ? new Date(resident.date_of_birth).getTime()
-                : Date.now(),
-        bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
+          typeof initialData.assistance_needed?.residentDateOfBirth === "number"
+            ? initialData.assistance_needed.residentDateOfBirth
+            : typeof initialData.residentDateOfBirth === "number"
+              ? initialData.residentDateOfBirth
+              : typeof resident.date_of_birth === "number"
+                ? resident.date_of_birth
+                : resident.date_of_birth
+                  ? new Date(resident.date_of_birth).getTime()
+                  : Date.now(),
+        bedroomNumber:
+          initialData.assistance_needed?.bedroomNumber ??
+          initialData.bedroomNumber ??
+          resident.room_number ??
+          "",
         // Assistance needed is stored in JSONB column assistance_needed
         understands:
           initialData.assistance_needed?.understands ??
@@ -137,11 +144,11 @@ export default function PeepDialog({
           initialData.furnitureFireRetardantComments ??
           "",
         completedBy: isEditMode
-          ? userName
+          ? (initialData.completedBy ?? initialData.completed_by ?? userName)
           : (initialData.completedBy ?? initialData.completed_by ?? userName),
         completedBySignature: isEditMode
-          ? userName
-          : (initialData.completedBySignature ?? userName),
+          ? (initialData.assistance_needed?.completedBySignature ?? initialData.completedBySignature ?? userName)
+          : (initialData.assistance_needed?.completedBySignature ?? initialData.completedBySignature ?? userName),
         assessmentDate:
           typeof (initialData.assessment_date || initialData.completion_date || initialData.date) === "number"
             ? (initialData.assessment_date || initialData.completion_date || initialData.date)
@@ -160,7 +167,7 @@ export default function PeepDialog({
               : Date.now(),
         bedroomNumber: resident.room_number ?? "",
         understands: false,
-        staffNeeded: 0,
+        staffNeeded: 1,
         equipmentNeeded: "",
         communicationNeeds: "",
         steps: [],
@@ -185,14 +192,29 @@ export default function PeepDialog({
   const onSubmit = async (values: z.infer<typeof peepSchema>) => {
     startTransition(async () => {
       try {
+        if (!userId) {
+          toast.error("User not authenticated. Please log in again.");
+          return;
+        }
+
+        if (!organizationId || organizationId === "") {
+          toast.error("Organization ID is missing. Please try again.");
+          console.error("Missing organizationId", { organizationId });
+          return;
+        }
+
         const payload = {
           resident_id: residentId,
           organization_id: organizationId,
           assistance_needed: {
+            residentName: values.residentName,
+            bedroomNumber: values.bedroomNumber,
+            residentDateOfBirth: values.residentDateOfBirth,
             understands: values.understands,
             staffNeeded: values.staffNeeded,
             equipmentNeeded: values.equipmentNeeded,
-            communicationNeeds: values.communicationNeeds
+            communicationNeeds: values.communicationNeeds,
+            completedBySignature: values.completedBySignature
           },
           evacuation_steps: values.steps,
           hazard_info: {
@@ -203,8 +225,7 @@ export default function PeepDialog({
             furnitureFireRetardant: values.furnitureFireRetardant,
             furnitureFireRetardantComments: values.furnitureFireRetardantComments
           },
-          completed_by: values.completedBy,
-          assessment_date: format(new Date(values.assessmentDate), "yyyy-MM-dd"),
+          assessment_date: format(new Date(values.assessmentDate || Date.now()), "yyyy-MM-dd"),
           created_by: userId
         };
 
@@ -243,7 +264,15 @@ export default function PeepDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit, (errors) => {
+                  console.error("PEEP form errors:", errors);
+                  toast.error("Please fill in all required fields correctly.");
+                })}
+              />
 
               {/* Section 1: Resident Info */}
               <div className="space-y-6">
@@ -370,12 +399,12 @@ export default function PeepDialog({
                         <div className="md:col-span-1 border-r pr-4">
                           <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Step {index + 1}</span>
                           <FormField control={form.control} name={`steps.${index}.name`} render={({ field }) => (
-                            <FormItem className="mt-2"><FormLabel className="text-xs">Label</FormLabel><FormControl><Input {...field} placeholder="e.g. Exit building" className="h-8" /></FormControl></FormItem>
+                            <FormItem className="mt-2 text-left text-xs"><FormLabel className="text-xs">Label</FormLabel><FormControl><Input {...field} placeholder="e.g. Exit building" className="h-8" /></FormControl><FormMessage /></FormItem>
                           )} />
                         </div>
                         <div className="md:col-span-3">
                           <FormField control={form.control} name={`steps.${index}.description`} render={({ field }) => (
-                            <FormItem><FormLabel className="text-xs">Detailed Procedure</FormLabel><FormControl><Textarea {...field} placeholder="How to perform this step..." rows={3} /></FormControl></FormItem>
+                            <FormItem className="text-left text-xs"><FormLabel className="text-xs">Detailed Procedure</FormLabel><FormControl><Textarea {...field} placeholder="How to perform this step..." rows={3} /></FormControl><FormMessage /></FormItem>
                           )} />
                         </div>
                       </div>
@@ -392,10 +421,10 @@ export default function PeepDialog({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <FormField control={form.control} name="completedBy" render={({ field }) => (
-                    <FormItem><FormLabel required>Completed By</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly disabled /></FormControl></FormItem>
+                    <FormItem><FormLabel required>Completed By</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly /></FormControl></FormItem>
                   )} />
                   <FormField control={form.control} name="completedBySignature" render={({ field }) => (
-                    <FormItem><FormLabel required>Signature</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly disabled /></FormControl></FormItem>
+                    <FormItem><FormLabel required>Signature</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly /></FormControl></FormItem>
                   )} />
                   <FormField control={form.control} name="assessmentDate" render={({ field }) => (
                     <FormItem>

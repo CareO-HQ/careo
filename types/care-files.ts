@@ -23,6 +23,7 @@ export type CareFileFormKey =
   | "diet-notification-form"
   | "choking-risk-assessment-form"
   | "cornell-depression-scale-form"
+  | "braden-risk-assessment-form"
   | "must-calculator";
 
 export type CareFileFormStatus =

@@ -76,7 +76,8 @@ const TABLE_MAP: Record<string, string> = {
     "choking-risk-assessment-form": "choking_risk_assessments",
     "cornell-depression-scale-form": "cornell_depression_scales",
     "best-interest-decision-form": "best_interest_decisions",
-    "care-plan-form": "care_plan_assessments"
+    "care-plan-form": "care_plan_assessments",
+    "braden-risk-assessment-form": "braden_risk_assessments"
 };
 
 // ─── File Viewer ──────────────────────────────────────────────────────────────
@@ -263,7 +264,12 @@ export default function CareFileV2FolderPage() {
         }
 
         const formState = getFormState(key);
-        if (formState.hasData) {
+        // Braden form should always be in edit mode as per user request
+        if (key === "braden-risk-assessment-form") {
+            setIsViewOnly(false);
+            setIsReviewMode(false);
+            setFormDataForEdit(null);
+        } else if (formState.hasData) {
             setIsViewOnly(true);
             setIsReviewMode(false);
             setFormDataForEdit(undefined);
@@ -358,8 +364,15 @@ export default function CareFileV2FolderPage() {
 
     const handleExternalSubmit = () => {
         const submitBtn = document.getElementById('care-file-submit-btn');
-        if (submitBtn) submitBtn.click();
-        else toast.error("Form submission button not found");
+        if (submitBtn) {
+            setIsSaving(true);
+            submitBtn.click();
+            // Reset saving state after a delay if no other action happens
+            // This is a safety measure in case validation fails
+            setTimeout(() => setIsSaving(false), 2000);
+        } else {
+            toast.error("Form submission button not found");
+        }
     };
 
     const handleDeleteFile = async (file: UploadedFile, e: React.MouseEvent) => {

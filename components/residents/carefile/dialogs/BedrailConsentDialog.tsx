@@ -65,36 +65,40 @@ export default function BedrailConsentDialog({
   const form = useForm<z.infer<typeof bedrailConsentSchema>>({
     resolver: zodResolver(bedrailConsentSchema) as any,
     mode: "onChange",
-    defaultValues: initialData
-      ? {
-        residentId,
-        teamId,
-        organizationId,
-        userId,
-        residentName:
-          initialData.residentName ??
-          (`${resident.first_name || ""} ${resident.last_name || ""}`.trim() ||
-            ""),
-        bedroomNumber: initialData.bedroomNumber ?? resident.room_number ?? "",
-        dateOfBirth:
-          initialData.dateOfBirth ??
-          (resident.date_of_birth
-            ? new Date(resident.date_of_birth).getTime()
-            : Date.now()),
-        consentType: initialData.consentType ?? "ABLE_TO_CONSENT",
-        ableToConsentSection: initialData.ableToConsentSection ? {
-          ...initialData.ableToConsentSection,
-          staffMemberName: initialData.ableToConsentSection.staffMemberName || userName || "",
-          staffMemberSignature: initialData.ableToConsentSection.staffMemberSignature || userName || "",
-          staffSignatureDate: initialData.ableToConsentSection.staffSignatureDate || new Date().toISOString().split("T")[0]
-        } : undefined,
-        unableToConsentSection: initialData.unableToConsentSection ? {
-          ...initialData.unableToConsentSection,
-          staffMemberName: initialData.unableToConsentSection.staffMemberName || userName || "",
-          staffMemberSignature: initialData.unableToConsentSection.staffMemberSignature || userName || "",
-          staffSignatureDate: initialData.unableToConsentSection.staffSignatureDate || new Date().toISOString().split("T")[0]
-        } : undefined
-      }
+    defaultValues: initialData ? {
+      residentId: initialData.assessment_data?.residentId ?? initialData.residentId ?? initialData.resident_id ?? residentId,
+      teamId: initialData.assessment_data?.teamId ?? initialData.teamId ?? teamId,
+      organizationId: initialData.assessment_data?.organizationId ?? initialData.organizationId ?? initialData.organization_id ?? organizationId,
+      userId: initialData.assessment_data?.userId ?? initialData.userId ?? initialData.created_by ?? userId,
+      // Recovery from assessment_data (preferred) or flat fields (legacy)
+      ...(initialData.assessment_data || {}),
+      residentName: initialData.assessment_data?.residentName ?? initialData.residentName ?? (resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : ""),
+      bedroomNumber: initialData.assessment_data?.bedroomNumber ?? initialData.bedroomNumber ?? resident?.room_number ?? "",
+      dateOfBirth: initialData.assessment_data?.dateOfBirth ?? initialData.dateOfBirth ?? (resident?.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now()),
+      consentType: initialData.assessment_data?.consentType ?? (initialData.capacity_assessed ? "ABLE_TO_CONSENT" : "UNABLE_TO_CONSENT"),
+
+      ableToConsentSection: (initialData.assessment_data?.consentType === "ABLE_TO_CONSENT" || initialData.capacity_assessed)
+        ? (initialData.assessment_data?.ableToConsentSection || {
+          consentChoice: initialData.consent_given ? "CONSENT_TO_USE" : (initialData.consent_given === false ? "REFUSE_TO_USE" : undefined as any),
+          residentSignature: "",
+          staffMemberName: initialData.completed_by || userName || "",
+          staffMemberSignature: initialData.completed_by || userName || "",
+          staffSignatureDate: initialData.assessment_date || new Date().toISOString().split("T")[0]
+        })
+        : undefined,
+
+      unableToConsentSection: (initialData.assessment_data?.consentType === "UNABLE_TO_CONSENT" || (!initialData.capacity_assessed && initialData.id))
+        ? (initialData.assessment_data?.unableToConsentSection || {
+          representativeName: initialData.representative_name || "",
+          discussionAcknowledged: true,
+          residentPreference: initialData.consent_given ? "WOULD_PREFER_USE" : (initialData.consent_given === false ? "WOULD_NOT_PREFER_USE" : undefined as any),
+          representativeSignature: "",
+          staffMemberName: initialData.completed_by || userName || "",
+          staffMemberSignature: initialData.completed_by || userName || "",
+          staffSignatureDate: initialData.assessment_date || new Date().toISOString().split("T")[0]
+        })
+        : undefined
+    }
       : {
         residentId,
         teamId,
@@ -109,20 +113,13 @@ export default function BedrailConsentDialog({
           : Date.now(),
         consentType: "ABLE_TO_CONSENT",
         ableToConsentSection: {
-          consentChoice: undefined,
+          consentChoice: undefined as any,
           residentSignature: "",
           staffMemberName: userName || "",
           staffMemberSignature: userName || "",
           staffSignatureDate: new Date().toISOString().split("T")[0]
         },
-        unableToConsentSection: {
-          representativeName: "",
-          residentPreference: undefined,
-          representativeSignature: "",
-          staffMemberName: userName || "",
-          staffMemberSignature: userName || "",
-          staffSignatureDate: new Date().toISOString().split("T")[0]
-        }
+        unableToConsentSection: undefined
       }
   });
 
@@ -170,6 +167,7 @@ export default function BedrailConsentDialog({
           assessment_date: new Date().toISOString().split("T")[0],
           completed_by: userName,
           created_by: userId,
+          assessment_data: preparedData // Store full form state
         };
 
         await submitAssessmentWithVersioning(
@@ -222,7 +220,15 @@ export default function BedrailConsentDialog({
       <Form {...form}>
         <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            <button
+              type="button"
+              id="care-file-submit-btn"
+              className="hidden"
+              onClick={form.handleSubmit(handleSubmit as any, (errors) => {
+                console.error("Bedrail Consent form errors:", errors);
+                toast.error("Please fill in all required fields correctly.");
+              })}
+            />
             <div className="space-y-8 px-1">
 
               {/* Section 1: Header Information */}
@@ -308,8 +314,24 @@ export default function BedrailConsentDialog({
                             field.onChange(value);
                             if (value === "ABLE_TO_CONSENT") {
                               form.setValue("unableToConsentSection", undefined);
+                              form.setValue("ableToConsentSection", {
+                                consentChoice: undefined as any,
+                                residentSignature: "",
+                                staffMemberName: userName || "",
+                                staffMemberSignature: userName || "",
+                                staffSignatureDate: new Date().toISOString().split("T")[0]
+                              });
                             } else {
                               form.setValue("ableToConsentSection", undefined);
+                              form.setValue("unableToConsentSection", {
+                                representativeName: "",
+                                discussionAcknowledged: true,
+                                residentPreference: undefined as any,
+                                representativeSignature: "",
+                                staffMemberName: userName || "",
+                                staffMemberSignature: userName || "",
+                                staffSignatureDate: new Date().toISOString().split("T")[0]
+                              });
                             }
                           }}
                           value={field.value}
@@ -650,7 +672,7 @@ export default function BedrailConsentDialog({
                 </Button>
                 <Button
                   type="button"
-                  onClick={form.handleSubmit(handleSubmit)}
+                  onClick={form.handleSubmit(handleSubmit as any)}
                   disabled={isLoading}
                 >
                   {isLoading ? (

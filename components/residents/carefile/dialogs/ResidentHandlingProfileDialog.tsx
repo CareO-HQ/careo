@@ -63,7 +63,7 @@ export default function ResidentHandlingProfile({
   });
 
   const form = useForm<z.infer<typeof residentHandlingProfileSchema>>({
-    resolver: zodResolver(residentHandlingProfileSchema),
+    resolver: zodResolver(residentHandlingProfileSchema) as any,
     mode: "onChange",
     defaultValues: initialData ? {
       residentId, teamId, organizationId,
@@ -74,13 +74,48 @@ export default function ResidentHandlingProfile({
       bedroomNumber: initialData.bedroomNumber || initialData.bedroom_number || resident.room_number || "",
       weight: initialData.weight || 0,
       weightBearing: initialData.weight_bearing || "",
-      transferBed: initialData.activities?.transferBed || getDefaultActivityValues(),
-      transferChair: initialData.activities?.transferChair || getDefaultActivityValues(),
-      walking: initialData.activities?.walking || getDefaultActivityValues(),
-      toileting: initialData.activities?.toileting || getDefaultActivityValues(),
-      movementInBed: initialData.activities?.movementInBed || getDefaultActivityValues(),
-      bath: initialData.activities?.bath || getDefaultActivityValues(),
-      outdoorMobility: initialData.activities?.outdoorMobility || getDefaultActivityValues()
+      transferBed: {
+        nStaff: initialData.activities?.transferBed?.nStaff ?? 0,
+        equipment: initialData.activities?.transferBed?.equipment ?? "",
+        handlingPlan: initialData.activities?.transferBed?.handlingPlan ?? "",
+        dateForReview: initialData.activities?.transferBed?.dateForReview ?? Date.now()
+      },
+      transferChair: {
+        nStaff: initialData.activities?.transferChair?.nStaff ?? 0,
+        equipment: initialData.activities?.transferChair?.equipment ?? "",
+        handlingPlan: initialData.activities?.transferChair?.handlingPlan ?? "",
+        dateForReview: initialData.activities?.transferChair?.dateForReview ?? Date.now()
+      },
+      walking: {
+        nStaff: initialData.activities?.walking?.nStaff ?? 0,
+        equipment: initialData.activities?.walking?.equipment ?? "",
+        handlingPlan: initialData.activities?.walking?.handlingPlan ?? "",
+        dateForReview: initialData.activities?.walking?.dateForReview ?? Date.now()
+      },
+      toileting: {
+        nStaff: initialData.activities?.toileting?.nStaff ?? 0,
+        equipment: initialData.activities?.toileting?.equipment ?? "",
+        handlingPlan: initialData.activities?.toileting?.handlingPlan ?? "",
+        dateForReview: initialData.activities?.toileting?.dateForReview ?? Date.now()
+      },
+      movementInBed: {
+        nStaff: initialData.activities?.movementInBed?.nStaff ?? 0,
+        equipment: initialData.activities?.movementInBed?.equipment ?? "",
+        handlingPlan: initialData.activities?.movementInBed?.handlingPlan ?? "",
+        dateForReview: initialData.activities?.movementInBed?.dateForReview ?? Date.now()
+      },
+      bath: {
+        nStaff: initialData.activities?.bath?.nStaff ?? 0,
+        equipment: initialData.activities?.bath?.equipment ?? "",
+        handlingPlan: initialData.activities?.bath?.handlingPlan ?? "",
+        dateForReview: initialData.activities?.bath?.dateForReview ?? Date.now()
+      },
+      outdoorMobility: {
+        nStaff: initialData.activities?.outdoorMobility?.nStaff ?? 0,
+        equipment: initialData.activities?.outdoorMobility?.equipment ?? "",
+        handlingPlan: initialData.activities?.outdoorMobility?.handlingPlan ?? "",
+        dateForReview: initialData.activities?.outdoorMobility?.dateForReview ?? Date.now()
+      }
     } : {
       residentId, teamId, organizationId,
       completedBy: userName || "", jobRole: "", date: Date.now(),
@@ -230,7 +265,15 @@ export default function ResidentHandlingProfile({
       <Form {...form}>
         <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6" autoComplete="off">
-            <button type="submit" id="care-file-submit-btn" className="hidden" />
+            <button
+              type="button"
+              id="care-file-submit-btn"
+              className="hidden"
+              onClick={form.handleSubmit(handleSubmit, (errors) => {
+                console.error("Handling Profile form errors:", errors);
+                toast.error("Please fill in all required fields correctly.");
+              })}
+            />
             <div className="space-y-8 px-1">
               {/* Completed By */}
               <div className="space-y-4">

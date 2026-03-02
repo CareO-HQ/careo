@@ -256,7 +256,15 @@ export default function PreAdmissionDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit, (errors) => {
+                  console.error("Pre-Admission form errors:", errors);
+                  toast.error("Please fill in all required fields correctly.");
+                })}
+              />
 
               {/* Section 1: Consent */}
               <div className="space-y-6">

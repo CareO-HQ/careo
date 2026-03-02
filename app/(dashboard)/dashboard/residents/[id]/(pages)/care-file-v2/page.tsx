@@ -134,7 +134,7 @@ export default function CareFileV2Page() {
                 {/* All Care Plans */}
                 <div
                     className="w-full aspect-[2/1] flex flex-col justify-center gap-1 border-2 border-[#86D7DD] hover:bg-[#86D7DD]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
-                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-care-plans`)}
+                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-care-plans?v=v2`)}
                 >
                     <p className="text-[#007C89] text-lg font-bold">All Care Plans</p>
                     <p className="text-[#6B7280] text-sm">View all care plans</p>
@@ -143,7 +143,7 @@ export default function CareFileV2Page() {
                 {/* All Assessments */}
                 <div
                     className="w-full aspect-[2/1] flex flex-col justify-center gap-1 border-2 border-[#A5F3FC] hover:bg-[#A5F3FC]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
-                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-risk-assessments`)}
+                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-risk-assessments?v=v2`)}
                 >
                     <p className="text-[#0E7490] text-lg font-bold">All Assessments</p>
                     <p className="text-[#6B7280] text-sm">View all risk assessments</p>
@@ -152,7 +152,7 @@ export default function CareFileV2Page() {
                 {/* Archived Care Plans */}
                 <div
                     className="w-full aspect-[2/1] flex flex-col justify-center gap-1 border-2 border-[#FEF08A] hover:bg-[#FEF08A]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
-                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-care-plans`)}
+                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-care-plans?v=v2`)}
                 >
                     <p className="text-[#A16207] text-lg font-bold">Archived Care Plans</p>
                     <p className="text-[#6B7280] text-sm">View archived plans</p>
@@ -161,7 +161,7 @@ export default function CareFileV2Page() {
                 {/* Archived Assessments */}
                 <div
                     className="w-full aspect-[2/1] flex flex-col justify-center gap-1 border-2 border-[#E5E7EB] hover:bg-[#E5E7EB]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
-                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-risk-assessments`)}
+                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-risk-assessments?v=v2`)}
                 >
                     <p className="text-[#374151] text-lg font-bold">Archived Assessments</p>
                     <p className="text-[#6B7280] text-sm">View archived assessments</p>

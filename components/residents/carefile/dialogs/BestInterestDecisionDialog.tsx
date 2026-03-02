@@ -86,12 +86,12 @@ export default function BestInterestDecisionDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<BestInterestDecisionFormData>({
-    resolver: zodResolver(bestInterestDecisionSchema),
+    resolver: zodResolver(bestInterestDecisionSchema) as any,
     defaultValues: initialData ? {
-      residentId: initialData.residentId,
-      teamId: initialData.teamId,
-      organizationId: initialData.organizationId,
-      userId: initialData.userId,
+      residentId: initialData.residentId || initialData.resident_id || residentId,
+      teamId: initialData.teamId || initialData.team_id || teamId,
+      organizationId: initialData.organizationId || initialData.organization_id || organizationId,
+      userId: initialData.userId || initialData.user_id || initialData.created_by || userId,
       ...(initialData.assessment_data || {}),
       residentFullName: initialData.assessment_data?.residentFullName ?? initialData.residentFullName,
       dateOfBirth: initialData.assessment_data?.dateOfBirth ?? initialData.dateOfBirth,
@@ -101,7 +101,13 @@ export default function BestInterestDecisionDialog({
       otherDecisionType: initialData.assessment_data?.otherDecisionType ?? initialData.otherDecisionType,
       detailsOfDecision: initialData.assessment_data?.detailsOfDecision ?? initialData.detailsOfDecision,
       ableToUnderstand: initialData.assessment_data?.ableToUnderstand ?? initialData.ableToUnderstand,
-      reasonsForLackOfCapacity: initialData.assessment_data?.reasonsForLackOfCapacity ?? initialData.reasonsForLackOfCapacity,
+      reasonsForLackOfCapacity: (initialData.assessment_data?.reasonsForLackOfCapacity ?? initialData.reasonsForLackOfCapacity) || {
+        cognitiveImpairment: false,
+        communicationDifficulty: false,
+        fluctuatingCapacity: false,
+        other: false,
+        otherDetails: ""
+      },
       assessorName: initialData.assessment_data?.assessorName ?? initialData.assessorName,
       assessorRole: initialData.assessment_data?.assessorRole ?? initialData.assessorRole,
       assessorSignature: initialData.assessment_data?.assessorSignature ?? initialData.assessorSignature,
@@ -137,8 +143,16 @@ export default function BestInterestDecisionDialog({
       residentIdNumber: resident?.nhs_health_number || resident?.id || "",
       dateOfDecision: format(new Date(), "yyyy-MM-dd"),
       typeOfDecision: [],
+      otherDecisionType: "",
       detailsOfDecision: "",
       ableToUnderstand: "YES",
+      reasonsForLackOfCapacity: {
+        cognitiveImpairment: false,
+        communicationDifficulty: false,
+        fluctuatingCapacity: false,
+        other: false,
+        otherDetails: ""
+      },
       assessorName: userName || "",
       assessorRole: "",
       assessorSignature: "",
@@ -164,6 +178,14 @@ export default function BestInterestDecisionDialog({
       decisionMakerRole: "",
       decisionMakerSignature: "",
       decisionMakerDate: format(new Date(), "yyyy-MM-dd"),
+      witnessName: "",
+      witnessRole: "",
+      witnessSignature: "",
+      witnessDate: "",
+      nextOfKinName: "",
+      nextOfKinRelationship: "",
+      nextOfKinSignature: "",
+      nextOfKinDate: "",
     }
   });
 
@@ -223,7 +245,15 @@ export default function BestInterestDecisionDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
-              <button type="submit" id="care-file-submit-btn" className="hidden" />
+              <button
+                type="button"
+                id="care-file-submit-btn"
+                className="hidden"
+                onClick={form.handleSubmit(onSubmit as any, (errors) => {
+                  console.error("Best Interest Decision form errors:", errors);
+                  toast.error("Please fill in all required fields correctly.");
+                })}
+              />
 
               {/* Section A: Resident Information */}
               <div className="space-y-6">
@@ -939,7 +969,7 @@ export default function BestInterestDecisionDialog({
           <Button variant="outline" onClick={() => onClose?.()} disabled={isSubmitting} size="lg">
             Cancel
           </Button>
-          <Button onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting} size="lg" className="min-w-[180px]">
+          <Button onClick={form.handleSubmit(onSubmit as any)} disabled={isSubmitting} size="lg" className="min-w-[180px]">
             {isSubmitting ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</>
             ) : (

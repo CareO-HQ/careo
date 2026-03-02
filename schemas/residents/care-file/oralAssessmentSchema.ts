@@ -13,9 +13,9 @@ export const oralAssessmentSchema = z.object({
   dateOfBirth: z.string().min(1, "Date of birth is required"),
   weight: z.string().optional(),
   height: z.string().optional(),
-  completedBy: z.string().min(1, "Name of person completing assessment is required"),
+  completedBy: z.string().optional(),
   signature: z.string().optional(),
-  assessmentDate: z.number().min(1, "Assessment date is required"),
+  assessmentDate: z.number().optional(),
 
   // Section 2: Dental History and Registration
   normalOralHygieneRoutine: z.string().optional(),
