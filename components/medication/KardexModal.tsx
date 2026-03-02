@@ -241,17 +241,47 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                     {timeSlotEntries.map(([period, times]) =>
                       times.map((time) => {
                         const isScheduled = med.times.includes(time);
+                        const quantity = qty(time);
+
+                        // Get unit label based on dosage form
+                        const getUnitLabel = () => {
+                          const dosageForm = med.dosage_form?.toLowerCase() || '';
+
+                          if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) {
+                            return 'mL';
+                          } else if (dosageForm.includes('drops')) {
+                            return quantity === 1 ? 'drop' : 'drops';
+                          } else if (dosageForm.includes('inhaler') || dosageForm.includes('spray')) {
+                            return quantity === 1 ? 'puff' : 'puffs';
+                          } else if (dosageForm.includes('injection')) {
+                            return 'mL';
+                          } else if (dosageForm.includes('tablet')) {
+                            return quantity === 1 ? 'tab' : 'tabs';
+                          } else if (dosageForm.includes('capsule')) {
+                            return quantity === 1 ? 'cap' : 'caps';
+                          } else if (dosageForm.includes('patch')) {
+                            return quantity === 1 ? 'patch' : 'patches';
+                          } else {
+                            return '';
+                          }
+                        };
+
+                        const unit = getUnitLabel();
+
                         return (
                           <td
                             key={`${period}-${time}`}
-                            className={`border border-black text-center align-top ${
-                              !isScheduled ? "bg-gray-100" : ""
+                            className={`border border-black text-center align-middle ${
+                              !isScheduled ? "bg-gray-100" : "bg-blue-50"
                             }`}
-
-                            style={{ minWidth: "22px", height: "32px" }}
-                            title={isScheduled ? `${time} — ${qty(time)} tablet(s)` : "Not scheduled"}
+                            style={{ minWidth: "22px", height: "32px", verticalAlign: "middle" }}
                           >
-                            {!isScheduled && (
+                            {isScheduled ? (
+                              <div className="flex flex-col items-center justify-center">
+                                <p className="font-bold text-[9px] text-blue-900">{quantity}</p>
+                                <p className="text-[7px] text-gray-600">{unit}</p>
+                              </div>
+                            ) : (
                               <span className="text-gray-300 text-[7px]">—</span>
                             )}
                           </td>
@@ -264,6 +294,78 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Supplements */}
+      {supplements.length > 0 && (
+        <div className="mb-3">
+          <div className="bg-green-700 text-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider mb-1">
+            Supplements
+          </div>
+          <table className="w-full border-collapse border border-black text-[8.5px]">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border border-black px-1 py-0.5 text-left w-[140px]" rowSpan={2}>Supplement / Dose</th>
+                <th className="border border-black px-1 py-0.5 text-left w-[80px]" rowSpan={2}>Instructions</th>
+                <th className="border border-black px-1 py-0.5 text-left w-[60px]" rowSpan={2}>Frequency</th>
+                <th className="border border-black px-1 py-0.5 text-left w-[70px]" rowSpan={2}>Prescriber</th>
+                {timeSlotEntries.map(([period, times]) => (
+                  <th
+                    key={period}
+                    colSpan={times.length}
+                    className="border border-black text-center px-1 py-0.5 font-bold"
+                  >
+                    {period}
+                  </th>
+                ))}
+              </tr>
+              <tr className="bg-gray-100">
+                {timeSlotEntries.map(([period, times]) =>
+                  times.map((time) => (
+                    <th
+                      key={`${period}-${time}`}
+                      className="border border-black text-center px-0 py-0.5 font-medium"
+                      style={{ minWidth: "22px", fontSize: "7.5px" }}
+                    >
+                      {time}
+                    </th>
+                  ))
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {supplements.map((med, idx) => (
+                <tr key={med.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <td className="border border-black px-1 py-0.5 align-top">
+                    <p className="font-bold leading-tight">{med.name}</p>
+                    <p className="text-gray-600">
+                      {med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""}{" "}
+                      {med.dosage_form}
+                    </p>
+                  </td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">
+                    {med.instructions || "—"}
+                  </td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight">
+                    <div>{med.frequency || "—"}</div>
+                  </td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">
+                    {med.prescriber_name || "—"}
+                  </td>
+                  {timeSlotEntries.map(([period, times]) =>
+                    times.map((time) => (
+                      <td
+                        key={`${period}-${time}`}
+                        className="border border-black text-center align-top"
+                        style={{ minWidth: "22px", height: "32px" }}
+                      />
+                    ))
+                  )}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -348,6 +450,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                   )}
                   <td className="border border-black text-center align-top" style={{ minWidth: "28px", height: "32px" }} />
                   <td className="border border-black text-center align-top" style={{ minWidth: "28px", height: "32px" }} />
+                  <td className="border border-black text-center align-top" style={{ minWidth: "28px", height: "32px" }} />
                 </tr>
               ))}
             </tbody>
@@ -402,78 +505,6 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                       {med.dosage_form}
                     </p>
                     {med.route && <p className="text-gray-500">Route: {med.route}</p>}
-                  </td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">
-                    {med.instructions || "—"}
-                  </td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight">
-                    <div>{med.frequency || "—"}</div>
-                  </td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">
-                    {med.prescriber_name || "—"}
-                  </td>
-                  {timeSlotEntries.map(([period, times]) =>
-                    times.map((time) => (
-                      <td
-                        key={`${period}-${time}`}
-                        className="border border-black text-center align-top"
-                        style={{ minWidth: "22px", height: "32px" }}
-                      />
-                    ))
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Supplements */}
-      {supplements.length > 0 && (
-        <div className="mb-3">
-          <div className="bg-green-700 text-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider mb-1">
-            Supplements
-          </div>
-          <table className="w-full border-collapse border border-black text-[8.5px]">
-            <thead>
-              <tr className="bg-gray-200">
-                <th className="border border-black px-1 py-0.5 text-left w-[140px]" rowSpan={2}>Supplement / Dose</th>
-                <th className="border border-black px-1 py-0.5 text-left w-[80px]" rowSpan={2}>Instructions</th>
-                <th className="border border-black px-1 py-0.5 text-left w-[60px]" rowSpan={2}>Frequency</th>
-                <th className="border border-black px-1 py-0.5 text-left w-[70px]" rowSpan={2}>Prescriber</th>
-                {timeSlotEntries.map(([period, times]) => (
-                  <th
-                    key={period}
-                    colSpan={times.length}
-                    className="border border-black text-center px-1 py-0.5 font-bold"
-                  >
-                    {period}
-                  </th>
-                ))}
-              </tr>
-              <tr className="bg-gray-100">
-                {timeSlotEntries.map(([period, times]) =>
-                  times.map((time) => (
-                    <th
-                      key={`${period}-${time}`}
-                      className="border border-black text-center px-0 py-0.5 font-medium"
-                      style={{ minWidth: "22px", fontSize: "7.5px" }}
-                    >
-                      {time}
-                    </th>
-                  ))
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {supplements.map((med, idx) => (
-                <tr key={med.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="border border-black px-1 py-0.5 align-top">
-                    <p className="font-bold leading-tight">{med.name}</p>
-                    <p className="text-gray-600">
-                      {med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""}{" "}
-                      {med.dosage_form}
-                    </p>
                   </td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600">
                     {med.instructions || "—"}

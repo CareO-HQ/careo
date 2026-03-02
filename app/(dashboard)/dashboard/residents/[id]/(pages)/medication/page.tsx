@@ -267,10 +267,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           m.status === 'active' && m.schedule_type === 'PRN (As Needed)'
         ));
         setTopicalMedications(meds.filter(m =>
-          m.status === 'active' && m.route === 'Topical'
+          m.status === 'active' && (m.schedule_type === 'Topical' || m.route === 'Topical')
         ));
         setSupplementMedications(meds.filter(m =>
-          m.status === 'active' && (m.type === 'Supplement' || m.category === 'Supplement')
+          m.status === 'active' && m.schedule_type === 'Supplement'
         ));
         setDiscontinuedMedications(meds.filter(m => m.status === 'discontinued'));
         setCompletedCancelledMedications(meds.filter(m => m.status === 'completed' || m.status === 'cancelled'));
@@ -903,8 +903,136 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
         {/* ── Today's Medications ── */}
         <TabsContent value="today" className="flex flex-col gap-6 mt-4">
-          <div className="flex flex-col items-start">
+          <div className="flex items-center justify-between">
             <ShiftTimes selectedTime={selectedTime} setSelectedTime={setSelectedTime} />
+
+            {/* Bulk Action Buttons */}
+            <div className="flex items-center gap-2">
+              {(() => {
+                // Get all scheduled medications (including supplements)
+                const allScheduledMeds = filteredIntakes.filter((intake) => intake.status === 'scheduled');
+
+                // Get only regular medications (excluding supplements) for Prepare All
+                const regularMeds = filteredIntakes.filter((intake) => {
+                  const isSupplement = intake.medication?.schedule_type === 'Supplement' ||
+                                      intake.medication?.type === 'Supplement' ||
+                                      intake.medication?.category === 'Supplement';
+                  return !isSupplement && intake.status === 'scheduled';
+                });
+
+                const unpreparedMeds = regularMeds.filter(intake => !intake.popped_out_at);
+
+                if (allScheduledMeds.length === 0) return null;
+
+                return (
+                  <>
+                    {/* Prepare All Button */}
+                    {unpreparedMeds.length > 0 && (
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const now = new Date().toISOString();
+                            const intakeIds = unpreparedMeds.map(intake => intake.id);
+
+                            const { error } = await supabase
+                              .from("medication_intakes")
+                              .update({
+                                popped_out_at: now,
+                                popped_out_by_id: profile?.id
+                              })
+                              .in('id', intakeIds);
+
+                            if (error) throw error;
+
+                            // Optimistic update
+                            setSelectedDateIntakes(prev => prev.map(intake => {
+                              if (intakeIds.includes(intake.id)) {
+                                return {
+                                  ...intake,
+                                  popped_out_at: now,
+                                  popped_out_by_id: profile?.id
+                                };
+                              }
+                              return intake;
+                            }));
+
+                            toast.success(`${unpreparedMeds.length} medication(s) prepared`);
+                          } catch (error) {
+                            console.error("Error preparing all medications:", error);
+                            toast.error("Failed to prepare medications");
+                          }
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Prepare All ({unpreparedMeds.length})
+                      </Button>
+                    )}
+
+                    {/* Mark All as Given Button */}
+                    <Button
+                      variant="default"
+                      onClick={async () => {
+                        // Check if all regular medications are prepared (supplements don't need to be prepared)
+                        const allRegularPrepared = regularMeds.every(intake => intake.popped_out_at);
+
+                        if (!allRegularPrepared) {
+                          toast.error("Please prepare all medications before marking as given");
+                          return;
+                        }
+
+                        // Check if witness is selected for all (including supplements)
+                        const allHaveWitness = allScheduledMeds.every(intake => intake.witness_id);
+
+                        if (!allHaveWitness) {
+                          toast.error("Please select a witness for all medications and supplements");
+                          return;
+                        }
+
+                        try {
+                          const now = new Date().toISOString();
+                          const intakeIds = allScheduledMeds.map(intake => intake.id);
+
+                          const { error } = await supabase
+                            .from("medication_intakes")
+                            .update({
+                              status: 'given',
+                              administered_by_id: profile?.id,
+                              administered_at: now
+                            })
+                            .in('id', intakeIds);
+
+                          if (error) throw error;
+
+                          // Optimistic update
+                          setSelectedDateIntakes(prev => prev.map(intake => {
+                            if (intakeIds.includes(intake.id)) {
+                              return {
+                                ...intake,
+                                status: 'given',
+                                administered_by_id: profile?.id,
+                                administered_at: now
+                              };
+                            }
+                            return intake;
+                          }));
+
+                          toast.success(`${allScheduledMeds.length} medication(s) and supplement(s) marked as given`);
+                        } catch (error) {
+                          console.error("Error marking all as given:", error);
+                          toast.error("Failed to mark medications as given");
+                        }
+                      }}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Mark All as Given ({allScheduledMeds.length})
+                    </Button>
+                  </>
+                );
+              })()}
+            </div>
           </div>
 
           {(() => {

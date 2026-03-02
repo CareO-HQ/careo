@@ -110,7 +110,58 @@ export const createMedicationColumns = (
       id: "totalCount",
       header: "Total Count",
       cell: ({ row }) => {
-        return <p>{row.original.total_count}</p>;
+        const medication = row.original;
+        const totalCount = medication.total_count;
+
+        if (!totalCount) return <p className="text-muted-foreground">N/A</p>;
+
+        // Get unit label based on dosage form or frequency field
+        const getUnitLabel = () => {
+          // For PRN and Supplements, check frequency field (stores dosage unit)
+          if (medication.schedule_type === "PRN (As Needed)" || medication.schedule_type === "Supplement") {
+            const dosageUnit = medication.frequency || "";
+
+            if (dosageUnit.includes('mL')) return 'mL';
+            if (dosageUnit.includes('Drops')) return 'drops';
+            if (dosageUnit.includes('Puffs')) return 'puffs';
+            if (dosageUnit.includes('Patches')) return totalCount === 1 ? 'patch' : 'patches';
+            if (dosageUnit.includes('Injections')) return 'mL';
+            if (dosageUnit.includes('Tablets')) return totalCount === 1 ? 'tablet' : 'tablets';
+          }
+
+          // For scheduled medications, determine from dosage form
+          const dosageForm = medication.dosage_form?.toLowerCase() || '';
+
+          if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) {
+            return 'mL';
+          } else if (dosageForm.includes('drops')) {
+            return 'mL';
+          } else if (dosageForm.includes('inhaler')) {
+            return 'puffs';
+          } else if (dosageForm.includes('spray')) {
+            return totalCount === 1 ? 'spray' : 'sprays';
+          } else if (dosageForm.includes('injection')) {
+            return 'mL';
+          } else if (dosageForm.includes('sachet') || dosageForm.includes('powder')) {
+            return totalCount === 1 ? 'sachet' : 'sachets';
+          } else if (dosageForm.includes('patch')) {
+            return totalCount === 1 ? 'patch' : 'patches';
+          } else if (dosageForm.includes('tablet')) {
+            return totalCount === 1 ? 'tablet' : 'tablets';
+          } else if (dosageForm.includes('capsule')) {
+            return totalCount === 1 ? 'capsule' : 'capsules';
+          } else if (dosageForm.includes('softgel')) {
+            return totalCount === 1 ? 'softgel' : 'softgels';
+          } else if (dosageForm.includes('gummy')) {
+            return totalCount === 1 ? 'gummy' : 'gummies';
+          }
+
+          return '';
+        };
+
+        const unit = getUnitLabel();
+
+        return <p className="text-sm">{totalCount} {unit}</p>;
       }
     },
     {
