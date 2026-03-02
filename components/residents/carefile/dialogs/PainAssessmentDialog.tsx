@@ -99,7 +99,7 @@ export default function PainAssessmentDialog({
         const payload = {
           resident_id: residentId,
           organization_id: organizationId,
-          assessment_date: new Date(values.assessmentDate).toISOString().split('T')[0],
+          assessment_date: new Date(values.assessmentDate || Date.now()).toISOString().split('T')[0],
           assessment_entries: values.assessmentEntries,
           created_by: currentUserId
         };

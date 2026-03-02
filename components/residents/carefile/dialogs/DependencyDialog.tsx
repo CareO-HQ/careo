@@ -110,7 +110,7 @@ export default function DependencyDialog({
           resident_id: residentId,
           organization_id: organizationId,
           dependency_level: values.dependencyLevel,
-          assessment_date: new Date(values.assessmentDate).toISOString().split('T')[0],
+          assessment_date: new Date(values.assessmentDate || Date.now()).toISOString().split('T')[0],
           completed_by: values.completedBy,
           created_by: userId
         };

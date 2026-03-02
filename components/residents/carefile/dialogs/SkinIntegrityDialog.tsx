@@ -143,7 +143,7 @@ export default function SkinIntegrityDialog({
           risk_score: totalScore,
           risk_level: riskLevel,
           assessment_details: assessmentDetails,
-          assessment_date: new Date(values.assessmentDate).toISOString().split('T')[0],
+          assessment_date: new Date(values.assessmentDate || Date.now()).toISOString().split('T')[0],
           completed_by: values.completedBy,
           created_by: currentUserId
         };

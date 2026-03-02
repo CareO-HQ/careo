@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const handlingActivitySchema = z.object({
-  nStaff: z.number().min(0, "Number of staff must be 0 or greater").optional().default(0),
+  nStaff: z.number().min(0, "Number of staff must be 0 or greater").default(0),
   equipment: z.string().optional(),
   handlingPlan: z.string().optional(),
   dateForReview: z.number().optional()

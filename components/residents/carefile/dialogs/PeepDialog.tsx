@@ -225,8 +225,7 @@ export default function PeepDialog({
             furnitureFireRetardant: values.furnitureFireRetardant,
             furnitureFireRetardantComments: values.furnitureFireRetardantComments
           },
-          completed_by: values.completedBy,
-          assessment_date: format(new Date(values.assessmentDate), "yyyy-MM-dd"),
+          assessment_date: format(new Date(values.assessmentDate || Date.now()), "yyyy-MM-dd"),
           created_by: userId
         };
 
