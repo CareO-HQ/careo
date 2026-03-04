@@ -22,6 +22,13 @@ CREATE TABLE IF NOT EXISTS public.smoking_risk_assessments (
     version_number INTEGER DEFAULT 1,
     previous_version_id UUID REFERENCES public.smoking_risk_assessments(id),
     archived_at TIMESTAMPTZ,
+    relatives_aware BOOLEAN,
+    relatives_awareness_date DATE,
+    relatives_awareness_time TEXT,
+    risk_review_monthly BOOLEAN,
+    risk_review_on_condition_change BOOLEAN,
+    risk_review_on_incident BOOLEAN,
+    completed_by_role TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

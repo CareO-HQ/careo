@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS public.specimen_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  team_id UUID NOT NULL,
+  team_id UUID,
   
   date_time_obtained TIMESTAMPTZ NOT NULL,
   specimen_type TEXT NOT NULL,
