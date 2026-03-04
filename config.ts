@@ -359,7 +359,7 @@ export const config = {
       forms: [
         { type: "form", key: "v2-general-risk", value: "General Risk Assessment", isComingSoon: true },
         { type: "form", key: "peep", value: "PEEP (Personal Emergency Evacuation Plan) + Evaluation" },
-        { type: "form", key: "v2-restraints-risk", value: "Consent and Risk Assessment for Restraints", isComingSoon: true }
+        { type: "form", key: "v2-restraints-risk", value: "Consent and Risk Assessment for Restraints" }
       ]
     },
     {
@@ -466,7 +466,9 @@ export const config = {
       value: "Additional Care Plans",
       description: "Specific medical and psychosocial care plans.",
       carePlan: true,
-      forms: []
+      forms: [
+        { type: "form", key: "smoking-risk-assessment", value: "Smoking Risk Assessment" }
+      ]
     },
     {
       type: "folder",
@@ -494,7 +496,7 @@ export const config = {
       value: "Record of Specimens",
       description: "Log for medical specimens.",
       forms: [
-        { type: "form", key: "v2-specimen-log", value: "Specimen Record Log", isComingSoon: true }
+        { type: "form", key: "v2-specimen-log", value: "Specimen Record Log" }
       ]
     },
     {

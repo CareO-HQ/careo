@@ -43,7 +43,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       "choking-risk-assessment-form",
       "cornell-depression-scale-form",
       "braden-risk-assessment-form",
-      "best-interest-decision-form"
+      "best-interest-decision-form",
+      "v2-restraints-risk",
+      "smoking-risk-assessment"
     ];
 
     const tableMap: Partial<Record<CareFileFormKey, string>> = {
@@ -71,6 +73,8 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       "cornell-depression-scale-form": "cornell_depression_scales",
       "braden-risk-assessment-form": "braden_risk_assessments",
       "best-interest-decision-form": "best_interest_decisions",
+      "v2-restraints-risk": "restraints_consents",
+      "smoking-risk-assessment": "smoking_risk_assessments",
       "care-plan-form": "care_plan_assessments" // Included for completeness
     };
 
@@ -142,16 +146,13 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
   };
 
   const canDownloadPdf = (key: CareFileFormKey): boolean => {
-    // Logic from original: needs hasData and (hasPdfFileId OR pdfUrl)
-    // Since pdfUrl is null, rely on hasPdfFileId or just allow if completed?
-    // Original: 
-    /*
-    if (key === "admission-form") return formState.hasData && formState.hasPdfFileId;
-    if (key === "photography-consent") return formState.hasData && formState.hasPdfFileId;
-    return formState.hasData && !!formState.pdfUrl;
-    */
-    // For now, return false to disable download buttons until PDF generation is fixed
-    return false;
+    const formState = formsState[key];
+    if (!formState) return false;
+
+    if (key === "smoking-risk-assessment") return formState.hasData;
+
+    // Original logic: needs hasData and (hasPdfFileId OR pdfUrl)
+    return formState.hasData && (!!formState.hasPdfFileId || !!formState.pdfUrl);
   };
 
   const getCompletedFormsCount = (keys: CareFileFormKey[]): number => {

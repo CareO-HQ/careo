@@ -24,7 +24,11 @@ export type CareFileFormKey =
   | "choking-risk-assessment-form"
   | "cornell-depression-scale-form"
   | "braden-risk-assessment-form"
-  | "must-calculator";
+  | "v2-restraints-risk"
+  | "must-calculator"
+  | "v2-specimen-log"
+  | "smoking-risk-assessment";
+
 
 export type CareFileFormStatus =
   | "not-started"

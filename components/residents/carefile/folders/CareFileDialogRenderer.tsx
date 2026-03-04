@@ -25,6 +25,10 @@ import ChokingRiskAssessmentDialog from "@/components/residents/carefile/dialogs
 import CornellDepressionScaleDialog from "@/components/residents/carefile/dialogs/CornellDepressionScaleDialog";
 import BestInterestDecisionDialog from "@/components/residents/carefile/dialogs/BestInterestDecisionDialog";
 import BradenRiskAssessmentDialog from "@/components/residents/carefile/dialogs/BradenRiskAssessmentDialog";
+import RestraintsConsentDialog from "@/components/residents/carefile/dialogs/RestraintsConsentDialog";
+import SmokingRiskAssessmentDialog from "@/components/residents/carefile/dialogs/SmokingRiskAssessmentDialog";
+import SpecimenRecordLogDialog from "@/components/residents/carefile/dialogs/SpecimenRecordLogDialog";
+
 
 interface BaseDialogProps {
   residentId: string;
@@ -48,6 +52,10 @@ interface CareFileDialogRendererProps extends BaseDialogProps {
   isInline?: boolean;
   newCarePlanName?: string;
   viewOnly?: boolean;
+  refreshForms?: () => void;
+  onSaveSuccess?: (data: any) => void;
+  onClose: () => void;
+  orgLogoUrl?: string;
 }
 
 /**
@@ -69,7 +77,10 @@ export function CareFileDialogRenderer({
   isInline,
   newCarePlanName,
   viewOnly = false,
-  onClose
+  refreshForms,
+  onSaveSuccess,
+  onClose,
+  orgLogoUrl
 }: CareFileDialogRendererProps) {
   const editData = (isReviewMode || viewOnly) ? formDataForEdit : null;
   // For care plan new creation, pass the pre-selected name as a synthetic initialData
@@ -296,6 +307,40 @@ export function CareFileDialogRenderer({
             initialData={editData}
           />
         );
+
+      case "v2-restraints-risk":
+        return (
+          <RestraintsConsentDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+          />
+        );
+
+      case "smoking-risk-assessment":
+        return (
+          <SmokingRiskAssessmentDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+            refreshForms={refreshForms}
+            onSaveSuccess={onSaveSuccess}
+            orgLogoUrl={orgLogoUrl}
+          />
+        );
+
+
+      case "v2-specimen-log":
+        return (
+          <SpecimenRecordLogDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+            orgLogoUrl={orgLogoUrl}
+            careHomeName={careHomeName}
+          />
+        );
+
 
       default:
         return null;

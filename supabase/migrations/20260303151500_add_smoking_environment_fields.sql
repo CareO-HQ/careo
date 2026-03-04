@@ -1,0 +1,27 @@
+-- Add additional environmental control fields to smoking_risk_assessments
+ALTER TABLE public.smoking_risk_assessments
+    ADD COLUMN IF NOT EXISTS oxygen_in_use_in_bedroom BOOLEAN,
+    ADD COLUMN IF NOT EXISTS oxygen_in_use_in_bedroom_details TEXT,
+    ADD COLUMN IF NOT EXISTS oxygen_cylinder_storage_safe BOOLEAN,
+    ADD COLUMN IF NOT EXISTS oxygen_cylinder_storage_safe_details TEXT,
+    ADD COLUMN IF NOT EXISTS oxygen_no_smoking_signage BOOLEAN,
+    ADD COLUMN IF NOT EXISTS oxygen_no_smoking_signage_details TEXT,
+    ADD COLUMN IF NOT EXISTS fuel_combustible_materials_near_oxygen BOOLEAN,
+    ADD COLUMN IF NOT EXISTS fuel_combustible_materials_near_oxygen_details TEXT,
+    ADD COLUMN IF NOT EXISTS fuel_soft_furnishings_near_smoking BOOLEAN,
+    ADD COLUMN IF NOT EXISTS fuel_soft_furnishings_near_smoking_details TEXT,
+    ADD COLUMN IF NOT EXISTS fuel_waste_bins_and_rubbish_managed BOOLEAN,
+    ADD COLUMN IF NOT EXISTS fuel_waste_bins_and_rubbish_managed_details TEXT,
+    ADD COLUMN IF NOT EXISTS smoking_room_has_safe_ashtrays BOOLEAN,
+    ADD COLUMN IF NOT EXISTS smoking_room_has_safe_ashtrays_details TEXT,
+    ADD COLUMN IF NOT EXISTS smoking_room_no_smoking_in_bed BOOLEAN,
+    ADD COLUMN IF NOT EXISTS smoking_room_no_smoking_in_bed_details TEXT,
+    ADD COLUMN IF NOT EXISTS smoking_room_supervision_provided BOOLEAN,
+    ADD COLUMN IF NOT EXISTS smoking_room_supervision_provided_details TEXT,
+    ADD COLUMN IF NOT EXISTS smoking_room_door_closed_to_corridors BOOLEAN,
+    ADD COLUMN IF NOT EXISTS smoking_room_door_closed_to_corridors_details TEXT,
+    ADD COLUMN IF NOT EXISTS smoking_room_fire_doors_and_exits_clear BOOLEAN,
+    ADD COLUMN IF NOT EXISTS smoking_room_fire_doors_and_exits_clear_details TEXT,
+    ADD COLUMN IF NOT EXISTS smoking_room_housekeeping_good BOOLEAN,
+    ADD COLUMN IF NOT EXISTS smoking_room_housekeeping_good_details TEXT;
+
