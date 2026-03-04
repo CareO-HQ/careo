@@ -563,11 +563,11 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </Card>
           )}
 
-          {/* Clinical Card */}
+          {/* Wounds Card */}
           {canViewResidentSection("clinical", userRole) && (
             <Card
               className="cursor-pointer shadow-none"
-              onClick={() => handleCardClick("clinical")}
+              onClick={() => handleCardClick("wounds")}
             >
               <CardContent className="p-2">
                 <div className="flex items-center justify-between p-3">
@@ -576,11 +576,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                       <Heart className="w-6 h-6 text-rose-600" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">Clinical</h3>
+                      <h3 className="font-semibold">Wounds</h3>
                       <p className="text-sm text-muted-foreground">
-                        {getHealthConditionsCount() > 0 || getRisksCount() > 0
-                          ? `${getHealthConditionsCount()} conditions, ${getRisksCount()} risks`
-                          : "Health information"}
+                        Wound tracking and management
                       </p>
                     </div>
                   </div>
