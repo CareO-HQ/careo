@@ -25,7 +25,8 @@ import {
   Shield,
   BellIcon,
   ListTodo,
-  Heart
+  Heart,
+  Briefcase
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
@@ -41,6 +42,7 @@ import {
   canViewSidebarNotification,
   canViewSidebarResidents,
   canViewSidebarStaff,
+  canViewSidebarAgencyStaff,
   canViewSidebarHome,
   getAuditLabel,
   canCreateResident
@@ -294,6 +296,18 @@ export function AppSidebar() {
                   <Link href="/dashboard/staff">
                     <UsersIcon />
                     <span>Staff</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+
+            {/* Agency Staff */}
+            {canViewSidebarAgencyStaff(effectiveRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/agency-staff">
+                    <Briefcase />
+                    <span>Agency Staff</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

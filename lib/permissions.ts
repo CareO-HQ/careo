@@ -66,6 +66,10 @@ export function canViewSidebarStaff(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "saas_admin";
 }
 
+export function canViewSidebarAgencyStaff(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "saas_admin";
+}
+
 export function canViewSidebarHandover(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin" || role === "care_assistant";
 }
