@@ -8,7 +8,8 @@ import { canFillCareFileForms } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { CareFileFormKey } from "@/types/care-files";
 import { config } from "@/config";
-import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X, Edit3, Printer, History, Clock, FileCheck, ChevronRight, ExternalLink, PanelRight, PanelRightClose } from "lucide-react";
+import { BodyMapData } from "@/types/body-map";
+import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X, Edit3, Printer, History, Clock, FileCheck, ChevronRight, ExternalLink, PanelRight, PanelRightClose, Map as MapIcon } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -36,6 +37,7 @@ import { RiskAssessmentViewer } from "@/components/residents/carefile/folders/Ri
 import { CarePlanEvaluations } from "@/components/residents/carefile/CarePlanEvaluations";
 import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
 import { Badge } from "@/components/ui/badge";
+import { BodyMapDialog } from "@/components/body-map/BodyMapDialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,13 @@ type UploadedFile = {
     created_at: string;
     signedUrl?: string;
 };
+
+interface CareFolderBodyMapRecord {
+    id: string;
+    resident_id: string;
+    folder_key: string;
+    body_map_data: BodyMapData | null;
+}
 
 // ─── Helper Mapping ───────────────────────────────────────────────────────────
 
@@ -77,7 +86,9 @@ const TABLE_MAP: Record<string, string> = {
     "cornell-depression-scale-form": "cornell_depression_scales",
     "best-interest-decision-form": "best_interest_decisions",
     "care-plan-form": "care_plan_assessments",
-    "braden-risk-assessment-form": "braden_risk_assessments"
+    "braden-risk-assessment-form": "braden_risk_assessments",
+    "v2-restraints-risk": "restraints_consents",
+    "smoking-risk-assessment": "smoking_risk_assessments"
 };
 
 // ─── File Viewer ──────────────────────────────────────────────────────────────
@@ -173,6 +184,8 @@ export default function CareFileV2FolderPage() {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [uploadDefaultFileName, setUploadDefaultFileName] = useState("");
+    const [folderBodyMap, setFolderBodyMap] = useState<CareFolderBodyMapRecord | null>(null);
+    const [isBodyMapDialogOpen, setIsBodyMapDialogOpen] = useState(false);
     // SidebarTrigger handles the left sidebar, hook used for state if needed.
     const { toggleSidebar, state: leftSidebarState } = useSidebar();
 
@@ -194,6 +207,8 @@ export default function CareFileV2FolderPage() {
 
     const activeFile = uploadedFiles.find((f) => f.id === activeFileId);
 
+    const activeOrganizationId = profile?.active_organization_id;
+
     useEffect(() => {
         const prev = document.body.style.overflow;
         document.body.style.overflow = "hidden";
@@ -211,6 +226,27 @@ export default function CareFileV2FolderPage() {
         }
     }, [residentId, profile?.active_organization_id]);
 
+    const fetchFolderBodyMap = useCallback(async () => {
+        if (!residentId) return;
+        try {
+            const { data, error } = await supabase
+                .from("care_folder_body_maps")
+                .select("id, resident_id, folder_key, body_map_data")
+                .eq("resident_id", residentId)
+                .eq("folder_key", folderKey)
+                .maybeSingle();
+
+            if (error && error.code !== "PGRST116") {
+                console.error("Error fetching care folder body map:", error);
+                return;
+            }
+
+            setFolderBodyMap((data as CareFolderBodyMapRecord) || null);
+        } catch (error) {
+            console.error("Error fetching care folder body map:", error);
+        }
+    }, [residentId, folderKey]);
+
     const fetchUploadedFiles = useCallback(async () => {
         if (!residentId || !folder) return;
         setFilesLoading(true);
@@ -221,6 +257,12 @@ export default function CareFileV2FolderPage() {
     }, [residentId, folder, folderKey]);
 
     useEffect(() => { fetchUploadedFiles(); }, [fetchUploadedFiles]);
+
+    useEffect(() => {
+        if (folderKey === "v2-medication" || folderKey === "v2-hygiene") {
+            fetchFolderBodyMap();
+        }
+    }, [fetchFolderBodyMap, folderKey]);
 
     const handleFormClick = async (key: CareFileFormKey) => {
         const v2Form = folder?.forms.find(f => f.key === key);
@@ -323,6 +365,13 @@ export default function CareFileV2FolderPage() {
         setIsCarePlanSelectionOpen(false);
     };
 
+    const handleSaveSuccess = (data: any) => {
+        setFormDataForEdit(data);
+        setIsViewOnly(true);
+        setIsReviewMode(false);
+        setIsSaving(false);
+    };
+
     const handlePrint = async () => {
         if (!activeFormKey || !formDataForEdit || !resident) return;
         const formName = activeFormKey === "care-plan-form" ? (formDataForEdit.care_plan_type || "Care Plan") : (folder?.forms.find(f => f.key === activeFormKey)?.value || "Form");
@@ -372,6 +421,50 @@ export default function CareFileV2FolderPage() {
             setTimeout(() => setIsSaving(false), 2000);
         } else {
             toast.error("Form submission button not found");
+        }
+    };
+
+    const handleBodyMapSave = async (bodyMapData: BodyMapData) => {
+        if (!activeOrganizationId || !profile?.id) {
+            toast.error("Auth error: Missing organization or profile");
+            return;
+        }
+
+        try {
+            if (folderBodyMap?.id) {
+                const { error } = await supabase
+                    .from("care_folder_body_maps")
+                    .update({ body_map_data: bodyMapData })
+                    .eq("id", folderBodyMap.id);
+
+                if (error) {
+                    throw error;
+                }
+            } else {
+                const { data, error } = await supabase
+                    .from("care_folder_body_maps")
+                    .insert({
+                        resident_id: residentId,
+                        folder_key: folderKey,
+                        body_map_data: bodyMapData,
+                        organization_id: activeOrganizationId,
+                        created_by: profile.id,
+                    })
+                    .select("id, resident_id, folder_key, body_map_data")
+                    .single();
+
+                if (error) {
+                    throw error;
+                }
+
+                setFolderBodyMap(data as CareFolderBodyMapRecord);
+            }
+
+            await fetchFolderBodyMap();
+            toast.success("Body map saved");
+        } catch (error) {
+            console.error("Error saving care-folder body map:", error);
+            toast.error("Failed to save body map");
         }
     };
 
@@ -476,6 +569,9 @@ export default function CareFileV2FolderPage() {
                                                 onClose={handleCloseForm}
                                                 isInline={true}
                                                 viewOnly={true}
+                                                refreshForms={refreshForms}
+                                                onSaveSuccess={handleSaveSuccess}
+                                                orgLogoUrl={activeOrganization?.logo_url}
                                             />
                                         </div>
                                     ) : (
@@ -485,7 +581,7 @@ export default function CareFileV2FolderPage() {
                                             </DialogPrimitive.Title>
                                             <DialogPrimitive.Content asChild>
                                                 <div className="relative">
-                                                    <CareFileDialogRenderer formKey={activeFormKey} residentId={residentId} teamId={activeTeamId ?? ""} organizationId={profile?.active_organization_id ?? ""} userId={profile?.id ?? ""} userName={profile?.name || profile?.email || "User"} userRole={profile?.role ?? ""} resident={resident} careHomeName={profile?.care_home_name ?? ""} folderKey={folderKey} formDataForEdit={formDataForEdit} isReviewMode={isReviewMode} onClose={handleCloseForm} isInline={true} newCarePlanName={selectedCarePlanName} />
+                                                    <CareFileDialogRenderer formKey={activeFormKey} residentId={residentId} teamId={activeTeamId ?? ""} organizationId={profile?.active_organization_id ?? ""} userId={profile?.id ?? ""} userName={profile?.name || profile?.email || "User"} userRole={profile?.role ?? ""} resident={resident} careHomeName={profile?.care_home_name ?? ""} folderKey={folderKey} formDataForEdit={formDataForEdit} isReviewMode={isReviewMode} onClose={handleCloseForm} isInline={true} newCarePlanName={selectedCarePlanName} refreshForms={refreshForms} onSaveSuccess={handleSaveSuccess} orgLogoUrl={activeOrganization?.logo_url} />
                                                 </div>
                                             </DialogPrimitive.Content>
                                         </Dialog>
@@ -573,6 +669,33 @@ export default function CareFileV2FolderPage() {
                                         ))}
                                     </div>
                                 ) : <div className="px-2 py-3 border border-dashed rounded-lg text-center"><p className="text-[10px] text-muted-foreground italic">No care plans yet</p></div>}
+                            </div>
+                        )}
+
+                        {(folderKey === "v2-medication" || folderKey === "v2-hygiene") && (
+                            <div>
+                                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1 mb-2">
+                                    Body Map
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsBodyMapDialogOpen(true);
+                                    }}
+                                    className="w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all hover:bg-muted/60"
+                                >
+                                    <MapIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                                            Body Map
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground">
+                                            {folderBodyMap && folderBodyMap.body_map_data && folderBodyMap.body_map_data.sessions.length > 0
+                                                ? `${folderBodyMap.body_map_data.sessions.reduce((count, s) => count + (s.entries?.length || 0), 0)} observations`
+                                                : "No body map yet"}
+                                        </p>
+                                    </div>
+                                </button>
                             </div>
                         )}
 
@@ -917,6 +1040,20 @@ export default function CareFileV2FolderPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <BodyMapDialog
+                isOpen={isBodyMapDialogOpen}
+                onClose={() => {
+                    setIsBodyMapDialogOpen(false);
+                }}
+                residentName={resident ? `${resident.first_name} ${resident.last_name}` : undefined}
+                initialData={folderBodyMap?.body_map_data || undefined}
+                onSave={handleBodyMapSave}
+                incidentType={folder.value ? `${folder.value} Body Map` : "Care File Body Map"}
+                incidentDate={new Date().toISOString().split("T")[0]}
+                orgLogoUrl={activeOrganization?.logo_url}
+                simpleMode={folderKey === "v2-medication" || folderKey === "v2-hygiene"}
+            />
         </div >
     );
 }

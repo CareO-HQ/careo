@@ -43,6 +43,7 @@ interface BodyMapDialogProps {
     initialData?: BodyMapData;
     onSave?: (data: BodyMapData) => void | Promise<void>;
     orgLogoUrl?: string;
+    simpleMode?: boolean;
 }
 
 export function BodyMapDialog({
@@ -54,7 +55,8 @@ export function BodyMapDialog({
     incidentType,
     initialData,
     onSave,
-    orgLogoUrl
+    orgLogoUrl,
+    simpleMode = false
 }: BodyMapDialogProps) {
     const [data, setData] = React.useState<BodyMapData>(() => normalizeBodyMapData(initialData, incidentDate));
     const [currentSessionId, setCurrentSessionId] = React.useState<string | null>(null);
@@ -246,6 +248,23 @@ export function BodyMapDialog({
         setEditingEntry(null);
     };
 
+    // In simpleMode (used by specific care folders), skip session selection/history:
+    // always keep a single active session and show the map + observations directly.
+    // Only run this logic when the dialog is actually open to avoid side effects on page load.
+    React.useEffect(() => {
+        if (!simpleMode || !isOpen) return;
+
+        if (data.sessions.length === 0 && !currentSessionId) {
+            // Auto-create a session (will persist via onSave if provided)
+            void handleCreateSession();
+            return;
+        }
+
+        if (data.sessions.length > 0 && !currentSessionId) {
+            setCurrentSessionId(data.sessions[0].id);
+        }
+    }, [simpleMode, isOpen, data.sessions, currentSessionId, handleCreateSession]);
+
     const handleRenameSession = async () => {
         if (!currentSession || !tempLabel.trim()) {
             setIsEditingLabel(false);
@@ -323,7 +342,7 @@ export function BodyMapDialog({
             <DialogContent className="max-w-[1300px] w-full max-h-[90vh] flex flex-col p-0 overflow-hidden text-slate-900 border-none shadow-2xl">
                 <DialogHeader className="p-6 border-b shrink-0 flex flex-row items-center justify-between">
                     <div className="flex items-center gap-4">
-                        {currentSessionId && (
+                        {currentSessionId && !simpleMode && (
                             <Button
                                 variant="ghost"
                                 size="sm"
@@ -356,8 +375,8 @@ export function BodyMapDialog({
                                     </div>
                                 ) : (
                                     <>
-                                        <span>{currentSession ? currentSession.label : "Body Mapping Sessions"}</span>
-                                        {currentSession && (
+                                        <span>{simpleMode ? "Body Map" : (currentSession ? currentSession.label : "Body Mapping Sessions")}</span>
+                                        {currentSession && !simpleMode && (
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -381,7 +400,7 @@ export function BodyMapDialog({
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        {!currentSessionId ? (
+                        {!currentSessionId && !simpleMode ? (
                             <Button onClick={handleCreateSession} className="flex items-center gap-2">
                                 <Plus className="w-4 h-4" />
                                 Create New Body Map
@@ -441,7 +460,7 @@ export function BodyMapDialog({
                     {/* Right: Form Area / Summary */}
                     <div className="flex-[2] overflow-hidden bg-slate-50/50 relative">
                         <ScrollArea className="h-full px-6 py-6">
-                            {!currentSessionId ? (
+                            {!currentSessionId && !simpleMode ? (
                                 <div className="space-y-6">
                                     <div className="flex items-center justify-between">
                                         <h3 className="text-lg font-medium">History</h3>
