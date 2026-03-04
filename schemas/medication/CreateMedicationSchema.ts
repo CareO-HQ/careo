@@ -67,7 +67,7 @@ export const CreateMedicationSchema = z
     (data) => {
       // Frequency is required only for Scheduled medications
       if (data.scheduleType === "Scheduled") {
-        return data.frequency != null && data.frequency !== "";
+        return data.frequency != null;
       }
       return true;
     },

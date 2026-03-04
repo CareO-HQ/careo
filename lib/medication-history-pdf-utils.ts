@@ -278,26 +278,26 @@ export async function generateMedicationHistoryDayPDF(
     margin: { left: margin, right: margin },
     theme: "grid" as const,
     headStyles: {
-      fillColor: [249, 250, 251],
-      textColor: [31, 41, 55],
-      fontStyle: "bold",
+      fillColor: [249, 250, 251] as [number, number, number],
+      textColor: [31, 41, 55] as [number, number, number],
+      fontStyle: "bold" as const,
       fontSize: 8,
-      halign: "left",
+      halign: "left" as const,
     },
     bodyStyles: {
-      fillColor: [255, 255, 255],
-      textColor: [17, 24, 39],
+      fillColor: [255, 255, 255] as [number, number, number],
+      textColor: [17, 24, 39] as [number, number, number],
       fontSize: 7,
-      halign: "left",
+      halign: "left" as const,
     },
     styles: { cellPadding: 3 },
     columnStyles: {
-      0: { halign: "left" },  // Time
-      1: { halign: "left" },  // Medication
-      2: { halign: "center" }, // Qty
-      3: { halign: "left" },  // Status
-      4: { halign: "left" },  // Administered By
-      5: { halign: "left" },  // Notes
+      0: { halign: "left" as const },  // Time
+      1: { halign: "left" as const },  // Medication
+      2: { halign: "center" as const }, // Qty
+      3: { halign: "left" as const },  // Status
+      4: { halign: "left" as const },  // Administered By
+      5: { halign: "left" as const },  // Notes
     },
   };
 
@@ -313,8 +313,8 @@ export async function generateMedicationHistoryDayPDF(
       body: buildTableBody(allScheduled),
       ...tableOptions,
     });
-    yPos = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable
-      ? (doc as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+    yPos = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
+      ? (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
       : yPos + 10;
   }
 
@@ -330,8 +330,8 @@ export async function generateMedicationHistoryDayPDF(
       body: buildTableBody(prn),
       ...tableOptions,
     });
-    yPos = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable
-      ? (doc as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+    yPos = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
+      ? (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
       : yPos + 10;
   }
 

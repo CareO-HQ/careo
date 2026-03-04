@@ -35,6 +35,7 @@ import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { CalendarIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import type { FieldPath } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useProfile } from "@/hooks/use-profile";
@@ -184,7 +185,7 @@ export default function CreateMedicationForm({
 
   const handleFirstStep = async () => {
     const scheduleType = form.getValues("scheduleType");
-    const fieldsToValidate = [
+    const fieldsToValidate: FieldPath<z.infer<typeof CreateMedicationSchema>>[] = [
       "name",
       "strength",
       "strengthUnit",
@@ -192,8 +193,8 @@ export default function CreateMedicationForm({
       "dosageForm",
       "route",
       "scheduleType",
-      ...(scheduleType === "PRN (As Needed)" ? [] : ["frequency"])
-    ] as const;
+      ...(scheduleType === "PRN (As Needed)" ? ([] as FieldPath<z.infer<typeof CreateMedicationSchema>>[]) : (["frequency"] as FieldPath<z.infer<typeof CreateMedicationSchema>>[]))
+    ];
 
     const isValid = await form.trigger(fieldsToValidate);
 
@@ -211,7 +212,7 @@ export default function CreateMedicationForm({
   };
 
   const handleSecondStep = async () => {
-    const fieldsToValidate = ["times"] as const;
+    const fieldsToValidate: FieldPath<z.infer<typeof CreateMedicationSchema>>[] = ["times"];
     // At least one time is required
     if (form.getValues("times")?.length === 0) {
       toast.error("Please add at least one time");
@@ -229,7 +230,7 @@ export default function CreateMedicationForm({
   };
 
   const handleThirdStepValidation = async () => {
-    const fieldsToValidate = ["prescriberName", "startDate"] as const;
+    const fieldsToValidate: FieldPath<z.infer<typeof CreateMedicationSchema>>[] = ["prescriberName", "startDate"];
 
     const isValid = await form.trigger(fieldsToValidate);
 
