@@ -35,6 +35,7 @@ import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { CalendarIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import type { FieldPath } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useProfile } from "@/hooks/use-profile";
@@ -109,7 +110,9 @@ export default function CreateMedicationForm({
             total_count: values.totalCount,
             dosage_form: values.dosageForm,
             route: values.route,
-            frequency: values.frequency,
+            frequency: values.scheduleType === "PRN (As Needed)"
+              ? (values.frequency ?? "As Needed (PRN)")
+              : values.frequency,
             schedule_type: values.scheduleType,
             times: values.times,
             time_quantities: values.timeQuantities,
@@ -181,16 +184,17 @@ export default function CreateMedicationForm({
   }
 
   const handleFirstStep = async () => {
-    const fieldsToValidate = [
+    const scheduleType = form.getValues("scheduleType");
+    const fieldsToValidate: FieldPath<z.infer<typeof CreateMedicationSchema>>[] = [
       "name",
       "strength",
       "strengthUnit",
       "totalCount",
       "dosageForm",
       "route",
-      "frequency",
-      "scheduleType"
-    ] as const;
+      "scheduleType",
+      ...(scheduleType === "PRN (As Needed)" ? ([] as FieldPath<z.infer<typeof CreateMedicationSchema>>[]) : (["frequency"] as FieldPath<z.infer<typeof CreateMedicationSchema>>[]))
+    ];
 
     const isValid = await form.trigger(fieldsToValidate);
 
@@ -200,7 +204,6 @@ export default function CreateMedicationForm({
     }
 
     // Skip time selection step if medication is PRN
-    const scheduleType = form.getValues("scheduleType");
     if (scheduleType === "PRN (As Needed)") {
       setStep(3); // Skip to step 3
     } else {
@@ -209,7 +212,7 @@ export default function CreateMedicationForm({
   };
 
   const handleSecondStep = async () => {
-    const fieldsToValidate = ["times"] as const;
+    const fieldsToValidate: FieldPath<z.infer<typeof CreateMedicationSchema>>[] = ["times"];
     // At least one time is required
     if (form.getValues("times")?.length === 0) {
       toast.error("Please add at least one time");
@@ -227,7 +230,7 @@ export default function CreateMedicationForm({
   };
 
   const handleThirdStepValidation = async () => {
-    const fieldsToValidate = ["prescriberName", "startDate"] as const;
+    const fieldsToValidate: FieldPath<z.infer<typeof CreateMedicationSchema>>[] = ["prescriberName", "startDate"];
 
     const isValid = await form.trigger(fieldsToValidate);
 
@@ -386,7 +389,7 @@ export default function CreateMedicationForm({
                   )}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className={cn("grid gap-4", scheduleType === "PRN (As Needed)" ? "grid-cols-1" : "grid-cols-2")}>
                 <FormField
                   control={form.control}
                   name="scheduleType"
@@ -413,52 +416,53 @@ export default function CreateMedicationForm({
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="frequency"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Frequency</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        disabled={scheduleType === "PRN (As Needed)"}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a frequency" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Once daily (OD)">
-                            Once daily (OD)
-                          </SelectItem>
-                          <SelectItem value="Twice daily (BD)">
-                            Twice daily (BD)
-                          </SelectItem>
-                          <SelectItem value="Three times daily (TD)">
-                            Three times daily (TD)
-                          </SelectItem>
-                          <SelectItem value="Four times daily (QDS)">
-                            Four times daily (QDS)
-                          </SelectItem>
-                          <SelectItem value="Four times daily (QIS)">
-                            Four times daily (QIS)
-                          </SelectItem>
-                          <SelectItem value="As Needed (PRN)">
-                            As Needed (PRN)
-                          </SelectItem>
-                          <SelectItem value="One time (STAT)">
-                            One time (STAT)
-                          </SelectItem>
-                          <SelectItem value="Weekly">Weekly</SelectItem>
-                          <SelectItem value="Monthly">Monthly</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {scheduleType !== "PRN (As Needed)" && (
+                  <FormField
+                    control={form.control}
+                    name="frequency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Frequency</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select a frequency" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Once daily (OD)">
+                              Once daily (OD)
+                            </SelectItem>
+                            <SelectItem value="Twice daily (BD)">
+                              Twice daily (BD)
+                            </SelectItem>
+                            <SelectItem value="Three times daily (TD)">
+                              Three times daily (TD)
+                            </SelectItem>
+                            <SelectItem value="Four times daily (QDS)">
+                              Four times daily (QDS)
+                            </SelectItem>
+                            <SelectItem value="Four times daily (QIS)">
+                              Four times daily (QIS)
+                            </SelectItem>
+                            <SelectItem value="As Needed (PRN)">
+                              As Needed (PRN)
+                            </SelectItem>
+                            <SelectItem value="One time (STAT)">
+                              One time (STAT)
+                            </SelectItem>
+                            <SelectItem value="Weekly">Weekly</SelectItem>
+                            <SelectItem value="Monthly">Monthly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
               <div className="flex justify-end">
                 <Button type="button" onClick={handleFirstStep}>
