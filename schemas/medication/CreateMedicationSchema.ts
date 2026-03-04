@@ -4,15 +4,33 @@ export const CreateMedicationSchema = z
   .object({
     name: z.string().min(1),
     strength: z.string().min(1),
-    strengthUnit: z.union([z.literal("mg"), z.literal("g")]),
-    totalCount: z.number(),
+    strengthUnit: z.union([
+      z.literal("mg"),
+      z.literal("mcg"),
+      z.literal("g"),
+      z.literal("mL"),
+      z.literal("drops"),
+      z.literal("IU"),
+      z.literal("%")
+    ]),
+    totalCount: z.number().optional(),
     dosageForm: z.union([
       z.literal("Tablet"),
       z.literal("Capsule"),
+      z.literal("Softgel"),
+      z.literal("Chewable Tablet"),
+      z.literal("Gummy"),
       z.literal("Liquid"),
+      z.literal("Syrup"),
+      z.literal("Drops"),
+      z.literal("Powder"),
+      z.literal("Effervescent Tablet"),
+      z.literal("Spray"),
+      z.literal("Lozenge"),
       z.literal("Injection"),
       z.literal("Cream"),
       z.literal("Ointment"),
+      z.literal("Gel"),
       z.literal("Patch"),
       z.literal("Inhaler")
     ]),
@@ -27,6 +45,7 @@ export const CreateMedicationSchema = z
       z.literal("Sublingual")
     ]),
     frequency: z.union([
+      // Regular frequencies
       z.literal("Once daily (OD)"),
       z.literal("Twice daily (BD)"),
       z.literal("Three times daily (TD)"),
@@ -35,11 +54,22 @@ export const CreateMedicationSchema = z
       z.literal("As Needed (PRN)"),
       z.literal("One time (STAT)"),
       z.literal("Weekly"),
-      z.literal("Monthly")
+      z.literal("Monthly"),
+      // Dosage units for PRN and Supplements
+      z.literal("Tablets/Capsules"),
+      z.literal("Drops"),
+      z.literal("mL (Milliliters)"),
+      z.literal("Puffs (Inhaler)"),
+      z.literal("Applications (Topical)"),
+      z.literal("Sprays"),
+      z.literal("Patches"),
+      z.literal("Injections")
     ]).optional(),
     scheduleType: z.union([
       z.literal("Scheduled"),
-      z.literal("PRN (As Needed)")
+      z.literal("PRN (As Needed)"),
+      z.literal("Topical"),
+      z.literal("Supplement")
     ]),
     times: z.array(z.string()).optional(),
     timeQuantities: z.record(z.string(), z.number().min(1)).optional(),
@@ -53,39 +83,47 @@ export const CreateMedicationSchema = z
       z.literal("completed"),
       z.literal("cancelled")
     ]),
-    // Controlled Drug fields
     isControlledDrug: z.boolean().optional(),
     controlledDrugSchedule: z
       .union([z.literal("2"), z.literal("3"), z.literal("4"), z.literal("5")])
       .optional(),
-    // PRN Safety Limits
     minIntervalHours: z.number().positive().optional(),
     maxDailyDose: z.number().positive().optional(),
     maxDailyDoseUnit: z.string().optional()
   })
   .refine(
     (data) => {
-      // Frequency is required only for Scheduled medications
-      if (data.scheduleType === "Scheduled") {
-        return data.frequency != null;
+      // If scheduleType is "Scheduled", "Topical", or "Supplement", times must be provided
+      // PRN medications don't need times
+      if (
+        data.scheduleType === "Scheduled" ||
+        data.scheduleType === "Topical" ||
+        data.scheduleType === "Supplement"
+      ) {
+        return data.times && data.times.length > 0;
       }
+      // PRN doesn't require times
       return true;
     },
     {
-      message: "Frequency is required for scheduled medications",
-      path: ["frequency"]
+      message: "At least one time is required",
+      path: ["times"]
     }
   )
   .refine(
     (data) => {
-      // If scheduleType is "Scheduled", times must be provided and not empty
-      if (data.scheduleType === "Scheduled") {
-        return data.times && data.times.length > 0;
+      // Frequency is required for non-PRN and non-Supplement medications
+      if (data.scheduleType !== "PRN (As Needed)" && data.scheduleType !== "Supplement") {
+        return data.frequency !== undefined && data.frequency !== null;
+      }
+      // For PRN and Supplements, frequency field is used for dosage unit
+      if (data.scheduleType === "PRN (As Needed)" || data.scheduleType === "Supplement") {
+        return data.frequency !== undefined && data.frequency !== null;
       }
       return true;
     },
     {
-      message: "At least one time is required for scheduled medications",
-      path: ["times"]
+      message: "Frequency/Dosage unit is required",
+      path: ["frequency"]
     }
   );

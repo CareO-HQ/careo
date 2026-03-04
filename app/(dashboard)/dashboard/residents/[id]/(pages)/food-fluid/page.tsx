@@ -84,7 +84,6 @@ const DietFormSchema = z.object({
 
 // Food/Fluid Log Form Schema
 const FoodFluidLogSchema = z.object({
-  section: z.enum(["midnight-7am", "7am-12pm", "12pm-5pm", "5pm-midnight"]),
   typeOfFoodDrink: z.string().min(1, "Please specify the food or drink").max(100, "Food/drink name too long"),
   portionServed: z.string().optional(),
   amountEaten: z.enum(["None", "1/4", "1/2", "3/4", "All"]),
@@ -127,12 +126,22 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const [isMenuDialogOpen, setIsMenuDialogOpen] = useState(false);
   const [isAddingDish, setIsAddingDish] = useState(false);
   const [dishName, setDishName] = useState("");
+  const [dishCategory, setDishCategory] = useState<"food" | "fluid">("food");
 
   const { profile } = useProfile();
   const userRole = profile?.role;
   const canManageDietActions = canAddDietMenu(userRole);
   const canManageMenuActions = canManageMenu(userRole);
   const canLogEntries = canLogFoodFluidEntry(userRole);
+
+  const foodMenuItems = useMemo(
+    () => menuItems.filter(item => item.category === "food"),
+    [menuItems]
+  );
+  const fluidMenuItems = useMemo(
+    () => menuItems.filter(item => item.category === "fluid"),
+    [menuItems]
+  );
 
   const fetchData = useCallback(async () => {
     setIsInitialLoading(true);
@@ -277,7 +286,6 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const logForm = useForm<z.infer<typeof FoodFluidLogSchema>>({
     resolver: zodResolver(FoodFluidLogSchema),
     defaultValues: {
-      section: "7am-12pm",
       typeOfFoodDrink: "",
       portionServed: "",
       amountEaten: "All",
@@ -379,28 +387,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
     return formatDateForDisplay(getUKTodayDate());
   };
 
-  const getCurrentSection = () => {
-    // Get current hour in UK timezone
-    const ukNow = formatInTimeZone(new Date(), UK_TIMEZONE, "HH");
-    const hour = parseInt(ukNow);
-    if (hour >= 0 && hour < 7) return "midnight-7am";
-    if (hour >= 7 && hour < 12) return "7am-12pm";
-    if (hour >= 12 && hour < 17) return "12pm-5pm";
-    return "5pm-midnight";
-  };
-
   const getCurrentTime = () => {
     return formatTimestampToUKTime(new Date());
-  };
-
-  const getSectionDisplayName = (section: string) => {
-    const timeMap: Record<string, string> = {
-      "midnight-7am": "Midnight - 7:00 AM",
-      "7am-12pm": "7:00 AM - 12:00 PM",
-      "12pm-5pm": "12:00 PM - 5:00 PM",
-      "5pm-midnight": "5:00 PM - Midnight"
-    };
-    return timeMap[section] || section;
   };
 
 
@@ -471,12 +459,15 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         return;
       }
 
+      const [h] = values.time.split(':').map(Number);
+      const section = h < 7 ? "midnight-7am" : h < 12 ? "7am-12pm" : h < 17 ? "12pm-5pm" : "5pm-midnight";
+
       const { error } = await supabase
         .from("food_fluid_logs")
         .insert({
           resident_id: id,
           organization_id: profile.active_organization_id,
-          section: values.section,
+          section,
           type_of_food_drink: values.typeOfFoodDrink,
           portion_served: entryType === "food" ? (values.portionServed || "N/A") : "N/A",
           amount_eaten: values.amountEaten,
@@ -509,13 +500,12 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
       // Reset form for next entry but preserve signature
       logForm.reset({
-        section: getCurrentSection(),
         typeOfFoodDrink: "",
         portionServed: "",
         amountEaten: "All",
         fluidConsumedMl: undefined,
-        signature: values.signature, // Keep the current signature
-        time: getCurrentTime().substring(0, 5), // Reset to current time
+        signature: values.signature,
+        time: getCurrentTime().substring(0, 5),
       });
 
       // Show quick actions for a few seconds
@@ -534,7 +524,6 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   // Handle Log Another actions
   const handleLogAnother = (type: "food" | "fluid") => {
     setEntryType(type);
-    logForm.setValue("section", getCurrentSection());
     logForm.setValue("typeOfFoodDrink", type === "fluid" ? "Water" : "");
     logForm.setValue("fluidConsumedMl", undefined);
     setIsFoodFluidDialogOpen(true);
@@ -554,6 +543,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         .from("menu_items")
         .insert({
           name: dishName.trim(),
+          category: dishCategory,
           organization_id: profile.active_organization_id,
           created_by: profile.id,
         })
@@ -614,24 +604,22 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           </div>
           <div className="flex flex-row gap-2">
             {canManageDietActions && (
-              <>
-                <Button
-                  onClick={() => setIsDialogOpen(true)}
-                  className="bg-black text-white hover:bg-gray-800"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Diet
-                </Button>
-                {canManageMenuActions && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsMenuDialogOpen(true)}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Menu
-                  </Button>
-                )}
-              </>
+              <Button
+                onClick={() => setIsDialogOpen(true)}
+                className="bg-black text-white hover:bg-gray-800"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Diet
+              </Button>
+            )}
+            {canManageMenuActions && (
+              <Button
+                variant="outline"
+                onClick={() => setIsMenuDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Menu
+              </Button>
             )}
             <Button
               variant="outline"
@@ -823,7 +811,6 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   className="h-16 text-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 hover:border-orange-300"
                   onClick={() => {
                     setEntryType("food");
-                    logForm.setValue("section", getCurrentSection());
                     logForm.setValue("typeOfFoodDrink", "");
                     logForm.setValue("fluidConsumedMl", undefined);
                     setIsFoodFluidDialogOpen(true);
@@ -838,7 +825,6 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   className="h-16 text-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 hover:border-blue-300"
                   onClick={() => {
                     setEntryType("fluid");
-                    logForm.setValue("section", getCurrentSection());
                     logForm.setValue("typeOfFoodDrink", "Water");
                     setIsFoodFluidDialogOpen(true);
                   }}
@@ -1475,9 +1461,33 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
             </DialogHeader>
 
             <div className="space-y-6">
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Category</Label>
+                <RadioGroup
+                  value={dishCategory}
+                  onValueChange={(value) => setDishCategory(value as "food" | "fluid")}
+                  className="flex space-x-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="food" id="category-food" />
+                    <label htmlFor="category-food" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                      <Utensils className="w-3.5 h-3.5 text-orange-600" />
+                      Food
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="fluid" id="category-fluid" />
+                    <label htmlFor="category-fluid" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                      <Droplets className="w-3.5 h-3.5 text-blue-600" />
+                      Fluid
+                    </label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <div className="flex space-x-2">
                 <Input
-                  placeholder="Enter dish name (e.g., Roast Chicken)..."
+                  placeholder={dishCategory === "food" ? "Enter dish name (e.g., Roast Chicken)..." : "Enter fluid name (e.g., Orange Juice)..."}
                   value={dishName}
                   onChange={(e) => setDishName(e.target.value)}
                   onKeyDown={(e) => {
@@ -1499,7 +1509,20 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                     <div className="divide-y">
                       {menuItems.map((item) => (
                         <div key={item.id} className="flex items-center justify-between p-3 hover:bg-gray-50">
-                          <span className="text-sm font-medium">{item.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{item.name}</span>
+                            <Badge
+                              className={`text-[10px] px-1.5 py-0 ${
+                                item.category === "fluid"
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : item.category === "food"
+                                    ? "bg-orange-50 text-orange-700 border-orange-200"
+                                    : "bg-gray-50 text-gray-500 border-gray-200"
+                              }`}
+                            >
+                              {item.category === "fluid" ? "Fluid" : item.category === "food" ? "Food" : "Uncategorised"}
+                            </Badge>
+                          </div>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1568,31 +1591,6 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   )}
                 />
 
-                {/* Section */}
-                <FormField
-                  control={logForm.control}
-                  name="section"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Time Section</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select time section..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="midnight-7am">Midnight - 7:00 AM</SelectItem>
-                          <SelectItem value="7am-12pm">7:00 AM - 12:00 PM</SelectItem>
-                          <SelectItem value="12pm-5pm">12:00 PM - 5:00 PM</SelectItem>
-                          <SelectItem value="5pm-midnight">5:00 PM - Midnight</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 {/* Type of Food/Drink */}
                 <FormField
                   control={logForm.control}
@@ -1611,22 +1609,36 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {menuItems.length > 0 ? (
-                                menuItems.map((item) => (
+                              {foodMenuItems.length > 0 ? (
+                                foodMenuItems.map((item) => (
                                   <SelectItem key={item.id} value={item.name}>
                                     {item.name}
                                   </SelectItem>
                                 ))
                               ) : (
-                                <div className="p-2 text-sm text-muted-foreground">No menu items added. Please add menu items first.</div>
+                                <div className="p-2 text-sm text-muted-foreground">No food items added. Please add food items to the menu first.</div>
                               )}
                             </SelectContent>
                           </Select>
                         ) : (
-                          <Input
-                            placeholder="e.g., Water, Tea, Coffee, Juice..."
-                            {...field}
-                          />
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select fluid item..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {fluidMenuItems.length > 0 ? (
+                                fluidMenuItems.map((item) => (
+                                  <SelectItem key={item.id} value={item.name}>
+                                    {item.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <div className="p-2 text-sm text-muted-foreground">No fluid items added. Please add fluid items to the menu first.</div>
+                              )}
+                            </SelectContent>
+                          </Select>
                         )}
                       </FormControl>
                       <FormMessage />

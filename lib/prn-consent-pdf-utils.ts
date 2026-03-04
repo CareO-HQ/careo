@@ -18,20 +18,77 @@ function text(doc: jsPDF, str: string, x: number, y: number, maxWidth?: number):
   return y + lines.length * 5;
 }
 
-export function generatePRNConsentPDF(
+interface PRNPdfOptions {
+  orgLogoUrl?: string;
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+export async function generatePRNConsentPDF(
   data: Record<string, unknown>,
-  residentName?: string
-): jsPDF {
+  residentName?: string,
+  options?: PRNPdfOptions
+): Promise<jsPDF> {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 14;
-  let y = 20;
 
-  // Title
+  // Header background
+  const headerHeight = 26;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, headerHeight, "F");
+
+  // Optional organisation logo
+  if (options?.orgLogoUrl) {
+    try {
+      const logoImg = await loadImage(options.orgLogoUrl);
+      const canvas = document.createElement("canvas");
+      canvas.width = logoImg.naturalWidth;
+      canvas.height = logoImg.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(logoImg, 0, 0);
+        const logoDataUrl = canvas.toDataURL("image/png");
+        const logoTargetHeight = 12;
+        const aspect = logoImg.naturalWidth / logoImg.naturalHeight;
+        const logoWidth = logoTargetHeight * aspect;
+        const logoX = pageWidth - margin - logoWidth;
+        const logoY = (headerHeight - logoTargetHeight) / 2;
+        doc.addImage(logoDataUrl, "PNG", logoX, logoY, logoWidth, logoTargetHeight);
+      }
+    } catch {
+      // Ignore logo loading errors – continue without logo
+    }
+  }
+
+  // Green brand bar directly under the header (to match care-file PDFs)
+  doc.setFillColor(34, 197, 94); // Tailwind emerald-500
+  doc.rect(0, headerHeight - 2, pageWidth, 2, "F");
+
+  // Title and subtitle
+  let y = 12;
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
+  doc.setTextColor(17, 24, 39);
   doc.text("PRN Care Consent Form", margin, y);
-  y += 10;
+
+  y += 6;
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(107, 114, 128);
+  const residentLabel = residentName || String(data.residentName ?? "") || "Resident";
+  doc.text(String(residentLabel), margin, y);
+
+  // Move below header
+  y = headerHeight + 8;
 
   // Introduction box
   doc.setFillColor(239, 246, 255); // blue-50
@@ -84,11 +141,11 @@ export function generatePRNConsentPDF(
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.text(Boolean(data.understandsPRN) ? "[X]" : "[ ]", margin, y);
+  doc.text((data.understandsPRN ? "[X]" : "[ ]") as string, margin, y);
   doc.text("I understand what PRN medication means", margin + 10, y);
   y += 6;
 
-  doc.text(Boolean(data.agreesToPRN) ? "[X]" : "[ ]", margin, y);
+  doc.text((data.agreesToPRN ? "[X]" : "[ ]") as string, margin, y);
   doc.text("I consent to PRN medication administration", margin + 10, y);
   y += 8;
 
@@ -172,7 +229,7 @@ export function generatePRNConsentPDF(
   doc.text(safeDate(data.date), margin + 45, y);
   y += 12;
 
-  // Footer
+  // Footer text at bottom of page
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
   doc.text(
@@ -185,25 +242,51 @@ export function generatePRNConsentPDF(
 }
 
 /** Generate PDF and open in new window for printing. */
-export function printPRNConsentPDF(
+export async function printPRNConsentPDF(
   data: Record<string, unknown>,
-  residentName?: string
-): void {
-  const doc = generatePRNConsentPDF(data, residentName);
+  residentName?: string,
+  options?: PRNPdfOptions
+): Promise<void> {
+  const doc = await generatePRNConsentPDF(data, residentName, options);
   const blob = doc.output("blob");
   const url = URL.createObjectURL(blob);
-  const win = window.open(url, "_blank", "noopener,noreferrer");
-  if (win) {
-    let printed = false;
-    win.onload = () => {
-      if (printed) return;
-      printed = true;
-      win.print();
-      URL.revokeObjectURL(url);
+
+  try {
+    // Use a hidden iframe to ensure the print dialog opens exactly once
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.visibility = "hidden";
+    iframe.src = url;
+
+    iframe.onload = () => {
+      try {
+        const iframeWindow = iframe.contentWindow;
+        if (iframeWindow) {
+          iframeWindow.focus();
+          iframeWindow.print();
+        }
+      } finally {
+        // Give the browser a moment to open the dialog before cleanup
+        setTimeout(() => {
+          if (iframe.parentNode) {
+            iframe.parentNode.removeChild(iframe);
+          }
+          URL.revokeObjectURL(url);
+        }, 1000);
+      }
     };
-  } else {
-    // Fallback: download if popup blocked
-    const fileName = `PRN-Care-Consent${residentName ? `-${residentName.replace(/\s+/g, "-")}` : ""}-${format(new Date(), "yyyy-MM-dd")}.pdf`;
+
+    document.body.appendChild(iframe);
+  } catch {
+    // Fallback: download if printing via iframe fails
+    const fileName = `PRN-Care-Consent${
+      residentName ? `-${residentName.replace(/\s+/g, "-")}` : ""
+    }-${format(new Date(), "yyyy-MM-dd")}.pdf`;
     doc.save(fileName);
     URL.revokeObjectURL(url);
   }

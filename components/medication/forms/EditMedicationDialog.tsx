@@ -46,16 +46,26 @@ import { z } from "zod";
 const UpdateMedicationSchema = z.object({
   name: z.string().optional(),
   strength: z.string().optional(),
-  strengthUnit: z.enum(["mg", "g"]).optional(),
+  strengthUnit: z.enum(["mg", "mcg", "g", "mL", "drops", "IU", "%"]).optional(),
   totalCount: z.number().positive().optional(),
   dosageForm: z
     .enum([
       "Tablet",
       "Capsule",
+      "Softgel",
+      "Chewable Tablet",
+      "Gummy",
       "Liquid",
+      "Syrup",
+      "Drops",
+      "Powder",
+      "Effervescent Tablet",
+      "Spray",
+      "Lozenge",
       "Injection",
       "Cream",
       "Ointment",
+      "Gel",
       "Patch",
       "Inhaler"
     ])
@@ -72,21 +82,10 @@ const UpdateMedicationSchema = z.object({
       "Sublingual"
     ])
     .optional(),
-  frequency: z
-    .enum([
-      "Once daily (OD)",
-      "Twice daily (BD)",
-      "Three times daily (TD)",
-      "Four times daily (QDS)",
-      "Four times daily (QIS)",
-      "As Needed (PRN)",
-      "One time (STAT)",
-      "Weekly",
-      "Monthly"
-    ])
-    .optional(),
-  scheduleType: z.enum(["Scheduled", "PRN (As Needed)"]).optional(),
+  frequency: z.string().optional(),
+  scheduleType: z.enum(["Scheduled", "PRN (As Needed)", "Topical", "Supplement"]).optional(),
   times: z.array(z.string()).optional(),
+  timeQuantities: z.record(z.number()).optional(),
   instructions: z.string().optional(),
   prescriberName: z.string().optional(),
   startDate: z.date().optional(),
@@ -104,6 +103,7 @@ interface Medication {
   frequency: string;
   schedule_type: string;
   times: string[];
+  time_quantities: Record<string, number> | null;
   instructions?: string;
   prescriber_name: string;
   start_date: string;
@@ -132,13 +132,14 @@ export default function EditMedicationDialog({
     defaultValues: {
       name: medication.name,
       strength: medication.strength,
-      strengthUnit: medication.strength_unit as "mg" | "g",
+      strengthUnit: medication.strength_unit as any,
       totalCount: medication.total_count,
       dosageForm: medication.dosage_form as any,
       route: medication.route as any,
       frequency: medication.frequency as any,
       scheduleType: medication.schedule_type as any,
       times: medication.times || [],
+      timeQuantities: medication.time_quantities || {},
       instructions: medication.instructions || undefined,
       prescriberName: medication.prescriber_name,
       startDate: new Date(medication.start_date),
@@ -161,6 +162,7 @@ export default function EditMedicationDialog({
       if (values.frequency !== undefined) updates.frequency = values.frequency;
       if (values.scheduleType !== undefined) updates.schedule_type = values.scheduleType;
       if (values.times !== undefined) updates.times = values.times;
+      if (values.timeQuantities !== undefined) updates.time_quantities = values.timeQuantities;
       if (values.instructions !== undefined) updates.instructions = values.instructions;
       if (values.prescriberName !== undefined) updates.prescriber_name = values.prescriberName;
       if (values.startDate !== undefined) updates.start_date = values.startDate.toISOString();
@@ -258,24 +260,138 @@ export default function EditMedicationDialog({
               <FormField
                 control={form.control}
                 name="totalCount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Total Stock Count</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="e.g., 100"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value ? Number(e.target.value) : undefined
-                          )
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const dosageForm = form.watch("dosageForm")?.toLowerCase() || "";
+                  const scheduleType = form.watch("scheduleType");
+                  const frequencyValue = form.watch("frequency") || "";
+
+                  // Determine unit and input type based on dosage form
+                  let allowDecimals = false;
+                  let step = "1";
+                  let placeholder = "e.g., 30";
+                  let unitLabel = "";
+                  let description = "Total quantity in the package";
+
+                  // Check PRN/Supplement dosage unit from frequency field
+                  if (scheduleType === "PRN (As Needed)" || scheduleType === "Supplement") {
+                    if (frequencyValue.includes('mL')) {
+                      allowDecimals = true;
+                      step = "0.1";
+                      placeholder = "e.g., 100 or 250";
+                      unitLabel = "mL";
+                      description = "Total volume in the bottle";
+                    } else if (frequencyValue.includes('Drops')) {
+                      placeholder = "e.g., 50";
+                      unitLabel = "drops";
+                      description = "Total drops in the bottle";
+                    } else if (frequencyValue.includes('Puffs')) {
+                      placeholder = "e.g., 200";
+                      unitLabel = "puffs";
+                      description = "Total puffs in the inhaler";
+                    } else if (frequencyValue.includes('Patches')) {
+                      placeholder = "e.g., 10";
+                      unitLabel = "patches";
+                      description = "Total patches in the box";
+                    } else if (frequencyValue.includes('Injections')) {
+                      allowDecimals = true;
+                      step = "0.1";
+                      placeholder = "e.g., 10";
+                      unitLabel = "mL";
+                      description = "Total volume in vial/ampoules";
+                    } else if (frequencyValue.includes('Tablets')) {
+                      placeholder = "e.g., 30";
+                      unitLabel = "tablets";
+                      description = "Total tablets in the package";
+                    }
+                  }
+                  // Check scheduled medication dosage form
+                  else {
+                    if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) {
+                      allowDecimals = true;
+                      step = "0.1";
+                      placeholder = "e.g., 100 or 250";
+                      unitLabel = "mL";
+                      description = "Total volume in the bottle";
+                    } else if (dosageForm.includes('drops')) {
+                      placeholder = "e.g., 50";
+                      unitLabel = "drops/mL";
+                      description = "Total drops or volume in the bottle";
+                    } else if (dosageForm.includes('injection')) {
+                      allowDecimals = true;
+                      step = "0.1";
+                      placeholder = "e.g., 10";
+                      unitLabel = "mL";
+                      description = "Total volume in vial/ampoules";
+                    } else if (dosageForm.includes('inhaler')) {
+                      placeholder = "e.g., 200";
+                      unitLabel = "puffs";
+                      description = "Total puffs in the inhaler";
+                    } else if (dosageForm.includes('spray')) {
+                      placeholder = "e.g., 120";
+                      unitLabel = "sprays";
+                      description = "Total sprays in the bottle";
+                    } else if (dosageForm.includes('sachet') || dosageForm.includes('powder')) {
+                      placeholder = "e.g., 30";
+                      unitLabel = "sachets";
+                      description = "Total sachets in the box";
+                    } else if (dosageForm.includes('patch')) {
+                      placeholder = "e.g., 10";
+                      unitLabel = "patches";
+                      description = "Total patches in the box";
+                    } else if (dosageForm.includes('tablet')) {
+                      placeholder = "e.g., 30";
+                      unitLabel = "tablets";
+                      description = "Total tablets in the package";
+                    } else if (dosageForm.includes('capsule')) {
+                      placeholder = "e.g., 60";
+                      unitLabel = "capsules";
+                      description = "Total capsules in the package";
+                    } else if (dosageForm.includes('softgel')) {
+                      placeholder = "e.g., 30";
+                      unitLabel = "softgels";
+                      description = "Total softgels in the package";
+                    } else if (dosageForm.includes('gummy')) {
+                      placeholder = "e.g., 60";
+                      unitLabel = "gummies";
+                      description = "Total gummies in the package";
+                    }
+                  }
+
+                  return (
+                    <FormItem>
+                      <FormLabel>Total Count (Optional)</FormLabel>
+                      <FormControl>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            placeholder={placeholder}
+                            type="number"
+                            min={allowDecimals ? "0.1" : "1"}
+                            step={step}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (allowDecimals) {
+                                field.onChange(value ? parseFloat(value) : undefined);
+                              } else {
+                                field.onChange(value ? parseInt(value) : undefined);
+                              }
+                            }}
+                            value={field.value?.toString() || ""}
+                            className="flex-1"
+                          />
+                          {unitLabel && (
+                            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap min-w-[60px]">
+                              {unitLabel}
+                            </span>
+                          )}
+                        </div>
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        {description}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
             </div>
 
@@ -311,7 +427,12 @@ export default function EditMedicationDialog({
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="mg">mg</SelectItem>
+                        <SelectItem value="mcg">mcg</SelectItem>
                         <SelectItem value="g">g</SelectItem>
+                        <SelectItem value="mL">mL</SelectItem>
+                        <SelectItem value="drops">drops</SelectItem>
+                        <SelectItem value="IU">IU</SelectItem>
+                        <SelectItem value="%">%</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -339,10 +460,20 @@ export default function EditMedicationDialog({
                       <SelectContent>
                         <SelectItem value="Tablet">Tablet</SelectItem>
                         <SelectItem value="Capsule">Capsule</SelectItem>
+                        <SelectItem value="Softgel">Softgel</SelectItem>
+                        <SelectItem value="Chewable Tablet">Chewable Tablet</SelectItem>
+                        <SelectItem value="Gummy">Gummy</SelectItem>
                         <SelectItem value="Liquid">Liquid</SelectItem>
+                        <SelectItem value="Syrup">Syrup</SelectItem>
+                        <SelectItem value="Drops">Drops</SelectItem>
+                        <SelectItem value="Powder">Powder</SelectItem>
+                        <SelectItem value="Effervescent Tablet">Effervescent Tablet</SelectItem>
+                        <SelectItem value="Spray">Spray</SelectItem>
+                        <SelectItem value="Lozenge">Lozenge</SelectItem>
                         <SelectItem value="Injection">Injection</SelectItem>
                         <SelectItem value="Cream">Cream</SelectItem>
                         <SelectItem value="Ointment">Ointment</SelectItem>
+                        <SelectItem value="Gel">Gel</SelectItem>
                         <SelectItem value="Patch">Patch</SelectItem>
                         <SelectItem value="Inhaler">Inhaler</SelectItem>
                       </SelectContent>
@@ -390,7 +521,37 @@ export default function EditMedicationDialog({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="scheduleType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Schedule Type</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select schedule type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Scheduled">Scheduled</SelectItem>
+                      <SelectItem value="PRN (As Needed)">
+                        PRN (As Needed)
+                      </SelectItem>
+                      <SelectItem value="Topical">Topical</SelectItem>
+                      <SelectItem value="Supplement">Supplement</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Show frequency field only for Scheduled and Topical medications */}
+            {form.watch("scheduleType") !== "PRN (As Needed)" && form.watch("scheduleType") !== "Supplement" && (
               <FormField
                 control={form.control}
                 name="frequency"
@@ -422,9 +583,6 @@ export default function EditMedicationDialog({
                         <SelectItem value="Four times daily (QIS)">
                           Four times daily (QIS)
                         </SelectItem>
-                        <SelectItem value="As Needed (PRN)">
-                          As Needed (PRN)
-                        </SelectItem>
                         <SelectItem value="One time (STAT)">
                           One time (STAT)
                         </SelectItem>
@@ -436,47 +594,66 @@ export default function EditMedicationDialog({
                   </FormItem>
                 )}
               />
+            )}
 
+            {/* For PRN and Supplements, show dosage unit selector */}
+            {(form.watch("scheduleType") === "PRN (As Needed)" || form.watch("scheduleType") === "Supplement") && (
               <FormField
                 control={form.control}
-                name="scheduleType"
+                name="frequency"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Schedule Type</FormLabel>
+                    <FormLabel>Default Dosage Unit</FormLabel>
                     <Select
                       onValueChange={field.onChange}
                       defaultValue={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select schedule type" />
+                          <SelectValue placeholder="Select dosage unit" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Scheduled">Scheduled</SelectItem>
-                        <SelectItem value="PRN (As Needed)">
-                          PRN (As Needed)
-                        </SelectItem>
+                        <SelectItem value="Tablets/Capsules">Tablets/Capsules</SelectItem>
+                        <SelectItem value="Drops">Drops</SelectItem>
+                        <SelectItem value="mL (Milliliters)">mL (Milliliters)</SelectItem>
+                        <SelectItem value="Puffs (Inhaler)">Puffs (Inhaler)</SelectItem>
+                        <SelectItem value="Applications (Topical)">Applications (Topical)</SelectItem>
+                        <SelectItem value="Sprays">Sprays</SelectItem>
+                        <SelectItem value="Patches">Patches</SelectItem>
+                        <SelectItem value="Injections">Injections</SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormDescription className="text-xs">
+                      {form.watch("scheduleType") === "PRN (As Needed)"
+                        ? "Select the unit type for PRN administration"
+                        : "Select the unit type for supplement administration"}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
+            )}
 
-            {/* Medication Times Selection - Same as Create Form */}
+            {/* Medication Times Selection with Quantities */}
             <FormField
               control={form.control}
               name="times"
               render={() => {
+                const scheduleType = form.watch("scheduleType");
                 const frequency = form.watch("frequency");
+
+                // Hide time selection for PRN medications
+                if (scheduleType === "PRN (As Needed)") {
+                  return <></>;
+                }
+
                 const getMaxTimes = () => {
                   if (frequency?.includes("Once")) return 1;
                   if (frequency?.includes("Twice")) return 2;
                   if (frequency?.includes("Three")) return 3;
                   if (frequency?.includes("Four")) return 4;
-                  return 99; // No limit for PRN, Weekly, Monthly, etc.
+                  return 99; // No limit for Supplements, Weekly, Monthly, etc.
                 };
 
                 const maxTimes = getMaxTimes();
@@ -484,10 +661,14 @@ export default function EditMedicationDialog({
                 return (
                   <FormItem>
                     <div className="mb-4">
-                      <FormLabel className="text-base">Medication Times</FormLabel>
+                      <FormLabel className="text-base">
+                        {scheduleType === "Supplement" ? "Supplement Times" : "Medication Times"}
+                      </FormLabel>
                       <FormDescription>
-                        Select the times when this medication should be administered.
-                        {maxTimes < 99 && ` (Select up to ${maxTimes} time${maxTimes > 1 ? 's' : ''})`}
+                        {scheduleType === "Supplement"
+                          ? "Select the times when this supplement should be taken."
+                          : `Select the times when this medication should be administered. ${maxTimes < 99 ? `(Select up to ${maxTimes} time${maxTimes > 1 ? 's' : ''})` : ''}`
+                        }
                       </FormDescription>
                     </div>
                     {config.times.map((timeGroup) => (
@@ -495,7 +676,7 @@ export default function EditMedicationDialog({
                         <h4 className="mb-3 text-sm font-medium text-muted-foreground">
                           {timeGroup.name}
                         </h4>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 gap-3">
                           {timeGroup.values.map((time) => (
                             <FormField
                               key={time}
@@ -504,35 +685,161 @@ export default function EditMedicationDialog({
                               render={({ field }) => {
                                 const isSelected = field.value?.includes(time);
                                 const isDisabled = !isSelected && (field.value?.length ?? 0) >= maxTimes;
+                                const timeQuantities = form.watch("timeQuantities") || {};
 
                                 return (
                                   <FormItem key={time} className="space-y-0">
                                     <FormControl>
-                                      <button
-                                        type="button"
-                                        disabled={isDisabled}
-                                        onClick={() => {
-                                          const checked = !isSelected;
-                                          return checked
-                                            ? field.onChange([...(field.value || []), time])
-                                            : field.onChange(
-                                              field.value?.filter(
-                                                (value) => value !== time
-                                              ) || []
-                                            );
-                                        }}
-                                        className={cn(
-                                          "w-full px-3 py-2 text-sm font-medium rounded-md border transition-colors",
-                                          "hover:bg-accent hover:text-accent-foreground",
-                                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                                          "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background",
-                                          isSelected
-                                            ? "bg-accent border-primary hover:bg-primary/10"
-                                            : "bg-background text-foreground border-input"
-                                        )}
-                                      >
-                                        {time}
-                                      </button>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          disabled={isDisabled}
+                                          onClick={() => {
+                                            const checked = !isSelected;
+                                            if (checked) {
+                                              field.onChange([...(field.value || []), time]);
+                                              // Set default quantity to 1 when time is selected
+                                              form.setValue("timeQuantities", {
+                                                ...timeQuantities,
+                                                [time]: 1
+                                              });
+                                            } else {
+                                              field.onChange(
+                                                field.value?.filter((value) => value !== time) || []
+                                              );
+                                              // Remove quantity when time is deselected
+                                              const newQuantities = { ...timeQuantities };
+                                              delete newQuantities[time];
+                                              form.setValue("timeQuantities", newQuantities);
+                                            }
+                                          }}
+                                          className={cn(
+                                            "flex-1 px-3 py-2 text-sm font-medium rounded-md border transition-colors",
+                                            "hover:bg-accent hover:text-accent-foreground",
+                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                            "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background",
+                                            isSelected
+                                              ? "bg-accent border-primary hover:bg-primary/10"
+                                              : "bg-background text-foreground border-input"
+                                          )}
+                                        >
+                                          {time}
+                                        </button>
+                                        {isSelected && (() => {
+                                          const dosageForm = form.watch("dosageForm")?.toLowerCase() || "";
+                                          const frequencyValue = form.watch("frequency") || "";
+
+                                          // Determine unit type and input configuration
+                                          let allowDecimals = false;
+                                          let step = "1";
+                                          let placeholder = "Qty";
+                                          let unitLabel = "";
+
+                                          // For supplements, use the frequency field which stores dosage unit
+                                          if (scheduleType === "Supplement") {
+                                            if (frequencyValue.includes('mL')) {
+                                              allowDecimals = true;
+                                              step = "0.1";
+                                              placeholder = "e.g., 5";
+                                              unitLabel = "mL";
+                                            } else if (frequencyValue.includes('Drops')) {
+                                              allowDecimals = true;
+                                              step = "1";
+                                              placeholder = "e.g., 3";
+                                              unitLabel = "drops";
+                                            } else if (frequencyValue.includes('Puffs')) {
+                                              placeholder = "e.g., 2";
+                                              unitLabel = "puffs";
+                                            } else if (frequencyValue.includes('Applications')) {
+                                              placeholder = "e.g., 1";
+                                              unitLabel = "applications";
+                                            } else if (frequencyValue.includes('Sprays')) {
+                                              placeholder = "e.g., 2";
+                                              unitLabel = "sprays";
+                                            } else if (frequencyValue.includes('Patches')) {
+                                              placeholder = "e.g., 1";
+                                              unitLabel = "patches";
+                                            } else if (frequencyValue.includes('Injections')) {
+                                              allowDecimals = true;
+                                              step = "0.1";
+                                              placeholder = "e.g., 1.5";
+                                              unitLabel = "mL";
+                                            } else if (frequencyValue.includes('Tablets')) {
+                                              placeholder = "e.g., 2";
+                                              unitLabel = "tablets";
+                                            }
+                                          } else {
+                                            // For scheduled/topical medications, determine from dosage form
+                                            if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) {
+                                              allowDecimals = true;
+                                              step = "0.1";
+                                              placeholder = "e.g., 5";
+                                              unitLabel = "mL";
+                                            } else if (dosageForm.includes('drops')) {
+                                              allowDecimals = true;
+                                              step = "1";
+                                              placeholder = "e.g., 3";
+                                              unitLabel = "drops";
+                                            } else if (dosageForm.includes('injection')) {
+                                              allowDecimals = true;
+                                              step = "0.1";
+                                              placeholder = "e.g., 1.5";
+                                              unitLabel = "mL";
+                                            } else if (dosageForm.includes('inhaler') || dosageForm.includes('spray')) {
+                                              placeholder = "e.g., 2";
+                                              unitLabel = "puffs";
+                                            } else if (dosageForm.includes('sachet') || dosageForm.includes('powder')) {
+                                              placeholder = "e.g., 1";
+                                              unitLabel = "sachets";
+                                            } else if (dosageForm.includes('patch')) {
+                                              placeholder = "e.g., 1";
+                                              unitLabel = "patches";
+                                            } else if (dosageForm.includes('tablet')) {
+                                              placeholder = "e.g., 2";
+                                              unitLabel = "tablets";
+                                            } else if (dosageForm.includes('capsule')) {
+                                              placeholder = "e.g., 1";
+                                              unitLabel = "capsules";
+                                            } else if (dosageForm.includes('softgel')) {
+                                              placeholder = "e.g., 1";
+                                              unitLabel = "softgels";
+                                            } else if (dosageForm.includes('gummy')) {
+                                              placeholder = "e.g., 2";
+                                              unitLabel = "gummies";
+                                            } else if (dosageForm.includes('cream') || dosageForm.includes('ointment') || dosageForm.includes('gel')) {
+                                              placeholder = "e.g., 1";
+                                              unitLabel = "applications";
+                                            }
+                                          }
+
+                                          return (
+                                            <div className="flex items-center gap-2">
+                                              <Input
+                                                type="number"
+                                                min={allowDecimals ? "0.1" : "1"}
+                                                step={step}
+                                                placeholder={placeholder}
+                                                className="w-24"
+                                                value={timeQuantities[time] || 1}
+                                                onChange={(e) => {
+                                                  const qty = allowDecimals ?
+                                                    parseFloat(e.target.value) || 1 :
+                                                    parseInt(e.target.value) || 1;
+                                                  form.setValue("timeQuantities", {
+                                                    ...timeQuantities,
+                                                    [time]: qty
+                                                  });
+                                                }}
+                                              />
+                                              {unitLabel && (
+                                                <span className="text-sm font-medium text-muted-foreground whitespace-nowrap min-w-[60px]">
+                                                  {unitLabel}
+                                                </span>
+                                              )}
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
                                     </FormControl>
                                   </FormItem>
                                 );
