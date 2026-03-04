@@ -16,11 +16,10 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
-import { generateMedicationHistoryDayPDF } from "@/lib/medication-history-pdf-utils";
 import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
-import { ArrowLeft, CalendarIcon, CheckCircle, Download, Eye, FileText, Printer } from "lucide-react";
+import { ArrowLeft, CalendarIcon, CheckCircle, Download, Eye, FileDown, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import { config } from "@/config";
@@ -35,7 +34,7 @@ import {
   getSortedRowModel,
   useReactTable
 } from "@tanstack/react-table";
-import { format } from "date-fns";
+import { format, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { DateRange } from "react-day-picker";
 
@@ -122,21 +121,6 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const [selectedDateIntakeGroup, setSelectedDateIntakeGroup] = useState<GroupedIntake | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("today");
-  const [orgLogoUrl, setOrgLogoUrl] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (!profile?.active_organization_id) return;
-    let cancelled = false;
-    supabase
-      .from("organizations")
-      .select("logo_url")
-      .eq("id", profile.active_organization_id)
-      .single()
-      .then(({ data }) => {
-        if (!cancelled && data?.logo_url) setOrgLogoUrl(data.logo_url);
-      });
-    return () => { cancelled = true; };
-  }, [profile?.active_organization_id]);
 
   const fetchData = React.useCallback(async () => {
     setIsLoading(true);
@@ -283,10 +267,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           m.status === 'active' && m.schedule_type === 'PRN (As Needed)'
         ));
         setTopicalMedications(meds.filter(m =>
-          m.status === 'active' && m.route === 'Topical'
+          m.status === 'active' && (m.schedule_type === 'Topical' || m.route === 'Topical')
         ));
         setSupplementMedications(meds.filter(m =>
-          m.status === 'active' && (m.type === 'Supplement' || m.category === 'Supplement')
+          m.status === 'active' && m.schedule_type === 'Supplement'
         ));
         setDiscontinuedMedications(meds.filter(m => m.status === 'discontinued'));
         setCompletedCancelledMedications(meds.filter(m => m.status === 'completed' || m.status === 'cancelled'));
@@ -366,30 +350,83 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   }, [id]);
 
   const markMedicationIntakeAsPoppedOut = async (intakeId: string, isPoppedOut: boolean) => {
+    const now = new Date().toISOString();
+
+    // Find the intake to get medication info
+    const intake = selectedDateIntakes.find(i => i.id === intakeId);
+    if (!intake) return;
+
     const { error } = await supabase
       .from("medication_intakes")
-      .update({ popped_out_at: isPoppedOut ? new Date().toISOString() : null, popped_out_by_id: profile?.id })
+      .update({ popped_out_at: isPoppedOut ? now : null, popped_out_by_id: profile?.id })
       .eq("id", intakeId);
     if (error) throw error;
-    fetchData();
+
+    // Update medication total_count if popping out
+    if (isPoppedOut && intake.medication?.id && intake.medication?.total_count) {
+      const newCount = intake.medication.total_count - (intake.quantity || 1);
+      if (newCount >= 0) {
+        await supabase
+          .from("medications")
+          .update({ total_count: newCount })
+          .eq("id", intake.medication.id);
+
+        // Update local medication state
+        setAllActiveMedications(prev => prev.map(med =>
+          med.id === intake.medication.id
+            ? { ...med, total_count: newCount }
+            : med
+        ));
+      }
+    }
+
+    // Optimistic update - update local state without full refresh
+    setSelectedDateIntakes(prev => prev.map(i => {
+      if (i.id === intakeId) {
+        const updatedIntake = { ...i, popped_out_at: isPoppedOut ? now : null, popped_out_by_id: profile?.id };
+        if (isPoppedOut && i.medication) {
+          const newCount = (i.medication.total_count || 0) - (i.quantity || 1);
+          updatedIntake.medication = {
+            ...i.medication,
+            total_count: newCount >= 0 ? newCount : 0
+          };
+        }
+        return updatedIntake;
+      }
+      return i;
+    }));
   };
 
   const setWithnessForMedicationIntake = async (intakeId: string, witnessId: string | null) => {
+    const now = new Date().toISOString();
     const { error } = await supabase
       .from("medication_intakes")
-      .update({ witness_id: witnessId, witness_at: witnessId ? new Date().toISOString() : null })
+      .update({ witness_id: witnessId, witness_at: witnessId ? now : null })
       .eq("id", intakeId);
     if (error) throw error;
-    fetchData();
+
+    // Optimistic update
+    setSelectedDateIntakes(prev => prev.map(intake =>
+      intake.id === intakeId
+        ? { ...intake, witness_id: witnessId, witness_at: witnessId ? now : null }
+        : intake
+    ));
   };
 
   const updateMedicationIntakeStatus = async (intakeId: string, state: "given" | "refused" | "missed") => {
+    const now = new Date().toISOString();
     const { error } = await supabase
       .from("medication_intakes")
-      .update({ status: state, administered_by_id: profile?.id, administered_at: new Date().toISOString() })
+      .update({ status: state, administered_by_id: profile?.id, administered_at: now })
       .eq("id", intakeId);
     if (error) throw error;
-    fetchData();
+
+    // Optimistic update
+    setSelectedDateIntakes(prev => prev.map(intake =>
+      intake.id === intakeId
+        ? { ...intake, status: state, administered_by_id: profile?.id, administered_at: now }
+        : intake
+    ));
   };
 
   const saveMedicationIntakeComment = async (intakeId: string, comment: string) => {
@@ -398,7 +435,13 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       .update({ comment: comment })
       .eq("id", intakeId);
     if (error) throw error;
-    fetchData();
+
+    // Optimistic update
+    setSelectedDateIntakes(prev => prev.map(intake =>
+      intake.id === intakeId
+        ? { ...intake, comment: comment }
+        : intake
+    ));
   };
 
   const handleUpdateMedicationIntakeStatus = async (args: {
@@ -440,7 +483,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     return data;
   };
 
-  // ΓöÇΓöÇ History helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // ── History helpers ──────────────────────────────────────────────────────────
 
   const fetchHistory = React.useCallback(async () => {
     if (!id) return;
@@ -585,31 +628,13 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     {
       id: "actions",
       header: "Actions",
-      cell: ({ row }) => {
-        const groupedIntake = row.original;
-        const handlePrintPDF = async () => {
-          if (!resident) {
-            toast.error("Resident data not available");
-            return;
-          }
-          try {
-            await generateMedicationHistoryDayPDF(resident, groupedIntake, { orgLogoUrl });
-            toast.success("PDF downloaded");
-          } catch {
-            toast.error("Failed to generate PDF");
-          }
-        };
-        return (
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedDateIntakeGroup(groupedIntake); setIsSheetOpen(true); }}>
-              <Eye className="h-4 w-4 mr-2" />View
-            </Button>
-            <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handlePrintPDF(); }}>
-              <Printer className="h-4 w-4 mr-2" />Print
-            </Button>
-          </div>
-        );
-      },
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedDateIntakeGroup(row.original); setIsSheetOpen(true); }}>
+            <Eye className="h-4 w-4 mr-2" />View
+          </Button>
+        </div>
+      ),
     },
   ];
 
@@ -689,6 +714,94 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       profile ? { name: profile.name || "", userId: profile.id } : undefined
     ),
     [availableMembers, profile]
+  );
+
+  const supplementColumns: ColumnDef<any>[] = useMemo(
+    () => [
+      {
+        accessorKey: "name",
+        header: "Medication",
+        cell: ({ row }) => {
+          const med = row.original;
+          return (
+            <div className="flex flex-col">
+              <p className="font-medium">{med.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {med.strength} {med.strength_unit} - {med.dosage_form}
+              </p>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "qty",
+        header: "Qty",
+        cell: ({ row }) => {
+          const med = row.original as { time_quantities?: Record<string, number> | null };
+
+          let defaultQty: number = 1;
+          if (med.time_quantities && typeof med.time_quantities === "object") {
+            const quantities = Object.values(med.time_quantities as Record<string, number>);
+            if (quantities.length > 0) {
+              const first = quantities[0];
+              if (typeof first === "number" && !Number.isNaN(first)) {
+                defaultQty = first;
+              }
+            }
+          }
+
+          return <span>{defaultQty}</span>;
+        },
+      },
+      {
+        accessorKey: "popped_out",
+        header: "Popped Out",
+        cell: ({ row }) => {
+          return (
+            <input
+              type="checkbox"
+              className="w-4 h-4 cursor-pointer"
+              disabled
+            />
+          );
+        },
+      },
+      {
+        accessorKey: "total_count",
+        header: "Total Count",
+        cell: ({ row }) => {
+          const med = row.original;
+          return <span>{med.total_count || "-"}</span>;
+        },
+      },
+      {
+        accessorKey: "dispensed_by",
+        header: "Dispensed by",
+        cell: () => {
+          return <span className="text-muted-foreground">-</span>;
+        },
+      },
+      {
+        accessorKey: "witnessed_by",
+        header: "Witnessed By",
+        cell: () => {
+          return <span className="text-muted-foreground">-</span>;
+        },
+      },
+      {
+        accessorKey: "state",
+        header: "State",
+        cell: ({ row }) => {
+          const med = row.original;
+          return (
+            <Badge variant="outline" className="bg-blue-50 text-blue-700">
+              {med.status || "active"}
+            </Badge>
+          );
+        },
+      },
+    ],
+    []
   );
 
   useEffect(() => {
@@ -798,13 +911,167 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
-        {/* ΓöÇΓöÇ Today's Medications ΓöÇΓöÇ */}
+        {/* ── Today's Medications ── */}
         <TabsContent value="today" className="flex flex-col gap-6 mt-4">
-          <div className="flex flex-col items-start">
+          <div className="flex items-center justify-between">
             <ShiftTimes selectedTime={selectedTime} setSelectedTime={setSelectedTime} />
+
+            {/* Bulk Action Buttons */}
+            <div className="flex items-center gap-2">
+              {(() => {
+                // Get all scheduled medications (including supplements)
+                const allScheduledMeds = filteredIntakes.filter((intake) => intake.status === 'scheduled');
+
+                // Get only regular medications (excluding supplements) for Prepare All
+                const regularMeds = filteredIntakes.filter((intake) => {
+                  const isSupplement = intake.medication?.schedule_type === 'Supplement' ||
+                                      intake.medication?.type === 'Supplement' ||
+                                      intake.medication?.category === 'Supplement';
+                  return !isSupplement && intake.status === 'scheduled';
+                });
+
+                const unpreparedMeds = regularMeds.filter(intake => !intake.popped_out_at);
+
+                if (allScheduledMeds.length === 0) return null;
+
+                return (
+                  <>
+                    {/* Prepare All Button */}
+                    {unpreparedMeds.length > 0 && (
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const now = new Date().toISOString();
+                            const intakeIds = unpreparedMeds.map(intake => intake.id);
+
+                            const { error } = await supabase
+                              .from("medication_intakes")
+                              .update({
+                                popped_out_at: now,
+                                popped_out_by_id: profile?.id
+                              })
+                              .in('id', intakeIds);
+
+                            if (error) throw error;
+
+                            // Optimistic update
+                            setSelectedDateIntakes(prev => prev.map(intake => {
+                              if (intakeIds.includes(intake.id)) {
+                                return {
+                                  ...intake,
+                                  popped_out_at: now,
+                                  popped_out_by_id: profile?.id
+                                };
+                              }
+                              return intake;
+                            }));
+
+                            toast.success(`${unpreparedMeds.length} medication(s) prepared`);
+                          } catch (error) {
+                            console.error("Error preparing all medications:", error);
+                            toast.error("Failed to prepare medications");
+                          }
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Prepare All ({unpreparedMeds.length})
+                      </Button>
+                    )}
+
+                    {/* Mark All as Given Button */}
+                    <Button
+                      variant="default"
+                      onClick={async () => {
+                        // Check if all regular medications are prepared (supplements don't need to be prepared)
+                        const allRegularPrepared = regularMeds.every(intake => intake.popped_out_at);
+
+                        if (!allRegularPrepared) {
+                          toast.error("Please prepare all medications before marking as given");
+                          return;
+                        }
+
+                        // Check if witness is selected for all (including supplements)
+                        const allHaveWitness = allScheduledMeds.every(intake => intake.witness_id);
+
+                        if (!allHaveWitness) {
+                          toast.error("Please select a witness for all medications and supplements");
+                          return;
+                        }
+
+                        try {
+                          const now = new Date().toISOString();
+                          const intakeIds = allScheduledMeds.map(intake => intake.id);
+
+                          const { error } = await supabase
+                            .from("medication_intakes")
+                            .update({
+                              status: 'given',
+                              administered_by_id: profile?.id,
+                              administered_at: now
+                            })
+                            .in('id', intakeIds);
+
+                          if (error) throw error;
+
+                          // Optimistic update
+                          setSelectedDateIntakes(prev => prev.map(intake => {
+                            if (intakeIds.includes(intake.id)) {
+                              return {
+                                ...intake,
+                                status: 'given',
+                                administered_by_id: profile?.id,
+                                administered_at: now
+                              };
+                            }
+                            return intake;
+                          }));
+
+                          toast.success(`${allScheduledMeds.length} medication(s) and supplement(s) marked as given`);
+                        } catch (error) {
+                          console.error("Error marking all as given:", error);
+                          toast.error("Failed to mark medications as given");
+                        }
+                      }}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Mark All as Given ({allScheduledMeds.length})
+                    </Button>
+                  </>
+                );
+              })()}
+            </div>
           </div>
 
-          <DataTable columns={dailyMedicationColumns} data={filteredIntakes} />
+          {(() => {
+            // Separate regular medications from supplements
+            const regularMeds = filteredIntakes.filter((intake) => {
+              const isSupplement = intake.medication?.schedule_type === 'Supplement' ||
+                                  intake.medication?.type === 'Supplement' ||
+                                  intake.medication?.category === 'Supplement';
+              return !isSupplement;
+            });
+
+            const supplementIntakes = filteredIntakes.filter((intake) => {
+              const isSupplement = intake.medication?.schedule_type === 'Supplement' ||
+                                  intake.medication?.type === 'Supplement' ||
+                                  intake.medication?.category === 'Supplement';
+              return isSupplement;
+            });
+
+            // Combine with a divider marker
+            const combinedData = [
+              ...regularMeds,
+              ...(supplementIntakes.length > 0 ? [{ isDivider: true, dividerLabel: 'Supplements' }] : []),
+              ...supplementIntakes
+            ];
+
+            return (
+              <DataTable columns={dailyMedicationColumns} data={combinedData} />
+            );
+          })()}
 
           {selectedTime && (
             <div className="w-full">
@@ -855,21 +1122,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               <DataTable columns={prnTopicalColumns} data={topicalMedications} />
             )}
           </div>
-
-          <div className="flex flex-col gap-4 mt-6">
-            <p className="font-semibold">Supplements</p>
-            {supplementMedications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border rounded-lg">
-                <p className="text-sm font-medium text-muted-foreground">No supplements</p>
-                <p className="text-xs text-muted-foreground">Supplements and vitamins will appear here.</p>
-              </div>
-            ) : (
-              <DataTable columns={prnTopicalColumns} data={supplementMedications} />
-            )}
-          </div>
         </TabsContent>
 
-        {/* ΓöÇΓöÇ All Medications ΓöÇΓöÇ */}
+        {/* ── All Medications ── */}
         <TabsContent value="medications" className="flex flex-col gap-6 mt-4">
           <div className="flex flex-col gap-4">
             <p className="font-semibold">All Active Medications</p>
@@ -877,7 +1132,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           </div>
         </TabsContent>
 
-        {/* ΓöÇΓöÇ Discontinued ΓöÇΓöÇ */}
+        {/* ── Discontinued ── */}
         <TabsContent value="discontinued" className="flex flex-col gap-4 mt-4">
           {discontinuedMedications.length === 0 && completedCancelledMedications.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-center border rounded-lg">
@@ -906,12 +1161,12 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           )}
         </TabsContent>
 
-        {/* ΓöÇΓöÇ Kardex ΓöÇΓöÇ */}
+        {/* ── Kardex ── */}
         <TabsContent value="kardex" className="mt-4">
           <KardexModal medications={allActiveMedications} resident={resident} inlineMode />
         </TabsContent>
 
-        {/* ΓöÇΓöÇ History ΓöÇΓöÇ */}
+        {/* ── History ── */}
         <TabsContent value="history" className="flex flex-col gap-4 mt-4">
           <div className="flex items-center justify-between">
             <div className="flex gap-3">

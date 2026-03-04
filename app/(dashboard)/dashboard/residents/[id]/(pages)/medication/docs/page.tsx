@@ -1,3 +1,4 @@
+
 "use client";
 
 import PRNConsentForm from "@/components/medication/forms/PRNConsentForm";
@@ -6,8 +7,10 @@ import { useProfile } from "@/hooks/use-profile";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { supabase } from "@/lib/supabase";
 import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type MedicationFormKey = "prn-care-consent";
 
@@ -40,7 +43,10 @@ const SIDEBAR_SECTIONS: { title: string; forms: { key: MedicationFormKey; label:
   },
 ];
 
+// Flat list for breadcrumb lookup
 const ALL_SIDEBAR_FORMS = SIDEBAR_SECTIONS.flatMap((s) => s.forms);
+
+// ─── File Viewer ──────────────────────────────────────────────────────────────
 
 function FileViewer({ file }: { file: UploadedFile }) {
   const ext = (file.original_name ?? file.name).split(".").pop()?.toLowerCase() ?? "";
@@ -60,6 +66,7 @@ function FileViewer({ file }: { file: UploadedFile }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {/* Viewer toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-background flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <Paperclip className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -78,6 +85,7 @@ function FileViewer({ file }: { file: UploadedFile }) {
         </a>
       </div>
 
+      {/* Viewer body */}
       <div className="flex-1 overflow-auto bg-muted/30">
         {isPdf && (
           <iframe
@@ -88,6 +96,7 @@ function FileViewer({ file }: { file: UploadedFile }) {
         )}
         {isImage && (
           <div className="flex items-center justify-center h-full p-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={url}
               alt={file.name}
@@ -126,6 +135,8 @@ function FileViewer({ file }: { file: UploadedFile }) {
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 type MedicationDocsPageProps = {
   params: Promise<{ id: string }>;
 };
@@ -133,6 +144,7 @@ type MedicationDocsPageProps = {
 export default function MedicationDocsPage({ params }: MedicationDocsPageProps) {
   const { id: residentId } = React.use(params);
   const router = useRouter();
+  const pathname = usePathname();
 
   const { profile } = useProfile();
   const { activeTeamId } = useActiveTeam();
@@ -145,6 +157,7 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
 
   const activeFile = uploadedFiles.find((f) => f.id === activeFileId) ?? null;
 
+  // Lock body scroll — this page manages its own full-viewport layout
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -189,10 +202,16 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
     e.stopPropagation();
     if (!confirm(`Delete "${file.name}"? This cannot be undone.`)) return;
 
+    // Remove from storage
     await supabase.storage.from("resident-files").remove([file.storage_path]);
+
+    // Remove from DB
     await supabase.from("files").delete().eq("id", file.id);
 
+    // Clear viewer if this file was active
     if (activeFileId === file.id) setActiveFileId(null);
+
+    // Refresh list
     fetchUploadedFiles();
   };
 
@@ -203,6 +222,7 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
       return;
     }
     setActiveFileId(fileId);
+    // Generate a signed URL (1 hour) for the private bucket
     const file = uploadedFiles.find((f) => f.id === fileId);
     if (file && !file.signedUrl) {
       const { data } = await supabase.storage
@@ -218,9 +238,11 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
 
   return (
     <div className="flex flex-col -mx-16 -mt-16 -mb-6 h-screen overflow-hidden">
+      {/* Top Bar */}
       <div className="flex items-center gap-3 px-6 py-3 bg-background border-b flex-shrink-0">
         <button
-          onClick={() => router.push(`/dashboard/residents/${residentId}/medication`)}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onClick={() => router.push(`/dashboard/residents/${residentId}/medication` as any)}
           className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -246,7 +268,9 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
         </div>
       </div>
 
+      {/* Body */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Center content */}
         <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {activeFile ? (
             <FileViewer file={activeFile} />
@@ -258,7 +282,9 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
               organizationId={profile?.active_organization_id ?? ""}
               userId={profile?.id ?? ""}
               userName={profile?.name || profile?.email || ""}
-              onSaved={() => {}}
+              onSaved={() => {
+                // Optional: refresh any form status indicators if needed
+              }}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-8">
@@ -272,8 +298,10 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
           )}
         </main>
 
+        {/* Right Sidebar */}
         <aside className="w-[200px] flex-shrink-0 border-l bg-background h-full p-3 overflow-y-auto">
           <div className="flex flex-col gap-4">
+            {/* Forms sections */}
             {SIDEBAR_SECTIONS.map(({ title, forms }) => (
               <div key={title}>
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 px-1.5">
@@ -282,6 +310,7 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
                 <div className="flex flex-col gap-0.5">
                   {forms.map(({ key, label }) => {
                     const isActive = activeFormKey === key;
+
                     return (
                       <button
                         key={key}
@@ -303,6 +332,7 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
               </div>
             ))}
 
+            {/* Documents section */}
             <div>
               <div className="flex items-center justify-between mb-1.5 px-1.5">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">

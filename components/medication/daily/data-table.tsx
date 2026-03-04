@@ -54,18 +54,32 @@ export function DataTable<TData, TValue>({
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && "selected"}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
+            table.getRowModel().rows.map((row) => {
+              const isDivider = (row.original as any)?.isDivider;
+              return (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  className={isDivider ? "bg-purple-50 hover:bg-purple-50" : ""}
+                >
+                  {isDivider ? (
+                    <TableCell colSpan={columns.length} className="p-0">
+                      <div className="border-l-4 border-purple-500 px-3 py-1.5">
+                        <p className="font-semibold text-purple-900 uppercase text-xs tracking-wide">
+                          {(row.original as any)?.dividerLabel || 'Supplements'}
+                        </p>
+                      </div>
+                    </TableCell>
+                  ) : (
+                    row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))
+                  )}
+                </TableRow>
+              );
+            })
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center">

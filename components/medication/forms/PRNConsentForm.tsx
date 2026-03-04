@@ -32,7 +32,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-// ΓöÇΓöÇΓöÇ Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Resident {
   id: string;
@@ -52,7 +52,7 @@ interface PRNConsentFormProps {
   onSaved: () => void;
 }
 
-// ΓöÇΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function safeDate(val: unknown): string {
   if (!val) return "—";
@@ -65,13 +65,15 @@ function safeDate(val: unknown): string {
   }
 }
 
-// ΓöÇΓöÇΓöÇ Completed Document View ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── Completed Document View ──────────────────────────────────────────────────
 
 function PRNDocumentView({
   data,
+  orgLogoUrl,
   onEdit,
 }: {
   data: Record<string, unknown>;
+  orgLogoUrl?: string;
   onEdit: () => void;
 }) {
   return (
@@ -92,7 +94,13 @@ function PRNDocumentView({
             variant="outline"
             size="sm"
             className="h-7 px-2 text-xs gap-1"
-            onClick={() => printPRNConsentPDF(data, String(data.residentName || ""))}
+            onClick={() => {
+              void printPRNConsentPDF(
+                data,
+                String(data.residentName || ""),
+                orgLogoUrl ? { orgLogoUrl } : undefined
+              );
+            }}
           >
             <Printer className="w-3 h-3" />
             Print
@@ -247,7 +255,7 @@ function PRNDocumentView({
   );
 }
 
-// ΓöÇΓöÇΓöÇ Component ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PRNConsentForm({
   residentId,
@@ -265,6 +273,7 @@ export default function PRNConsentForm({
   const [dobOpen, setDobOpen] = useState(false);
   const [repDateOpen, setRepDateOpen] = useState(false);
   const [dateCompletedOpen, setDateCompletedOpen] = useState(false);
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | undefined>(undefined);
 
   const residentFullName = `${resident.first_name ?? ""} ${resident.last_name ?? ""}`.trim();
 
@@ -317,7 +326,26 @@ export default function PRNConsentForm({
         }
         setLoadingExisting(false);
       });
-  }, [residentId]);
+  }, [residentId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load organisation logo for PDF header
+  useEffect(() => {
+    if (!organizationId) return;
+    let cancelled = false;
+    supabase
+      .from("organizations")
+      .select("logo_url")
+      .eq("id", organizationId)
+      .single()
+      .then(({ data }) => {
+        if (!cancelled && data?.logo_url) {
+          setOrgLogoUrl(data.logo_url);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
 
   function onSubmit(values: z.infer<typeof PRNConsentSchema>) {
     startTransition(async () => {
@@ -367,7 +395,7 @@ export default function PRNConsentForm({
   // Show completed document view when data exists and not editing
   if (existingData && !isEditing) {
     const ad = (existingData.assessment_data as Record<string, unknown>) ?? existingData;
-    return <PRNDocumentView data={ad} onEdit={() => setIsEditing(true)} />;
+    return <PRNDocumentView data={ad} orgLogoUrl={orgLogoUrl} onEdit={() => setIsEditing(true)} />;
   }
 
   return (
@@ -417,7 +445,7 @@ export default function PRNConsentForm({
                 </p>
               </div>
 
-              {/* ΓöÇΓöÇ Section 1: Resident Information ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+              {/* ── Section 1: Resident Information ─────────────────── */}
               <div>
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-4">
                   Resident Information
@@ -502,7 +530,7 @@ export default function PRNConsentForm({
                 </div>
               </div>
 
-              {/* ΓöÇΓöÇ Section 2: Consent Agreement ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+              {/* ── Section 2: Consent Agreement ──────────────────── */}
               <div>
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">
                   Consent Agreement
@@ -598,7 +626,7 @@ export default function PRNConsentForm({
                 </div>
               </div>
 
-              {/* ΓöÇΓöÇ Section 3: Signatures ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+              {/* ── Section 3: Signatures ────────────────────────────── */}
               <div>
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-4">
                   Signatures
@@ -724,7 +752,7 @@ export default function PRNConsentForm({
                 </div>
               </div>
 
-              {/* ΓöÇΓöÇ Section 4: Staff Verification ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+              {/* ── Section 4: Staff Verification ───────────────────── */}
               <div>
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-4">
                   Staff Verification

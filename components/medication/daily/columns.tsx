@@ -87,13 +87,12 @@ export const createColumns = (
   saveMedicationIntakeComment?: (intakeId: string, comment: string) => Promise<void>,
   currentUser?: { name: string; userId: string },
   isRoundCompleted?: boolean
-): ColumnDef<MedicationIntake>[] => [
+): ColumnDef<any>[] => [
     {
       id: "medication",
       header: "Medication",
       cell: ({ row }) => {
         const medication = row.original.medication;
-        const quantity = row.original.quantity;
 
         if (!medication) {
           return (
@@ -109,14 +108,7 @@ export const createColumns = (
 
         return (
           <div className={`flex flex-col ${isRoundCompleted ? 'opacity-60' : ''}`}>
-            <div className="flex items-center gap-2">
-              <p className="font-medium">{medication.name}</p>
-              {quantity && quantity > 1 && (
-                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                  x{quantity}
-                </span>
-              )}
-            </div>
+            <p className="font-medium">{medication.name}</p>
             <p className="text-xs text-muted-foreground">
               {strength} {strengthUnit} - {dosageForm}
             </p>
@@ -129,14 +121,71 @@ export const createColumns = (
     },
     {
       id: "quantity",
-      header: "Qty",
+      header: "Dose",
       cell: ({ row }) => {
-        return <p className="font-medium text-center w-8">{row.original.quantity || 1}</p>;
+        const quantity = row.original.quantity || 1;
+        const medication = row.original.medication;
+
+        if (!medication) return <p className="font-medium text-center">{quantity}</p>;
+
+        // Get unit label based on dosage form or frequency field (for PRN/Supplements)
+        const getUnitLabel = () => {
+          // For PRN and Supplements, check frequency field (stores dosage unit)
+          if (medication.schedule_type === "PRN (As Needed)" || medication.schedule_type === "Supplement") {
+            const dosageUnit = medication.frequency || "";
+
+            if (dosageUnit.includes('mL')) return 'mL';
+            if (dosageUnit.includes('Drops')) return quantity === 1 ? 'drop' : 'drops';
+            if (dosageUnit.includes('Puffs')) return quantity === 1 ? 'puff' : 'puffs';
+            if (dosageUnit.includes('Applications')) return quantity === 1 ? 'application' : 'applications';
+            if (dosageUnit.includes('Sprays')) return quantity === 1 ? 'spray' : 'sprays';
+            if (dosageUnit.includes('Patches')) return quantity === 1 ? 'patch' : 'patches';
+            if (dosageUnit.includes('Injections')) return 'mL';
+            if (dosageUnit.includes('Tablets')) return quantity === 1 ? 'tablet' : 'tablets';
+          }
+
+          // For scheduled medications, determine from dosage form
+          const dosageForm = medication.dosage_form?.toLowerCase() || '';
+
+          if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) {
+            return 'mL';
+          } else if (dosageForm.includes('drops')) {
+            return quantity === 1 ? 'drop' : 'drops';
+          } else if (dosageForm.includes('inhaler') || dosageForm.includes('spray')) {
+            return quantity === 1 ? 'puff' : 'puffs';
+          } else if (dosageForm.includes('sachet') || dosageForm.includes('powder')) {
+            return quantity === 1 ? 'sachet' : 'sachets';
+          } else if (dosageForm.includes('cream') || dosageForm.includes('ointment') || dosageForm.includes('gel')) {
+            return quantity === 1 ? 'application' : 'applications';
+          } else if (dosageForm.includes('patch')) {
+            return quantity === 1 ? 'patch' : 'patches';
+          } else if (dosageForm.includes('injection')) {
+            return 'mL';
+          } else if (dosageForm.includes('tablet')) {
+            return quantity === 1 ? 'tablet' : 'tablets';
+          } else if (dosageForm.includes('capsule')) {
+            return quantity === 1 ? 'capsule' : 'capsules';
+          } else if (dosageForm.includes('softgel')) {
+            return quantity === 1 ? 'softgel' : 'softgels';
+          } else if (dosageForm.includes('gummy')) {
+            return quantity === 1 ? 'gummy' : 'gummies';
+          }
+
+          return '';
+        };
+
+        const unit = getUnitLabel();
+
+        return (
+          <div className="font-medium text-center">
+            <p className="text-sm">{quantity} {unit}</p>
+          </div>
+        );
       }
     },
     {
       id: "poppedOut",
-      header: "Popped Out",
+      header: "Prepared",
       cell: ({ row }) => {
         const poppedOutAt = row.original.popped_out_at;
 
@@ -148,11 +197,11 @@ export const createColumns = (
 
           try {
             await markMedicationIntakeAsPoppedOut(row.original.id, true);
-            toast.success("Medication popped out successfully");
+            toast.success("Medication prepared successfully");
           } catch (error) {
-            console.error("Error popping out medication:", error);
+            console.error("Error preparing medication:", error);
             toast.error(
-              "Failed to pop out medication: " + (error as Error).message
+              "Failed to prepare medication: " + (error as Error).message
             );
           }
         };
@@ -169,9 +218,8 @@ export const createColumns = (
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                {/* TODO: It would be nice to show the name of the user that marked it out */}
                 <p>
-                  Popped out at{" "}
+                  Prepared at{" "}
                   {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
                 </p>
               </TooltipContent>
@@ -189,7 +237,7 @@ export const createColumns = (
           >
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-gray-300" />
-              <span>Pop Out</span>
+              <span>Prepare</span>
             </div>
           </Button>
         );
@@ -200,7 +248,57 @@ export const createColumns = (
       header: "Total Count",
       cell: ({ row }) => {
         const medication = row.original.medication;
-        return <p>{medication?.total_count || "N/A"}</p>;
+        const totalCount = medication?.total_count;
+
+        if (!totalCount) return <p className="text-muted-foreground">N/A</p>;
+
+        // Get unit label based on dosage form or frequency field
+        const getUnitLabel = () => {
+          // For PRN and Supplements, check frequency field (stores dosage unit)
+          if (medication.schedule_type === "PRN (As Needed)" || medication.schedule_type === "Supplement") {
+            const dosageUnit = medication.frequency || "";
+
+            if (dosageUnit.includes('mL')) return 'mL';
+            if (dosageUnit.includes('Drops')) return 'drops';
+            if (dosageUnit.includes('Puffs')) return 'puffs';
+            if (dosageUnit.includes('Patches')) return totalCount === 1 ? 'patch' : 'patches';
+            if (dosageUnit.includes('Injections')) return 'mL';
+            if (dosageUnit.includes('Tablets')) return totalCount === 1 ? 'tablet' : 'tablets';
+          }
+
+          // For scheduled medications, determine from dosage form
+          const dosageForm = medication.dosage_form?.toLowerCase() || '';
+
+          if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) {
+            return 'mL';
+          } else if (dosageForm.includes('drops')) {
+            return 'mL';
+          } else if (dosageForm.includes('inhaler')) {
+            return 'puffs';
+          } else if (dosageForm.includes('spray')) {
+            return totalCount === 1 ? 'spray' : 'sprays';
+          } else if (dosageForm.includes('injection')) {
+            return 'mL';
+          } else if (dosageForm.includes('sachet') || dosageForm.includes('powder')) {
+            return totalCount === 1 ? 'sachet' : 'sachets';
+          } else if (dosageForm.includes('patch')) {
+            return totalCount === 1 ? 'patch' : 'patches';
+          } else if (dosageForm.includes('tablet')) {
+            return totalCount === 1 ? 'tablet' : 'tablets';
+          } else if (dosageForm.includes('capsule')) {
+            return totalCount === 1 ? 'capsule' : 'capsules';
+          } else if (dosageForm.includes('softgel')) {
+            return totalCount === 1 ? 'softgel' : 'softgels';
+          } else if (dosageForm.includes('gummy')) {
+            return totalCount === 1 ? 'gummy' : 'gummies';
+          }
+
+          return '';
+        };
+
+        const unit = getUnitLabel();
+
+        return <p className="text-sm">{totalCount} {unit}</p>;
       }
     },
     {
@@ -266,6 +364,7 @@ export const createColumns = (
       header: "State",
       cell: ({ row }) => {
         const currentState = row.original.status;
+        const medicationIntake = row.original;
 
         const handleStateChange = async (
           newState:
@@ -274,6 +373,18 @@ export const createColumns = (
         ) => {
           if (!updateMedicationIntakeStatus) {
             toast.error("Update function not available");
+            return;
+          }
+
+          // Check if medication is prepared before marking as given
+          if (newState === "given" && !medicationIntake.popped_out_at) {
+            toast.error("Please prepare the medication first");
+            return;
+          }
+
+          // Check if witness is selected when marking as given
+          if (newState === "given" && !medicationIntake.witness_id) {
+            toast.error("Please select a witness before marking as given");
             return;
           }
 
