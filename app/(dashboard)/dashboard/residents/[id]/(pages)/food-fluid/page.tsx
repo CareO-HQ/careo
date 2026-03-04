@@ -47,6 +47,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   ArrowLeft,
   Utensils,
@@ -55,7 +64,10 @@ import {
   Calendar,
   Clock,
   Eye,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
 // Diet Form Schema
@@ -84,6 +96,7 @@ const DietFormSchema = z.object({
 
 // Food/Fluid Log Form Schema
 const FoodFluidLogSchema = z.object({
+  entryType: z.enum(["food", "fluid"]),
   typeOfFoodDrink: z.string().min(1, "Please specify the food or drink").max(100, "Food/drink name too long"),
   portionServed: z.string().optional(),
   amountEaten: z.enum(["None", "1/4", "1/2", "3/4", "All"]),
@@ -91,10 +104,8 @@ const FoodFluidLogSchema = z.object({
   signature: z.string().min(1, "Signature is required").max(50, "Signature too long"),
   time: z.string().min(1, "Time is required"),
 }).refine((data) => {
-  // If it's a food entry (not in fluid list), portionServed should be required
-  const fluidTypes = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk', 'Soup', 'Smoothie'];
-  const isFluid = fluidTypes.some(type => data.typeOfFoodDrink.toLowerCase().includes(type.toLowerCase()));
-  return isFluid || (data.portionServed && data.portionServed.length > 0);
+  if (data.entryType === "fluid") return true;
+  return data.portionServed && data.portionServed.length > 0;
 }, {
   message: "Portion served is required for food entries",
   path: ["portionServed"]
@@ -127,6 +138,9 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const [isAddingDish, setIsAddingDish] = useState(false);
   const [dishName, setDishName] = useState("");
   const [dishCategory, setDishCategory] = useState<"food" | "fluid">("food");
+
+  const [typeComboOpen, setTypeComboOpen] = useState(false);
+  const [typeComboSearchValue, setTypeComboSearchValue] = useState("");
 
   const { profile } = useProfile();
   const userRole = profile?.role;
@@ -286,6 +300,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const logForm = useForm<z.infer<typeof FoodFluidLogSchema>>({
     resolver: zodResolver(FoodFluidLogSchema),
     defaultValues: {
+      entryType: "food",
       typeOfFoodDrink: "",
       portionServed: "",
       amountEaten: "All",
@@ -500,6 +515,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
       // Reset form for next entry but preserve signature
       logForm.reset({
+        entryType: entryType,
         typeOfFoodDrink: "",
         portionServed: "",
         amountEaten: "All",
@@ -524,6 +540,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   // Handle Log Another actions
   const handleLogAnother = (type: "food" | "fluid") => {
     setEntryType(type);
+    logForm.setValue("entryType", type);
     logForm.setValue("typeOfFoodDrink", type === "fluid" ? "Water" : "");
     logForm.setValue("fluidConsumedMl", undefined);
     setIsFoodFluidDialogOpen(true);
@@ -811,6 +828,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   className="h-16 text-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 hover:border-orange-300"
                   onClick={() => {
                     setEntryType("food");
+                    logForm.setValue("entryType", "food");
                     logForm.setValue("typeOfFoodDrink", "");
                     logForm.setValue("fluidConsumedMl", undefined);
                     setIsFoodFluidDialogOpen(true);
@@ -825,7 +843,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   className="h-16 text-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 hover:border-blue-300"
                   onClick={() => {
                     setEntryType("fluid");
-                    logForm.setValue("typeOfFoodDrink", "Water");
+                    logForm.setValue("entryType", "fluid");
+                    logForm.setValue("typeOfFoodDrink", "");
                     setIsFoodFluidDialogOpen(true);
                   }}
                 >
@@ -1595,55 +1614,100 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 <FormField
                   control={logForm.control}
                   name="typeOfFoodDrink"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        {entryType === "food" ? "Type of Food" : "Type of Fluid"}
-                      </FormLabel>
-                      <FormControl>
-                        {entryType === "food" ? (
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  render={({ field }) => {
+                    const suggestions = entryType === "food" ? foodMenuItems : fluidMenuItems;
+                    return (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>
+                          {entryType === "food" ? "Type of Food" : "Type of Fluid"}
+                        </FormLabel>
+                        <Popover open={typeComboOpen} onOpenChange={(open) => { setTypeComboOpen(open); if (!open) setTypeComboSearchValue(""); }}>
+                          <PopoverTrigger asChild>
                             <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select food item..." />
-                              </SelectTrigger>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={typeComboOpen}
+                                className={cn(
+                                  "w-full justify-between font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value || (entryType === "food" ? "Select or type a food item..." : "Select or type a fluid item...")}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
                             </FormControl>
-                            <SelectContent>
-                              {foodMenuItems.length > 0 ? (
-                                foodMenuItems.map((item) => (
-                                  <SelectItem key={item.id} value={item.name}>
-                                    {item.name}
-                                  </SelectItem>
-                                ))
-                              ) : (
-                                <div className="p-2 text-sm text-muted-foreground">No food items added. Please add food items to the menu first.</div>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select fluid item..." />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {fluidMenuItems.length > 0 ? (
-                                fluidMenuItems.map((item) => (
-                                  <SelectItem key={item.id} value={item.name}>
-                                    {item.name}
-                                  </SelectItem>
-                                ))
-                              ) : (
-                                <div className="p-2 text-sm text-muted-foreground">No fluid items added. Please add fluid items to the menu first.</div>
-                              )}
-                            </SelectContent>
-                          </Select>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                            <Command shouldFilter={false}>
+                              <CommandInput
+                                placeholder={entryType === "food" ? "Search or type food..." : "Search or type fluid..."}
+                                value={typeComboSearchValue}
+                                onValueChange={setTypeComboSearchValue}
+                              />
+                              <CommandList>
+                                {(() => {
+                                  const filtered = suggestions.filter((item) =>
+                                    item.name.toLowerCase().includes(typeComboSearchValue.toLowerCase())
+                                  );
+                                  const exactMatch = suggestions.some(
+                                    (item) => item.name.toLowerCase() === typeComboSearchValue.trim().toLowerCase()
+                                  );
+                                  return (
+                                    <CommandGroup>
+                                      {typeComboSearchValue.trim() && !exactMatch && (
+                                        <CommandItem
+                                          value={`custom:${typeComboSearchValue.trim()}`}
+                                          onSelect={() => {
+                                            field.onChange(typeComboSearchValue.trim());
+                                            setTypeComboSearchValue("");
+                                            setTypeComboOpen(false);
+                                          }}
+                                        >
+                                          <Plus className="mr-2 h-4 w-4" />
+                                          Use &quot;{typeComboSearchValue.trim()}&quot;
+                                        </CommandItem>
+                                      )}
+                                      {filtered.map((item) => (
+                                        <CommandItem
+                                          key={item.id}
+                                          value={item.name}
+                                          onSelect={() => {
+                                            field.onChange(item.name);
+                                            setTypeComboSearchValue("");
+                                            setTypeComboOpen(false);
+                                          }}
+                                        >
+                                          <Check
+                                            className={cn(
+                                              "mr-2 h-4 w-4",
+                                              field.value === item.name ? "opacity-100" : "opacity-0"
+                                            )}
+                                          />
+                                          {item.name}
+                                        </CommandItem>
+                                      ))}
+                                      {filtered.length === 0 && !typeComboSearchValue.trim() && (
+                                        <div className="py-6 text-center text-sm text-muted-foreground">
+                                          No items found. Start typing to add a custom entry.
+                                        </div>
+                                      )}
+                                    </CommandGroup>
+                                  );
+                                })()}
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        {suggestions.length === 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            No {entryType} items in the menu yet. Type a custom name or ask a manager to add menu items.
+                          </p>
                         )}
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 {/* Portion Served (Food only) */}
