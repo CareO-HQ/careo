@@ -16,10 +16,11 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
+import { generateMedicationHistoryDayPDF } from "@/lib/medication-history-pdf-utils";
 import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
-import { ArrowLeft, CalendarIcon, CheckCircle, Download, Eye, FileText } from "lucide-react";
+import { ArrowLeft, CalendarIcon, CheckCircle, Download, Eye, FileText, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import { config } from "@/config";
@@ -121,6 +122,21 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const [selectedDateIntakeGroup, setSelectedDateIntakeGroup] = useState<GroupedIntake | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("today");
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!profile?.active_organization_id) return;
+    let cancelled = false;
+    supabase
+      .from("organizations")
+      .select("logo_url")
+      .eq("id", profile.active_organization_id)
+      .single()
+      .then(({ data }) => {
+        if (!cancelled && data?.logo_url) setOrgLogoUrl(data.logo_url);
+      });
+    return () => { cancelled = true; };
+  }, [profile?.active_organization_id]);
 
   const fetchData = React.useCallback(async () => {
     setIsLoading(true);
@@ -569,13 +585,31 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     {
       id: "actions",
       header: "Actions",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedDateIntakeGroup(row.original); setIsSheetOpen(true); }}>
-            <Eye className="h-4 w-4 mr-2" />View
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const groupedIntake = row.original;
+        const handlePrintPDF = async () => {
+          if (!resident) {
+            toast.error("Resident data not available");
+            return;
+          }
+          try {
+            await generateMedicationHistoryDayPDF(resident, groupedIntake, { orgLogoUrl });
+            toast.success("PDF downloaded");
+          } catch {
+            toast.error("Failed to generate PDF");
+          }
+        };
+        return (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedDateIntakeGroup(groupedIntake); setIsSheetOpen(true); }}>
+              <Eye className="h-4 w-4 mr-2" />View
+            </Button>
+            <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handlePrintPDF(); }}>
+              <Printer className="h-4 w-4 mr-2" />Print
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 

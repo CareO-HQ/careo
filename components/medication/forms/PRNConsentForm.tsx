@@ -20,6 +20,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import { printPRNConsentPDF } from "@/lib/prn-consent-pdf-utils";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { PRNConsentSchema } from "@/schemas/residents/medication/prnConsentSchema";
@@ -87,7 +88,12 @@ function PRNDocumentView({
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1" onClick={() => window.print()}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-xs gap-1"
+            onClick={() => printPRNConsentPDF(data, String(data.residentName || ""))}
+          >
             <Printer className="w-3 h-3" />
             Print
           </Button>

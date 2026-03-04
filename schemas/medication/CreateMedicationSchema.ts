@@ -36,7 +36,7 @@ export const CreateMedicationSchema = z
       z.literal("One time (STAT)"),
       z.literal("Weekly"),
       z.literal("Monthly")
-    ]),
+    ]).optional(),
     scheduleType: z.union([
       z.literal("Scheduled"),
       z.literal("PRN (As Needed)")
@@ -63,6 +63,19 @@ export const CreateMedicationSchema = z
     maxDailyDose: z.number().positive().optional(),
     maxDailyDoseUnit: z.string().optional()
   })
+  .refine(
+    (data) => {
+      // Frequency is required only for Scheduled medications
+      if (data.scheduleType === "Scheduled") {
+        return data.frequency != null && data.frequency !== "";
+      }
+      return true;
+    },
+    {
+      message: "Frequency is required for scheduled medications",
+      path: ["frequency"]
+    }
+  )
   .refine(
     (data) => {
       // If scheduleType is "Scheduled", times must be provided and not empty

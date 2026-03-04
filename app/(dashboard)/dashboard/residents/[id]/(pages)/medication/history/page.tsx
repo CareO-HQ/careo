@@ -31,6 +31,8 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { supabase } from "@/lib/supabase";
+import { generateMedicationHistoryDayPDF } from "@/lib/medication-history-pdf-utils";
+import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
 import { cn } from "@/lib/utils";
 import {
@@ -52,7 +54,8 @@ import {
   Clock,
   Download,
   Eye,
-  FileDown
+  FileDown,
+  Printer
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useMemo, useState, useEffect } from "react";
@@ -85,6 +88,7 @@ export default function MedicationHistoryPage({
 }: MedicationHistoryPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+  const { profile } = useProfile();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [selectedDateIntakeGroup, setSelectedDateIntakeGroup] = useState<GroupedIntake | null>(null);
@@ -92,6 +96,21 @@ export default function MedicationHistoryPage({
   const [resident, setResident] = useState<Resident | null>(null);
   const [allIntakes, setAllIntakes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!profile?.active_organization_id) return;
+    let cancelled = false;
+    supabase
+      .from("organizations")
+      .select("logo_url")
+      .eq("id", profile.active_organization_id)
+      .single()
+      .then(({ data }) => {
+        if (!cancelled && data?.logo_url) setOrgLogoUrl(data.logo_url);
+      });
+    return () => { cancelled = true; };
+  }, [profile?.active_organization_id]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -515,6 +534,16 @@ export default function MedicationHistoryPage({
     toast.success('Medication history report will open for printing');
   };
 
+  const handlePrintPDF = (groupedIntake: GroupedIntake) => {
+    if (!resident) {
+      toast.error('Resident data not available');
+      return;
+    }
+    generateMedicationHistoryDayPDF(resident, groupedIntake, { orgLogoUrl })
+      .then(() => toast.success('PDF downloaded'))
+      .catch(() => toast.error('Failed to generate PDF'));
+  };
+
   const groupedColumns: ColumnDef<GroupedIntake>[] = [
     {
       accessorKey: "date",
@@ -578,6 +607,17 @@ export default function MedicationHistoryPage({
             >
               <Eye className="h-4 w-4 mr-2" />
               View
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePrintPDF(groupedIntake);
+              }}
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Print
             </Button>
             <Button
               variant="outline"
