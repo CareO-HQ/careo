@@ -4,7 +4,6 @@ import InviteForm from "@/components/onboarding/invites/InviteForm";
 import CareHomeForm from "@/components/onboarding/careHome/CareHomeForm";
 import ProfileForm from "@/components/onboarding/profile/ProfileForm";
 import CreateMultipleTeams from "@/components/onboarding/teams/CreateMultipleTeams";
-import SelectTheme from "@/components/onboarding/theme/SelectTheme";
 import Stepper from "@/components/stepper/Stepper";
 import ContentWrapper from "@/components/utils/ContentWrapper";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
@@ -15,10 +14,10 @@ import { toast } from "sonner";
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
-  const OWNER_TOTAL_STEPS = 4;
-  const MANAGER_TOTAL_STEPS = 3;
-  const NURSE_TOTAL_STEPS = 2;
-  const CARE_ASSISTANT_TOTAL_STEPS = 2;
+  const OWNER_TOTAL_STEPS = 3;
+  const MANAGER_TOTAL_STEPS = 2;
+  const NURSE_TOTAL_STEPS = 1;
+  const CARE_ASSISTANT_TOTAL_STEPS = 1;
 
   const { session, user, isLoading: isAuthLoading } = useSupabase();
   const { profile, isLoading: isProfileLoading } = useProfile();
@@ -84,7 +83,7 @@ export default function OnboardingPage() {
 
   // SAAS ADMIN ONBOARDING (first user)
   if (isSaasAdmin && !isOnboardingComplete) {
-    const SAAS_ADMIN_TOTAL_STEPS = 2; // Reduced to 2 steps - theme selection is the last step
+    const SAAS_ADMIN_TOTAL_STEPS = 1;
     return (
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-start items-start mt-4">
@@ -95,22 +94,12 @@ export default function OnboardingPage() {
           <Stepper step={step} totalSteps={SAAS_ADMIN_TOTAL_STEPS} />
           <p className="text-2xl font-bold mt-4">
             {step === 1 && "Set up your profile"}
-            {step === 2 && "Choose your theme"}
           </p>
           <p className="text-muted-foreground my-2">
             {step === 1 &&
               "Welcome! As the platform administrator, set up your profile. You&apos;ll be able to manage all care homes and create new owners."}
-            {step === 2 &&
-              "Select the theme for the application. You&apos;ll be able to change this later."}
           </p>
-          {step === 1 && <ProfileForm step={step} setStep={setStep} />}
-          {step === 2 && (
-            <SelectTheme
-              step={step}
-              setStep={setStep}
-              isLastStep={true}
-            />
-          )}
+          {step === 1 && <ProfileForm step={step} setStep={setStep} isLastStep={true} />}
         </div>
       </ContentWrapper>
     );
@@ -156,24 +145,20 @@ export default function OnboardingPage() {
           <Stepper step={step} totalSteps={OWNER_TOTAL_STEPS} />
           <p className="text-2xl font-bold mt-4">
             {step === 1 && "Set up your profile"}
-            {step === 2 && "Choose your theme"}
-            {step === 3 && "Add your Care home"}
-            {step === 4 && "Invite your managing team"}
+            {step === 2 && "Add your Care home"}
+            {step === 3 && "Invite your managing team"}
           </p>
           <p className="text-muted-foreground my-2">
             {step === 1 &&
               "Check if the profile information is correct. You'll be able to change this later in the account settings page."}
             {step === 2 &&
-              "Select the theme for the application. You’ll be able to change this later."}
-            {step === 3 &&
               "Create your care home now. You’ll be able to edit this later."}
-            {step === 4 &&
+            {step === 3 &&
               "Add managers and let them invite their team members."}
           </p>
           {step === 1 && <ProfileForm step={step} setStep={setStep} />}
-          {step === 2 && <SelectTheme step={step} setStep={setStep} />}
-          {step === 3 && <CareHomeForm step={step} setStep={setStep} />}
-          {step === 4 && <InviteForm />}
+          {step === 2 && <CareHomeForm step={step} setStep={setStep} />}
+          {step === 3 && <InviteForm />}
         </div>
       </ContentWrapper>
     );
@@ -205,20 +190,16 @@ export default function OnboardingPage() {
           <Stepper step={step} totalSteps={MANAGER_TOTAL_STEPS} />
           <p className="text-2xl font-bold mt-4">
             {step === 1 && "Set up your profile"}
-            {step === 2 && "Choose your theme"}
-            {step === 3 && "Create teams"}
+            {step === 2 && "Create teams"}
           </p>
           <p className="text-muted-foreground my-2">
             {step === 1 &&
               "Check if the profile information is correct. You'll be able to change this later in the account settings page."}
             {step === 2 &&
-              "Select the theme for the application. You'll be able to change this later."}
-            {step === 3 &&
               "Create your first teams for your care home. You'll be able to create more teams and invite members to them later."}
           </p>
           {step === 1 && <ProfileForm step={step} setStep={setStep} />}
-          {step === 2 && <SelectTheme step={step} setStep={setStep} />}
-          {step === 3 && <CreateMultipleTeams step={step} setStep={setStep} />}
+          {step === 2 && <CreateMultipleTeams step={step} setStep={setStep} />}
         </div>
       </ContentWrapper>
     );
@@ -250,20 +231,16 @@ export default function OnboardingPage() {
           <Stepper step={step} totalSteps={NURSE_TOTAL_STEPS} />
           <p className="text-2xl font-bold mt-4">
             {step === 1 && "Set up your profile"}
-            {step === 2 && "Choose your theme"}
           </p>
           <p className="text-muted-foreground my-2">
             {step === 1 &&
               "Check if the profile information is correct. You'll be able to change this later in the account settings page."}
-            {step === 2 &&
-              "Select the theme for the application. You'll be able to change this later."}
           </p>
-          {step === 1 && <ProfileForm step={step} setStep={setStep} />}
-          {step === 2 && (
-            <SelectTheme
+          {step === 1 && (
+            <ProfileForm
               step={step}
               setStep={setStep}
-              isLastStep={step === NURSE_TOTAL_STEPS}
+              isLastStep={true}
             />
           )}
         </div>
@@ -297,20 +274,16 @@ export default function OnboardingPage() {
           <Stepper step={step} totalSteps={CARE_ASSISTANT_TOTAL_STEPS} />
           <p className="text-2xl font-bold mt-4">
             {step === 1 && "Set up your profile"}
-            {step === 2 && "Choose your theme"}
           </p>
           <p className="text-muted-foreground my-2">
             {step === 1 &&
               "Check if the profile information is correct. You'll be able to change this later in the account settings page."}
-            {step === 2 &&
-              "Select the theme for the application. You'll be able to change this later."}
           </p>
-          {step === 1 && <ProfileForm step={step} setStep={setStep} />}
-          {step === 2 && (
-            <SelectTheme
+          {step === 1 && (
+            <ProfileForm
               step={step}
               setStep={setStep}
-              isLastStep={step === CARE_ASSISTANT_TOTAL_STEPS}
+              isLastStep={true}
             />
           )}
         </div>
@@ -321,7 +294,7 @@ export default function OnboardingPage() {
   // Fallback: If no activeMember or role doesn't match, show new user onboarding
   // This handles cases where the user is newly registered and doesn't have a role yet
   // They need to create an organization to become an owner
-  const NEW_USER_TOTAL_STEPS = 4;
+  const NEW_USER_TOTAL_STEPS = 3;
 
   return (
     <ContentWrapper className="max-w-xl w-full">
@@ -333,24 +306,20 @@ export default function OnboardingPage() {
         <Stepper step={step} totalSteps={NEW_USER_TOTAL_STEPS} />
         <p className="text-2xl font-bold mt-4">
           {step === 1 && "Set up your profile"}
-          {step === 2 && "Choose your theme"}
-          {step === 3 && "Create your Care Home"}
-          {step === 4 && "Invite your managing team"}
+          {step === 2 && "Create your Care Home"}
+          {step === 3 && "Invite your managing team"}
         </p>
         <p className="text-muted-foreground my-2">
           {step === 1 &&
             "Check if the profile information is correct. You'll be able to change this later in the account settings page."}
           {step === 2 &&
-            "Select the theme for the application. You'll be able to change this later."}
-          {step === 3 &&
             "Create your care home organization. You'll become the owner and can invite your team."}
-          {step === 4 &&
+          {step === 3 &&
             "Add managers and let them invite their team members."}
         </p>
         {step === 1 && <ProfileForm step={step} setStep={setStep} />}
-        {step === 2 && <SelectTheme step={step} setStep={setStep} />}
-        {step === 3 && <CareHomeForm step={step} setStep={setStep} />}
-        {step === 4 && <InviteForm />}
+        {step === 2 && <CareHomeForm step={step} setStep={setStep} />}
+        {step === 3 && <InviteForm />}
       </div>
     </ContentWrapper>
   );

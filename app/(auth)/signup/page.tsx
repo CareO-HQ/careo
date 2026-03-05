@@ -102,7 +102,7 @@ function SignupContent() {
             <div className="flex items-center justify-center">
               <Link href="/">
                 <Image
-                  src="/Logo_CareO.png"
+                  src="/careo_favicon.jpeg"
                   alt="CareO Logo"
                   width={140}
                   height={47}
@@ -139,7 +139,7 @@ function SignupContent() {
           <div className="hidden lg:flex items-center justify-center">
             <Link href="/">
               <Image
-                src="/Logo_CareO.png"
+                src="/careo_favicon.jpeg"
                 alt="CareO Logo"
                 width={150}
                 height={50}

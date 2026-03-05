@@ -35,11 +35,11 @@ export const Hero = () => {
             {/* Logo */}
             <Link href="/">
               <Image
-                src="/Logo_CareO.png .png"
+                src="/careo_favicon.jpeg"
                 alt="CareO Logo"
                 width={120}
                 height={32}
-                className="object-cover max-h-8"
+                className="object-contain max-h-12"
               />
             </Link>
 
