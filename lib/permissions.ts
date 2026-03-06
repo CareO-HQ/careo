@@ -302,6 +302,9 @@ export function canViewResidentSection(section: string, role?: string): boolean 
       return canLogDailyCare(role);
     case "progress-notes":
       return canViewProgressNotes(role);
+    case "continence":
+      // All users can view; care assistant included explicitly
+      return canLogDailyCare(role);
     case "documents":
       return canViewDocuments(role);
     case "night-check":

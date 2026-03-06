@@ -16,9 +16,11 @@ import {
   Activity,
   Ambulance,
   ArrowLeft,
+  Bandage,
   Bell,
   Calendar,
   ChevronRight,
+  Droplet,
   FileText,
   Folder,
   Heart,
@@ -425,6 +427,30 @@ export default function ResidentPage({ params }: ResidentPageProps) {
               </CardContent>
             </Card>
           )}
+          {/* Continence Card */}
+          {canViewResidentSection("continence", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("continence")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-teal-50 rounded-lg">
+                      <Droplet className="w-6 h-6 text-teal-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Continence</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Bowel & bladder care
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
       {/* DOCUMENTATION */}
@@ -573,7 +599,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                 <div className="flex items-center justify-between p-3">
                   <div className="flex flex-col items-start justify-start gap-2 space-x-3">
                     <div className="p-2 bg-rose-50 rounded-lg">
-                      <Heart className="w-6 h-6 text-rose-600" />
+                      <Bandage className="w-6 h-6 text-rose-600" />
                     </div>
                     <div>
                       <h3 className="font-semibold">Wounds</h3>

@@ -51,6 +51,7 @@ import {
   Eye,
   AlertCircle,
   Activity,
+  Bandage,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -507,7 +508,7 @@ export default function WoundsPage({ params }: WoundsPageProps) {
         </Button>
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-red-100 rounded-lg">
-            <Heart className="w-6 h-6 text-red-600" />
+            <Bandage className="w-6 h-6 text-red-600" />
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">Wounds</h1>
