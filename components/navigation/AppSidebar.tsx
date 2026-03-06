@@ -455,12 +455,14 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         )}
-        <HelpSupportDialog>
-          <SidebarMenuButton>
-            <MessageCircleQuestionMarkIcon />
-            <span>Help and Support</span>
+        <SidebarMenuItem className="list-none">
+          <SidebarMenuButton asChild>
+            <Link href="/dashboard/help-support">
+              <MessageCircleQuestionMarkIcon />
+              <span>Help & Support</span>
+            </Link>
           </SidebarMenuButton>
-        </HelpSupportDialog>
+        </SidebarMenuItem>
         <SidebarMenuItem className="list-none mt-2">
           <LogoutButton />
         </SidebarMenuItem>

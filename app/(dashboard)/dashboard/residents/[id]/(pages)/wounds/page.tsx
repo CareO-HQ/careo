@@ -668,7 +668,7 @@ export default function WoundsPage({ params }: WoundsPageProps) {
               <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 font-medium">No wounds found</p>
               <p className="text-gray-400 text-sm mt-1">
-                Click 'Add Wound' to get started
+                Click &apos;Add Wound&apos; to get started
               </p>
             </div>
           ) : (

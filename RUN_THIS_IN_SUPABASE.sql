@@ -1,10 +1,12 @@
 -- ============================================
--- CONTINENCE TRACKING SYSTEM
+-- COPY AND RUN THIS ENTIRE FILE IN SUPABASE SQL EDITOR
 -- ============================================
--- Create continence_entries table for tracking bowel and urine entries
--- RESET: Drop table if exists to start fresh
+-- This will RESET and create the continence_entries table with all fields
+
+-- Drop existing table to reset cleanly
 DROP TABLE IF EXISTS public.continence_entries CASCADE;
 
+-- Create the continence_entries table
 CREATE TABLE public.continence_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
@@ -31,7 +33,7 @@ CREATE TABLE public.continence_entries (
 
   -- Common fields
   notes TEXT,
-  continence_aid TEXT, -- e.g., "Pad", "Commode", "Toilet"
+  continence_aid TEXT,
   assistance_required BOOLEAN DEFAULT false,
 
   -- Audit trail
@@ -87,3 +89,18 @@ CREATE POLICY "Manager/Owner can delete continence entries"
         public.can_access_organization(organization_id)
         AND (public.get_user_role(auth.uid()) IN ('manager', 'owner', 'saas_admin'))
     );
+
+-- Verify the table was created successfully
+SELECT 'SUCCESS! Table created with ' || COUNT(*) || ' rows' as result
+FROM public.continence_entries;
+
+-- Show table structure
+SELECT
+    column_name,
+    data_type,
+    is_nullable,
+    column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+AND table_name = 'continence_entries'
+ORDER BY ordinal_position;

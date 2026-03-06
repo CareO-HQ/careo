@@ -219,6 +219,8 @@ export default function ContinencePage({ params }: ContinencePageProps) {
         .insert({
           resident_id: id,
           organization_id: profile.active_organization_id,
+          care_home_id: profile.active_care_home_id || null,
+          team_id: profile.active_team_id || null,
           entry_type: "bowel",
           date: today,
           time: entryTime,
@@ -308,6 +310,8 @@ export default function ContinencePage({ params }: ContinencePageProps) {
         .insert({
           resident_id: id,
           organization_id: profile.active_organization_id,
+          care_home_id: profile.active_care_home_id || null,
+          team_id: profile.active_team_id || null,
           entry_type: "urine",
           date: today,
           time: entryTime,

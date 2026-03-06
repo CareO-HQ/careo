@@ -1,7 +1,6 @@
 "use client";
 
 import UploadFileModal from "@/components/residents/carefile/folders/UploadFileModal";
-import { useProfile } from "@/hooks/use-profile";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { supabase } from "@/lib/supabase";
@@ -14,7 +13,6 @@ import {
   Paperclip,
   Trash2,
   Plus,
-  X,
   Map as MapIcon,
   CircleCheckIcon,
   CircleDashedIcon,
@@ -23,7 +21,6 @@ import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,7 +33,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WoundAssessmentForm } from "./components/wound-assessment-form";
-import { WoundAssessmentViewer } from "./components/wound-assessment-viewer";
 import { InteractiveBodyMap } from "@/components/body-map/InteractiveBodyMap";
 import { BodyMapEntryForm } from "@/components/body-map/BodyMapEntryForm";
 import { BodyRegion, BodyMapEntry, BodyMapData, BodyMapSession } from "@/types/body-map";
@@ -65,19 +61,6 @@ type WoundFolder = {
   body_map_data: BodyMapData | null;
   created_at: string;
   updated_at: string;
-};
-
-type Wound = {
-  id: string;
-  wound_folder_id: string;
-  resident_id: string;
-  wound_name: string;
-  location: string;
-  wound_type: string;
-  stage: string | null;
-  status: string;
-  date_identified: string;
-  last_reviewed_date: string | null;
 };
 
 type UploadedFile = {
@@ -189,20 +172,19 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   const { id: residentId, folderId } = React.use(params);
   const router = useRouter();
 
-  const { profile } = useProfile();
   const { activeOrganizationId } = useActiveTeam();
   const { supabase: supabaseClient } = useSupabase();
 
   const [resident, setResident] = useState<ResidentData | null>(null);
   const [folder, setFolder] = useState<WoundFolder | null>(null);
-  const [wound, setWound] = useState<Wound | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"assessment" | "body-map" | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
 
-  // Track whether wound assessment has been saved for this wound
-  const [hasWoundAssessment, setHasWoundAssessment] = useState(false);
+  // Track wound assessments (multiple allowed)
+  const [woundAssessments, setWoundAssessments] = useState<any[]>([]);
+  const [isLoadingAssessments, setIsLoadingAssessments] = useState(false);
 
   // Body Map states
   const [bodyMapData, setBodyMapData] = useState<BodyMapData>({ sessions: [] });
@@ -399,6 +381,35 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     }
   };
 
+  // Fetch wound assessments
+  const fetchWoundAssessments = useCallback(async () => {
+    if (!folderId) return;
+    setIsLoadingAssessments(true);
+    try {
+      const { data, error } = await supabase
+        .from("wound_assessments")
+        .select(`
+          *,
+          recorded_by_user:recorded_by (
+            id,
+            name,
+            email
+          )
+        `)
+        .eq("wound_folder_id", folderId)
+        .order("assessment_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setWoundAssessments(data);
+      }
+    } catch (err) {
+      console.error("Error fetching wound assessments:", err);
+    } finally {
+      setIsLoadingAssessments(false);
+    }
+  }, [folderId]);
+
   useEffect(() => {
     if (!residentId) return;
     supabase
@@ -409,7 +420,10 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
       .then(({ data, error }) => {
         if (!error) setResident(data as ResidentData);
       });
-  }, [residentId]);
+
+    // Fetch wound assessments
+    fetchWoundAssessments();
+  }, [residentId, fetchWoundAssessments]);
 
   useEffect(() => {
     if (!folderId) return;
@@ -420,27 +434,6 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
       .single()
       .then(({ data, error }) => {
         if (!error) setFolder(data as WoundFolder);
-      });
-
-    // Fetch the wound associated with this folder
-    supabase
-      .from("wounds")
-      .select("*")
-      .eq("wound_folder_id", folderId)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setWound(data as Wound);
-          // Check if wound assessment exists for this wound
-          supabase
-            .from("wound_assessments")
-            .select("id")
-            .eq("wound_id", data.id)
-            .maybeSingle()
-            .then(({ data: assessmentData }) => {
-              setHasWoundAssessment(!!assessmentData);
-            });
-        }
       });
   }, [folderId]);
 
@@ -497,10 +490,6 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     setActiveView("assessment");
   };
 
-  const handleBodyMapClick = () => {
-    setActiveFileId(null);
-    setActiveView("body-map");
-  };
 
   return (
     <div className="flex flex-col -mx-16 -mt-16 -mb-6 h-screen overflow-hidden">
@@ -536,23 +525,17 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
             <FileViewer file={activeFile} />
           ) : activeView === "assessment" ? (
             <div className="flex-1 overflow-auto">
-              {hasWoundAssessment && wound ? (
-                <WoundAssessmentViewer woundId={wound.id} />
-              ) : wound ? (
-                <WoundAssessmentForm
-                  residentId={residentId}
-                  folderId={folderId}
-                  woundId={wound.id}
-                  residentName={fullName}
-                  onSaved={() => {
-                    setHasWoundAssessment(true);
-                  }}
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                </div>
-              )}
+              <WoundAssessmentForm
+                residentId={residentId}
+                woundFolderId={folderId}
+                residentName={fullName}
+                residentDOB={resident?.date_of_birth}
+                assessments={woundAssessments}
+                isLoadingAssessments={isLoadingAssessments}
+                onSaved={() => {
+                  fetchWoundAssessments();
+                }}
+              />
             </div>
           ) : activeView === "body-map" ? (
             <div className="flex-1 flex flex-row overflow-hidden">
@@ -724,7 +707,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 }`}
                 onClick={handleAssessmentClick}
               >
-                {hasWoundAssessment ? (
+                {woundAssessments.length > 0 ? (
                   <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
                 ) : (
                   <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
@@ -733,9 +716,9 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                   <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
                     Wound Assessment
                   </p>
-                  {hasWoundAssessment ? (
+                  {woundAssessments.length > 0 ? (
                     <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
-                      Completed
+                      {woundAssessments.length} {woundAssessments.length === 1 ? "assessment" : "assessments"}
                     </p>
                   ) : (
                     <p className="text-[10px] text-muted-foreground">
