@@ -99,9 +99,9 @@ export default function CareFileV2Page() {
                     </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                    <h1 className="text-xl sm:text-2xl font-bold">Care File V2</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold">Care File</h1>
                     <p className="text-muted-foreground text-sm">
-                        View and manage enhanced care files for {resident.first_name} {resident.last_name}.
+                        View and manage care files for {resident.first_name} {resident.last_name}.
                     </p>
                 </div>
             </div>

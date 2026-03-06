@@ -33,10 +33,12 @@ type User = {
 
 export default function ProfileForm({
   step,
-  setStep
+  setStep,
+  isLastStep
 }: {
   step: number;
   setStep: (step: number) => void;
+  isLastStep?: boolean;
 }) {
   const [isLoading, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -115,7 +117,21 @@ export default function ProfileForm({
         });
 
         await refreshProfile();
-        setStep(step + 1);
+
+        if (isLastStep) {
+          const { error: completionError } = await supabase
+            .from("users")
+            .update({
+              is_onboarding_complete: true,
+              updated_at: new Date().toISOString()
+            })
+            .eq("id", profile.id);
+
+          if (completionError) throw completionError;
+          await refreshProfile();
+        } else {
+          setStep(step + 1);
+        }
       } catch (error: any) {
         console.error("Error updating profile:", error);
         toast.error(error.message || "Failed to update profile");

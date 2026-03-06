@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { canViewResidentSection, canViewHealthSafetyTitle } from "@/lib/permissions";
 import { Route } from "next";
+import { FEATURES } from "@/lib/config/features";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import { formatTimestampToUKDateTime } from "@/lib/date-utils";
@@ -56,10 +57,12 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { profile } = useProfile();
+  const { profile, isLoading: isProfileLoading } = useProfile();
   const userRole = profile?.role;
 
   const fetchResidentData = React.useCallback(async () => {
+    // Wait until profile has finished loading before fetching
+    if (isProfileLoading) return;
     setIsLoading(true);
     const { data: residentData, error: residentError } = await supabase
       .from("residents")
@@ -107,7 +110,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       setAlerts(filteredAlerts);
     }
     setIsLoading(false);
-  }, [id, userRole, profile?.id]);
+  }, [id, userRole, profile?.id, isProfileLoading]);
 
   useEffect(() => {
     fetchResidentData();
@@ -274,7 +277,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </Card>
           )}
           {/* Care File Card */}
-          {canViewResidentSection("care-file", userRole) && (
+          {FEATURES.SHOW_CARE_FILE_V1 && canViewResidentSection("care-file", userRole) && (
             <Card
               className="cursor-pointer shadow-none"
               onClick={() => handleCardClick("care-file")}
@@ -297,8 +300,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
               </CardContent>
             </Card>
           )}
-          {/* Care File V2 Card */}
-          {canViewResidentSection("care-file", userRole) && (
+          {/* Care File Card */}
+          {FEATURES.SHOW_CARE_FILE_V2 && canViewResidentSection("care-file", userRole) && (
             <Card
               className="cursor-pointer shadow-none"
               onClick={() => handleCardClick("care-file-v2")}
@@ -310,7 +313,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                       <FileText className="w-6 h-6 text-orange-600" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">Care File V2</h3>
+                      <h3 className="font-semibold">Care File</h3>
                       <p className="text-sm text-muted-foreground">
                         Enhanced care records
                       </p>

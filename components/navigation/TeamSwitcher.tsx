@@ -193,7 +193,7 @@ export function TeamSwitcher({
                       alt="Organization logo"
                     />
                     <AvatarFallback className="text-xs rounded bg-primary text-secondary">
-                      {orgName.charAt(0)}
+                      {orgName?.charAt(0) || "C"}
                     </AvatarFallback>
                   </Avatar>
 

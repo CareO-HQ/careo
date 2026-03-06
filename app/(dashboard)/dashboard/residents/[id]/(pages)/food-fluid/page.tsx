@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
 import { getUKTodayDate, formatTimestampToUKTime, formatDateForDisplay, UK_TIMEZONE } from "@/lib/date-utils";
-import { formatInTimeZone } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import {
   Card,
   CardContent,
@@ -122,6 +122,13 @@ const generateTimeOptions = () => {
   }
   return options;
 };
+
+// Get current UK time in HH:mm format
+const getCurrentUKTime = () => formatInTimeZone(new Date(), UK_TIMEZONE, "HH:mm");
+
+const HOURS = Array.from({ length: 12 }, (_, i) => (i + 1).toString());
+const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, "0"));
+const PERIODS = ["AM", "PM"];
 
 export default function FoodFluidPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
@@ -306,7 +313,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
       amountEaten: "All",
       fluidConsumedMl: undefined,
       signature: persistentStaffSignature,
-      time: formatInTimeZone(new Date(), UK_TIMEZONE, "HH:mm"),
+      time: getCurrentUKTime(),
     },
   });
 
@@ -492,15 +499,11 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           // Calculate timestamp from selected time
           // Parse the time string (HH:mm)
           timestamp: (() => {
-            const [hours, minutes] = values.time.split(':').map(Number);
-            const date = new Date();
-            // detailed time setting logic if needed, but for now we trust the UK date + time
-            // We need to create a timestamp that corresponds to today's date + selected time
-            // simpler approach:
-            const today = new Date();
-            // Adjust time
-            today.setHours(hours, minutes, 0, 0);
-            return today.toISOString();
+            const ukDateStr = getUKTodayDate(); // "2026-03-05"
+            // Combine with time "HH:mm" and assume UK timezone
+            const combinedDateTime = `${ukDateStr}T${values.time}:00`;
+            const utcDate = fromZonedTime(combinedDateTime, UK_TIMEZONE);
+            return utcDate.toISOString();
           })(),
           created_by: profile.id,
         });
@@ -521,7 +524,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         amountEaten: "All",
         fluidConsumedMl: undefined,
         signature: values.signature,
-        time: getCurrentTime().substring(0, 5),
+        time: getCurrentUKTime(),
       });
 
       // Show quick actions for a few seconds
@@ -831,6 +834,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                     logForm.setValue("entryType", "food");
                     logForm.setValue("typeOfFoodDrink", "");
                     logForm.setValue("fluidConsumedMl", undefined);
+                    logForm.setValue("time", getCurrentUKTime());
                     setIsFoodFluidDialogOpen(true);
                   }}
                 >
@@ -845,6 +849,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                     setEntryType("fluid");
                     logForm.setValue("entryType", "fluid");
                     logForm.setValue("typeOfFoodDrink", "");
+                    logForm.setValue("time", getCurrentUKTime());
                     setIsFoodFluidDialogOpen(true);
                   }}
                 >
@@ -1531,13 +1536,12 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{item.name}</span>
                             <Badge
-                              className={`text-[10px] px-1.5 py-0 ${
-                                item.category === "fluid"
-                                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                                  : item.category === "food"
-                                    ? "bg-orange-50 text-orange-700 border-orange-200"
-                                    : "bg-gray-50 text-gray-500 border-gray-200"
-                              }`}
+                              className={`text-[10px] px-1.5 py-0 ${item.category === "fluid"
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : item.category === "food"
+                                  ? "bg-orange-50 text-orange-700 border-orange-200"
+                                  : "bg-gray-50 text-gray-500 border-gray-200"
+                                }`}
                             >
                               {item.category === "fluid" ? "Fluid" : item.category === "food" ? "Food" : "Uncategorised"}
                             </Badge>
@@ -1584,30 +1588,83 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
             <Form {...logForm}>
               <form onSubmit={logForm.handleSubmit(onFoodFluidLogSubmit)} className="space-y-4">
-                {/* Time Selection */}
+                {/* Time Selection - Individual Dropdowns */}
                 <FormField
                   control={logForm.control}
                   name="time"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Time</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select time..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="max-h-[200px]">
-                          {generateTimeOptions().map((time) => (
-                            <SelectItem key={time} value={time}>
-                              {time}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const [hours24, mins] = (field.value || "00:00").split(":");
+                    const h24 = parseInt(hours24);
+                    const period = h24 >= 12 ? "PM" : "AM";
+                    const h12 = h24 % 12 || 12;
+                    const h12Str = h12.toString();
+
+                    const handleTimeChange = (type: "h" | "m" | "p", val: string) => {
+                      let newH12 = h12Str;
+                      let newM = mins;
+                      let newP = period;
+
+                      if (type === "h") newH12 = val;
+                      if (type === "m") newM = val;
+                      if (type === "p") newP = val;
+
+                      let h = parseInt(newH12);
+                      if (newP === "PM" && h < 12) h += 12;
+                      if (newP === "AM" && h === 12) h = 0;
+
+                      field.onChange(`${h.toString().padStart(2, "0")}:${newM}`);
+                    };
+
+                    return (
+                      <FormItem>
+                        <FormLabel>Time</FormLabel>
+                        <div className="flex gap-2">
+                          {/* Hour */}
+                          <Select value={h12Str} onValueChange={(val) => handleTimeChange("h", val)}>
+                            <FormControl>
+                              <SelectTrigger className="w-[70px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="max-h-[200px]">
+                              {HOURS.map((h) => (
+                                <SelectItem key={h} value={h}>{h}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+
+                          {/* Minute */}
+                          <Select value={mins} onValueChange={(val) => handleTimeChange("m", val)}>
+                            <FormControl>
+                              <SelectTrigger className="w-[70px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="max-h-[200px]">
+                              {MINUTES.map((m) => (
+                                <SelectItem key={m} value={m}>{m}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+
+                          {/* AM/PM */}
+                          <Select value={period} onValueChange={(val) => handleTimeChange("p", val)}>
+                            <FormControl>
+                              <SelectTrigger className="w-[80px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {PERIODS.map((p) => (
+                                <SelectItem key={p} value={p}>{p}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 {/* Type of Food/Drink */}
@@ -1616,89 +1673,79 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                   name="typeOfFoodDrink"
                   render={({ field }) => {
                     const suggestions = entryType === "food" ? foodMenuItems : fluidMenuItems;
+                    const filtered = suggestions.filter((item) =>
+                      item.name.toLowerCase().includes(typeComboSearchValue.toLowerCase())
+                    );
+                    const exactMatch = suggestions.some(
+                      (item) => item.name.toLowerCase() === typeComboSearchValue.trim().toLowerCase()
+                    );
                     return (
                       <FormItem className="flex flex-col">
                         <FormLabel>
                           {entryType === "food" ? "Type of Food" : "Type of Fluid"}
                         </FormLabel>
-                        <Popover open={typeComboOpen} onOpenChange={(open) => { setTypeComboOpen(open); if (!open) setTypeComboSearchValue(""); }}>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                aria-expanded={typeComboOpen}
-                                className={cn(
-                                  "w-full justify-between font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value || (entryType === "food" ? "Select or type a food item..." : "Select or type a fluid item...")}
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                            <Command shouldFilter={false}>
-                              <CommandInput
-                                placeholder={entryType === "food" ? "Search or type food..." : "Search or type fluid..."}
-                                value={typeComboSearchValue}
-                                onValueChange={setTypeComboSearchValue}
-                              />
-                              <CommandList>
-                                {(() => {
-                                  const filtered = suggestions.filter((item) =>
-                                    item.name.toLowerCase().includes(typeComboSearchValue.toLowerCase())
-                                  );
-                                  const exactMatch = suggestions.some(
-                                    (item) => item.name.toLowerCase() === typeComboSearchValue.trim().toLowerCase()
-                                  );
-                                  return (
-                                    <CommandGroup>
-                                      {typeComboSearchValue.trim() && !exactMatch && (
-                                        <CommandItem
-                                          value={`custom:${typeComboSearchValue.trim()}`}
-                                          onSelect={() => {
-                                            field.onChange(typeComboSearchValue.trim());
-                                            setTypeComboSearchValue("");
-                                            setTypeComboOpen(false);
-                                          }}
-                                        >
-                                          <Plus className="mr-2 h-4 w-4" />
-                                          Use &quot;{typeComboSearchValue.trim()}&quot;
-                                        </CommandItem>
-                                      )}
-                                      {filtered.map((item) => (
-                                        <CommandItem
-                                          key={item.id}
-                                          value={item.name}
-                                          onSelect={() => {
-                                            field.onChange(item.name);
-                                            setTypeComboSearchValue("");
-                                            setTypeComboOpen(false);
-                                          }}
-                                        >
-                                          <Check
-                                            className={cn(
-                                              "mr-2 h-4 w-4",
-                                              field.value === item.name ? "opacity-100" : "opacity-0"
-                                            )}
-                                          />
-                                          {item.name}
-                                        </CommandItem>
-                                      ))}
-                                      {filtered.length === 0 && !typeComboSearchValue.trim() && (
-                                        <div className="py-6 text-center text-sm text-muted-foreground">
-                                          No items found. Start typing to add a custom entry.
-                                        </div>
-                                      )}
-                                    </CommandGroup>
-                                  );
-                                })()}
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
+                        <div className="relative">
+                          <FormControl>
+                            <Input
+                              placeholder={entryType === "food" ? "Search or type food..." : "Search or type fluid..."}
+                              value={typeComboOpen ? typeComboSearchValue : (field.value || "")}
+                              onChange={(e) => {
+                                setTypeComboSearchValue(e.target.value);
+                                field.onChange(e.target.value);
+                                if (!typeComboOpen) setTypeComboOpen(true);
+                              }}
+                              onFocus={() => {
+                                setTypeComboSearchValue(field.value || "");
+                                setTypeComboOpen(true);
+                              }}
+                              onBlur={() => {
+                                // Delay so click on dropdown item can fire first
+                                setTimeout(() => {
+                                  setTypeComboOpen(false);
+                                  setTypeComboSearchValue("");
+                                }, 150);
+                              }}
+                            />
+                          </FormControl>
+                          {typeComboOpen && (filtered.length > 0 || (typeComboSearchValue.trim() && !exactMatch)) && (
+                            <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-[200px] overflow-y-auto">
+                              {typeComboSearchValue.trim() && !exactMatch && (
+                                <div
+                                  className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    field.onChange(typeComboSearchValue.trim());
+                                    setTypeComboSearchValue("");
+                                    setTypeComboOpen(false);
+                                  }}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  Use &quot;{typeComboSearchValue.trim()}&quot;
+                                </div>
+                              )}
+                              {filtered.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    field.onChange(item.name);
+                                    setTypeComboSearchValue("");
+                                    setTypeComboOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "h-4 w-4",
+                                      field.value === item.name ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {item.name}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         {suggestions.length === 0 && (
                           <p className="text-xs text-muted-foreground">
                             No {entryType} items in the menu yet. Type a custom name or ask a manager to add menu items.
