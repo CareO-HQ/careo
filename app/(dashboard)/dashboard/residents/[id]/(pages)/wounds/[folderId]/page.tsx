@@ -33,6 +33,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WoundAssessmentForm } from "./components/wound-assessment-form";
+import { PhotographEvaluationForm } from "./components/photograph-evaluation-form";
+import { WoundProgressTracker } from "./components/wound-progress-tracker";
+import { WoundStatusForm } from "./components/wound-status-form";
 import { InteractiveBodyMap } from "@/components/body-map/InteractiveBodyMap";
 import { BodyMapEntryForm } from "@/components/body-map/BodyMapEntryForm";
 import { BodyRegion, BodyMapEntry, BodyMapData, BodyMapSession } from "@/types/body-map";
@@ -59,6 +62,8 @@ type WoundFolder = {
   name: string;
   wound_type: string;
   body_map_data: BodyMapData | null;
+  status?: string;
+  next_review_date?: string;
   created_at: string;
   updated_at: string;
 };
@@ -178,13 +183,17 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   const [resident, setResident] = useState<ResidentData | null>(null);
   const [folder, setFolder] = useState<WoundFolder | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<"assessment" | "body-map" | null>(null);
+  const [activeView, setActiveView] = useState<"assessment" | "photograph" | "body-map" | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
 
   // Track wound assessments (multiple allowed)
   const [woundAssessments, setWoundAssessments] = useState<any[]>([]);
   const [isLoadingAssessments, setIsLoadingAssessments] = useState(false);
+
+  // Track photograph evaluations (multiple allowed)
+  const [photographEvaluations, setPhotographEvaluations] = useState<any[]>([]);
+  const [isLoadingPhotographs, setIsLoadingPhotographs] = useState(false);
 
   // Body Map states
   const [bodyMapData, setBodyMapData] = useState<BodyMapData>({ sessions: [] });
@@ -410,6 +419,35 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     }
   }, [folderId]);
 
+  // Fetch photograph evaluations
+  const fetchPhotographEvaluations = useCallback(async () => {
+    if (!folderId) return;
+    setIsLoadingPhotographs(true);
+    try {
+      const { data, error } = await supabase
+        .from("wound_photograph_evaluations")
+        .select(`
+          *,
+          created_by_user:created_by (
+            id,
+            name,
+            email
+          )
+        `)
+        .eq("wound_folder_id", folderId)
+        .order("photograph_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setPhotographEvaluations(data);
+      }
+    } catch (err) {
+      console.error("Error fetching photograph evaluations:", err);
+    } finally {
+      setIsLoadingPhotographs(false);
+    }
+  }, [folderId]);
+
   useEffect(() => {
     if (!residentId) return;
     supabase
@@ -421,21 +459,24 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
         if (!error) setResident(data as ResidentData);
       });
 
-    // Fetch wound assessments
+    // Fetch wound assessments and photograph evaluations
     fetchWoundAssessments();
-  }, [residentId, fetchWoundAssessments]);
+    fetchPhotographEvaluations();
+  }, [residentId, fetchWoundAssessments, fetchPhotographEvaluations]);
 
-  useEffect(() => {
+  const fetchFolder = useCallback(async () => {
     if (!folderId) return;
-    supabase
+    const { data, error } = await supabase
       .from("wound_folders")
       .select("*")
       .eq("id", folderId)
-      .single()
-      .then(({ data, error }) => {
-        if (!error) setFolder(data as WoundFolder);
-      });
+      .single();
+    if (!error) setFolder(data as WoundFolder);
   }, [folderId]);
+
+  useEffect(() => {
+    fetchFolder();
+  }, [fetchFolder]);
 
   const fetchUploadedFiles = useCallback(async () => {
     if (!residentId || !folderId) return;
@@ -490,6 +531,19 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     setActiveView("assessment");
   };
 
+  const handlePhotographClick = () => {
+    setActiveFileId(null);
+    setActiveView("photograph");
+  };
+
+  // Calculate progress status
+  const progressHasBodyMap = bodyMapEntryCount > 0;
+  const progressHasPhotograph = photographEvaluations.length > 0;
+  const progressHasInitialAssessment = woundAssessments.length > 0;
+  const progressHasCarePlan = false; // TODO: Add care plan check when implemented
+  const progressHasOngoingAssessment = woundAssessments.length > 1; // More than one assessment
+  const progressHasEvaluation = folder?.next_review_date ? true : false;
+  const progressIsHealed = folder?.status === "healed";
 
   return (
     <div className="flex flex-col -mx-16 -mt-16 -mb-6 h-screen overflow-hidden">
@@ -517,6 +571,17 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
         </div>
       </div>
 
+      {/* Progress Tracker */}
+      <WoundProgressTracker
+        hasBodyMap={progressHasBodyMap}
+        hasPhotograph={progressHasPhotograph}
+        hasInitialAssessment={progressHasInitialAssessment}
+        hasCarePlan={progressHasCarePlan}
+        hasOngoingAssessment={progressHasOngoingAssessment}
+        hasEvaluation={progressHasEvaluation}
+        isHealed={progressIsHealed}
+      />
+
       {/* Body */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Center content */}
@@ -534,6 +599,19 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 isLoadingAssessments={isLoadingAssessments}
                 onSaved={() => {
                   fetchWoundAssessments();
+                }}
+              />
+            </div>
+          ) : activeView === "photograph" ? (
+            <div className="flex-1 overflow-auto">
+              <PhotographEvaluationForm
+                residentId={residentId}
+                woundFolderId={folderId}
+                residentName={fullName}
+                evaluations={photographEvaluations}
+                isLoadingEvaluations={isLoadingPhotographs}
+                onSaved={() => {
+                  fetchPhotographEvaluations();
                 }}
               />
             </div>
@@ -683,7 +761,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 <FileText className="w-5 h-5 text-muted-foreground" />
               </div>
               <p className="text-sm text-muted-foreground">
-                Select an assessment, body map, or document from the right panel to view
+                Select an assessment, photograph, body map, or document from the right panel to view
               </p>
             </div>
           )}
@@ -719,6 +797,43 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                   {woundAssessments.length > 0 ? (
                     <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
                       {woundAssessments.length} {woundAssessments.length === 1 ? "assessment" : "assessments"}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">
+                      Click to start
+                    </p>
+                  )}
+                </div>
+              </button>
+            </div>
+
+            {/* Photograph Evaluation section */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5 px-1.5">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                  Photograph
+                </p>
+              </div>
+              <button
+                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${
+                  activeView === "photograph"
+                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                    : "hover:bg-muted/60 text-foreground"
+                }`}
+                onClick={handlePhotographClick}
+              >
+                {photographEvaluations.length > 0 ? (
+                  <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                ) : (
+                  <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                    Photograph Evaluation
+                  </p>
+                  {photographEvaluations.length > 0 ? (
+                    <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                      {photographEvaluations.length} {photographEvaluations.length === 1 ? "evaluation" : "evaluations"}
                     </p>
                   ) : (
                     <p className="text-[10px] text-muted-foreground">
@@ -825,6 +940,23 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                   })}
                 </div>
               )}
+            </div>
+
+            {/* Status section */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5 px-1.5">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                  Status
+                </p>
+              </div>
+              <div className="px-1.5">
+                <WoundStatusForm
+                  folderId={folderId}
+                  currentStatus={folder?.status}
+                  currentNextReviewDate={folder?.next_review_date}
+                  onUpdated={fetchFolder}
+                />
+              </div>
             </div>
           </div>
         </aside>
