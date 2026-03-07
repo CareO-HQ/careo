@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 -- ============================================
 -- WOUNDS MANAGEMENT SYSTEM
 -- ============================================
@@ -63,32 +64,134 @@ CREATE TRIGGER update_wounds_updated_at
   BEFORE UPDATE ON public.wounds
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+=======
+-- Create wounds table
+CREATE TABLE public.wounds (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    resident_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    team_id uuid,
+    care_home_id uuid,
+    wound_name text NOT NULL,
+    location text NOT NULL,
+    wound_type text NOT NULL,
+    stage text,
+    status text DEFAULT 'active'::text NOT NULL,
+    length_cm numeric(10,2),
+    width_cm numeric(10,2),
+    depth_cm numeric(10,2),
+    wound_bed_description text,
+    exudate_type text,
+    exudate_amount text,
+    surrounding_skin_condition text,
+    odor text,
+    pain_level integer,
+    treatment_plan text,
+    dressing_type text,
+    dressing_frequency text,
+    notes text,
+    date_identified date NOT NULL,
+    last_reviewed_date date,
+    last_reviewed_by text,
+    last_reviewed_by_id uuid,
+    expected_next_review date,
+    image_urls text[],
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    wound_folder_id uuid
+);
+
+-- Add primary key
+ALTER TABLE ONLY public.wounds
+    ADD CONSTRAINT wounds_pkey PRIMARY KEY (id);
+
+-- Create indexes
+CREATE INDEX idx_wounds_date_identified ON public.wounds USING btree (date_identified);
+CREATE INDEX idx_wounds_folder_id ON public.wounds USING btree (wound_folder_id);
+CREATE INDEX idx_wounds_last_reviewed_date ON public.wounds USING btree (last_reviewed_date);
+CREATE INDEX idx_wounds_organization_id ON public.wounds USING btree (organization_id);
+CREATE INDEX idx_wounds_resident_id ON public.wounds USING btree (resident_id);
+CREATE INDEX idx_wounds_status ON public.wounds USING btree (status);
+
+-- Add trigger for updated_at
+CREATE TRIGGER update_wounds_updated_at
+    BEFORE UPDATE ON public.wounds
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Add foreign key constraints
+ALTER TABLE ONLY public.wounds
+    ADD CONSTRAINT wounds_care_home_id_fkey
+    FOREIGN KEY (care_home_id) REFERENCES public.care_homes(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.wounds
+    ADD CONSTRAINT wounds_created_by_fkey
+    FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.wounds
+    ADD CONSTRAINT wounds_last_reviewed_by_id_fkey
+    FOREIGN KEY (last_reviewed_by_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.wounds
+    ADD CONSTRAINT wounds_organization_id_fkey
+    FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.wounds
+    ADD CONSTRAINT wounds_resident_id_fkey
+    FOREIGN KEY (resident_id) REFERENCES public.residents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.wounds
+    ADD CONSTRAINT wounds_team_id_fkey
+    FOREIGN KEY (team_id) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+-- Note: wounds_wound_folder_id_fkey constraint will be added in migration 20260304000001
+-- after wound_folders table is created
+>>>>>>> f1f9002 (wip)
 
 -- Enable RLS
 ALTER TABLE public.wounds ENABLE ROW LEVEL SECURITY;
 
+<<<<<<< HEAD
 -- RLS Policies for wounds
 CREATE POLICY "Users within organization can view wounds"
     ON public.wounds FOR SELECT
     USING ( public.can_access_organization(organization_id) );
+=======
+-- Create policies
+CREATE POLICY "Users within organization can view wounds"
+    ON public.wounds FOR SELECT
+    USING (public.can_access_organization(organization_id));
+>>>>>>> f1f9002 (wip)
 
 CREATE POLICY "Nurse/Manager/Owner can insert wounds"
     ON public.wounds FOR INSERT
     WITH CHECK (
+<<<<<<< HEAD
         public.can_access_organization(organization_id)
         AND (public.get_user_role(auth.uid()) IN ('nurse', 'manager', 'owner', 'saas_admin'))
+=======
+        public.can_access_organization(organization_id) AND
+        public.get_user_role(auth.uid()) = ANY (ARRAY['nurse'::text, 'manager'::text, 'owner'::text, 'saas_admin'::text])
+>>>>>>> f1f9002 (wip)
     );
 
 CREATE POLICY "Nurse/Manager/Owner can update wounds"
     ON public.wounds FOR UPDATE
     USING (
+<<<<<<< HEAD
         public.can_access_organization(organization_id)
         AND (public.get_user_role(auth.uid()) IN ('nurse', 'manager', 'owner', 'saas_admin'))
+=======
+        public.can_access_organization(organization_id) AND
+        public.get_user_role(auth.uid()) = ANY (ARRAY['nurse'::text, 'manager'::text, 'owner'::text, 'saas_admin'::text])
+>>>>>>> f1f9002 (wip)
     );
 
 CREATE POLICY "Manager/Owner can delete wounds"
     ON public.wounds FOR DELETE
     USING (
+<<<<<<< HEAD
         public.can_access_organization(organization_id)
         AND (public.get_user_role(auth.uid()) IN ('manager', 'owner', 'saas_admin'))
     );
@@ -174,3 +277,13 @@ CREATE POLICY "Manager/Owner can delete wound assessments"
         public.can_access_organization(organization_id)
         AND (public.get_user_role(auth.uid()) IN ('manager', 'owner', 'saas_admin'))
     );
+=======
+        public.can_access_organization(organization_id) AND
+        public.get_user_role(auth.uid()) = ANY (ARRAY['manager'::text, 'owner'::text, 'saas_admin'::text])
+    );
+
+-- Grant permissions
+GRANT ALL ON TABLE public.wounds TO anon;
+GRANT ALL ON TABLE public.wounds TO authenticated;
+GRANT ALL ON TABLE public.wounds TO service_role;
+>>>>>>> f1f9002 (wip)
