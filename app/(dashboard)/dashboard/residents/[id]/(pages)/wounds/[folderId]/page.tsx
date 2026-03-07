@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WoundAssessmentForm } from "./components/wound-assessment-form";
+import { WoundTreatmentEvaluationForm } from "./components/wound-treatment-evaluation-form";
 import { PhotographEvaluationForm } from "./components/photograph-evaluation-form";
 import { WoundProgressTracker } from "./components/wound-progress-tracker";
 import { WoundStatusForm } from "./components/wound-status-form";
@@ -183,13 +184,17 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   const [resident, setResident] = useState<ResidentData | null>(null);
   const [folder, setFolder] = useState<WoundFolder | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<"assessment" | "photograph" | "body-map" | null>(null);
+  const [activeView, setActiveView] = useState<"assessment" | "evaluation" | "photograph" | "body-map" | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
 
   // Track wound assessments (multiple allowed)
   const [woundAssessments, setWoundAssessments] = useState<any[]>([]);
   const [isLoadingAssessments, setIsLoadingAssessments] = useState(false);
+
+  // Track wound treatment evaluations (multiple allowed)
+  const [treatmentEvaluations, setTreatmentEvaluations] = useState<any[]>([]);
+  const [isLoadingTreatmentEvaluations, setIsLoadingTreatmentEvaluations] = useState(false);
 
   // Track photograph evaluations (multiple allowed)
   const [photographEvaluations, setPhotographEvaluations] = useState<any[]>([]);
@@ -448,6 +453,28 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     }
   }, [folderId]);
 
+  // Fetch treatment evaluations
+  const fetchTreatmentEvaluations = useCallback(async () => {
+    if (!folderId) return;
+    setIsLoadingTreatmentEvaluations(true);
+    try {
+      const { data, error } = await supabase
+        .from("wound_treatment_evaluations")
+        .select("*")
+        .eq("wound_folder_id", folderId)
+        .order("evaluation_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setTreatmentEvaluations(data);
+      }
+    } catch (err) {
+      console.error("Error fetching treatment evaluations:", err);
+    } finally {
+      setIsLoadingTreatmentEvaluations(false);
+    }
+  }, [folderId]);
+
   useEffect(() => {
     if (!residentId) return;
     supabase
@@ -459,10 +486,11 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
         if (!error) setResident(data as ResidentData);
       });
 
-    // Fetch wound assessments and photograph evaluations
+    // Fetch wound assessments, treatment evaluations, and photograph evaluations
     fetchWoundAssessments();
+    fetchTreatmentEvaluations();
     fetchPhotographEvaluations();
-  }, [residentId, fetchWoundAssessments, fetchPhotographEvaluations]);
+  }, [residentId, fetchWoundAssessments, fetchTreatmentEvaluations, fetchPhotographEvaluations]);
 
   const fetchFolder = useCallback(async () => {
     if (!folderId) return;
@@ -529,6 +557,11 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   const handleAssessmentClick = () => {
     setActiveFileId(null);
     setActiveView("assessment");
+  };
+
+  const handleEvaluationClick = () => {
+    setActiveFileId(null);
+    setActiveView("evaluation");
   };
 
   const handlePhotographClick = () => {
@@ -599,6 +632,19 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 isLoadingAssessments={isLoadingAssessments}
                 onSaved={() => {
                   fetchWoundAssessments();
+                }}
+              />
+            </div>
+          ) : activeView === "evaluation" ? (
+            <div className="flex-1 overflow-auto">
+              <WoundTreatmentEvaluationForm
+                residentId={residentId}
+                woundFolderId={folderId}
+                residentName={fullName}
+                residentDOB={resident?.date_of_birth}
+                evaluations={treatmentEvaluations}
+                onSaved={() => {
+                  fetchTreatmentEvaluations();
                 }}
               />
             </div>
@@ -797,6 +843,43 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                   {woundAssessments.length > 0 ? (
                     <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
                       {woundAssessments.length} {woundAssessments.length === 1 ? "assessment" : "assessments"}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">
+                      Click to start
+                    </p>
+                  )}
+                </div>
+              </button>
+            </div>
+
+            {/* Treatment Evaluation section */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5 px-1.5">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                  Evaluation
+                </p>
+              </div>
+              <button
+                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${
+                  activeView === "evaluation"
+                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                    : "hover:bg-muted/60 text-foreground"
+                }`}
+                onClick={handleEvaluationClick}
+              >
+                {treatmentEvaluations.length > 0 ? (
+                  <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                ) : (
+                  <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                    Treatment Evaluation
+                  </p>
+                  {treatmentEvaluations.length > 0 ? (
+                    <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                      {treatmentEvaluations.length} {treatmentEvaluations.length === 1 ? "evaluation" : "evaluations"}
                     </p>
                   ) : (
                     <p className="text-[10px] text-muted-foreground">
