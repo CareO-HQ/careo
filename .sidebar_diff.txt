@@ -1,0 +1,38 @@
+diff --git a/components/navigation/AppSidebar.tsx b/components/navigation/AppSidebar.tsx
+index 82bb56d..cd10905 100644
+--- a/components/navigation/AppSidebar.tsx
++++ b/components/navigation/AppSidebar.tsx
+@@ -399,6 +399,16 @@ export function AppSidebar() {
+           <SidebarGroup className="mt-0">
+             <SidebarGroupLabel>Audit</SidebarGroupLabel>
+             <SidebarGroupContent>
++              {/* Care File Audit */}
++              <SidebarMenuItem className="list-none">
++                <SidebarMenuButton asChild>
++                  <Link href="/dashboard/manager-audit/0">
++                    <FileTextIcon />
++                    <span>Care File Audit</span>
++                  </Link>
++                </SidebarMenuButton>
++              </SidebarMenuItem>
++
+               {/* Audit / CareO Audit */}
+               <SidebarMenuItem className="list-none">
+                 <SidebarMenuButton asChild>
+@@ -408,6 +418,16 @@ export function AppSidebar() {
+                   </Link>
+                 </SidebarMenuButton>
+               </SidebarMenuItem>
++
++              {/* Manager Audit */}
++              <SidebarMenuItem className="list-none">
++                <SidebarMenuButton asChild>
++                  <Link href="/dashboard/manager-audit">
++                    <FileTextIcon />
++                    <span>Manager Audit</span>
++                  </Link>
++                </SidebarMenuButton>
++              </SidebarMenuItem>
+             </SidebarGroupContent>
+           </SidebarGroup>
+         )}

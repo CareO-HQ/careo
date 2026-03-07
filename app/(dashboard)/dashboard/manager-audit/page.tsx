@@ -689,7 +689,7 @@ function ManagerAuditPage() {
     return audits.filter((audit) => {
       // Search filter
       const matchesSearch = audit.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           audit.auditor.toLowerCase().includes(searchQuery.toLowerCase());
+        audit.auditor.toLowerCase().includes(searchQuery.toLowerCase());
 
       // Status filter
       const matchesStatus = statusFilter === "all" || audit.status === statusFilter;
@@ -743,603 +743,588 @@ function ManagerAuditPage() {
 
         <TabsContent value={activeTab} className="space-y-4">
           {/* Filters Section */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search audits..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-        <Button
-          variant="outline"
-          onClick={() => setShowFilters(!showFilters)}
-          className={showFilters ? "bg-accent" : ""}
-        >
-          <SlidersHorizontal className="mr-2 h-4 w-4" />
-          Filters
-          {hasActiveFilters && (
-            <Badge className="ml-2 h-5 w-5 rounded-full p-0 flex items-center justify-center" variant="destructive">
-              !
-            </Badge>
-          )}
-        </Button>
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            <X className="mr-2 h-4 w-4" />
-            Clear
-          </Button>
-        )}
-      </div>
-
-      {/* Filter Options */}
-      {showFilters && (
-        <div className="rounded-lg border p-4 space-y-4 bg-muted/50">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="new">New</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="due">Due</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search audits..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8"
+              />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Frequency</label>
-              <Select value={frequencyFilter} onValueChange={setFrequencyFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All frequencies" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Frequencies</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="6month">6 Month</SelectItem>
-                  <SelectItem value="yearly">Yearly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
-              <p className="text-sm text-muted-foreground">
-                Showing {filteredAudits.length} of {audits.length} audits
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[400px]">Audit Name</TableHead>
-              <TableHead>Frequency</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Auditor</TableHead>
-              <TableHead>Last Audited</TableHead>
-              <TableHead>Due Date</TableHead>
-              <TableHead className="text-center w-[80px]">Report</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredAudits.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
-                  {searchQuery || statusFilter !== "all" || frequencyFilter !== "all"
-                    ? "No audits match your filters."
-                    : "No audits found."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredAudits.map((audit) => (
-                <TableRow
-                  key={audit.id}
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => handleRowClick(audit.id)}
-                >
-                  <TableCell className="font-medium">{audit.name}</TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Select
-                      value={audit.frequency}
-                      onValueChange={(value) => handleFrequencyChange(audit.id, value as ManagerAudit["frequency"])}
-                    >
-                      <SelectTrigger className={`w-[120px] border-none shadow-none font-medium ${getFrequencyColor(audit.frequency)}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="monthly" className="text-blue-600 font-medium">Monthly</SelectItem>
-                        <SelectItem value="quarterly" className="text-green-600 font-medium">Quarterly</SelectItem>
-                        <SelectItem value="6month" className="text-orange-600 font-medium">6 Month</SelectItem>
-                        <SelectItem value="yearly" className="text-purple-600 font-medium">Yearly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={getStatusBadgeVariant(audit.status)}
-                      className={getStatusBadgeClassName(audit.status)}
-                    >
-                      {getStatusDisplayText(audit.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{audit.auditor}</TableCell>
-                  <TableCell>{formatDisplayDate(audit.lastAudited)}</TableCell>
-                  <TableCell>{formatDisplayDate(audit.dueDate)}</TableCell>
-                  <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleViewHistory(audit.id)}
-                    >
-                      <ArrowUpRight className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu
-                      open={openDropdownId === audit.id}
-                      onOpenChange={(open) =>
-                        setOpenDropdownId(open ? audit.id : null)
-                      }
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleViewEdit(audit.id)}
-                        >
-                          <Eye className="mr-2 h-4 w-4" /> View/Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleDownload(audit)}>
-                          <Download className="mr-2 h-4 w-4" /> Download Report
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(audit.id)}
-                          className="text-red-600 focus:text-red-600"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters(!showFilters)}
+              className={showFilters ? "bg-accent" : ""}
+            >
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              Filters
+              {hasActiveFilters && (
+                <Badge className="ml-2 h-5 w-5 rounded-full p-0 flex items-center justify-center" variant="destructive">
+                  !
+                </Badge>
+              )}
+            </Button>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X className="mr-2 h-4 w-4" />
+                Clear
+              </Button>
             )}
-          </TableBody>
-        </Table>
-      </div>
+          </div>
 
-      {/* New Audit Template Dialog */}
-      <Dialog open={isNewAuditDialogOpen} onOpenChange={setIsNewAuditDialogOpen}>
-        <DialogContent className="sm:max-w-[550px]">
-          <DialogHeader>
-            <DialogTitle>
-              {newAuditStep === 1 && "Create New Audit - Select Template"}
-              {newAuditStep === 2 && selectedTemplate === 'staff-based' && "Create New Audit - Staff Type"}
-              {newAuditStep === 2 && selectedTemplate !== 'staff-based' && "Create New Audit - Enter Name"}
-              {newAuditStep === 3 && selectedTemplate === 'staff-based' && "Create New Audit - Enter Name"}
-              {newAuditStep === 3 && selectedTemplate !== 'staff-based' && "Create New Audit - Select Category"}
-              {newAuditStep === 4 && "Create New Audit - Select Category"}
-            </DialogTitle>
-            <DialogDescription>
-              Step {newAuditStep} of {selectedTemplate === 'staff-based' ? 4 : 3}
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Step 1: Select Template */}
-          {newAuditStep === 1 && (
-            <div className="space-y-3 py-4">
-              <div
-                className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                  selectedTemplate === 'resident-based'
-                    ? 'border-primary bg-accent'
-                    : 'border-transparent hover:border-primary hover:bg-accent'
-                }`}
-                onClick={() => handleSelectAuditTemplate('resident-based')}
-              >
-                <div className="flex-1">
-                  <h3 className="font-semibold text-base mb-1">Resident-based Audit</h3>
+          {/* Filter Options */}
+          {showFilters && (
+            <div className="rounded-lg border p-4 space-y-4 bg-muted/50">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Status</label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="new">New</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="due">Due</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Frequency</label>
+                  <Select value={frequencyFilter} onValueChange={setFrequencyFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All frequencies" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Frequencies</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="quarterly">Quarterly</SelectItem>
+                      <SelectItem value="6month">6 Month</SelectItem>
+                      <SelectItem value="yearly">Yearly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
                   <p className="text-sm text-muted-foreground">
-                    Audit multiple residents with customizable questions. Ideal for care quality assessments.
+                    Showing {filteredAudits.length} of {audits.length} audits
                   </p>
                 </div>
-                <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
-              </div>
-
-              <div
-                className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                  selectedTemplate === 'home-based'
-                    ? 'border-primary bg-accent'
-                    : 'border-transparent hover:border-primary hover:bg-accent'
-                }`}
-                onClick={() => handleSelectAuditTemplate('home-based')}
-              >
-                <div className="flex-1">
-                  <h3 className="font-semibold text-base mb-1">Home-based Audit</h3>
-                  <p className="text-sm text-muted-foreground">
-                    General home audit with grid layout. Perfect for facility inspections and operational reviews.
-                  </p>
-                </div>
-                <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
-              </div>
-
-              <div
-                className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                  selectedTemplate === 'staff-based'
-                    ? 'border-primary bg-accent'
-                    : 'border-transparent hover:border-primary hover:bg-accent'
-                }`}
-                onClick={() => handleSelectAuditTemplate('staff-based')}
-              >
-                <div className="flex-1">
-                  <h3 className="font-semibold text-base mb-1">Staff-based Audit</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Audit staff members for training, competency assessments, and performance evaluations.
-                  </p>
-                </div>
-                <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
-              </div>
-
-              <div
-                className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                  selectedTemplate === 'plain-template'
-                    ? 'border-primary bg-accent'
-                    : 'border-transparent hover:border-primary hover:bg-accent'
-                }`}
-                onClick={() => handleSelectAuditTemplate('plain-template')}
-              >
-                <div className="flex-1">
-                  <h3 className="font-semibold text-base mb-1">Plain Template</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Blank audit template. Build your own custom audit from scratch with full flexibility.
-                  </p>
-                </div>
-                <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
               </div>
             </div>
           )}
 
-          {/* Step 2: Staff Type (for staff-based) or Name (for others) */}
-          {newAuditStep === 2 && selectedTemplate === 'staff-based' && (
-            <div className="space-y-4 py-4">
-              <div className="space-y-3">
-                <Label>Select Staff Type</Label>
-                <div className="space-y-3">
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[400px]">Audit Name</TableHead>
+                  <TableHead>Frequency</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Auditor</TableHead>
+                  <TableHead>Last Audited</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead className="text-center w-[80px]">Report</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAudits.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-24 text-center">
+                      {searchQuery || statusFilter !== "all" || frequencyFilter !== "all"
+                        ? "No audits match your filters."
+                        : "No audits found."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredAudits.map((audit) => (
+                    <TableRow
+                      key={audit.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleRowClick(audit.id)}
+                    >
+                      <TableCell className="font-medium">{audit.name}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Select
+                          value={audit.frequency}
+                          onValueChange={(value) => handleFrequencyChange(audit.id, value as ManagerAudit["frequency"])}
+                        >
+                          <SelectTrigger className={`w-[120px] border-none shadow-none font-medium ${getFrequencyColor(audit.frequency)}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="monthly" className="text-blue-600 font-medium">Monthly</SelectItem>
+                            <SelectItem value="quarterly" className="text-green-600 font-medium">Quarterly</SelectItem>
+                            <SelectItem value="6month" className="text-orange-600 font-medium">6 Month</SelectItem>
+                            <SelectItem value="yearly" className="text-purple-600 font-medium">Yearly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={getStatusBadgeVariant(audit.status)}
+                          className={getStatusBadgeClassName(audit.status)}
+                        >
+                          {getStatusDisplayText(audit.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{audit.auditor}</TableCell>
+                      <TableCell>{formatDisplayDate(audit.lastAudited)}</TableCell>
+                      <TableCell>{formatDisplayDate(audit.dueDate)}</TableCell>
+                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewHistory(audit.id)}
+                        >
+                          <ArrowUpRight className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu
+                          open={openDropdownId === audit.id}
+                          onOpenChange={(open) =>
+                            setOpenDropdownId(open ? audit.id : null)
+                          }
+                        >
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleViewEdit(audit.id)}
+                            >
+                              <Eye className="mr-2 h-4 w-4" /> View/Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleDownload(audit)}>
+                              <Download className="mr-2 h-4 w-4" /> Download Report
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(audit.id)}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* New Audit Template Dialog */}
+          <Dialog open={isNewAuditDialogOpen} onOpenChange={setIsNewAuditDialogOpen}>
+            <DialogContent className="sm:max-w-[550px]">
+              <DialogHeader>
+                <DialogTitle>
+                  {newAuditStep === 1 && "Create New Audit - Select Template"}
+                  {newAuditStep === 2 && selectedTemplate === 'staff-based' && "Create New Audit - Staff Type"}
+                  {newAuditStep === 2 && selectedTemplate !== 'staff-based' && "Create New Audit - Enter Name"}
+                  {newAuditStep === 3 && selectedTemplate === 'staff-based' && "Create New Audit - Enter Name"}
+                  {newAuditStep === 3 && selectedTemplate !== 'staff-based' && "Create New Audit - Select Category"}
+                  {newAuditStep === 4 && "Create New Audit - Select Category"}
+                </DialogTitle>
+                <DialogDescription>
+                  Step {newAuditStep} of {selectedTemplate === 'staff-based' ? 4 : 3}
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Step 1: Select Template */}
+              {newAuditStep === 1 && (
+                <div className="space-y-3 py-4">
                   <div
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      staffType === 'nurses'
+                    className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${selectedTemplate === 'resident-based'
                         ? 'border-primary bg-accent'
-                        : 'border-gray-200 hover:border-primary hover:bg-accent'
-                    }`}
-                    onClick={() => setStaffType('nurses')}
+                        : 'border-transparent hover:border-primary hover:bg-accent'
+                      }`}
+                    onClick={() => handleSelectAuditTemplate('resident-based')}
                   >
-                    <h3 className="font-semibold">Nurses Only</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Audit registered nurses and nursing staff
-                    </p>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-base mb-1">Resident-based Audit</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Audit multiple residents with customizable questions. Ideal for care quality assessments.
+                      </p>
+                    </div>
+                    <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
                   </div>
 
                   <div
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      staffType === 'care-staff'
+                    className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${selectedTemplate === 'home-based'
                         ? 'border-primary bg-accent'
-                        : 'border-gray-200 hover:border-primary hover:bg-accent'
-                    }`}
-                    onClick={() => setStaffType('care-staff')}
+                        : 'border-transparent hover:border-primary hover:bg-accent'
+                      }`}
+                    onClick={() => handleSelectAuditTemplate('home-based')}
                   >
-                    <h3 className="font-semibold">Care Staff Only</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Audit care assistants and support workers
-                    </p>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-base mb-1">Home-based Audit</h3>
+                      <p className="text-sm text-muted-foreground">
+                        General home audit with grid layout. Perfect for facility inspections and operational reviews.
+                      </p>
+                    </div>
+                    <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
                   </div>
 
                   <div
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      staffType === 'both'
+                    className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${selectedTemplate === 'staff-based'
                         ? 'border-primary bg-accent'
-                        : 'border-gray-200 hover:border-primary hover:bg-accent'
-                    }`}
-                    onClick={() => setStaffType('both')}
+                        : 'border-transparent hover:border-primary hover:bg-accent'
+                      }`}
+                    onClick={() => handleSelectAuditTemplate('staff-based')}
                   >
-                    <h3 className="font-semibold">Both</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Audit all nursing and care staff members
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between pt-4">
-                <Button variant="outline" onClick={handlePreviousStep}>
-                  Back
-                </Button>
-                <Button onClick={handleNextStep}>
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {newAuditStep === 2 && selectedTemplate !== 'staff-based' && (
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="audit-name">Audit Name</Label>
-                <Input
-                  id="audit-name"
-                  value={newAuditName}
-                  onChange={(e) => setNewAuditName(e.target.value)}
-                  placeholder="e.g., Monthly Resident Care Review"
-                  className="w-full"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleNextStep();
-                  }}
-                  autoFocus
-                />
-                <p className="text-sm text-muted-foreground">
-                  Choose a descriptive name for your audit
-                </p>
-              </div>
-              <div className="flex items-center justify-between pt-4">
-                <Button variant="outline" onClick={handlePreviousStep}>
-                  Back
-                </Button>
-                <Button onClick={handleNextStep}>
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Name (for staff-based) or Category (for others) */}
-          {newAuditStep === 3 && selectedTemplate === 'staff-based' && (
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="audit-name">Audit Name</Label>
-                <Input
-                  id="audit-name"
-                  value={newAuditName}
-                  onChange={(e) => setNewAuditName(e.target.value)}
-                  placeholder="e.g., Monthly Staff Competency Review"
-                  className="w-full"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleNextStep();
-                  }}
-                  autoFocus
-                />
-                <p className="text-sm text-muted-foreground">
-                  Choose a descriptive name for your audit
-                </p>
-              </div>
-              <div className="flex items-center justify-between pt-4">
-                <Button variant="outline" onClick={handlePreviousStep}>
-                  Back
-                </Button>
-                <Button onClick={handleNextStep}>
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {newAuditStep === 3 && selectedTemplate !== 'staff-based' && (
-            <div className="space-y-4 py-4">
-              <div className="space-y-3">
-                <Label>Select Category</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      newAuditCategory === 'clinical'
-                        ? 'border-primary bg-accent'
-                        : 'border-gray-200 hover:border-primary hover:bg-accent'
-                    }`}
-                    onClick={() => setNewAuditCategory('clinical')}
-                  >
-                    <h3 className="font-semibold">Clinical Audits</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Health, care quality, clinical procedures
-                    </p>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-base mb-1">Staff-based Audit</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Audit staff members for training, competency assessments, and performance evaluations.
+                      </p>
+                    </div>
+                    <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
                   </div>
 
                   <div
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      newAuditCategory === 'general'
+                    className={`flex items-start p-4 rounded-lg border-2 cursor-pointer transition-all ${selectedTemplate === 'plain-template'
                         ? 'border-primary bg-accent'
-                        : 'border-gray-200 hover:border-primary hover:bg-accent'
-                    }`}
-                    onClick={() => setNewAuditCategory('general')}
+                        : 'border-transparent hover:border-primary hover:bg-accent'
+                      }`}
+                    onClick={() => handleSelectAuditTemplate('plain-template')}
                   >
-                    <h3 className="font-semibold">General</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      General audits, compliance, safety
-                    </p>
-                  </div>
-
-                  <div
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      newAuditCategory === 'operational'
-                        ? 'border-primary bg-accent'
-                        : 'border-gray-200 hover:border-primary hover:bg-accent'
-                    }`}
-                    onClick={() => setNewAuditCategory('operational')}
-                  >
-                    <h3 className="font-semibold">Operational Audits</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Facility operations, environment checks
-                    </p>
-                  </div>
-
-                  <div
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      newAuditCategory === 'staff'
-                        ? 'border-primary bg-accent'
-                        : 'border-gray-200 hover:border-primary hover:bg-accent'
-                    }`}
-                    onClick={() => setNewAuditCategory('staff')}
-                  >
-                    <h3 className="font-semibold">Staff Audits</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Staff training, competency, performance
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between pt-4">
-                <Button variant="outline" onClick={handlePreviousStep}>
-                  Back
-                </Button>
-                <Button onClick={handleCreateAudit}>
-                  Create Audit
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 4: Category (only for staff-based audits) */}
-          {newAuditStep === 4 && selectedTemplate === 'staff-based' && (
-            <div className="space-y-4 py-4">
-              <div className="space-y-3">
-                <Label>Select Category</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      newAuditCategory === 'clinical'
-                        ? 'border-primary bg-accent'
-                        : 'border-gray-200 hover:border-primary hover:bg-accent'
-                    }`}
-                    onClick={() => setNewAuditCategory('clinical')}
-                  >
-                    <h3 className="font-semibold">Clinical Audits</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Health, care quality, clinical procedures
-                    </p>
-                  </div>
-
-                  <div
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      newAuditCategory === 'general'
-                        ? 'border-primary bg-accent'
-                        : 'border-gray-200 hover:border-primary hover:bg-accent'
-                    }`}
-                    onClick={() => setNewAuditCategory('general')}
-                  >
-                    <h3 className="font-semibold">General</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      General audits, compliance, safety
-                    </p>
-                  </div>
-
-                  <div
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      newAuditCategory === 'operational'
-                        ? 'border-primary bg-accent'
-                        : 'border-gray-200 hover:border-primary hover:bg-accent'
-                    }`}
-                    onClick={() => setNewAuditCategory('operational')}
-                  >
-                    <h3 className="font-semibold">Operational Audits</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Facility operations, environment checks
-                    </p>
-                  </div>
-
-                  <div
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      newAuditCategory === 'staff'
-                        ? 'border-primary bg-accent'
-                        : 'border-gray-200 hover:border-primary hover:bg-accent'
-                    }`}
-                    onClick={() => setNewAuditCategory('staff')}
-                  >
-                    <h3 className="font-semibold">Staff Audits</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Staff training, competency, performance
-                    </p>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-base mb-1">Plain Template</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Blank audit template. Build your own custom audit from scratch with full flexibility.
+                      </p>
+                    </div>
+                    <ArrowUpRight className="h-5 w-5 text-muted-foreground ml-3 flex-shrink-0" />
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center justify-between pt-4">
-                <Button variant="outline" onClick={handlePreviousStep}>
-                  Back
-                </Button>
-                <Button onClick={handleCreateAudit}>
-                  Create Audit
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+              )}
 
-      {/* Care File Audit - Resident Selector Dialog */}
-      <Dialog open={isResidentSelectorOpen} onOpenChange={setIsResidentSelectorOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Select Resident Care File</DialogTitle>
-            <DialogDescription>
-              Choose which resident's care file audit history you want to view
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Input
-              placeholder="Search residents by name or room number..."
-              value={residentSearchQuery}
-              onChange={(e) => setResidentSearchQuery(e.target.value)}
-              className="w-full"
-            />
-            <div className="max-h-[400px] overflow-y-auto space-y-2">
-              {filteredResidents.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground py-8">
-                  {residentSearchQuery
-                    ? "No residents found matching your search"
-                    : "No residents available"}
-                </p>
-              ) : (
-                filteredResidents.map((resident) => (
-                  <div
-                    key={resident._id}
-                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent cursor-pointer transition-colors"
-                    onClick={() => handleSelectResidentReport(resident._id)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={resident.imageUrl} />
-                        <AvatarFallback className="text-sm">
-                          {resident.firstName[0]}{resident.lastName[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">
-                          {resident.firstName} {resident.lastName}
+              {/* Step 2: Staff Type (for staff-based) or Name (for others) */}
+              {newAuditStep === 2 && selectedTemplate === 'staff-based' && (
+                <div className="space-y-4 py-4">
+                  <div className="space-y-3">
+                    <Label>Select Staff Type</Label>
+                    <div className="space-y-3">
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${staffType === 'nurses'
+                            ? 'border-primary bg-accent'
+                            : 'border-gray-200 hover:border-primary hover:bg-accent'
+                          }`}
+                        onClick={() => setStaffType('nurses')}
+                      >
+                        <h3 className="font-semibold">Nurses Only</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Audit registered nurses and nursing staff
                         </p>
-                        {resident.roomNumber && (
-                          <p className="text-sm text-muted-foreground">
-                            Room {resident.roomNumber}
-                          </p>
-                        )}
+                      </div>
+
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${staffType === 'care-staff'
+                            ? 'border-primary bg-accent'
+                            : 'border-gray-200 hover:border-primary hover:bg-accent'
+                          }`}
+                        onClick={() => setStaffType('care-staff')}
+                      >
+                        <h3 className="font-semibold">Care Staff Only</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Audit care assistants and support workers
+                        </p>
+                      </div>
+
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${staffType === 'both'
+                            ? 'border-primary bg-accent'
+                            : 'border-gray-200 hover:border-primary hover:bg-accent'
+                          }`}
+                        onClick={() => setStaffType('both')}
+                      >
+                        <h3 className="font-semibold">Both</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Audit all nursing and care staff members
+                        </p>
                       </div>
                     </div>
-                    <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
                   </div>
-                ))
+                  <div className="flex items-center justify-between pt-4">
+                    <Button variant="outline" onClick={handlePreviousStep}>
+                      Back
+                    </Button>
+                    <Button onClick={handleNextStep}>
+                      Next
+                    </Button>
+                  </div>
+                </div>
               )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+
+              {newAuditStep === 2 && selectedTemplate !== 'staff-based' && (
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="audit-name">Audit Name</Label>
+                    <Input
+                      id="audit-name"
+                      value={newAuditName}
+                      onChange={(e) => setNewAuditName(e.target.value)}
+                      placeholder="e.g., Monthly Resident Care Review"
+                      className="w-full"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleNextStep();
+                      }}
+                      autoFocus
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Choose a descriptive name for your audit
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between pt-4">
+                    <Button variant="outline" onClick={handlePreviousStep}>
+                      Back
+                    </Button>
+                    <Button onClick={handleNextStep}>
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Name (for staff-based) or Category (for others) */}
+              {newAuditStep === 3 && selectedTemplate === 'staff-based' && (
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="audit-name">Audit Name</Label>
+                    <Input
+                      id="audit-name"
+                      value={newAuditName}
+                      onChange={(e) => setNewAuditName(e.target.value)}
+                      placeholder="e.g., Monthly Staff Competency Review"
+                      className="w-full"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleNextStep();
+                      }}
+                      autoFocus
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Choose a descriptive name for your audit
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between pt-4">
+                    <Button variant="outline" onClick={handlePreviousStep}>
+                      Back
+                    </Button>
+                    <Button onClick={handleNextStep}>
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {newAuditStep === 3 && selectedTemplate !== 'staff-based' && (
+                <div className="space-y-4 py-4">
+                  <div className="space-y-3">
+                    <Label>Select Category</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${newAuditCategory === 'clinical'
+                            ? 'border-primary bg-accent'
+                            : 'border-gray-200 hover:border-primary hover:bg-accent'
+                          }`}
+                        onClick={() => setNewAuditCategory('clinical')}
+                      >
+                        <h3 className="font-semibold">Clinical Audits</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Health, care quality, clinical procedures
+                        </p>
+                      </div>
+
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${newAuditCategory === 'general'
+                            ? 'border-primary bg-accent'
+                            : 'border-gray-200 hover:border-primary hover:bg-accent'
+                          }`}
+                        onClick={() => setNewAuditCategory('general')}
+                      >
+                        <h3 className="font-semibold">General</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          General audits, compliance, safety
+                        </p>
+                      </div>
+
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${newAuditCategory === 'operational'
+                            ? 'border-primary bg-accent'
+                            : 'border-gray-200 hover:border-primary hover:bg-accent'
+                          }`}
+                        onClick={() => setNewAuditCategory('operational')}
+                      >
+                        <h3 className="font-semibold">Operational Audits</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Facility operations, environment checks
+                        </p>
+                      </div>
+
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${newAuditCategory === 'staff'
+                            ? 'border-primary bg-accent'
+                            : 'border-gray-200 hover:border-primary hover:bg-accent'
+                          }`}
+                        onClick={() => setNewAuditCategory('staff')}
+                      >
+                        <h3 className="font-semibold">Staff Audits</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Staff training, competency, performance
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-4">
+                    <Button variant="outline" onClick={handlePreviousStep}>
+                      Back
+                    </Button>
+                    <Button onClick={handleCreateAudit}>
+                      Create Audit
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Category (only for staff-based audits) */}
+              {newAuditStep === 4 && selectedTemplate === 'staff-based' && (
+                <div className="space-y-4 py-4">
+                  <div className="space-y-3">
+                    <Label>Select Category</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${newAuditCategory === 'clinical'
+                            ? 'border-primary bg-accent'
+                            : 'border-gray-200 hover:border-primary hover:bg-accent'
+                          }`}
+                        onClick={() => setNewAuditCategory('clinical')}
+                      >
+                        <h3 className="font-semibold">Clinical Audits</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Health, care quality, clinical procedures
+                        </p>
+                      </div>
+
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${newAuditCategory === 'general'
+                            ? 'border-primary bg-accent'
+                            : 'border-gray-200 hover:border-primary hover:bg-accent'
+                          }`}
+                        onClick={() => setNewAuditCategory('general')}
+                      >
+                        <h3 className="font-semibold">General</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          General audits, compliance, safety
+                        </p>
+                      </div>
+
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${newAuditCategory === 'operational'
+                            ? 'border-primary bg-accent'
+                            : 'border-gray-200 hover:border-primary hover:bg-accent'
+                          }`}
+                        onClick={() => setNewAuditCategory('operational')}
+                      >
+                        <h3 className="font-semibold">Operational Audits</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Facility operations, environment checks
+                        </p>
+                      </div>
+
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${newAuditCategory === 'staff'
+                            ? 'border-primary bg-accent'
+                            : 'border-gray-200 hover:border-primary hover:bg-accent'
+                          }`}
+                        onClick={() => setNewAuditCategory('staff')}
+                      >
+                        <h3 className="font-semibold">Staff Audits</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Staff training, competency, performance
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-4">
+                    <Button variant="outline" onClick={handlePreviousStep}>
+                      Back
+                    </Button>
+                    <Button onClick={handleCreateAudit}>
+                      Create Audit
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Care File Audit - Resident Selector Dialog */}
+          <Dialog open={isResidentSelectorOpen} onOpenChange={setIsResidentSelectorOpen}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Select Resident Care File</DialogTitle>
+                <DialogDescription>
+                  Choose which resident&apos;s care file audit history you want to view
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Input
+                  placeholder="Search residents by name or room number..."
+                  value={residentSearchQuery}
+                  onChange={(e) => setResidentSearchQuery(e.target.value)}
+                  className="w-full"
+                />
+                <div className="max-h-[400px] overflow-y-auto space-y-2">
+                  {filteredResidents.length === 0 ? (
+                    <p className="text-center text-sm text-muted-foreground py-8">
+                      {residentSearchQuery
+                        ? "No residents found matching your search"
+                        : "No residents available"}
+                    </p>
+                  ) : (
+                    filteredResidents.map((resident) => (
+                      <div
+                        key={resident._id}
+                        className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent cursor-pointer transition-colors"
+                        onClick={() => handleSelectResidentReport(resident._id)}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={resident.imageUrl} />
+                            <AvatarFallback className="text-sm">
+                              {resident.firstName[0]}{resident.lastName[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">
+                              {resident.firstName} {resident.lastName}
+                            </p>
+                            {resident.roomNumber && (
+                              <p className="text-sm text-muted-foreground">
+                                Room {resident.roomNumber}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
       </Tabs>
     </div>

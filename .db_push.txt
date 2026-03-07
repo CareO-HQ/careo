@@ -1,0 +1,12 @@
+Initialising login role...
+Connecting to remote database...
+Do you want to push these migrations to the remote database?
+ ΓÇó 20250224_create_modified_diet_audit.sql
+
+ [Y/n] Applying migration 20250224_create_modified_diet_audit.sql...
+ERROR: function uuid_generate_v4() does not exist (SQLSTATE 42883)
+At statement: 2                                                   
+CREATE TABLE public.manager_audits (                              
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),                 
+                              ^                                   
+Try rerunning the command with --debug to troubleshoot the error.

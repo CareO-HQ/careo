@@ -631,7 +631,11 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
                 placeholder={questionDialogMode === "row" ? "Enter row question..." : "Enter column question..."}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    questionDialogMode === "row" ? handleAddRowQuestion() : handleAddColumnQuestion();
+                    if (questionDialogMode === "row") {
+                      handleAddRowQuestion();
+                    } else {
+                      handleAddColumnQuestion();
+                    }
                   }
                 }}
               />

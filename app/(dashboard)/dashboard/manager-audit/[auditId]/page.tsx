@@ -133,10 +133,10 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     const savedName = localStorage.getItem(`manager-audit-name-${auditId}`);
     auditName = savedName || (
       templateType === 'resident-based' ? 'New Resident-based Audit' :
-      templateType === 'home-based' ? 'New Home-based Audit' :
-      templateType === 'staff-based' ? 'New Staff-based Audit' :
-      templateType === 'plain-template' ? 'New Custom Audit' :
-      'New Audit'
+        templateType === 'home-based' ? 'New Home-based Audit' :
+          templateType === 'staff-based' ? 'New Staff-based Audit' :
+            templateType === 'plain-template' ? 'New Custom Audit' :
+              'New Audit'
     );
   } else if (!auditName) {
     auditName = "Unknown Audit";
@@ -580,8 +580,8 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         // Use saved category or fallback to determining from template type
         const category = (savedCategory as 'staff' | 'clinical' | 'operational' | 'general') || (
           templateType === 'staff-based' ? 'staff' :
-          templateType === 'home-based' ? 'operational' :
-          'general'
+            templateType === 'home-based' ? 'operational' :
+              'general'
         );
 
         const newCustomAudit = {
@@ -714,12 +714,11 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                           value={auditData.frequency}
                           onValueChange={(val) => updateResidentAuditData(resident._id, "frequency", val)}
                         >
-                          <SelectTrigger className={`w-[120px] border-none shadow-none font-medium ${
-                            auditData.frequency === "monthly" ? "text-blue-600" :
+                          <SelectTrigger className={`w-[120px] border-none shadow-none font-medium ${auditData.frequency === "monthly" ? "text-blue-600" :
                             auditData.frequency === "quarterly" ? "text-green-600" :
-                            auditData.frequency === "6month" ? "text-orange-600" :
-                            "text-purple-600"
-                          }`}>
+                              auditData.frequency === "6month" ? "text-orange-600" :
+                                "text-purple-600"
+                            }`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -954,16 +953,16 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
             {isCustomAudit && savedCategory && (
               <Badge variant="secondary" className="capitalize">
                 {savedCategory === 'staff' ? 'Staff Audits' :
-                 savedCategory === 'clinical' ? 'Clinical Audits' :
-                 savedCategory === 'operational' ? 'Operational Audits' :
-                 'General'}
+                  savedCategory === 'clinical' ? 'Clinical Audits' :
+                    savedCategory === 'operational' ? 'Operational Audits' :
+                      'General'}
               </Badge>
             )}
             {savedStaffType && savedCategory === 'staff' && (
               <Badge variant="outline" className="capitalize">
                 {savedStaffType === 'nurses' ? 'Nurses Only' :
-                 savedStaffType === 'care-staff' ? 'Care Staff Only' :
-                 'All Staff'}
+                  savedStaffType === 'care-staff' ? 'Care Staff Only' :
+                    'All Staff'}
               </Badge>
             )}
           </div>
@@ -1230,8 +1229,10 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                   className="col-span-3"
                   placeholder={questionDialogMode === "row" ? "Enter row question..." : "Enter column question..."}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      questionDialogMode === "row" ? handleAddRowQuestion() : handleAddColumnQuestion();
+                    if (questionDialogMode === "row") {
+                      handleAddRowQuestion();
+                    } else {
+                      handleAddColumnQuestion();
                     }
                   }}
                 />
@@ -1333,16 +1334,16 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           {isCustomAudit && savedCategory && (
             <Badge variant="secondary" className="capitalize">
               {savedCategory === 'staff' ? 'Staff Audits' :
-               savedCategory === 'clinical' ? 'Clinical Audits' :
-               savedCategory === 'operational' ? 'Operational Audits' :
-               'General'}
+                savedCategory === 'clinical' ? 'Clinical Audits' :
+                  savedCategory === 'operational' ? 'Operational Audits' :
+                    'General'}
             </Badge>
           )}
           {savedStaffType && savedCategory === 'staff' && (
             <Badge variant="outline" className="capitalize">
               {savedStaffType === 'nurses' ? 'Nurses Only' :
-               savedStaffType === 'care-staff' ? 'Care Staff Only' :
-               'All Staff'}
+                savedStaffType === 'care-staff' ? 'Care Staff Only' :
+                  'All Staff'}
             </Badge>
           )}
         </div>
@@ -1369,7 +1370,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
             <div className="flex-1">
               <h3 className="text-sm font-medium text-blue-900">No residents added to this audit</h3>
               <p className="mt-1 text-sm text-blue-700">
-                Click "Add Resident" to select residents for this audit. You have {allResidents.length} resident{allResidents.length !== 1 ? 's' : ''} available.
+                Click &quot;Add Resident&quot; to select residents for this audit. You have {allResidents.length} resident{allResidents.length !== 1 ? 's' : ''} available.
               </p>
             </div>
           </div>
@@ -1431,111 +1432,111 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                 <TableCell colSpan={questions.length + 4} className="h-32 text-center text-muted-foreground">
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <p className="text-sm">No residents added yet.</p>
-                    <p className="text-xs">Click "Add Resident" to begin the audit.</p>
+                    <p className="text-xs">Click &quot;Add Resident&quot; to begin the audit.</p>
                   </div>
                 </TableCell>
               </TableRow>
             ) : (
               selectedResidents.map(resident => (
-              <TableRow key={resident._id} className="hover:bg-muted/30 transition-colors">
-                <TableCell className="font-medium">
-                  <div className="flex items-center space-x-3">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={resident.imageUrl} />
-                      <AvatarFallback className="text-xs">{resident.firstName[0]}{resident.lastName[0]}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="text-sm">{resident.firstName} {resident.lastName}</div>
-                      {resident.roomNumber && (
-                        <div className="text-xs text-muted-foreground">Room {resident.roomNumber}</div>
-                      )}
+                <TableRow key={resident._id} className="hover:bg-muted/30 transition-colors">
+                  <TableCell className="font-medium">
+                    <div className="flex items-center space-x-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={resident.imageUrl} />
+                        <AvatarFallback className="text-xs">{resident.firstName[0]}{resident.lastName[0]}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="text-sm">{resident.firstName} {resident.lastName}</div>
+                        {resident.roomNumber && (
+                          <div className="text-xs text-muted-foreground">Room {resident.roomNumber}</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </TableCell>
-                {questions.map(q => {
-                  const answer = getAnswer(resident._id, q.id);
+                  </TableCell>
+                  {questions.map(q => {
+                    const answer = getAnswer(resident._id, q.id);
 
-                  // Determine color based on answer value
-                  const getAnswerColor = (value?: string) => {
-                    if (!value) return "text-muted-foreground";
-                    if (value === "yes" || value === "compliant") return "text-green-600 font-medium";
-                    if (value === "no" || value === "non-compliant") return "text-red-600 font-medium";
-                    if (value === "not-applicable") return "text-gray-500 font-medium";
-                    return "";
-                  };
+                    // Determine color based on answer value
+                    const getAnswerColor = (value?: string) => {
+                      if (!value) return "text-muted-foreground";
+                      if (value === "yes" || value === "compliant") return "text-green-600 font-medium";
+                      if (value === "no" || value === "non-compliant") return "text-red-600 font-medium";
+                      if (value === "not-applicable") return "text-gray-500 font-medium";
+                      return "";
+                    };
 
-                  return (
-                    <TableCell key={q.id} className="px-2 py-3">
-                      {q.type === 'text' ? (
-                        <Input
-                          value={answer?.value || ""}
-                          onChange={(e) => handleAnswerChange(resident._id, q.id, e.target.value)}
-                          placeholder="Enter text..."
-                          className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
-                        />
-                      ) : q.type === 'date' ? (
-                        <Input
-                          type="date"
-                          value={answer?.value || ""}
-                          onChange={(e) => handleAnswerChange(resident._id, q.id, e.target.value)}
-                          className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
-                        />
-                      ) : (
-                        <Select
-                          value={answer?.value}
-                          onValueChange={(val) => handleAnswerChange(resident._id, q.id, val)}
-                        >
-                          <SelectTrigger className={`w-full border-none shadow-none text-sm h-8 ${getAnswerColor(answer?.value)}`}>
-                            <SelectValue placeholder="-" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {q.type === 'yesno' ? (
-                              <>
-                                <SelectItem value="yes" className="text-green-600 font-medium">✓ Yes</SelectItem>
-                                <SelectItem value="no" className="text-red-600 font-medium">✗ No</SelectItem>
-                              </>
-                            ) : (
-                              <>
-                                <SelectItem value="compliant" className="text-green-600 font-medium">✓ Compliant</SelectItem>
-                                <SelectItem value="non-compliant" className="text-red-600 font-medium">✗ Non-Compliant</SelectItem>
-                                <SelectItem value="not-applicable" className="text-gray-500 font-medium">— N/A</SelectItem>
-                              </>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </TableCell>
-                  );
-                })}
-                <TableCell className="px-3">
-                  <Input
-                    value={getComment(resident._id)}
-                    onChange={(e) => handleCommentChange(resident._id, e.target.value)}
-                    placeholder="Add comment..."
-                    className="border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
-                  />
-                </TableCell>
-                <TableCell className="text-center px-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleOpenActionPlanDialog(resident)}
-                    className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-                <TableCell className="text-center px-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveResident(resident._id)}
-                    className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
+                    return (
+                      <TableCell key={q.id} className="px-2 py-3">
+                        {q.type === 'text' ? (
+                          <Input
+                            value={answer?.value || ""}
+                            onChange={(e) => handleAnswerChange(resident._id, q.id, e.target.value)}
+                            placeholder="Enter text..."
+                            className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                          />
+                        ) : q.type === 'date' ? (
+                          <Input
+                            type="date"
+                            value={answer?.value || ""}
+                            onChange={(e) => handleAnswerChange(resident._id, q.id, e.target.value)}
+                            className="w-full border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                          />
+                        ) : (
+                          <Select
+                            value={answer?.value}
+                            onValueChange={(val) => handleAnswerChange(resident._id, q.id, val)}
+                          >
+                            <SelectTrigger className={`w-full border-none shadow-none text-sm h-8 ${getAnswerColor(answer?.value)}`}>
+                              <SelectValue placeholder="-" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {q.type === 'yesno' ? (
+                                <>
+                                  <SelectItem value="yes" className="text-green-600 font-medium">✓ Yes</SelectItem>
+                                  <SelectItem value="no" className="text-red-600 font-medium">✗ No</SelectItem>
+                                </>
+                              ) : (
+                                <>
+                                  <SelectItem value="compliant" className="text-green-600 font-medium">✓ Compliant</SelectItem>
+                                  <SelectItem value="non-compliant" className="text-red-600 font-medium">✗ Non-Compliant</SelectItem>
+                                  <SelectItem value="not-applicable" className="text-gray-500 font-medium">— N/A</SelectItem>
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell className="px-3">
+                    <Input
+                      value={getComment(resident._id)}
+                      onChange={(e) => handleCommentChange(resident._id, e.target.value)}
+                      placeholder="Add comment..."
+                      className="border-none shadow-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8"
+                    />
+                  </TableCell>
+                  <TableCell className="text-center px-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenActionPlanDialog(resident)}
+                      className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                  <TableCell className="text-center px-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveResident(resident._id)}
+                      className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))
             )}
           </TableBody>
@@ -1566,8 +1567,8 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                   .filter((r) =>
                     searchQuery
                       ? `${r.firstName} ${r.lastName} ${r.roomNumber || ""}`
-                          .toLowerCase()
-                          .includes(searchQuery.toLowerCase())
+                        .toLowerCase()
+                        .includes(searchQuery.toLowerCase())
                       : true
                   );
 

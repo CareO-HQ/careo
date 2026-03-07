@@ -1,0 +1,19 @@
+Initialising login role...
+Connecting to remote database...
+Do you want to push these migrations to the remote database?
+ ΓÇó 20250224_create_modified_diet_audit.sql
+
+ [Y/n] Applying migration 20250224_create_modified_diet_audit.sql...
+NOTICE (00000): trigger "update_manager_audits_updated_at" for relation "public.manager_audits" does not exist, skipping
+NOTICE (00000): trigger "update_modified_diet_entries_updated_at" for relation "public.modified_diet_audit_entries" does not exist, skipping
+ERROR: relation "public.profiles" does not exist (SQLSTATE 42P01)      
+At statement: 21                                                       
+-- RLS Policies for manager_audits                                     
+CREATE POLICY "Users can view audits in their organization"            
+  ON public.manager_audits FOR SELECT                                  
+  USING (                                                              
+    organization_id IN (                                               
+      SELECT organization_id FROM public.profiles WHERE id = auth.uid()
+    )                                                                  
+  )                                                                    
+Try rerunning the command with --debug to troubleshoot the error.

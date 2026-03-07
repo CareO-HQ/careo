@@ -10,8 +10,10 @@ DO $$ BEGIN
 END $$;
 
 -- Manager Audits (parent table for all audit types)
-CREATE TABLE IF NOT EXISTS public.manager_audits (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+DROP TABLE IF EXISTS public.manager_audits CASCADE;
+
+CREATE TABLE public.manager_audits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   audit_type_id TEXT NOT NULL, -- e.g., "19" for Modified Diet Audit
   audit_type_name TEXT NOT NULL,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
@@ -39,7 +41,7 @@ CREATE INDEX idx_manager_audits_status ON public.manager_audits(status);
 
 -- Modified Diet Audit Entries (child table for specific audit data)
 CREATE TABLE IF NOT EXISTS public.modified_diet_audit_entries (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   audit_id UUID NOT NULL REFERENCES public.manager_audits(id) ON DELETE CASCADE,
   resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
@@ -114,67 +116,44 @@ ALTER TABLE public.modified_diet_audit_entries ENABLE ROW LEVEL SECURITY;
 -- RLS Policies for manager_audits
 CREATE POLICY "Users can view audits in their organization"
   ON public.manager_audits FOR SELECT
-  USING (
-    organization_id IN (
-      SELECT organization_id FROM public.profiles WHERE id = auth.uid()
-    )
-  );
+  USING ( public.can_access_organization(organization_id) );
 
 CREATE POLICY "Managers can create audits"
   ON public.manager_audits FOR INSERT
   WITH CHECK (
-    organization_id IN (
-      SELECT organization_id FROM public.profiles
-      WHERE id = auth.uid()
-      AND role IN ('manager', 'admin', 'owner')
-    )
+    public.can_access_organization(organization_id)
+    AND public.get_user_role(auth.uid()) IN ('manager', 'owner', 'saas_admin')
   );
 
 CREATE POLICY "Managers can update audits"
   ON public.manager_audits FOR UPDATE
   USING (
-    organization_id IN (
-      SELECT organization_id FROM public.profiles
-      WHERE id = auth.uid()
-      AND role IN ('manager', 'admin', 'owner')
-    )
+    public.can_access_organization(organization_id)
+    AND public.get_user_role(auth.uid()) IN ('manager', 'owner', 'saas_admin')
   );
 
 -- RLS Policies for modified_diet_audit_entries
 CREATE POLICY "Users can view audit entries in their organization"
   ON public.modified_diet_audit_entries FOR SELECT
-  USING (
-    organization_id IN (
-      SELECT organization_id FROM public.profiles WHERE id = auth.uid()
-    )
-  );
+  USING ( public.can_access_organization(organization_id) );
 
 CREATE POLICY "Managers can create audit entries"
   ON public.modified_diet_audit_entries FOR INSERT
   WITH CHECK (
-    organization_id IN (
-      SELECT organization_id FROM public.profiles
-      WHERE id = auth.uid()
-      AND role IN ('manager', 'admin', 'owner')
-    )
+    public.can_access_organization(organization_id)
+    AND public.get_user_role(auth.uid()) IN ('manager', 'owner', 'saas_admin')
   );
 
 CREATE POLICY "Managers can update audit entries"
   ON public.modified_diet_audit_entries FOR UPDATE
   USING (
-    organization_id IN (
-      SELECT organization_id FROM public.profiles
-      WHERE id = auth.uid()
-      AND role IN ('manager', 'admin', 'owner')
-    )
+    public.can_access_organization(organization_id)
+    AND public.get_user_role(auth.uid()) IN ('manager', 'owner', 'saas_admin')
   );
 
 CREATE POLICY "Managers can delete audit entries"
   ON public.modified_diet_audit_entries FOR DELETE
   USING (
-    organization_id IN (
-      SELECT organization_id FROM public.profiles
-      WHERE id = auth.uid()
-      AND role IN ('manager', 'admin', 'owner')
-    )
+    public.can_access_organization(organization_id)
+    AND public.get_user_role(auth.uid()) IN ('manager', 'owner', 'saas_admin')
   );
