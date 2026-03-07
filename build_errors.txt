@@ -1,0 +1,14 @@
+
+> ./app/(dashboard)/dashboard/residents/[id]/(pages)/medication/docs/page.tsx
+  99:14  Warning: Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element').
+  244:11  Warning: Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any').
+> ./components/medication/forms/PRNConsentForm.tsx
+  329:21  Warning: Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps').
+  
+> ./components/medication/KardexModal.tsx
+  105:18  Warning: Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element').
+  
+> ./app/(dashboard)/dashboard/residents/[id]/(pages)/wounds/[folderId]/components/wound-assessment-form.tsx:135:5
+  Type error: Type 'Resolver<{ assessmentDate: Date; woundNumber: string; analgesiaRequired: "yes" | "no"; exudateLevel: "low" | "high" | "moderate"; exudateType: "serous" | "haemoserous" | "purulent"; ... 21 more ...; signsOfInfection?: string[] | undefined; }, any, { ...; }>' is not assignable to type 'Resolver<{ assessmentDate: Date; woundNumber: string; analgesiaRequired: "yes" | "no"; regularOngoingAnalgesia: boolean; preDressingOnly: boolean; necroticPercentage: number; sloughyPercentage: number; ... 19 more ...; photographFile?: any; }, any, { ...; }>'.
+    Types of parameters 'options' and 'options' are incompatible.
+

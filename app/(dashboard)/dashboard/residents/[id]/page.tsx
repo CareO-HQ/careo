@@ -31,7 +31,9 @@ import {
   Users,
   Utensils,
   NotebookPen,
-  X
+  X,
+  Droplet,
+  Bandage
 } from "lucide-react";
 import { canViewResidentSection, canViewHealthSafetyTitle } from "@/lib/permissions";
 import { Route } from "next";
@@ -348,6 +350,30 @@ export default function ResidentPage({ params }: ResidentPageProps) {
               </CardContent>
             </Card>
           )}
+          {/* Continence Card */}
+          {canViewResidentSection("continence", userRole) && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("continence")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-teal-50 rounded-lg">
+                      <Droplet className="w-6 h-6 text-teal-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Continence</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Bowel & bladder care
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
       {/* HEALTH MONITORING */}
@@ -566,24 +592,22 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </Card>
           )}
 
-          {/* Clinical Card */}
-          {canViewResidentSection("clinical", userRole) && (
+          {/* Wounds Card */}
+          {canViewResidentSection("wounds", userRole) && (
             <Card
               className="cursor-pointer shadow-none"
-              onClick={() => handleCardClick("clinical")}
+              onClick={() => handleCardClick("wounds")}
             >
               <CardContent className="p-2">
                 <div className="flex items-center justify-between p-3">
                   <div className="flex flex-col items-start justify-start gap-2 space-x-3">
                     <div className="p-2 bg-rose-50 rounded-lg">
-                      <Heart className="w-6 h-6 text-rose-600" />
+                      <Bandage className="w-6 h-6 text-rose-600" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">Clinical</h3>
+                      <h3 className="font-semibold">Wounds</h3>
                       <p className="text-sm text-muted-foreground">
-                        {getHealthConditionsCount() > 0 || getRisksCount() > 0
-                          ? `${getHealthConditionsCount()} conditions, ${getRisksCount()} risks`
-                          : "Health information"}
+                        Wound tracking and management
                       </p>
                     </div>
                   </div>

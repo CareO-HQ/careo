@@ -1,0 +1,137 @@
+diff --git a/app/(dashboard)/dashboard/residents/[id]/page.tsx b/app/(dashboard)/dashboard/residents/[id]/page.tsx
+index ddc5a63..601a5a9 100644
+--- a/app/(dashboard)/dashboard/residents/[id]/page.tsx
++++ b/app/(dashboard)/dashboard/residents/[id]/page.tsx
+@@ -16,9 +16,11 @@ import {
+   Activity,
+   Ambulance,
+   ArrowLeft,
++  Bandage,
+   Bell,
+   Calendar,
+   ChevronRight,
++  Droplet,
+   FileText,
+   Folder,
+   Heart,
+@@ -35,7 +37,6 @@ import {
+ } from "lucide-react";
+ import { canViewResidentSection, canViewHealthSafetyTitle } from "@/lib/permissions";
+ import { Route } from "next";
+-import { FEATURES } from "@/lib/config/features";
+ import { useRouter } from "next/navigation";
+ import React, { useEffect, useState, useMemo } from "react";
+ import { formatTimestampToUKDateTime } from "@/lib/date-utils";
+@@ -57,12 +58,10 @@ export default function ResidentPage({ params }: ResidentPageProps) {
+   const [alerts, setAlerts] = useState<any[]>([]);
+   const [isLoading, setIsLoading] = useState(true);
+ 
+-  const { profile, isLoading: isProfileLoading } = useProfile();
++  const { profile } = useProfile();
+   const userRole = profile?.role;
+ 
+   const fetchResidentData = React.useCallback(async () => {
+-    // Wait until profile has finished loading before fetching
+-    if (isProfileLoading) return;
+     setIsLoading(true);
+     const { data: residentData, error: residentError } = await supabase
+       .from("residents")
+@@ -110,7 +109,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
+       setAlerts(filteredAlerts);
+     }
+     setIsLoading(false);
+-  }, [id, userRole, profile?.id, isProfileLoading]);
++  }, [id, userRole, profile?.id]);
+ 
+   useEffect(() => {
+     fetchResidentData();
+@@ -277,7 +276,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
+             </Card>
+           )}
+           {/* Care File Card */}
+-          {FEATURES.SHOW_CARE_FILE_V1 && canViewResidentSection("care-file", userRole) && (
++          {canViewResidentSection("care-file", userRole) && (
+             <Card
+               className="cursor-pointer shadow-none"
+               onClick={() => handleCardClick("care-file")}
+@@ -300,8 +299,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
+               </CardContent>
+             </Card>
+           )}
+-          {/* Care File Card */}
+-          {FEATURES.SHOW_CARE_FILE_V2 && canViewResidentSection("care-file", userRole) && (
++          {/* Care File V2 Card */}
++          {canViewResidentSection("care-file", userRole) && (
+             <Card
+               className="cursor-pointer shadow-none"
+               onClick={() => handleCardClick("care-file-v2")}
+@@ -313,7 +312,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
+                       <FileText className="w-6 h-6 text-orange-600" />
+                     </div>
+                     <div>
+-                      <h3 className="font-semibold">Care File</h3>
++                      <h3 className="font-semibold">Care File V2</h3>
+                       <p className="text-sm text-muted-foreground">
+                         Enhanced care records
+                       </p>
+@@ -428,6 +427,30 @@ export default function ResidentPage({ params }: ResidentPageProps) {
+               </CardContent>
+             </Card>
+           )}
++          {/* Continence Card */}
++          {canViewResidentSection("continence", userRole) && (
++            <Card
++              className="cursor-pointer shadow-none"
++              onClick={() => handleCardClick("continence")}
++            >
++              <CardContent className="p-2">
++                <div className="flex items-center justify-between p-3">
++                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
++                    <div className="p-2 bg-teal-50 rounded-lg">
++                      <Droplet className="w-6 h-6 text-teal-600" />
++                    </div>
++                    <div>
++                      <h3 className="font-semibold">Continence</h3>
++                      <p className="text-sm text-muted-foreground">
++                        Bowel & bladder care
++                      </p>
++                    </div>
++                  </div>
++                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
++                </div>
++              </CardContent>
++            </Card>
++          )}
+         </div>
+       </div>
+       {/* DOCUMENTATION */}
+@@ -566,24 +589,22 @@ export default function ResidentPage({ params }: ResidentPageProps) {
+             </Card>
+           )}
+ 
+-          {/* Clinical Card */}
++          {/* Wounds Card */}
+           {canViewResidentSection("clinical", userRole) && (
+             <Card
+               className="cursor-pointer shadow-none"
+-              onClick={() => handleCardClick("clinical")}
++              onClick={() => handleCardClick("wounds")}
+             >
+               <CardContent className="p-2">
+                 <div className="flex items-center justify-between p-3">
+                   <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                     <div className="p-2 bg-rose-50 rounded-lg">
+-                      <Heart className="w-6 h-6 text-rose-600" />
++                      <Bandage className="w-6 h-6 text-rose-600" />
+                     </div>
+                     <div>
+-                      <h3 className="font-semibold">Clinical</h3>
++                      <h3 className="font-semibold">Wounds</h3>
+                       <p className="text-sm text-muted-foreground">
+-                        {getHealthConditionsCount() > 0 || getRisksCount() > 0
+-                          ? `${getHealthConditionsCount()} conditions, ${getRisksCount()} risks`
+-                          : "Health information"}
++                        Wound tracking and management
+                       </p>
+                     </div>
+                   </div>

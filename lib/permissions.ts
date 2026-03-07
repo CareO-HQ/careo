@@ -311,6 +311,10 @@ export function canViewResidentSection(section: string, role?: string): boolean 
       return canViewHealthMonitoring(role);
     case "clinical":
       return canViewClinical(role);
+    case "wounds":
+      return canViewClinical(role);
+    case "continence":
+      return canLogDailyCare(role);
     case "lifestyle-social":
       return canViewLifestyleSocial(role);
     case "hospital-transfer":

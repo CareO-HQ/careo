@@ -24,7 +24,8 @@ import {
   CalendarIcon,
   Shield,
   BellIcon,
-  ListTodo
+  ListTodo,
+  Heart
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
@@ -391,6 +392,22 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )}
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Clinical Section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Clinical</SidebarGroupLabel>
+          <SidebarGroupContent>
+            {/* Wounds */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/wounds">
+                  <Heart />
+                  <span>Wounds</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarGroupContent>
         </SidebarGroup>
 
