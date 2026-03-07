@@ -74,6 +74,7 @@ type WoundsPageProps = {
 type Wound = {
   id: string;
   resident_id: string;
+  wound_folder_id: string;
   wound_name: string;
   location: string;
   wound_type: string;
@@ -96,7 +97,7 @@ export default function WoundsPage({ params }: WoundsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
   const residentId = id;
-  const { activeOrganizationId, activeTeam } = useActiveTeam();
+  const { activeOrganizationId, activeTeam, activeTeamId } = useActiveTeam();
   const { data: session } = authClient.useSession();
 
   // State for filters and search
@@ -337,7 +338,7 @@ export default function WoundsPage({ params }: WoundsPageProps) {
           resident_id: residentId,
           organization_id: activeOrganizationId,
           care_home_id: resident?.care_home_id,
-          team_id: activeTeam?.id || resident?.team_id,
+          team_id: activeTeamId || resident?.team_id,
           wound_folder_id: folderData.id,
           wound_name: folderName,
           location: selectedRegion.region_name,
