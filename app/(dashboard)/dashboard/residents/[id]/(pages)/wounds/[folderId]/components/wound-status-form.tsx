@@ -75,27 +75,6 @@ export function WoundStatusForm({
 
   return (
     <div className="space-y-3">
-      {/* Status Selection */}
-      <div className="space-y-1">
-        <Label className="text-xs">Wound Status</Label>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value} className="text-xs">
-                <div className="flex items-center gap-2">
-                  <span className={cn("px-2 py-0.5 rounded text-[10px] font-medium", option.color)}>
-                    {option.label}
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
       {/* Next Review Date */}
       <div className="space-y-1">
         <Label className="text-xs">Next Review Date</Label>
@@ -121,6 +100,27 @@ export function WoundStatusForm({
             />
           </PopoverContent>
         </Popover>
+      </div>
+
+      {/* Status Selection */}
+      <div className="space-y-1">
+        <Label className="text-xs">Wound Status</Label>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value} className="text-xs">
+                <div className="flex items-center gap-2">
+                  <span className={cn("px-2 py-0.5 rounded text-[10px] font-medium", option.color)}>
+                    {option.label}
+                  </span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Save Button */}

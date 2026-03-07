@@ -34,13 +34,23 @@ import {
   X,
   Image as ImageIcon,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import Image from "next/image";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // --- Zod Schema ---
 const PhotographEvaluationSchema = z.object({
@@ -79,6 +89,9 @@ export function PhotographEvaluationForm({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [evaluationToDelete, setEvaluationToDelete] = useState<{ id: string; url: string } | null>(null);
 
   const form = useForm<PhotographEvaluationFormValues>({
     resolver: zodResolver(PhotographEvaluationSchema),
@@ -213,6 +226,61 @@ export function PhotographEvaluationForm({
       toast.error("An unexpected error occurred");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteClick = (evaluationId: string, photographUrl: string) => {
+    setEvaluationToDelete({ id: evaluationId, url: photographUrl });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!evaluationToDelete) return;
+
+    setDeletingId(evaluationToDelete.id);
+
+    try {
+      // Extract file path from URL
+      const urlParts = evaluationToDelete.url.split("/");
+      const fileName = urlParts[urlParts.length - 1];
+      const folderPath = urlParts[urlParts.length - 2];
+      const filePath = `wound-photographs/${folderPath}/${fileName}`;
+
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from("wound-photos")
+        .remove([filePath]);
+
+      if (storageError) {
+        console.warn("Storage deletion warning:", storageError);
+        // Continue even if storage deletion fails
+      }
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from("wound_photograph_evaluations")
+        .delete()
+        .eq("id", evaluationToDelete.id);
+
+      if (dbError) {
+        console.error("Database error:", dbError);
+        toast.error("Failed to delete evaluation");
+        return;
+      }
+
+      toast.success("Photograph evaluation deleted successfully");
+
+      // Callback to refresh
+      if (onSaved) {
+        onSaved();
+      }
+    } catch (error) {
+      console.error("Error deleting evaluation:", error);
+      toast.error("An unexpected error occurred");
+    } finally {
+      setDeletingId(null);
+      setDeleteDialogOpen(false);
+      setEvaluationToDelete(null);
     }
   };
 
@@ -530,12 +598,11 @@ export function PhotographEvaluationForm({
                   <div
                     key={evaluation.id}
                     className={cn(
-                      "border rounded-lg p-2 cursor-pointer hover:bg-gray-50 transition-colors",
+                      "border rounded-lg p-2 hover:bg-gray-50 transition-colors relative group",
                       selectedEvaluationId === evaluation.id && "ring-1 ring-blue-500"
                     )}
-                    onClick={() => setSelectedEvaluationId(evaluation.id)}
                   >
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 cursor-pointer" onClick={() => setSelectedEvaluationId(evaluation.id)}>
                       {/* Thumbnail */}
                       <div className="flex-shrink-0">
                         <img
@@ -568,6 +635,24 @@ export function PhotographEvaluationForm({
                         )}
                       </div>
                     </div>
+
+                    {/* Delete Button */}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="absolute bottom-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClick(evaluation.id, evaluation.photograph_url);
+                      }}
+                      disabled={deletingId === evaluation.id}
+                    >
+                      {deletingId === evaluation.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3 h-3" />
+                      )}
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -595,12 +680,10 @@ export function PhotographEvaluationForm({
               </Button>
             </div>
             <div className="p-4">
-              <Image
+              <img
                 src={selectedEvaluation.photograph_url}
                 alt="Wound photograph"
-                width={800}
-                height={600}
-                className="rounded-lg object-contain mx-auto max-h-[70vh]"
+                className="rounded-lg object-contain mx-auto max-h-[70vh] w-full"
               />
               <div className="mt-4 space-y-2">
                 {(selectedEvaluation.length_cm || selectedEvaluation.width_cm || selectedEvaluation.depth_cm) && (
@@ -624,6 +707,24 @@ export function PhotographEvaluationForm({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Photograph Evaluation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this photograph evaluation? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
