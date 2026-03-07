@@ -3,7 +3,7 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Droplet, User, Clock } from "lucide-react";
+import { ArrowLeft, Droplet, User, Clock, Eye } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -412,6 +412,13 @@ export default function ContinencePage({ params }: ContinencePageProps) {
               {resident.last_name}.
             </p>
           </div>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/residents/${id}/continence/documents`)}
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            See All Records
+          </Button>
         </div>
 
         {/* Main Buttons Card */}
