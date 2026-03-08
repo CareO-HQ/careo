@@ -816,15 +816,17 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
         {/* Right Sidebar */}
         <aside className="w-[200px] flex-shrink-0 border-l bg-background h-full p-3 overflow-y-auto">
           <div className="flex flex-col gap-4">
-            {/* Wound Assessment section */}
+            {/* Assessment section */}
             <div>
               <div className="flex items-center justify-between mb-1.5 px-1.5">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
                   Assessment
                 </p>
               </div>
+
+              {/* Wound Assessment */}
               <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${
+                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer mb-1 ${
                   activeView === "assessment"
                     ? "bg-primary/10 text-primary ring-1 ring-primary/20"
                     : "hover:bg-muted/60 text-foreground"
@@ -851,17 +853,10 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                   )}
                 </div>
               </button>
-            </div>
 
-            {/* Treatment Evaluation section */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5 px-1.5">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
-                  Evaluation
-                </p>
-              </div>
+              {/* Treatment Evaluation */}
               <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${
+                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer mb-1 ${
                   activeView === "evaluation"
                     ? "bg-primary/10 text-primary ring-1 ring-primary/20"
                     : "hover:bg-muted/60 text-foreground"
@@ -888,15 +883,8 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                   )}
                 </div>
               </button>
-            </div>
 
-            {/* Photograph Evaluation section */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5 px-1.5">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
-                  Photograph
-                </p>
-              </div>
+              {/* Photograph Evaluation */}
               <button
                 className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${
                   activeView === "photograph"

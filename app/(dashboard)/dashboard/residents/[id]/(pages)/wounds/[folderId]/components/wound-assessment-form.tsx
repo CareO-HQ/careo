@@ -75,13 +75,13 @@ const WoundAssessmentSchema = z.object({
   photographFile: z.any().optional(),
 
   // Section 4: Tissue Type (percentages must total 100)
-  necroticPercentage: z.number().min(0).max(100),
-  sloughyPercentage: z.number().min(0).max(100),
-  granulatingPercentage: z.number().min(0).max(100),
-  epithelialisingPercentage: z.number().min(0).max(100),
-  hypergranulatingPercentage: z.number().min(0).max(100),
-  haematomaPercentage: z.number().min(0).max(100),
-  boneTendonPercentage: z.number().min(0).max(100),
+  necroticPercentage: z.number().min(0).max(100).optional(),
+  sloughyPercentage: z.number().min(0).max(100).optional(),
+  granulatingPercentage: z.number().min(0).max(100).optional(),
+  epithelialisingPercentage: z.number().min(0).max(100).optional(),
+  hypergranulatingPercentage: z.number().min(0).max(100).optional(),
+  haematomaPercentage: z.number().min(0).max(100).optional(),
+  boneTendonPercentage: z.number().min(0).max(100).optional(),
 
   // Section 5: Wound Exudate
   exudateLevel: z.enum(["low", "moderate", "high"]),
@@ -143,13 +143,13 @@ export function WoundAssessmentForm({
       width: "",
       depth: "",
       trackingUndermining: "no",
-      necroticPercentage: 0,
-      sloughyPercentage: 0,
-      granulatingPercentage: 0,
-      epithelialisingPercentage: 0,
-      hypergranulatingPercentage: 0,
-      haematomaPercentage: 0,
-      boneTendonPercentage: 0,
+      necroticPercentage: undefined,
+      sloughyPercentage: undefined,
+      granulatingPercentage: undefined,
+      epithelialisingPercentage: undefined,
+      hypergranulatingPercentage: undefined,
+      haematomaPercentage: undefined,
+      boneTendonPercentage: undefined,
       exudateLevel: "low",
       exudateType: "serous",
       periwoundSkin: [],
@@ -172,7 +172,7 @@ export function WoundAssessmentForm({
     "haematomaPercentage",
     "boneTendonPercentage",
   ]);
-  const totalPercentage = tissuePercentages.reduce((sum, val) => sum + (val || 0), 0);
+  const totalPercentage: number = tissuePercentages.reduce((sum, val) => (sum ?? 0) + (val ?? 0), 0) as number;
   const percentageValid = totalPercentage === 100;
 
   // Watch for infection signs to show alert
@@ -269,13 +269,13 @@ export function WoundAssessmentForm({
         photograph_storage_path: photoStoragePath,
 
         // Section 4
-        necrotic_percentage: data.necroticPercentage,
-        sloughy_percentage: data.sloughyPercentage,
-        granulating_percentage: data.granulatingPercentage,
-        epithelialising_percentage: data.epithelialisingPercentage,
-        hypergranulating_percentage: data.hypergranulatingPercentage,
-        haematoma_percentage: data.haematomaPercentage,
-        bone_tendon_percentage: data.boneTendonPercentage,
+        necrotic_percentage: data.necroticPercentage ?? 0,
+        sloughy_percentage: data.sloughyPercentage ?? 0,
+        granulating_percentage: data.granulatingPercentage ?? 0,
+        epithelialising_percentage: data.epithelialisingPercentage ?? 0,
+        hypergranulating_percentage: data.hypergranulatingPercentage ?? 0,
+        haematoma_percentage: data.haematomaPercentage ?? 0,
+        bone_tendon_percentage: data.boneTendonPercentage ?? 0,
 
         // Section 5
         exudate_level: data.exudateLevel,
@@ -811,8 +811,9 @@ export function WoundAssessmentForm({
                                 type="number"
                                 min="0"
                                 max="100"
-                                {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                placeholder=""
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value) || 0)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -831,8 +832,9 @@ export function WoundAssessmentForm({
                                 type="number"
                                 min="0"
                                 max="100"
-                                {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                placeholder=""
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value) || 0)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -851,8 +853,9 @@ export function WoundAssessmentForm({
                                 type="number"
                                 min="0"
                                 max="100"
-                                {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                placeholder=""
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value) || 0)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -871,8 +874,9 @@ export function WoundAssessmentForm({
                                 type="number"
                                 min="0"
                                 max="100"
-                                {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                placeholder=""
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value) || 0)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -891,8 +895,9 @@ export function WoundAssessmentForm({
                                 type="number"
                                 min="0"
                                 max="100"
-                                {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                placeholder=""
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value) || 0)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -911,8 +916,9 @@ export function WoundAssessmentForm({
                                 type="number"
                                 min="0"
                                 max="100"
-                                {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                placeholder=""
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value) || 0)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -931,8 +937,9 @@ export function WoundAssessmentForm({
                                 type="number"
                                 min="0"
                                 max="100"
-                                {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                placeholder=""
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value) || 0)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -1281,7 +1288,7 @@ export function WoundAssessmentForm({
                       </div>
                     </div>
                   )}
-                  <div className="flex justify-end gap-3">
+                  <div className="flex justify-end gap-3 pb-6">
                     <Button
                       type="button"
                       variant="outline"
