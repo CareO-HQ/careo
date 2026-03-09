@@ -36,45 +36,25 @@ ALTER TABLE public.wound_treatment_evaluations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view wound treatment evaluations in their organization"
   ON public.wound_treatment_evaluations
   FOR SELECT
-  USING (
-    organization_id IN (
-      SELECT organization_id FROM public.team_members
-      WHERE user_id = auth.uid()
-    )
-  );
+  USING ( public.can_access_organization(organization_id) );
 
 CREATE POLICY "Users can insert wound treatment evaluations in their organization"
   ON public.wound_treatment_evaluations
   FOR INSERT
-  WITH CHECK (
-    organization_id IN (
-      SELECT organization_id FROM public.team_members
-      WHERE user_id = auth.uid()
-    )
-  );
+  WITH CHECK ( public.can_access_organization(organization_id) );
 
 CREATE POLICY "Users can update wound treatment evaluations in their organization"
   ON public.wound_treatment_evaluations
   FOR UPDATE
-  USING (
-    organization_id IN (
-      SELECT organization_id FROM public.team_members
-      WHERE user_id = auth.uid()
-    )
-  );
+  USING ( public.can_access_organization(organization_id) );
 
 CREATE POLICY "Users can delete wound treatment evaluations in their organization"
   ON public.wound_treatment_evaluations
   FOR DELETE
-  USING (
-    organization_id IN (
-      SELECT organization_id FROM public.team_members
-      WHERE user_id = auth.uid()
-    )
-  );
+  USING ( public.can_access_organization(organization_id) );
 
 -- Create updated_at trigger
 CREATE TRIGGER set_wound_treatment_evaluations_updated_at
   BEFORE UPDATE ON public.wound_treatment_evaluations
   FOR EACH ROW
-  EXECUTE FUNCTION public.set_updated_at();
+  EXECUTE FUNCTION update_updated_at_column();

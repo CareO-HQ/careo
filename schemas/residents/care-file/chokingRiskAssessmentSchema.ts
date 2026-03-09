@@ -19,44 +19,57 @@ export const chokingRiskAssessmentSchema = z.object({
   dateOfAssessment: z.string().optional(),
   time: z.string().optional(),
 
-  // Respiratory Risks (10 points each if YES)
-  weakCough: z.boolean().optional(),
-  chestInfections: z.boolean().optional(),
-  breathingDifficulties: z.boolean().optional(),
-  knownToAspirate: z.boolean().optional(),
-  chokingHistory: z.boolean().optional(),
-  gurgledVoice: z.boolean().optional(),
+  // 1. Respiratory Risks (10 points each if YES)
+  weakCough: z.boolean().default(false),
+  chestInfections: z.boolean().default(false),
+  breathingDifficulties: z.boolean().default(false),
+  knownToAspirate: z.boolean().default(false),
+  chokingHistory: z.boolean().default(false),
+  gurgledVoice: z.boolean().default(false),
 
-  // At Risk Groups
-  epilepsy: z.boolean().optional(), // 4 points
-  cerebralPalsy: z.boolean().optional(), // 10 points
-  dementia: z.boolean().optional(), // 4 points
-  mentalHealth: z.boolean().optional(), // 4 points
-  neurologicalConditions: z.boolean().optional(), // 10 points
-  learningDisabilities: z.boolean().optional(), // 10 points
+  // 2. At Risk Groups
+  epilepsy: z.boolean().default(false), // 4 points
+  cerebralPalsy: z.boolean().default(false), // 4 points
+  dementia: z.boolean().default(false), // 4 points
+  mentalHealth: z.boolean().default(false), // 4 points
+  neurologicalConditions: z.boolean().default(false), // 10 points
+  learningDisabilities: z.boolean().default(false), // 10 points
 
-  // Physical Risks
-  posturalProblems: z.boolean().optional(), // 10 points
-  poorHeadControl: z.boolean().optional(), // 10 points
-  tongueThrust: z.boolean().optional(), // 10 points
-  chewingDifficulties: z.boolean().optional(), // 10 points
-  slurredSpeech: z.boolean().optional(), // 8 points
-  neckTrauma: z.boolean().optional(), // 8 points
-  poorDentition: z.boolean().optional(), // 8 points
+  // 3. Physical Risks
+  posturalProblems: z.boolean().default(false), // 8 points
+  poorHeadControl: z.boolean().default(false), // 8 points
+  tongueThrust: z.boolean().default(false), // 8 points
+  chewingDifficulties: z.boolean().default(false), // 8 points
+  slurredSpeech: z.boolean().default(false), // 10 points
+  neckTrauma: z.boolean().default(false), // 10 points
 
-  // Eating Behaviours
-  eatsRapidly: z.boolean().optional(), // 10 points
-  drinksRapidly: z.boolean().optional(), // 10 points
-  eatsWhileCoughing: z.boolean().optional(), // 10 points
-  drinksWhileCoughing: z.boolean().optional(), // 10 points
-  crammingFood: z.boolean().optional(), // 10 points
-  pocketingFood: z.boolean().optional(), // 8 points
-  swallowingWithoutChewing: z.boolean().optional(), // 8 points
-  wouldTakeFood: z.boolean().optional(), // 4 points
+  // 4. Risks Associated with Eating Behaviours
+  eatsRapidly: z.boolean().default(false), // 8 points
+  drinksRapidly: z.boolean().default(false), // 8 points
+  eatsWhileCoughing: z.boolean().default(false), // 8 points
+  drinksWhileCoughing: z.boolean().default(false), // 8 points
+  crammingFood: z.boolean().default(false), // 10 points
+  pocketingFood: z.boolean().default(false), // 10 points
+  swallowingWithoutChewing: z.boolean().default(false), // 10 points
+  wouldTakeFood: z.boolean().default(false), // 4 points
 
-  // Protective Factors (2 points if NO - meaning lack of independence adds risk)
-  drinksIndependently: z.boolean().optional(),
-  eatsIndependently: z.boolean().optional(),
+  // 5. Risks Associated with Eating
+  drinksIndependentlySafely: z.boolean().default(false), // -2 points
+  eatsIndependentlySafely: z.boolean().default(false), // -2 points
+  poorDentition: z.boolean().default(false), // 8 points
+  fatigueAtMealtimes: z.boolean().default(false), // 8 points
+  needsFoodCutting: z.boolean().default(false), // 6 points
+  texturedModifiedDiet: z.boolean().default(false), // 10 points
+  thickenedFluids: z.boolean().default(false), // 10 points
+  specialistFeedingAids: z.boolean().default(false), // 5 points
+  specialistDrinkingAids: z.boolean().default(false), // 5 points
+
+  // 6. Food Recognition
+  acceptAnyItem: z.boolean().default(false), // 10 points
+  acceptAnyItemAndSwallow: z.boolean().default(false), // 10 points
+
+  // 7. Medication
+  medicationAffectingSwallowing: z.boolean().default(false), // 10 points
 
   // Additional fields
   completedBy: z.string().optional(),
@@ -80,7 +93,7 @@ export type ChokingRiskAssessmentFormData = z.infer<typeof chokingRiskAssessment
 export function calculateChokingRiskScore(data: Partial<ChokingRiskAssessmentFormData>): number {
   let score = 0;
 
-  // Respiratory Risks (10 points each if YES)
+  // 1. Respiratory Risks (10 pts each)
   if (data.weakCough) score += 10;
   if (data.chestInfections) score += 10;
   if (data.breathingDifficulties) score += 10;
@@ -88,36 +101,49 @@ export function calculateChokingRiskScore(data: Partial<ChokingRiskAssessmentFor
   if (data.chokingHistory) score += 10;
   if (data.gurgledVoice) score += 10;
 
-  // At Risk Groups (varying points)
+  // 2. At Risk Groups
   if (data.epilepsy) score += 4;
-  if (data.cerebralPalsy) score += 10;
+  if (data.cerebralPalsy) score += 4;
   if (data.dementia) score += 4;
   if (data.mentalHealth) score += 4;
   if (data.neurologicalConditions) score += 10;
   if (data.learningDisabilities) score += 10;
 
-  // Physical Risks (8 or 10 points)
-  if (data.posturalProblems) score += 10;
-  if (data.poorHeadControl) score += 10;
-  if (data.tongueThrust) score += 10;
-  if (data.chewingDifficulties) score += 10;
-  if (data.slurredSpeech) score += 8;
-  if (data.neckTrauma) score += 8;
-  if (data.poorDentition) score += 8;
+  // 3. Physical Risks
+  if (data.posturalProblems) score += 8;
+  if (data.poorHeadControl) score += 8;
+  if (data.tongueThrust) score += 8;
+  if (data.chewingDifficulties) score += 8;
+  if (data.slurredSpeech) score += 10;
+  if (data.neckTrauma) score += 10;
 
-  // Eating Behaviours (4, 8, or 10 points)
-  if (data.eatsRapidly) score += 10;
-  if (data.drinksRapidly) score += 10;
-  if (data.eatsWhileCoughing) score += 10;
-  if (data.drinksWhileCoughing) score += 10;
+  // 4. Eating Behaviours
+  if (data.eatsRapidly) score += 8;
+  if (data.drinksRapidly) score += 8;
+  if (data.eatsWhileCoughing) score += 8;
+  if (data.drinksWhileCoughing) score += 8;
   if (data.crammingFood) score += 10;
-  if (data.pocketingFood) score += 8;
-  if (data.swallowingWithoutChewing) score += 8;
+  if (data.pocketingFood) score += 10;
+  if (data.swallowingWithoutChewing) score += 10;
   if (data.wouldTakeFood) score += 4;
 
-  // Protective Factors (2 points if NO - meaning lack of independence adds risk)
-  if (data.drinksIndependently === false) score += 2;
-  if (data.eatsIndependently === false) score += 2;
+  // 5. Risks Associated with Eating
+  if (data.drinksIndependentlySafely) score -= 2;
+  if (data.eatsIndependentlySafely) score -= 2;
+  if (data.poorDentition) score += 8;
+  if (data.fatigueAtMealtimes) score += 8;
+  if (data.needsFoodCutting) score += 6;
+  if (data.texturedModifiedDiet) score += 10;
+  if (data.thickenedFluids) score += 10;
+  if (data.specialistFeedingAids) score += 5;
+  if (data.specialistDrinkingAids) score += 5;
+
+  // 6. Food Recognition
+  if (data.acceptAnyItem) score += 10;
+  if (data.acceptAnyItemAndSwallow) score += 10;
+
+  // 7. Medication
+  if (data.medicationAffectingSwallowing) score += 10;
 
   return score;
 }
@@ -128,9 +154,7 @@ export function calculateChokingRiskScore(data: Partial<ChokingRiskAssessmentFor
  * @returns Risk level description
  */
 export function getChokingRiskLevel(score: number): string {
-  if (score === 0) return "No Risk";
-  if (score <= 10) return "Low Risk";
-  if (score <= 30) return "Medium Risk";
-  if (score <= 50) return "High Risk";
-  return "Very High Risk";
+  if (score <= 24) return "Low Risk";
+  if (score <= 49) return "Medium Risk";
+  return "High Risk";
 }

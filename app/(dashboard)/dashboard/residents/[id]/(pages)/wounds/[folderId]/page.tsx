@@ -2,6 +2,7 @@
 
 import UploadFileModal from "@/components/residents/carefile/folders/UploadFileModal";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { useProfile } from "@/hooks/use-profile";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { supabase } from "@/lib/supabase";
 import {
@@ -16,6 +17,8 @@ import {
   Map as MapIcon,
   CircleCheckIcon,
   CircleDashedIcon,
+  Edit3,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
@@ -39,6 +42,13 @@ import { WoundProgressTracker } from "./components/wound-progress-tracker";
 import { WoundStatusForm } from "./components/wound-status-form";
 import { InteractiveBodyMap } from "@/components/body-map/InteractiveBodyMap";
 import { BodyMapEntryForm } from "@/components/body-map/BodyMapEntryForm";
+import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
+import { CarePlanEvaluations } from "@/components/residents/carefile/CarePlanEvaluations";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
 import { BodyRegion, BodyMapEntry, BodyMapData, BodyMapSession } from "@/types/body-map";
 import { BODY_REGIONS } from "@/lib/config/body-regions";
 import { normalizeBodyMapData } from "@/lib/body-map-utils";
@@ -179,12 +189,13 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   const router = useRouter();
 
   const { activeOrganizationId } = useActiveTeam();
+  const { profile } = useProfile();
   const { supabase: supabaseClient } = useSupabase();
 
   const [resident, setResident] = useState<ResidentData | null>(null);
   const [folder, setFolder] = useState<WoundFolder | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<"assessment" | "evaluation" | "photograph" | "body-map" | null>(null);
+  const [activeView, setActiveView] = useState<"assessment" | "evaluation" | "photograph" | "body-map" | "care-plans" | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
 
@@ -199,6 +210,12 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   // Track photograph evaluations (multiple allowed)
   const [photographEvaluations, setPhotographEvaluations] = useState<any[]>([]);
   const [isLoadingPhotographs, setIsLoadingPhotographs] = useState(false);
+  const [activeCarePlans, setActiveCarePlans] = useState<any[]>([]);
+  const [selectedCarePlan, setSelectedCarePlan] = useState<any>(null);
+  const [carePlanCount, setCarePlanCount] = useState(0);
+  const [isCarePlanReviewMode, setIsCarePlanReviewMode] = useState(false);
+  const [isCarePlanViewOnly, setIsCarePlanViewOnly] = useState(false);
+  const [isSavingCarePlan, setIsSavingCarePlan] = useState(false);
 
   // Body Map states
   const [bodyMapData, setBodyMapData] = useState<BodyMapData>({ sessions: [] });
@@ -475,6 +492,26 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     }
   }, [folderId]);
 
+  // Fetch active care plans for this wound
+  const fetchActiveCarePlans = useCallback(async () => {
+    if (!folderId) return;
+    try {
+      const { data, error } = await supabase
+        .from("care_plan_assessments")
+        .select("*")
+        .eq("wound_folder_id", folderId)
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setActiveCarePlans(data);
+        setCarePlanCount(data.length);
+      }
+    } catch (err) {
+      console.error("Error fetching care plans:", err);
+    }
+  }, [folderId]);
+
   useEffect(() => {
     if (!residentId) return;
     supabase
@@ -490,7 +527,8 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     fetchWoundAssessments();
     fetchTreatmentEvaluations();
     fetchPhotographEvaluations();
-  }, [residentId, fetchWoundAssessments, fetchTreatmentEvaluations, fetchPhotographEvaluations]);
+    fetchActiveCarePlans();
+  }, [residentId, fetchWoundAssessments, fetchTreatmentEvaluations, fetchPhotographEvaluations, fetchActiveCarePlans]);
 
   const fetchFolder = useCallback(async () => {
     if (!folderId) return;
@@ -569,11 +607,52 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     setActiveView("photograph");
   };
 
+  const handleBodyMapClick = () => {
+    setActiveFileId(null);
+    setActiveView("body-map");
+  };
+
+  const handleCarePlanClick = (cp?: any) => {
+    setActiveFileId(null);
+    setActiveView("care-plans");
+    if (cp) {
+      setSelectedCarePlan(cp);
+      setIsCarePlanViewOnly(true);
+      setIsCarePlanReviewMode(false);
+    } else {
+      setSelectedCarePlan(null);
+      setIsCarePlanViewOnly(false);
+      setIsCarePlanReviewMode(false);
+    }
+  };
+
+  const handleCarePlanSuccess = (data: any) => {
+    setSelectedCarePlan(data);
+    setIsCarePlanViewOnly(true);
+    setIsCarePlanReviewMode(false);
+    setIsSavingCarePlan(false);
+    fetchActiveCarePlans();
+  };
+
+  const handleCloseCarePlan = () => {
+    setActiveView(null);
+    setSelectedCarePlan(null);
+  };
+
+  const handleExternalCarePlanSubmit = () => {
+    const submitBtn = document.getElementById('care-file-submit-btn');
+    if (submitBtn) {
+      setIsSavingCarePlan(true);
+      submitBtn.click();
+      setTimeout(() => setIsSavingCarePlan(false), 2000);
+    }
+  };
+
   // Calculate progress status
   const progressHasBodyMap = bodyMapEntryCount > 0;
   const progressHasPhotograph = photographEvaluations.length > 0;
   const progressHasInitialAssessment = woundAssessments.length > 0;
-  const progressHasCarePlan = false; // TODO: Add care plan check when implemented
+  const progressHasCarePlan = carePlanCount > 0;
   const progressHasOngoingAssessment = woundAssessments.length > 1; // More than one assessment
   const progressHasEvaluation = folder?.next_review_date ? true : false;
   const progressIsHealed = folder?.status === "healed";
@@ -801,6 +880,67 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 </ScrollArea>
               </div>
             </div>
+          ) : activeView === "care-plans" ? (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin bg-muted/10">
+              <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
+                <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg"><FileText className="w-5 h-5 text-primary" /></div>
+                    <div>
+                      <h2 className="text-lg font-bold leading-none">{selectedCarePlan?.care_plan_type || "New Wound Care Plan"}</h2>
+                      {isCarePlanViewOnly && selectedCarePlan && <p className="text-xs text-muted-foreground mt-1">Updated on {new Date(selectedCarePlan.updated_at || selectedCarePlan.created_at).toLocaleDateString()}</p>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isCarePlanViewOnly ? (
+                      <Button variant="outline" size="sm" onClick={() => { setIsCarePlanViewOnly(false); setIsCarePlanReviewMode(true); }} className="gap-2">
+                        <Edit3 className="w-4 h-4" /> Edit
+                      </Button>
+                    ) : (
+                      <>
+                        <Button variant="outline" size="sm" onClick={handleCloseCarePlan} disabled={isSavingCarePlan}>Cancel</Button>
+                        <Button size="sm" onClick={handleExternalCarePlanSubmit} disabled={isSavingCarePlan} className="gap-2">
+                          {isSavingCarePlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} Submit
+                        </Button>
+                      </>
+                    )}
+                    <Button variant="ghost" size="icon" onClick={handleCloseCarePlan}><X className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+                <div className="p-6 sm:p-10">
+                  <div className="relative">
+                    <CareFileDialogRenderer
+                      formKey="care-plan-form"
+                      residentId={residentId}
+                      teamId={activeOrganizationId ?? ""}
+                      organizationId={activeOrganizationId ?? ""}
+                      userId={profile?.id ?? ""}
+                      userName={profile?.name || profile?.email || "User"}
+                      userRole={profile?.role ?? ""}
+                      resident={resident}
+                      formDataForEdit={selectedCarePlan}
+                      isReviewMode={isCarePlanReviewMode}
+                      onClose={handleCloseCarePlan}
+                      isInline={true}
+                      viewOnly={isCarePlanViewOnly}
+                      refreshForms={fetchActiveCarePlans}
+                      onSaveSuccess={handleCarePlanSuccess}
+                      orgLogoUrl={orgLogoUrl}
+                      woundFolderId={folderId}
+                    />
+                  </div>
+
+                  {selectedCarePlan && (
+                    <div className="mt-8 pt-8 border-t">
+                      <CarePlanEvaluations
+                        carePlanId={selectedCarePlan.id}
+                        residentId={residentId}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-8">
               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -826,11 +966,10 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
 
               {/* Wound Assessment */}
               <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer mb-1 ${
-                  activeView === "assessment"
-                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                    : "hover:bg-muted/60 text-foreground"
-                }`}
+                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer mb-1 ${activeView === "assessment"
+                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                  : "hover:bg-muted/60 text-foreground"
+                  }`}
                 onClick={handleAssessmentClick}
               >
                 {woundAssessments.length > 0 ? (
@@ -856,11 +995,10 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
 
               {/* Treatment Evaluation */}
               <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer mb-1 ${
-                  activeView === "evaluation"
-                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                    : "hover:bg-muted/60 text-foreground"
-                }`}
+                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer mb-1 ${activeView === "evaluation"
+                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                  : "hover:bg-muted/60 text-foreground"
+                  }`}
                 onClick={handleEvaluationClick}
               >
                 {treatmentEvaluations.length > 0 ? (
@@ -886,11 +1024,10 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
 
               {/* Photograph Evaluation */}
               <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${
-                  activeView === "photograph"
-                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                    : "hover:bg-muted/60 text-foreground"
-                }`}
+                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${activeView === "photograph"
+                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                  : "hover:bg-muted/60 text-foreground"
+                  }`}
                 onClick={handlePhotographClick}
               >
                 {photographEvaluations.length > 0 ? (
@@ -915,19 +1052,18 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
               </button>
             </div>
 
-            {/* Body Map section - Hidden for now, infrastructure kept for future use */}
-            {/* <div>
+            {/* Body Map section */}
+            <div>
               <div className="flex items-center justify-between mb-1.5 px-1">
                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
                   Body Map
                 </p>
               </div>
               <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${
-                  activeView === "body-map"
-                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                    : "hover:bg-muted/60 text-foreground"
-                }`}
+                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${activeView === "body-map"
+                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                  : "hover:bg-muted/60 text-foreground"
+                  }`}
                 onClick={handleBodyMapClick}
               >
                 {hasBodyMapData && bodyMapEntryCount > 0 ? (
@@ -950,7 +1086,67 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                   )}
                 </div>
               </button>
-            </div> */}
+            </div>
+
+            {/* Care Plans section */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5 px-1.5">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                  Planning
+                </p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  onClick={() => handleCarePlanClick()}
+                  title="New Care Plan"
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="flex flex-col gap-1">
+                {activeCarePlans.length > 0 ? (
+                  activeCarePlans.map((cp) => {
+                    const isActive = activeView === "care-plans" && selectedCarePlan?.id === cp.id;
+                    return (
+                      <button
+                        key={cp.id}
+                        onClick={() => handleCarePlanClick(cp)}
+                        className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${isActive
+                          ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                          : "hover:bg-muted/60 text-foreground"
+                          }`}
+                      >
+                        <FileText className={`h-4 w-4 flex-shrink-0 mt-0.5 ${isActive ? "text-primary" : "text-muted-foreground/70"}`} />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                            {cp.care_plan_type || "Care Plan"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {new Date(cp.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <button
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${activeView === "care-plans" && !selectedCarePlan
+                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                      : "hover:bg-muted/60 text-foreground"
+                      }`}
+                    onClick={() => handleCarePlanClick()}
+                  >
+                    <Plus className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                        New Care Plan
+                      </p>
+                    </div>
+                  </button>
+                )}
+              </div>
+            </div>
 
             {/* Documents section */}
             <div>
@@ -981,11 +1177,10 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                     return (
                       <div
                         key={file.id}
-                        className={`group flex items-start gap-1.5 px-1.5 py-2 rounded-md transition-colors ${
-                          isActive
-                            ? "bg-primary/10 text-primary"
-                            : "hover:bg-muted/60 text-foreground"
-                        }`}
+                        className={`group flex items-start gap-1.5 px-1.5 py-2 rounded-md transition-colors ${isActive
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-muted/60 text-foreground"
+                          }`}
                       >
                         <button
                           onClick={() => handleFileClick(file.id)}

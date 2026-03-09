@@ -196,25 +196,82 @@ export default function OralAssessmentDialog({
               />
               <div className="p-4 bg-muted/30 rounded-lg space-y-4">
                 <h3 className="font-semibold">Resident Info</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Name</FormLabel><Input {...field} /></FormItem>} />
-                  <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><Input {...field} /></FormItem>} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Resident Name</FormLabel><Input {...field} disabled /></FormItem>} />
+                  <FormField control={form.control} name="dateOfBirth" render={({ field }) => <FormItem><FormLabel>Date of Birth</FormLabel><Input {...field} disabled /></FormItem>} />
+                  <FormField control={form.control} name="weight" render={({ field }) => <FormItem><FormLabel>Weight</FormLabel><Input {...field} placeholder="e.g. 70kg" /></FormItem>} />
+                  <FormField control={form.control} name="height" render={({ field }) => <FormItem><FormLabel>Height</FormLabel><Input {...field} placeholder="e.g. 175cm" /></FormItem>} />
+
+                  <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Name of Person Completing Assessment</FormLabel><Input {...field} /></FormItem>} />
+                  <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel>Signature</FormLabel><Input {...field} /></FormItem>} />
                 </div>
+
                 <FormField control={form.control} name="assessmentDate" render={({ field }) => (
-                  <FormItem><FormLabel>Date</FormLabel><Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full text-left">{field.value ? format(new Date(field.value), "PPP") : "Pick date"}</Button></PopoverTrigger><PopoverContent><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.getTime()); setDatePopoverOpen(false); }} /></PopoverContent></Popover></FormItem>
+                  <FormItem className="w-full md:w-1/2"><FormLabel>Date of Assessment</FormLabel><Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full text-left">{field.value ? format(new Date(field.value), "PPP") : "Pick date"}</Button></PopoverTrigger><PopoverContent><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} onSelect={d => { field.onChange(d?.getTime()); setDatePopoverOpen(false); }} /></PopoverContent></Popover></FormItem>
                 )} />
               </div>
-              <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+
+              <div className="p-4 bg-muted/30 rounded-lg space-y-4">
                 <h3 className="font-semibold">Dental Info</h3>
-                <FormField control={form.control} name="normalOralHygieneRoutine" render={({ field }) => <FormItem><FormLabel>Oral hygiene routine</FormLabel><Textarea {...field} rows={2} /></FormItem>} />
-                <YesNoField fieldName="isRegisteredWithDentist" careField="dentistName" label="Registered with dentist?" />
+                <FormField control={form.control} name="normalOralHygieneRoutine" render={({ field }) => <FormItem><FormLabel>What is the normal oral hygiene routine at home?</FormLabel><Textarea {...field} rows={2} /></FormItem>} />
+
+                <div className="space-y-4 border p-4 rounded-md">
+                  <FormField control={form.control} name="isRegisteredWithDentist" render={({ field }) => (
+                    <FormItem className="flex items-center gap-4"><FormLabel className="flex-1">Is the resident registered with a Dentist?</FormLabel><FormControl>
+                      <RadioGroup onValueChange={v => field.onChange(v === "yes")} value={field.value ? "yes" : "no"} className="flex gap-4">
+                        <div className="flex items-center space-x-1"><RadioGroupItem value="yes" /><span className="text-sm">Yes</span></div>
+                        <div className="flex items-center space-x-1"><RadioGroupItem value="no" /><span className="text-sm">No</span></div>
+                      </RadioGroup>
+                    </FormControl></FormItem>
+                  )} />
+
+                  {form.watch("isRegisteredWithDentist") && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t">
+                      <FormField control={form.control} name="lastSeenByDentist" render={({ field }) => <FormItem><FormLabel>When was the resident last seen by a Dentist?</FormLabel><Input {...field} placeholder="e.g. Oct 2025" /></FormItem>} />
+                      <FormField control={form.control} name="dentistName" render={({ field }) => <FormItem><FormLabel>Dentist&apos;s Name</FormLabel><Input {...field} /></FormItem>} />
+                      <FormField control={form.control} name="dentalPracticeAddress" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Dental Practice Address</FormLabel><Textarea {...field} rows={2} /></FormItem>} />
+                      <FormField control={form.control} name="contactTelephone" render={({ field }) => <FormItem><FormLabel>Contact Telephone</FormLabel><Input {...field} /></FormItem>} />
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="p-4 bg-muted/30 rounded-lg space-y-3">
-                <h3 className="font-semibold">Examination</h3>
-                <YesNoField fieldName="lipsDryCracked" careField="lipsDryCrackedCare" label="Lips dry/cracked?" />
-                <YesNoField fieldName="dryMouth" careField="dryMouthCare" label="Dry mouth?" />
-                <YesNoField fieldName="hasNaturalTeeth" careField="naturalTeethCare" label="Natural teeth?" />
-                <YesNoField fieldName="difficultySwallowing" careField="difficultySwallowingCare" label="Difficulty swallowing?" />
+              <div className="p-4 bg-muted/30 rounded-lg space-y-4">
+                <h3 className="font-semibold">Oral Assessment - Examination</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Left Column */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Lips, Tongue & Saliva</h4>
+                    <YesNoField fieldName="lipsDryCracked" careField="lipsDryCrackedCare" label="Lips: Dry / Cracked" />
+                    <YesNoField fieldName="tongueDryCracked" careField="tongueDryCrackedCare" label="Tongue: Dry / Cracked" />
+                    <YesNoField fieldName="tongueUlceration" careField="tongueUlcerationCare" label="Tongue: Evidence of ulceration/soreness" />
+                    <YesNoField fieldName="dryMouth" careField="dryMouthCare" label="Saliva: Dry Mouth" />
+
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1 mt-6">Dentures & Teeth</h4>
+                    <YesNoField fieldName="hasTopDenture" careField="topDentureCare" label="Dentures: Top Denture?" />
+                    <YesNoField fieldName="hasLowerDenture" careField="lowerDentureCare" label="Dentures: Lower Denture?" />
+                    <YesNoField fieldName="hasDenturesAndNaturalTeeth" careField="denturesAndNaturalTeethCare" label="Dentures and natural teeth?" />
+                    <YesNoField fieldName="hasNaturalTeeth" careField="naturalTeethCare" label="Teeth: Natural teeth" />
+                    <YesNoField fieldName="evidencePlaqueDebris" careField="plaqueDebrisCare" label="Teeth: Evidence of plaque / debris" />
+                  </div>
+
+                  {/* Right Column */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Pain, Gums & Swallowing</h4>
+                    <YesNoField fieldName="painWhenEating" careField="painWhenEatingCare" label="Pain: When eating/drinking caused by teeth/dentures" />
+                    <YesNoField fieldName="gumsUlceration" careField="gumsUlcerationCare" label="Gums / Soft tissue: Evidence of soreness/ulceration" />
+                    <YesNoField fieldName="difficultySwallowing" careField="difficultySwallowingCare" label="Swallowing: Difficulty with swallowing" />
+
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1 mt-6">Nutrition</h4>
+                    <YesNoField fieldName="poorFluidDietaryIntake" careField="poorFluidDietaryIntakeCare" label="Fluid/dietary intake poor" />
+                    <YesNoField fieldName="dehydrated" careField="dehydratedCare" label="Dehydrated" />
+
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1 mt-6">Speech, Dexterity & Cognition</h4>
+                    <YesNoField fieldName="speechDifficultyDryMouth" careField="speechDifficultyDryMouthCare" label="Speech Difficulty: Due to dry mouth?" />
+                    <YesNoField fieldName="speechDifficultyDenturesSlipping" careField="speechDifficultyDenturesSlippingCare" label="Speech Difficulty: Due to dentures slipping" />
+                    <YesNoField fieldName="dexterityProblems" careField="dexterityProblemsCare" label="Dexterity: Difficulty or unable to hold a toothbrush" />
+                    <YesNoField fieldName="cognitiveImpairment" careField="cognitiveImpairmentCare" label="Cognitive: Evidence of short-term memory loss/confusion" />
+                  </div>
+                </div>
               </div>
             </form>
           </fieldset>

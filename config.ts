@@ -254,7 +254,14 @@ export const config = {
       value: "Personal Hygiene & Dressing",
       description: "Personal Hygiene & Dressing Assessment",
       carePlan: true,
-      forms: []
+      forms: [
+        {
+          type: "form",
+          key: "oral-assessment-form",
+          value: "Oral Assessment",
+          description: "Oral Assessment"
+        }
+      ]
     },
     {
       type: "folder",
@@ -403,7 +410,7 @@ export const config = {
       forms: [
         { type: "form", key: "moving-handling-form", value: "Moving and Handling Assessment" },
         { type: "form", key: "resident-handling-profile-form", value: "Resident Handling Profile" },
-        { type: "form", key: "long-term-fall-risk-form", value: "Falls Risk Assessment" },
+        { type: "form", key: "fall-risk-assessment", value: "Fall Risk Assessment" },
         { type: "form", key: "bedrail-consent-form", value: "Bedrail Consent / Agreement" },
         { type: "form", key: "bed-rails-risk-assessment-form", value: "Bedrail Risk Assessment" }
       ]

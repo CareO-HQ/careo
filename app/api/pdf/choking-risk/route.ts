@@ -168,10 +168,10 @@ function generateChokingRiskHTML(data: any): string {
       </div>
 
       <div class="section">
-        <h2>Identified Risk Factors</h2>
-        <div class="risk-list">
+        <h2>Assessment Details</h2>
+        <div class="info-box grid grid-cols-2">
           ${Object.entries(riskFactors)
-      .filter(([key, value]) => value === true && !key.toLowerCase().includes('independent'))
+      .filter(([key, value]) => value === true || (typeof value === 'boolean' && value === true))
       .map(([key, _]) => `
               <div class="risk-item">
                 <span class="check-mark">⚠</span>
@@ -182,30 +182,16 @@ function generateChokingRiskHTML(data: any): string {
       </div>
 
       <div class="section">
-        <h2>Protective Factors</h2>
-        <div class="risk-list">
-          <div class="risk-item protective-item">
-            <span class="check-mark">${riskFactors.drinksIndependently ? '✓' : '✗'}</span>
-            <span>Drinks Independently</span>
-          </div>
-          <div class="risk-item protective-item">
-            <span class="check-mark">${riskFactors.eatsIndependently ? '✓' : '✗'}</span>
-            <span>Eats Independently</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="section">
         <h2>Assessment Completion</h2>
         <div class="info-box grid grid-cols-2">
           <div>
             <div class="field-label">Completed By</div>
-            <div class="field-value">${data.completed_by}</div>
+            <div class="field-value">${data.completed_by || "Not specified"}</div>
           </div>
           <div>
             <div class="field-label">Signature</div>
             <div class="field-value" style="font-style: italic; border-bottom: 1px solid #ccc; padding-top: 10px;">
-              ${data.signature || data.completed_by}
+              ${data.signature || data.completed_by || "Electronically Signed"}
             </div>
           </div>
         </div>

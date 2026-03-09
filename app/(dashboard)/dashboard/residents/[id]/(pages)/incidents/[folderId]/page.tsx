@@ -815,12 +815,20 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
             </div>
           ) : activeFormKey === "bhsct" ? (
             getSavedReport("bhsct") ? (
-              <TrustReportViewer
-                report={getSavedReport("bhsct")!}
-                orgLogoUrl={orgLogoUrl}
-                careHomeName={profile?.care_home_name || profile?.organization_name || ""}
+              <BHSCTReportForm
+                folderId={folderId}
+                residentId={residentId}
                 residentName={fullName}
                 residentDOB={resident?.date_of_birth}
+                residentGender={resident?.gender}
+                careManagerName={resident?.care_manager_name}
+                providerName={profile?.care_home_name || profile?.organization_name || ""}
+                reporterName={profile?.name || ""}
+                reporterRole={profile?.role || ""}
+                orgLogoUrl={orgLogoUrl}
+                careHomeName={profile?.care_home_name || profile?.organization_name || ""}
+                savedReport={{ ...getSavedReport("bhsct")!.report_data, id: getSavedReport("bhsct")!.id }}
+                onSaved={() => { fetchSavedReports(); }}
               />
             ) : (
               <BHSCTReportForm
@@ -1031,11 +1039,10 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                     return (
                       <div
                         key={formKey}
-                        className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg transition-all ${
-                          isActive
-                            ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                            : "hover:bg-muted/60 text-foreground"
-                        }`}
+                        className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg transition-all ${isActive
+                          ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                          : "hover:bg-muted/60 text-foreground"
+                          }`}
                       >
                         <button
                           onClick={() => handleFormClick(formKey)}
@@ -1082,11 +1089,10 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                 </p>
               </div>
               <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${
-                  activeFormKey === "body-map"
-                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                    : "hover:bg-muted/60 text-foreground"
-                }`}
+                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${activeFormKey === "body-map"
+                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                  : "hover:bg-muted/60 text-foreground"
+                  }`}
                 onClick={() => {
                   setActiveFileId(null);
                   setActiveFormKey("body-map");
@@ -1143,11 +1149,10 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                     return (
                       <div
                         key={file.id}
-                        className={`group flex items-start gap-1.5 px-1.5 py-2 rounded-md transition-colors ${
-                          isActive
-                            ? "bg-primary/10 text-primary"
-                            : "hover:bg-muted/60 text-foreground"
-                        }`}
+                        className={`group flex items-start gap-1.5 px-1.5 py-2 rounded-md transition-colors ${isActive
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-muted/60 text-foreground"
+                          }`}
                       >
                         <button
                           onClick={() => handleFileClick(file.id)}

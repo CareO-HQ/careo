@@ -32,6 +32,115 @@ export const generateCareFilePDF = async ({
         });
     };
 
+    // --- BHSCT Specific PDF (before generic header) ---
+    if (formName === "BHSCT Incident Report") {
+        const drawBHSCTHeader = async () => {
+            const startY = 15;
+            try {
+                const bhsctLogo = await loadImage(window.location.origin + '/Bhsctlogo.jpg');
+                const canvas = document.createElement('canvas');
+                canvas.width = bhsctLogo.naturalWidth;
+                canvas.height = bhsctLogo.naturalHeight;
+                const ctx = canvas.getContext('2d')!;
+                ctx.drawImage(bhsctLogo, 0, 0);
+                const logoDataUrl = canvas.toDataURL('image/jpeg');
+                const logoW = 65;
+                const aspect = bhsctLogo.naturalHeight / bhsctLogo.naturalWidth;
+                const logoH = logoW * aspect;
+                doc.addImage(logoDataUrl, 'JPEG', margin, startY, logoW, logoH);
+            } catch (e) {
+                console.warn("BHSCT Logo load failed", e);
+            }
+
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(14);
+            doc.setFont("helvetica", "bold");
+            doc.text("INDEPENDENT SECTOR", margin + 72, startY + 10);
+            doc.text("ADVERSE INCIDENT REPORT FORM", margin + 72, startY + 18);
+
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            doc.text("To be completed following any adverse incident involving a Service User of", margin, startY + 32);
+            doc.setFont("helvetica", "bold");
+            doc.text("Belfast Health & Social Care Trust.", margin, startY + 38);
+            return startY + 50;
+        };
+
+        const drawTable = (startY: number, tableData: any[][]) => {
+            autoTable(doc, {
+                startY,
+                theme: 'plain',
+                body: tableData,
+                styles: {
+                    lineWidth: 0.5,
+                    lineColor: [0, 0, 0],
+                    textColor: [0, 0, 0],
+                    fontSize: 10,
+                    cellPadding: 4,
+                },
+                columnStyles: {
+                    0: { cellWidth: 60, fontStyle: 'bold' },
+                    1: { cellWidth: pageWidth - margin * 2 - 60 }
+                },
+            });
+            return (doc as any).lastAutoTable.finalY + 10;
+        };
+
+        let currentY = await drawBHSCTHeader();
+        const val = (v: any) => v === undefined || v === null ? "" : String(v);
+
+        const dobStr = data.serviceUserDOB ? format(new Date(data.serviceUserDOB), "dd/MM/yyyy") : "";
+        const isMale = data.serviceUserGender === 'Male';
+        const isFemale = data.serviceUserGender === 'Female';
+
+        const page1Data = [
+            ['Provider Name', val(data.providerName)],
+            ['Name of Service User', val(data.serviceUserName)],
+            ['DOB', dobStr],
+            ['Gender', val(data.serviceUserGender)],
+            ['Care Manager', val(data.careManager)],
+            ['Address (including post code) where incident occurred', val(data.incidentAddress)],
+            ['Exact location where incident occurred', val(data.exactLocation)],
+            ['Date of Incident', data.incidentDate ? format(new Date(data.incidentDate), "dd/MM/yyyy") : ""],
+            ['Time of Incident', val(data.incidentTime)],
+            ['Brief, factual description of incident\n(including details of any equipment or medication involved)', val(data.incidentDescription)],
+        ];
+        currentY = drawTable(currentY, page1Data);
+
+        doc.addPage();
+        const page2Data = [
+            ['Nature of Injury Sustained', val(data.natureOfInjury)],
+            ['Details of immediate action taken and treatment given\n(ie. First aid, GP, hospital admission etc)', val(data.immediateActionTaken)],
+            ['Persons notified including designation / relationship to Service User', val(data.personsNotified)],
+            ['Name and designation of any witnesses', val(data.witnesses)],
+            ['Name and designation of any staff member or any other Service User(s)\ninvolved. If other Service User(s) involved please include DOB.', val(data.staffInvolved)],
+            ['Name of person reporting the incident', val(data.reporterName)],
+            ['Signature', val(data.reporterSignature)],
+            ['Designation', val(data.reporterDesignation)],
+            ['Date reported', data.dateReported ? format(new Date(data.dateReported), "dd/MM/yyyy") : ""],
+        ];
+        drawTable(20, page2Data);
+
+        doc.addPage();
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        doc.text("To be completed by Provider Senior Staff / Service Manager", margin, 20);
+        const page3Data = [
+            ['Actions taken to prevent recurrence', val(data.preventionActions)],
+            ['Date Service User\'s risk assessment and care plan updated following this incident', data.riskAssessmentUpdateDate ? format(new Date(data.riskAssessmentUpdateDate), "dd/MM/yyyy") : ""],
+            ['Other Comments', val(data.otherComments)],
+            ['Name', val(data.reviewerName)],
+            ['Signature', val(data.reviewerSignature)],
+            ['Designation', val(data.reviewerDesignation)],
+            ['Date', data.reviewDate ? format(new Date(data.reviewDate), "dd/MM/yyyy") : ""],
+        ];
+        drawTable(27, page3Data);
+
+        doc.save(`BHSCT-Incident-Report-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
     // --- Header ---
     const headerHeight = 22;
     doc.setFillColor(255, 255, 255);
@@ -511,7 +620,7 @@ export const generateCareFilePDF = async ({
         doc.setFont("helvetica", "normal");
         doc.setTextColor(17, 24, 39);
 
-            if (consentType === "ABLE_TO_CONSENT" && assessmentData.ableToConsent) {
+        if (consentType === "ABLE_TO_CONSENT" && assessmentData.ableToConsent) {
             const able = assessmentData.ableToConsent;
             const nameText = able.name || "";
             const riskText = able.riskOf || "";

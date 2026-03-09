@@ -1,29 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { Check, CalendarIcon, Download } from "lucide-react";
+import { Check, Printer, Save, Download } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
-import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
 
 interface BHSCTReportFormProps {
   folderId: string;
@@ -35,10 +17,13 @@ interface BHSCTReportFormProps {
   providerName?: string;
   reporterName?: string;
   reporterRole?: string;
-  orgLogoUrl?: string;
+  orgLogoUrl?: string; // Using static /Bhsctlogo.jpg instead for identical printing
   careHomeName?: string;
   onSaved?: () => void;
+  savedReport?: Record<string, any>; // If provided, the form is in read-only view mode
 }
+
+import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
 
 export function BHSCTReportForm({
   folderId,
@@ -53,14 +38,12 @@ export function BHSCTReportForm({
   orgLogoUrl,
   careHomeName,
   onSaved,
+  savedReport,
 }: BHSCTReportFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-
-  const [dobPopoverOpen, setDobPopoverOpen] = React.useState(false);
-  const [incidentDatePopoverOpen, setIncidentDatePopoverOpen] = React.useState(false);
-  const [dateReportedPopoverOpen, setDateReportedPopoverOpen] = React.useState(false);
-  const [riskAssessmentPopoverOpen, setRiskAssessmentPopoverOpen] = React.useState(false);
-  const [reviewDatePopoverOpen, setReviewDatePopoverOpen] = React.useState(false);
+  const [isDownloading, setIsDownloading] = React.useState(false);
+  const [isViewMode, setIsViewMode] = React.useState(!!savedReport);
+  const printRef = useRef<HTMLDivElement>(null);
 
   const parsedDOB = residentDOB ? new Date(residentDOB) : undefined;
   const normalizedGender = residentGender
@@ -68,14 +51,14 @@ export function BHSCTReportForm({
     : "";
 
   const [formData, setFormData] = React.useState({
-    providerName: prefillProvider || "",
+    providerName: prefillProvider || careHomeName || "",
     serviceUserName: residentName || "",
-    serviceUserDOB: (parsedDOB && !isNaN(parsedDOB.getTime()) ? parsedDOB : undefined) as Date | undefined,
+    serviceUserDOB: parsedDOB && !isNaN(parsedDOB.getTime()) ? format(parsedDOB, "yyyy-MM-dd") : "",
     serviceUserGender: normalizedGender === "Male" || normalizedGender === "Female" ? normalizedGender : "",
     careManager: careManagerName || "",
     incidentAddress: "",
     exactLocation: "",
-    incidentDate: undefined as Date | undefined,
+    incidentDate: "",
     incidentTime: "",
     incidentDescription: "",
     natureOfInjury: "",
@@ -85,120 +68,108 @@ export function BHSCTReportForm({
     staffInvolved: "",
     otherServiceUsersInvolved: "",
     reporterName: prefillReporter || "",
+    reporterSignature: "",
     reporterDesignation: prefillRole || "",
-    dateReported: new Date() as Date | undefined,
+    dateReported: format(new Date(), "yyyy-MM-dd"),
     preventionActions: "",
-    riskAssessmentUpdateDate: undefined as Date | undefined,
+    riskAssessmentUpdateDate: "",
     otherComments: "",
     reviewerName: "",
+    reviewerSignature: "",
     reviewerDesignation: "",
-    reviewDate: undefined as Date | undefined,
+    reviewDate: "",
   });
+
+  // Pre-fill with saved report data when in view mode
+  useEffect(() => {
+    if (savedReport) {
+      setFormData((prev) => ({
+        ...prev,
+        ...savedReport
+      }));
+      setIsViewMode(true);
+    }
+  }, [savedReport]);
+
+  const handleChange = (field: keyof typeof formData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleDownloadPDF = async () => {
+    setIsDownloading(true);
+    try {
+      const [firstName, ...rest] = (residentName || "").split(" ");
+      const resident = residentName
+        ? {
+          first_name: firstName || residentName,
+          last_name: rest.join(" "),
+          date_of_birth: residentDOB,
+        }
+        : undefined;
+
+      await generateCareFilePDF({
+        formName: "BHSCT Incident Report",
+        data: formData,
+        resident,
+        orgLogoUrl,
+        careHomeName: careHomeName || formData.providerName,
+      });
+      toast.success("PDF downloaded successfully");
+    } catch (err) {
+      console.error("Error generating PDF:", err);
+      toast.error("Failed to generate PDF");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const validate = (): boolean => {
     if (!formData.providerName.trim()) { toast.error("Please enter Provider Name"); return false; }
     if (!formData.serviceUserName.trim()) { toast.error("Please enter Service User Name"); return false; }
     if (!formData.serviceUserDOB) { toast.error("Please enter Date of Birth"); return false; }
     if (!formData.serviceUserGender) { toast.error("Please select Gender"); return false; }
-    if (!formData.careManager.trim()) { toast.error("Please enter Care Manager"); return false; }
     if (!formData.incidentAddress.trim()) { toast.error("Please enter Incident Address"); return false; }
     if (!formData.exactLocation.trim()) { toast.error("Please enter Exact Location"); return false; }
     if (!formData.incidentDate) { toast.error("Please enter Incident Date"); return false; }
     if (!formData.incidentTime) { toast.error("Please enter Incident Time"); return false; }
     if (!formData.incidentDescription.trim()) { toast.error("Please enter Incident Description"); return false; }
-    if (!formData.natureOfInjury.trim()) { toast.error("Please enter Nature of Injury"); return false; }
-    if (!formData.immediateActionTaken.trim()) { toast.error("Please enter Immediate Action Taken"); return false; }
-    if (!formData.personsNotified.trim()) { toast.error("Please enter Persons Notified"); return false; }
-    if (!formData.reporterName.trim()) { toast.error("Please enter Reporter Name"); return false; }
-    if (!formData.reporterDesignation.trim()) { toast.error("Please enter Reporter Designation"); return false; }
-    if (!formData.dateReported) { toast.error("Please enter Date Reported"); return false; }
-    if (!formData.preventionActions.trim()) { toast.error("Please enter Prevention Actions"); return false; }
     return true;
-  };
-
-  const handleDownloadPdf = async () => {
-    try {
-      const [firstName, ...rest] = residentName.split(" ");
-      const resident = {
-        first_name: firstName || residentName,
-        last_name: rest.join(" "),
-        date_of_birth: residentDOB,
-      };
-
-      await generateCareFilePDF({
-        formName: "BHSCT Incident Report",
-        data: {
-          ...formData,
-          serviceUserDOB: formData.serviceUserDOB
-            ? format(formData.serviceUserDOB, "yyyy-MM-dd")
-            : undefined,
-          incidentDate: formData.incidentDate
-            ? format(formData.incidentDate, "yyyy-MM-dd")
-            : undefined,
-          dateReported: formData.dateReported
-            ? format(formData.dateReported, "yyyy-MM-dd")
-            : undefined,
-          riskAssessmentUpdateDate: formData.riskAssessmentUpdateDate
-            ? format(formData.riskAssessmentUpdateDate, "yyyy-MM-dd")
-            : undefined,
-          reviewDate: formData.reviewDate
-            ? format(formData.reviewDate, "yyyy-MM-dd")
-            : undefined,
-        },
-        resident,
-        orgLogoUrl,
-        careHomeName: careHomeName || prefillProvider,
-      });
-    } catch (err) {
-      console.error("Error generating BHSCT PDF:", err);
-      toast.error("Failed to generate PDF");
-    }
   };
 
   const handleSubmit = async () => {
     if (!validate()) return;
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
-        .from("trust_incident_reports")
-        .insert({
-          folder_id: folderId,
-          resident_id: residentId,
-          trust_name: "BHSCT",
-          report_type: "bhsct",
-          report_data: {
-            providerName: formData.providerName.trim(),
-            serviceUserName: formData.serviceUserName.trim(),
-            serviceUserDOB: formData.serviceUserDOB ? format(formData.serviceUserDOB, "yyyy-MM-dd") : "",
-            serviceUserGender: formData.serviceUserGender,
-            careManager: formData.careManager.trim(),
-            incidentAddress: formData.incidentAddress.trim(),
-            exactLocation: formData.exactLocation.trim(),
-            incidentDate: formData.incidentDate ? format(formData.incidentDate, "yyyy-MM-dd") : "",
-            incidentTime: formData.incidentTime,
-            incidentDescription: formData.incidentDescription.trim(),
-            natureOfInjury: formData.natureOfInjury.trim(),
-            immediateActionTaken: formData.immediateActionTaken.trim(),
-            personsNotified: formData.personsNotified.trim(),
-            witnesses: formData.witnesses.trim() || undefined,
-            staffInvolved: formData.staffInvolved.trim() || undefined,
-            otherServiceUsersInvolved: formData.otherServiceUsersInvolved.trim() || undefined,
-            reporterName: formData.reporterName.trim(),
-            reporterDesignation: formData.reporterDesignation.trim(),
-            dateReported: formData.dateReported ? format(formData.dateReported, "yyyy-MM-dd") : "",
-            preventionActions: formData.preventionActions.trim(),
-            riskAssessmentUpdateDate: formData.riskAssessmentUpdateDate ? format(formData.riskAssessmentUpdateDate, "yyyy-MM-dd") : undefined,
-            otherComments: formData.otherComments.trim() || undefined,
-            reviewerName: formData.reviewerName.trim() || undefined,
-            reviewerDesignation: formData.reviewerDesignation.trim() || undefined,
-            reviewDate: formData.reviewDate ? format(formData.reviewDate, "yyyy-MM-dd") : undefined,
-            status: "submitted",
-          }
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      toast.success("BHSCT report submitted successfully");
+      const payload = {
+        folder_id: folderId,
+        resident_id: residentId,
+        trust_name: "BHSCT",
+        report_type: "bhsct",
+        report_data: {
+          ...formData,
+          status: "submitted",
+        }
+      };
+
+      if (savedReport?.id) {
+        const { error } = await supabase
+          .from("trust_incident_reports")
+          .update(payload)
+          .eq("id", savedReport.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("trust_incident_reports")
+          .insert(payload);
+        if (error) throw error;
+      }
+
+      toast.success("BHSCT report saved successfully");
+      setIsViewMode(true);
       onSaved?.();
     } catch (error) {
       console.error("Error submitting BHSCT report:", error);
@@ -208,233 +179,338 @@ export function BHSCTReportForm({
     }
   };
 
+  const InputDate = ({ value, onChange, disabled }: { value: string, onChange: (v: string) => void, disabled?: boolean }) => (
+    <div className="w-full">
+      {!isViewMode ? (
+        <input
+          type="date"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled || isViewMode}
+          className="w-full outline-none bg-transparent print:hidden font-sans"
+        />
+      ) : (
+        <div className="w-full outline-none bg-transparent print:hidden font-sans pt-[3px] px-2">{value ? format(new Date(value), "yyyy-MM-dd") : ""}</div>
+      )}
+      <div className="hidden print:block w-full px-2">{value ? format(new Date(value), "dd/MM/yyyy") : ""}</div>
+    </div>
+  );
+
+  const InputTime = ({ value, onChange, disabled }: { value: string, onChange: (v: string) => void, disabled?: boolean }) => (
+    <div className="w-full">
+      {!isViewMode ? (
+        <input
+          type="time"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled || isViewMode}
+          className="w-full outline-none bg-transparent print:hidden font-sans"
+        />
+      ) : (
+        <div className="w-full outline-none bg-transparent print:hidden font-sans py-1 px-2">{value}</div>
+      )}
+      <div className="hidden print:block w-full px-2">{value}</div>
+    </div>
+  );
+
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="px-6 py-4 border-b bg-background flex-shrink-0">
-        <h2 className="text-lg font-semibold">BHSCT Incident Report Form</h2>
-        <p className="text-sm text-muted-foreground">Belfast Health and Social Care Trust</p>
+    <div className="flex flex-col h-full bg-gray-100 overflow-hidden font-sans print:bg-white text-black">
+      {/* Top Bar (Hidden during print) */}
+      <div className="px-6 py-4 border-b bg-white flex items-center justify-between flex-shrink-0 print:hidden z-10 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">BHSCT Incident Report Form</h2>
+          <p className="text-sm text-gray-500">
+            {isViewMode ? "Viewing submitted report details." : "Please fill out this physical form replica."}
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={handleDownloadPDF} disabled={isDownloading || isSubmitting}>
+            <Download className="w-4 h-4 mr-2" /> {isDownloading ? "Downloading..." : "Download PDF"}
+          </Button>
+          {isViewMode ? (
+            <Button onClick={() => setIsViewMode(false)} disabled={isSubmitting}>
+              Edit Report
+            </Button>
+          ) : (
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : (<><Save className="w-4 h-4 mr-2" /> Save Report</>)}
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-3xl mx-auto space-y-8">
-          {/* Provider and Service User Information */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg text-black border-b pb-2">Provider and Service User Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="providerName" className="mb-2">Provider Name <span className="text-red-500">*</span></Label>
-                <Input id="providerName" value={formData.providerName} onChange={(e) => setFormData({ ...formData, providerName: e.target.value })} disabled={isSubmitting} />
-              </div>
-              <div>
-                <Label htmlFor="serviceUserName" className="mb-2">Name of Service User <span className="text-red-500">*</span></Label>
-                <Input id="serviceUserName" value={formData.serviceUserName} onChange={(e) => setFormData({ ...formData, serviceUserName: e.target.value })} disabled={isSubmitting} />
-              </div>
-              <div>
-                <Label htmlFor="serviceUserDOB" className="mb-2">Date of Birth (DOB) <span className="text-red-500">*</span></Label>
-                <Popover open={dobPopoverOpen} onOpenChange={setDobPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button type="button" variant="outline" className={cn("w-full pl-3 text-left font-normal", !formData.serviceUserDOB && "text-muted-foreground")} disabled={isSubmitting}>
-                      {formData.serviceUserDOB ? format(formData.serviceUserDOB, "PPP") : <span>Pick a date</span>}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={formData.serviceUserDOB} captionLayout="dropdown" onSelect={(date) => { setFormData({ ...formData, serviceUserDOB: date }); setDobPopoverOpen(false); }} disabled={isSubmitting} fromYear={1900} toYear={new Date().getFullYear()} />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <Label htmlFor="serviceUserGender" className="mb-2">Gender <span className="text-red-500">*</span></Label>
-                <Select value={formData.serviceUserGender} onValueChange={(value) => setFormData({ ...formData, serviceUserGender: value })} disabled={isSubmitting}>
-                  <SelectTrigger id="serviceUserGender"><SelectValue placeholder="Select gender" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Male">Male</SelectItem>
-                    <SelectItem value="Female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="careManager" className="mb-2">Care Manager <span className="text-red-500">*</span></Label>
-                <Input id="careManager" value={formData.careManager} onChange={(e) => setFormData({ ...formData, careManager: e.target.value })} disabled={isSubmitting} />
-              </div>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-form, #printable-form * {
+            visibility: visible;
+          }
+          #printable-form {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            box-shadow: none !important;
+            transform: none !important;
+          }
+          .page-break {
+            page-break-before: always;
+          }
+        }
+      `}} />
+
+      {/* Scrollable Form Container */}
+      <div className="flex-1 overflow-y-auto bg-gray-100 p-8 w-full print:p-0 print:bg-white print:overflow-visible relative">
+
+        {/* Printable Area */}
+        <div id="printable-form" ref={printRef} className="bg-white p-8 shadow-sm border mx-auto max-w-4xl print:shadow-none print:border-none print:p-4 text-black text-[15px] leading-snug">
+
+          <div className="flex items-center mb-8">
+            <img src="/Bhsctlogo.jpg" alt="BHSCT Logo" className="w-[300px] h-auto object-contain" />
+            <div className="flex-1 text-center items-center justify-center flex">
+              <h1 className="font-bold text-[22px] uppercase">Independent Sector<br />Adverse Incident Report Form</h1>
             </div>
           </div>
 
-          {/* Incident Location */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg text-black border-b pb-2">Incident Location</h3>
-            <div>
-              <Label htmlFor="incidentAddress" className="mb-2">Address (including postcode) where incident occurred <span className="text-red-500">*</span></Label>
-              <Textarea id="incidentAddress" value={formData.incidentAddress} onChange={(e) => setFormData({ ...formData, incidentAddress: e.target.value })} rows={3} disabled={isSubmitting} />
+          <p className="text-center mb-6 text-lg">
+            To be completed following any adverse incident involving a Service User of<br />
+            <span className="font-bold">Belfast Health & Social Care Trust.</span>
+          </p>
+
+          <div className="border-t-[2px] border-l-[2px] border-black [&_input]:border-none [&_input]:bg-transparent [&_input]:px-2 [&_input]:py-1 [&_input]:w-full [&_input:focus]:outline-none [&_textarea]:border-none [&_textarea]:bg-transparent [&_textarea]:px-2 [&_textarea]:py-1 [&_textarea]:w-full [&_textarea:focus]:outline-none [&_textarea]:resize-none">
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-1/3 p-2 border-r-[2px] border-black font-bold flex items-center">Provider Name</div>
+              <div className="w-2/3 border-r-[2px] border-black flex items-center">
+                <input type="text" value={formData.providerName} onChange={e => handleChange('providerName', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="exactLocation" className="mb-2">Exact location where incident occurred <span className="text-red-500">*</span></Label>
-              <Input id="exactLocation" value={formData.exactLocation} onChange={(e) => setFormData({ ...formData, exactLocation: e.target.value })} placeholder="e.g., Bedroom, Bathroom, Garden" disabled={isSubmitting} />
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-1/3 p-2 border-r-[2px] border-black font-bold flex items-center">Name of<br />Service User</div>
+              <div className="w-2/3 border-r-[2px] border-black flex items-center">
+                <input type="text" value={formData.serviceUserName} onChange={e => handleChange('serviceUserName', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
             </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-1/3 p-2 border-r-[2px] border-black font-bold flex items-center">DOB</div>
+              <div className="w-2/3 border-r-[2px] border-black flex items-center">
+                <InputDate value={formData.serviceUserDOB} onChange={(v) => handleChange('serviceUserDOB', v)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-1/3 p-2 border-r-[2px] border-black font-bold flex items-center">Male</div>
+              <div className="w-2/3 border-r-[2px] border-black flex items-center px-6">
+                <div
+                  className={`w-10 h-10 border-[2px] border-black flex items-center justify-center text-xl font-bold ${isViewMode ? 'cursor-default opacity-80' : 'cursor-pointer'}`}
+                  onClick={() => !isSubmitting && !isViewMode && handleChange('serviceUserGender', 'Male')}
+                >
+                  {formData.serviceUserGender === 'Male' && '✓'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-1/3 p-2 border-r-[2px] border-black font-bold flex items-center">Female</div>
+              <div className="w-2/3 border-r-[2px] border-black flex items-center px-6">
+                <div
+                  className={`w-10 h-10 border-[2px] border-black flex items-center justify-center text-xl font-bold ${isViewMode ? 'cursor-default opacity-80' : 'cursor-pointer'}`}
+                  onClick={() => !isSubmitting && !isViewMode && handleChange('serviceUserGender', 'Female')}
+                >
+                  {formData.serviceUserGender === 'Female' && '✓'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-1/3 p-2 border-r-[2px] border-black font-bold flex items-center">Care Manager</div>
+              <div className="w-2/3 border-r-[2px] border-black flex items-center">
+                <input type="text" value={formData.careManager} onChange={e => handleChange('careManager', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="border-b-[2px] border-black">
+              <div className="p-2 border-r-[2px] border-black font-bold">Address (including post code) where incident occurred</div>
+              <div className="border-r-[2px] border-black h-24">
+                <textarea className="h-full" value={formData.incidentAddress} onChange={e => handleChange('incidentAddress', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="border-b-[2px] border-black">
+              <div className="p-2 border-r-[2px] border-black font-bold">Exact location where incident occurred</div>
+              <div className="border-r-[2px] border-black h-20">
+                <textarea className="h-full" value={formData.exactLocation} onChange={e => handleChange('exactLocation', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-1/3 p-2 border-r-[2px] border-black font-bold flex items-center">Date of Incident</div>
+              <div className="w-2/3 border-r-[2px] border-black flex items-center">
+                <InputDate value={formData.incidentDate} onChange={(v) => handleChange('incidentDate', v)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-1/3 p-2 border-r-[2px] border-black font-bold flex items-center">Time of Incident</div>
+              <div className="w-2/3 border-r-[2px] border-black flex items-center">
+                <InputTime value={formData.incidentTime} onChange={(v) => handleChange('incidentTime', v)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="border-b-[2px] border-black">
+              <div className="p-2 border-r-[2px] border-black font-bold leading-snug">Brief, factual description of incident<br />(including details of any equipment or medication involved)</div>
+              <div className="border-r-[2px] border-black h-[400px]">
+                <textarea className="h-full" value={formData.incidentDescription} onChange={e => handleChange('incidentDescription', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
           </div>
 
-          {/* Incident Details */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg text-black border-b pb-2">Incident Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="incidentDate" className="mb-2">Date of Incident <span className="text-red-500">*</span></Label>
-                <Popover open={incidentDatePopoverOpen} onOpenChange={setIncidentDatePopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button type="button" variant="outline" className={cn("w-full pl-3 text-left font-normal", !formData.incidentDate && "text-muted-foreground")} disabled={isSubmitting}>
-                      {formData.incidentDate ? format(formData.incidentDate, "PPP") : <span>Pick a date</span>}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={formData.incidentDate} captionLayout="dropdown" onSelect={(date) => { setFormData({ ...formData, incidentDate: date }); setIncidentDatePopoverOpen(false); }} disabled={isSubmitting} fromYear={2000} toYear={new Date().getFullYear() + 1} />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <Label htmlFor="incidentTime" className="mb-2">Time of Incident <span className="text-red-500">*</span></Label>
-                <Input id="incidentTime" type="time" value={formData.incidentTime} onChange={(e) => setFormData({ ...formData, incidentTime: e.target.value })} disabled={isSubmitting} />
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="incidentDescription" className="mb-2">Brief, factual description of incident <span className="text-red-500">*</span></Label>
-                <Textarea id="incidentDescription" value={formData.incidentDescription} onChange={(e) => setFormData({ ...formData, incidentDescription: e.target.value })} rows={5} placeholder="Include details of any equipment or medication involved" disabled={isSubmitting} />
+          <div className="page-break my-12 opacity-0 print:my-0">&nbsp;</div>
+          <div className="h-[2px] bg-gray-300 w-full my-12 print:hidden relative before:content-['Page_Break'] before:absolute before:-top-3 before:left-1/2 before:-translate-x-1/2 before:bg-gray-100 before:px-4 before:text-gray-500 before:text-sm"></div>
+
+          {/* PAGE 2 */}
+          <div className="border-t-[2px] border-l-[2px] border-black [&_input]:border-none [&_input]:bg-transparent [&_input]:px-2 [&_input]:py-1 [&_input]:w-full [&_input:focus]:outline-none [&_textarea]:border-none [&_textarea]:bg-transparent [&_textarea]:px-2 [&_textarea]:py-1 [&_textarea]:w-full [&_textarea:focus]:outline-none [&_textarea]:resize-none">
+
+            <div className="border-b-[2px] border-black">
+              <div className="p-2 border-r-[2px] border-black font-bold">Nature of Injury Sustained</div>
+              <div className="border-r-[2px] border-black h-40">
+                <textarea className="h-full" value={formData.natureOfInjury} onChange={e => handleChange('natureOfInjury', e.target.value)} disabled={isSubmitting || isViewMode} />
               </div>
             </div>
+
+            <div className="border-b-[2px] border-black">
+              <div className="p-2 border-r-[2px] border-black font-bold leading-snug">Details of immediate action taken and treatment given<br />(ie. First aid, GP, hospital admission etc)</div>
+              <div className="border-r-[2px] border-black h-48">
+                <textarea className="h-full" value={formData.immediateActionTaken} onChange={e => handleChange('immediateActionTaken', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="border-b-[2px] border-black">
+              <div className="p-2 border-r-[2px] border-black font-bold">Persons notified including designation / relationship to Service User</div>
+              <div className="border-r-[2px] border-black flex flex-col group items-start">
+                <textarea className="h-24 leading-loose bg-[linear-gradient(transparent_96%,black_96%)] bg-[length:100%_2rem]" style={{ lineHeight: '2rem' }} value={formData.personsNotified} onChange={e => handleChange('personsNotified', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="border-b-[2px] border-black">
+              <div className="p-2 border-r-[2px] border-black font-bold">Name and designation of any witnesses</div>
+              <div className="border-r-[2px] border-black">
+                <textarea className="h-24 leading-loose bg-[linear-gradient(transparent_96%,black_96%)] bg-[length:100%_2rem]" style={{ lineHeight: '2rem' }} value={formData.witnesses} onChange={e => handleChange('witnesses', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="border-b-[2px] border-black">
+              <div className="p-2 border-r-[2px] border-black font-bold leading-snug">Name and designation of any staff member or any other Service User(s)<br />involved. If other Service User(s) involved please include DOB.</div>
+              <div className="border-r-[2px] border-black">
+                <textarea
+                  className="h-32 leading-loose bg-[linear-gradient(transparent_96%,black_96%)] bg-[length:100%_2rem] whitespace-pre-wrap"
+                  style={{ lineHeight: '2rem' }}
+                  value={formData.staffInvolved}
+                  onChange={e => handleChange('staffInvolved', e.target.value)}
+                  disabled={isSubmitting || isViewMode}
+                />
+              </div>
+            </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-[40%] p-2 border-r-[2px] border-black font-bold flex items-center leading-tight">Name of person reporting<br />the incident</div>
+              <div className="w-[60%] border-r-[2px] border-black flex items-center">
+                <input type="text" value={formData.reporterName} onChange={e => handleChange('reporterName', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-[40%] p-2 border-r-[2px] border-black font-bold flex items-center">Signature</div>
+              <div className="w-[60%] border-r-[2px] border-black flex items-center">
+                <input type="text" value={formData.reporterSignature} onChange={e => handleChange('reporterSignature', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-[40%] p-2 border-r-[2px] border-black font-bold flex items-center">Designation</div>
+              <div className="w-[60%] border-r-[2px] border-black flex items-center">
+                <input type="text" value={formData.reporterDesignation} onChange={e => handleChange('reporterDesignation', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-[40%] p-2 border-r-[2px] border-black font-bold flex items-center">Date reported</div>
+              <div className="w-[60%] border-r-[2px] border-black flex items-center">
+                <InputDate value={formData.dateReported} onChange={(v) => handleChange('dateReported', v)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
           </div>
 
-          {/* Injury and Treatment */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg text-black border-b pb-2">Injury and Treatment</h3>
-            <div>
-              <Label htmlFor="natureOfInjury" className="mb-2">Nature of Injury Sustained <span className="text-red-500">*</span></Label>
-              <Textarea id="natureOfInjury" value={formData.natureOfInjury} onChange={(e) => setFormData({ ...formData, natureOfInjury: e.target.value })} rows={3} disabled={isSubmitting} />
-            </div>
-            <div>
-              <Label htmlFor="immediateActionTaken" className="mb-2">Details of immediate action taken and treatment given <span className="text-red-500">*</span></Label>
-              <Textarea id="immediateActionTaken" value={formData.immediateActionTaken} onChange={(e) => setFormData({ ...formData, immediateActionTaken: e.target.value })} rows={4} placeholder="e.g., First aid, GP, hospital admission, etc." disabled={isSubmitting} />
-            </div>
+          <div className="page-break my-12 opacity-0 print:my-0">&nbsp;</div>
+          <div className="h-[2px] bg-gray-300 w-full my-12 print:hidden relative before:content-['Page_Break'] before:absolute before:-top-3 before:left-1/2 before:-translate-x-1/2 before:bg-gray-100 before:px-4 before:text-gray-500 before:text-sm"></div>
+
+          {/* PAGE 3 */}
+          <div className="mb-2 font-bold text-[17px]">
+            To be completed by Provider Senior Staff / Service Manager
           </div>
 
-          {/* Notifications and Witnesses */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg text-black border-b pb-2">Notifications and Witnesses</h3>
-            <div>
-              <Label htmlFor="personsNotified" className="mb-2">Persons notified including designation/relationship to Service User <span className="text-red-500">*</span></Label>
-              <Textarea id="personsNotified" value={formData.personsNotified} onChange={(e) => setFormData({ ...formData, personsNotified: e.target.value })} rows={3} disabled={isSubmitting} />
+          <div className="border-t-[2px] border-l-[2px] border-black [&_input]:border-none [&_input]:bg-transparent [&_input]:px-2 [&_input]:py-1 [&_input]:w-full [&_input:focus]:outline-none [&_textarea]:border-none [&_textarea]:bg-transparent [&_textarea]:px-2 [&_textarea]:py-1 [&_textarea]:w-full [&_textarea:focus]:outline-none [&_textarea]:resize-none">
+
+            <div className="border-b-[2px] border-black">
+              <div className="p-2 border-r-[2px] border-black font-bold">Actions taken to prevent recurrence</div>
+              <div className="border-r-[2px] border-black h-[400px]">
+                <textarea className="h-full" value={formData.preventionActions} onChange={e => handleChange('preventionActions', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="witnesses" className="mb-2">Name and designation of any witnesses</Label>
-              <Textarea id="witnesses" value={formData.witnesses} onChange={(e) => setFormData({ ...formData, witnesses: e.target.value })} rows={2} disabled={isSubmitting} />
+
+            <div className="border-b-[2px] border-black">
+              <div className="p-2 border-r-[2px] border-black font-bold leading-tight">Date Service User&apos;s risk assessment and care plan updated following this<br />incident</div>
+              <div className="border-r-[2px] border-black min-h-[40px] flex items-center">
+                <InputDate value={formData.riskAssessmentUpdateDate} onChange={(v) => handleChange('riskAssessmentUpdateDate', v)} disabled={isSubmitting || isViewMode} />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="staffInvolved" className="mb-2">Name and designation of any staff member involved</Label>
-              <Textarea id="staffInvolved" value={formData.staffInvolved} onChange={(e) => setFormData({ ...formData, staffInvolved: e.target.value })} rows={2} disabled={isSubmitting} />
+
+            <div className="border-b-[2px] border-black">
+              <div className="p-2 border-r-[2px] border-black font-bold">Other Comments</div>
+              <div className="border-r-[2px] border-black h-48">
+                <textarea className="h-full" value={formData.otherComments} onChange={e => handleChange('otherComments', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="otherServiceUsersInvolved" className="mb-2">Other Service User(s) involved (include DOB)</Label>
-              <Textarea id="otherServiceUsersInvolved" value={formData.otherServiceUsersInvolved} onChange={(e) => setFormData({ ...formData, otherServiceUsersInvolved: e.target.value })} rows={2} disabled={isSubmitting} />
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-[40%] p-2 border-r-[2px] border-black font-bold flex items-center">Name</div>
+              <div className="w-[60%] border-r-[2px] border-black flex items-center">
+                <input type="text" value={formData.reviewerName} onChange={e => handleChange('reviewerName', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
             </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-[40%] p-2 border-r-[2px] border-black font-bold flex items-center">Signature</div>
+              <div className="w-[60%] border-r-[2px] border-black flex items-center">
+                <input type="text" value={formData.reviewerSignature} onChange={e => handleChange('reviewerSignature', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-[40%] p-2 border-r-[2px] border-black font-bold flex items-center">Designation</div>
+              <div className="w-[60%] border-r-[2px] border-black flex items-center">
+                <input type="text" value={formData.reviewerDesignation} onChange={e => handleChange('reviewerDesignation', e.target.value)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
+            <div className="flex border-b-[2px] border-black min-h-[40px]">
+              <div className="w-[40%] p-2 border-r-[2px] border-black font-bold flex items-center">Date</div>
+              <div className="w-[60%] border-r-[2px] border-black flex items-center">
+                <InputDate value={formData.reviewDate} onChange={(v) => handleChange('reviewDate', v)} disabled={isSubmitting || isViewMode} />
+              </div>
+            </div>
+
           </div>
 
-          {/* Reporter Information */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg text-black border-b pb-2">Reporter Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="reporterName" className="mb-2 block">Name of person reporting the incident <span className="text-red-500">*</span></Label>
-                <Input id="reporterName" value={formData.reporterName} onChange={(e) => setFormData({ ...formData, reporterName: e.target.value })} disabled={isSubmitting} />
-              </div>
-              <div>
-                <Label htmlFor="reporterDesignation" className="mb-2 block">Designation <span className="text-red-500">*</span></Label>
-                <Input id="reporterDesignation" value={formData.reporterDesignation} onChange={(e) => setFormData({ ...formData, reporterDesignation: e.target.value })} disabled={isSubmitting} />
-              </div>
-              <div>
-                <Label htmlFor="dateReported" className="mb-2 block">Date reported <span className="text-red-500">*</span></Label>
-                <Popover open={dateReportedPopoverOpen} onOpenChange={setDateReportedPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button type="button" variant="outline" className={cn("w-full pl-3 text-left font-normal", !formData.dateReported && "text-muted-foreground")} disabled={isSubmitting}>
-                      {formData.dateReported ? format(formData.dateReported, "PPP") : <span>Pick a date</span>}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={formData.dateReported} captionLayout="dropdown" onSelect={(date) => { setFormData({ ...formData, dateReported: date }); setDateReportedPopoverOpen(false); }} disabled={isSubmitting} fromYear={2000} toYear={new Date().getFullYear() + 1} />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-          </div>
-
-          {/* Follow-up Actions */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg text-black border-b pb-2">Follow-up Actions</h3>
-            <div>
-              <Label htmlFor="preventionActions" className="mb-2 block">Actions taken to prevent recurrence <span className="text-red-500">*</span></Label>
-              <Textarea id="preventionActions" value={formData.preventionActions} onChange={(e) => setFormData({ ...formData, preventionActions: e.target.value })} rows={4} disabled={isSubmitting} />
-            </div>
-            <div>
-              <Label htmlFor="riskAssessmentUpdateDate" className="mb-2 block">Date Service User&apos;s risk assessment and care plan updated following this incident</Label>
-              <Popover open={riskAssessmentPopoverOpen} onOpenChange={setRiskAssessmentPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" className={cn("w-full pl-3 text-left font-normal", !formData.riskAssessmentUpdateDate && "text-muted-foreground")} disabled={isSubmitting}>
-                    {formData.riskAssessmentUpdateDate ? format(formData.riskAssessmentUpdateDate, "PPP") : <span>Pick a date</span>}
-                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={formData.riskAssessmentUpdateDate} captionLayout="dropdown" onSelect={(date) => { setFormData({ ...formData, riskAssessmentUpdateDate: date }); setRiskAssessmentPopoverOpen(false); }} disabled={isSubmitting} fromYear={2000} toYear={new Date().getFullYear() + 1} />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label htmlFor="otherComments" className="mb-2 block">Other Comments</Label>
-              <Textarea id="otherComments" value={formData.otherComments} onChange={(e) => setFormData({ ...formData, otherComments: e.target.value })} rows={3} disabled={isSubmitting} />
-            </div>
-          </div>
-
-          {/* Senior Staff / Manager Review */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg text-black border-b pb-2">Senior Staff / Service Manager Review</h3>
-            <p className="text-sm text-muted-foreground">These fields are optional and can be completed by senior staff or service manager.</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="reviewerName" className="mb-2 block">Name (of senior staff / service manager)</Label>
-                <Input id="reviewerName" value={formData.reviewerName} onChange={(e) => setFormData({ ...formData, reviewerName: e.target.value })} disabled={isSubmitting} />
-              </div>
-              <div>
-                <Label htmlFor="reviewerDesignation" className="mb-2 block">Designation</Label>
-                <Input id="reviewerDesignation" value={formData.reviewerDesignation} onChange={(e) => setFormData({ ...formData, reviewerDesignation: e.target.value })} disabled={isSubmitting} />
-              </div>
-              <div>
-                <Label htmlFor="reviewDate" className="mb-2 block">Date</Label>
-                <Popover open={reviewDatePopoverOpen} onOpenChange={setReviewDatePopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button type="button" variant="outline" className={cn("w-full pl-3 text-left font-normal", !formData.reviewDate && "text-muted-foreground")} disabled={isSubmitting}>
-                      {formData.reviewDate ? format(formData.reviewDate, "PPP") : <span>Pick a date</span>}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={formData.reviewDate} captionLayout="dropdown" onSelect={(date) => { setFormData({ ...formData, reviewDate: date }); setReviewDatePopoverOpen(false); }} disabled={isSubmitting} fromYear={2000} toYear={new Date().getFullYear() + 1} />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 pb-6">
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={handleDownloadPdf}
-            >
-              <Download className="w-4 h-4 mr-2" /> Download
-            </Button>
-            <Button onClick={handleSubmit} disabled={isSubmitting} size="lg">
-              {isSubmitting ? "Submitting..." : (<>Submit Report <Check className="w-4 h-4 ml-2" /></>)}
-            </Button>
-          </div>
         </div>
       </div>
     </div>

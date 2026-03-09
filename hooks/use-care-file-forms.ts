@@ -45,6 +45,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       "braden-risk-assessment-form",
       "best-interest-decision-form",
       "v2-restraints-risk",
+      "fall-risk-assessment",
       "smoking-risk-assessment"
     ];
 
@@ -74,6 +75,7 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       "braden-risk-assessment-form": "braden_risk_assessments",
       "best-interest-decision-form": "best_interest_decisions",
       "v2-restraints-risk": "restraints_consents",
+      "fall-risk-assessment": "fall_risk_assessments",
       "smoking-risk-assessment": "smoking_risk_assessments",
       "care-plan-form": "care_plan_assessments" // Included for completeness
     };
