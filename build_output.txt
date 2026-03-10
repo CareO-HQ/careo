@@ -1,0 +1,33 @@
+
+> nextjs-starter@0.1.0 build
+> next build
+
+   Γû▓ Next.js 15.5.9
+   - Environments: .env.local, .env
+
+   Creating an optimized production build ...
+ Γ£ô Compiled successfully in 15.0s
+   Linting and checking validity of types ...
+
+Failed to compile.
+
+./app/(dashboard)/dashboard/residents/[id]/(pages)/incidents/components/bhsct-report-form.tsx
+472:107  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./app/(dashboard)/dashboard/residents/[id]/(pages)/incidents/[folderId]/components/bhsct-report-form.tsx
+471:105  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./app/(dashboard)/dashboard/residents/[id]/(pages)/medication/docs/page.tsx
+99:14  Warning: Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element').
+244:11  Warning: Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any').
+
+./components/medication/forms/PRNConsentForm.tsx
+329:21  Warning: Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps').
+
+./components/medication/KardexModal.tsx
+105:18  Warning: Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element').
+
+./components/residents/carefile/dialogs/OralAssessmentDialog.tsx
+231:127  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules

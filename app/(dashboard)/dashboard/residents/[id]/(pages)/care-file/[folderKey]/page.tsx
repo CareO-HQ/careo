@@ -316,7 +316,11 @@ export default function GenericFolderPage() {
         }
 
         const formState = getFormState(key);
-        if (formState.hasData) {
+        if (key === "dependency-assessment" || key === "fall-risk-assessment" || key === "choking-risk-assessment-form") {
+            setIsViewOnly(false);
+            setIsReviewMode(false);
+            setFormDataForEdit(null);
+        } else if (formState.hasData) {
             setIsViewOnly(true); // Default to view-only for filled forms
             setIsReviewMode(false);
             setFormDataForEdit(undefined); // Show loading
@@ -390,7 +394,8 @@ export default function GenericFolderPage() {
     };
 
     const handlePrint = async () => {
-        if (!activeFormKey || !formDataForEdit || !resident) return;
+        if (!activeFormKey || !resident) return;
+        if (activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && !formDataForEdit) return;
 
         const formName = activeFormKey === "care-plan-form"
             ? (formDataForEdit.care_plan_type || "Care Plan")
@@ -418,6 +423,45 @@ export default function GenericFolderPage() {
                     staff_name: e.reviewed_by_name,
                     next_review_date: e.new_review_date
                 }));
+            }
+        }
+
+        // If it's a dependency assessment, fetch all past assessments
+        if (activeFormKey === "dependency-assessment") {
+            const { data: history, error } = await supabase
+                .from('dependency_assessments')
+                .select('*')
+                .eq('resident_id', residentId)
+                .order('assessment_date', { ascending: false });
+
+            if (!error && history) {
+                dataToPrint.history = history;
+            }
+        }
+
+        // If it's a fall risk assessment, fetch all past assessments
+        if (activeFormKey === "fall-risk-assessment") {
+            const { data: history, error } = await supabase
+                .from('fall_risk_assessments')
+                .select('*')
+                .eq('resident_id', residentId)
+                .order('assessment_date', { ascending: false });
+
+            if (!error && history) {
+                dataToPrint.history = history;
+            }
+        }
+
+        // If it's a choking risk assessment, fetch all past assessments
+        if (activeFormKey === "choking-risk-assessment-form") {
+            const { data: history, error } = await supabase
+                .from('choking_risk_assessments')
+                .select('*')
+                .eq('resident_id', residentId)
+                .order('assessment_date', { ascending: false });
+
+            if (!error && history) {
+                dataToPrint.history = history;
             }
         }
 
@@ -570,25 +614,17 @@ export default function GenericFolderPage() {
                                     <div className="flex items-center gap-2">
                                         {isViewOnly ? (
                                             <>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => { setIsViewOnly(false); setIsReviewMode(true); }}
-                                                    className="gap-2"
-                                                >
-                                                    <Edit3 className="w-4 h-4" />
-                                                    Edit
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={handlePrint}
-                                                    disabled={!formDataForEdit}
-                                                    className="gap-2"
-                                                >
-                                                    <Printer className="w-4 h-4" />
-                                                    Print
-                                                </Button>
+                                                {activeFormKey !== "dependency-assessment" && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => { setIsViewOnly(false); setIsReviewMode(true); }}
+                                                        className="gap-2"
+                                                    >
+                                                        <Edit3 className="w-4 h-4" />
+                                                        Edit
+                                                    </Button>
+                                                )}
                                             </>
                                         ) : (
                                             <>
@@ -615,6 +651,16 @@ export default function GenericFolderPage() {
                                                 </Button>
                                             </>
                                         )}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handlePrint}
+                                            disabled={activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && !formDataForEdit}
+                                            className="gap-2"
+                                        >
+                                            <Printer className="w-4 h-4" />
+                                            Print
+                                        </Button>
                                         <Button variant="ghost" size="icon" onClick={handleCloseForm}>
                                             <X className="w-4 h-4" />
                                         </Button>
@@ -970,10 +1016,10 @@ export default function GenericFolderPage() {
                         </div>
                     </div>
                 </aside>
-            </div>
+            </div >
 
             {/* Care Plan Selection Dialog */}
-            <Dialog open={isCarePlanSelectionOpen} onOpenChange={setIsCarePlanSelectionOpen}>
+            < Dialog open={isCarePlanSelectionOpen} onOpenChange={setIsCarePlanSelectionOpen} >
                 <DialogPrimitive.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg overflow-hidden">
                     <div className="flex flex-col space-y-1.5 text-center sm:text-left">
                         <DialogPrimitive.Title className="text-sm font-semibold">Select Care Plan Type</DialogPrimitive.Title>
@@ -1078,7 +1124,7 @@ export default function GenericFolderPage() {
                         </div>
                     </div>
                 </DialogPrimitive.Content>
-            </Dialog>
-        </div>
+            </Dialog >
+        </div >
     );
 }

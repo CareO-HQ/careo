@@ -47,7 +47,6 @@ import { useProfile } from "@/hooks/use-profile";
 import { withRoleGuard } from "@/lib/route-guards";
 import { auditService, AuditTemplate, AuditCompletion } from "@/lib/audit-service";
 import { supabase } from "@/lib/supabase";
-import { FEATURES } from "@/lib/config/features";
 
 interface Audit {
   id: string;
@@ -456,7 +455,7 @@ function CareOAuditPageContent() {
       }} className="space-y-4">
         <TabsList>
           <TabsTrigger value="resident">Resident Audit</TabsTrigger>
-          {FEATURES.SHOW_CARE_FILE_V1 && <TabsTrigger value="careFile">Care File Audit</TabsTrigger>}
+          <TabsTrigger value="careFile">Care File Audit</TabsTrigger>
           <TabsTrigger value="governance">Governance Audit</TabsTrigger>
           <TabsTrigger value="clinical">Clinical Audit</TabsTrigger>
           <TabsTrigger value="environment">Environment Audit</TabsTrigger>

@@ -24,7 +24,8 @@ import {
   CalendarIcon,
   Shield,
   BellIcon,
-  ListTodo
+  ListTodo,
+  Heart
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
@@ -394,17 +395,53 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Clinical Section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Clinical</SidebarGroupLabel>
+          <SidebarGroupContent>
+            {/* Wounds */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/wounds">
+                  <Heart />
+                  <span>Wounds</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {/* Audit Section */}
         {canViewSidebarAudit(effectiveRole) && (
           <SidebarGroup className="mt-0">
             <SidebarGroupLabel>Audit</SidebarGroupLabel>
             <SidebarGroupContent>
+              {/* Care File Audit */}
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/manager-audit/0">
+                    <FileTextIcon />
+                    <span>Care File Audit</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
               {/* Audit / CareO Audit */}
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/careo-audit">
                     <ClipboardListIcon />
                     <span>{getAuditLabel(effectiveRole) ?? "Audit"}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Manager Audit */}
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/manager-audit">
+                    <FileTextIcon />
+                    <span>Manager Audit</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

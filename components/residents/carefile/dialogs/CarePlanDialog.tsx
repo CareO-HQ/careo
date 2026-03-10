@@ -57,6 +57,7 @@ interface CarePlanDialogProps {
   onOpenChange?: (open: boolean) => void;
   isInline?: boolean;
   viewOnly?: boolean;
+  woundFolderId?: string;
 }
 
 const generateTimeOptions = () => {
@@ -84,6 +85,7 @@ export default function CarePlanDialog({
   onClose,
   isInline = false,
   viewOnly = false,
+  woundFolderId,
 }: CarePlanDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
@@ -194,6 +196,7 @@ export default function CarePlanDialog({
           },
           status: 'active',
           created_by: userId,
+          wound_folder_id: woundFolderId || null,
         };
 
         if (isEditMode && initialData?.id) {

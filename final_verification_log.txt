@@ -1,0 +1,12 @@
+Initialising login role...
+Connecting to remote database...
+Do you want to push these migrations to the remote database?
+ ΓÇó 20260307120000_create_wound_treatment_evaluations.sql
+
+ [Y/n] y
+Applying migration 20260307120000_create_wound_treatment_evaluations.sql...
+NOTICE (42622): identifier "Users can view wound treatment evaluations in their organization" will be truncated to "Users can view wound treatment evaluations in their organizatio"
+NOTICE (42622): identifier "Users can insert wound treatment evaluations in their organization" will be truncated to "Users can insert wound treatment evaluations in their organizat"
+NOTICE (42622): identifier "Users can update wound treatment evaluations in their organization" will be truncated to "Users can update wound treatment evaluations in their organizat"
+NOTICE (42622): identifier "Users can delete wound treatment evaluations in their organization" will be truncated to "Users can delete wound treatment evaluations in their organizat"
+Finished supabase db push.

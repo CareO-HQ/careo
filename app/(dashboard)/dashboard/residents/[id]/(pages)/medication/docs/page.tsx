@@ -96,7 +96,6 @@ function FileViewer({ file }: { file: UploadedFile }) {
         )}
         {isImage && (
           <div className="flex items-center justify-center h-full p-6">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={url}
               alt={file.name}
@@ -241,7 +240,6 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
       {/* Top Bar */}
       <div className="flex items-center gap-3 px-6 py-3 bg-background border-b flex-shrink-0">
         <button
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onClick={() => router.push(`/dashboard/residents/${residentId}/medication` as any)}
           className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
         >
@@ -315,11 +313,10 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
                       <button
                         key={key}
                         onClick={() => handleFormClick(key)}
-                        className={`w-full text-left flex items-start gap-2 px-1.5 py-2 rounded-md transition-colors ${
-                          isActive
-                            ? "bg-primary/10 text-primary"
-                            : "hover:bg-muted/60 text-foreground"
-                        }`}
+                        className={`w-full text-left flex items-start gap-2 px-1.5 py-2 rounded-md transition-colors ${isActive
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-muted/60 text-foreground"
+                          }`}
                       >
                         <FileText className="h-4 w-4 flex-shrink-0 mt-0.5" />
                         <div className="min-w-0">
@@ -361,11 +358,10 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
                     return (
                       <div
                         key={file.id}
-                        className={`group flex items-start gap-1.5 px-1.5 py-2 rounded-md transition-colors ${
-                          isActive
-                            ? "bg-primary/10 text-primary"
-                            : "hover:bg-muted/60 text-foreground"
-                        }`}
+                        className={`group flex items-start gap-1.5 px-1.5 py-2 rounded-md transition-colors ${isActive
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-muted/60 text-foreground"
+                          }`}
                       >
                         <button
                           onClick={() => handleFileClick(file.id)}

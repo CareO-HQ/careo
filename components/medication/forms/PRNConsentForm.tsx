@@ -326,7 +326,7 @@ export default function PRNConsentForm({
         }
         setLoadingExisting(false);
       });
-  }, [residentId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [residentId]);
 
   // Load organisation logo for PDF header
   useEffect(() => {

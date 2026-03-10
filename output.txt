@@ -1,0 +1,21 @@
+Initialising login role...
+Connecting to remote database...
+Do you want to push these migrations to the remote database?
+ ΓÇó 20260307120000_create_wound_treatment_evaluations.sql
+
+ [Y/n] y
+Applying migration 20260307120000_create_wound_treatment_evaluations.sql...
+NOTICE (42622): identifier "Users can view wound treatment evaluations in their organization" will be truncated to "Users can view wound treatment evaluations in their organizatio"
+ERROR: relation "public.team_members" does not exist (SQLSTATE 42P01)           
+At statement: 6                                                                 
+-- RLS Policies                                                                 
+CREATE POLICY "Users can view wound treatment evaluations in their organization"
+  ON public.wound_treatment_evaluations                                         
+  FOR SELECT                                                                    
+  USING (                                                                       
+    organization_id IN (                                                        
+      SELECT organization_id FROM public.team_members                           
+      WHERE user_id = auth.uid()                                                
+    )                                                                           
+  )                                                                             
+Try rerunning the command with --debug to troubleshoot the error.

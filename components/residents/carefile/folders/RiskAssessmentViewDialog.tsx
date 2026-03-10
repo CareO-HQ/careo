@@ -147,6 +147,10 @@ const formatValue = (v: any, fmt?: "date" | "bool" | string): string => {
     }
   }
 
+  if (fmt === "pts") {
+    return `${v} pts`;
+  }
+
   return String(v);
 };
 
@@ -925,6 +929,44 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
       title: "Other Items",
       fields: [
         { label: "Other Items Log", path: "assessment_data.other", fmt: "other_items_list" },
+      ],
+    },
+  ],
+
+  "dependency-assessment": [
+    {
+      title: "Administrative Information",
+      fields: [
+        { label: "Resident Name", path: "residentName" },
+        { label: "Bedroom", path: "bedroomNumber" },
+        { label: "Date of Birth", path: "assessment_details.dateOfBirth", fmt: "date" },
+        { label: "Assessment Date", path: "assessment_details.dateOfAssessment", fmt: "date" },
+        { label: "Time", path: "assessment_details.time" },
+      ],
+    },
+    {
+      title: "Assessment Categories",
+      fields: [
+        { label: "Mobility", path: "assessment_details.mobility", fmt: "pts" },
+        { label: "Dressing", path: "assessment_details.dressing", fmt: "pts" },
+        { label: "Personal Hygiene", path: "assessment_details.personalHygiene", fmt: "pts" },
+        { label: "Feeding", path: "assessment_details.feeding", fmt: "pts" },
+        { label: "Eyesight", path: "assessment_details.eyesight", fmt: "pts" },
+        { label: "Hearing", path: "assessment_details.hearing", fmt: "pts" },
+        { label: "Pressure Sore Risk", path: "assessment_details.pressureSoreRisk", fmt: "pts" },
+        { label: "Continence (Urine)", path: "assessment_details.continenceUrine", fmt: "pts" },
+        { label: "Continence (Faeces)", path: "assessment_details.continenceFaeces", fmt: "pts" },
+        { label: "Communication", path: "assessment_details.communication", fmt: "pts" },
+        { label: "Social Dependency", path: "assessment_details.socialDependency", fmt: "pts" },
+        { label: "Behaviour", path: "assessment_details.behaviour", fmt: "pts" },
+      ],
+    },
+    {
+      title: "Summary",
+      fields: [
+        { label: "Total Score", path: "total_score", fmt: "pts" },
+        { label: "Dependency Level", path: "dependency_level" },
+        { label: "Completed By", path: "completed_by" },
       ],
     },
   ],

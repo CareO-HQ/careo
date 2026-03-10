@@ -117,10 +117,10 @@
   }
 }
 
-.form-view-mode input:not([type="checkbox"]):not([type="radio"]),
-.form-view-mode textarea,
-.form-view-mode select,
-.form-view-mode button:not([type="submit"]):not(.btn-keep) {
+.form-view-mode input:not([type="checkbox"]):not([type="radio"]):not(.keep-interactive),
+.form-view-mode textarea:not(.keep-interactive),
+.form-view-mode select:not(.keep-interactive),
+.form-view-mode button:not([type="submit"]):not(.btn-keep):not(.keep-interactive) {
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -137,7 +137,7 @@
   gap: 0 !important;
 }
 
-.form-view-mode textarea {
+.form-view-mode textarea:not(.keep-interactive) {
   resize: none !important;
 }
 
@@ -155,9 +155,9 @@
 
 
 /* Hide icons in view mode (calendar, chevrons) */
-.form-view-mode .lucide-calendar,
-.form-view-mode .lucide-chevron-down,
-.form-view-mode .lucide-chevrons-up-down,
-.form-view-mode .lucide-calendar-days {
+.form-view-mode .lucide-calendar:not(.keep-interactive),
+.form-view-mode .lucide-chevron-down:not(.keep-interactive),
+.form-view-mode .lucide-chevrons-up-down:not(.keep-interactive),
+.form-view-mode .lucide-calendar-days:not(.keep-interactive) {
   display: none !important;
 }

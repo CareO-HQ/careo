@@ -1,0 +1,9 @@
+M	app/(dashboard)/dashboard/careo-audit/page.tsx
+A	app/(dashboard)/dashboard/manager-audit/0/resident/[residentId]/audit/page.tsx
+A	app/(dashboard)/dashboard/manager-audit/0/resident/[residentId]/history/page.tsx
+A	app/(dashboard)/dashboard/manager-audit/[auditId]/history/[recordId]/page.tsx
+A	app/(dashboard)/dashboard/manager-audit/[auditId]/history/page.tsx
+A	app/(dashboard)/dashboard/manager-audit/[auditId]/page.tsx
+A	app/(dashboard)/dashboard/manager-audit/page.tsx
+A	app/api/manager-audit/modified-diet/route.ts
+A	supabase/migrations/20250224_create_modified_diet_audit.sql

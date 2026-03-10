@@ -1,0 +1,146 @@
+diff --git a/app/(dashboard)/dashboard/residents/[id]/(pages)/care-file-v2/[folderKey]/page.tsx b/app/(dashboard)/dashboard/residents/[id]/(pages)/care-file-v2/[folderKey]/page.tsx
+index aec59a2..9abe730 100644
+--- a/app/(dashboard)/dashboard/residents/[id]/(pages)/care-file-v2/[folderKey]/page.tsx
++++ b/app/(dashboard)/dashboard/residents/[id]/(pages)/care-file-v2/[folderKey]/page.tsx
+@@ -496,7 +496,7 @@ export default function CareFileV2FolderPage() {
+                     <ArrowLeft className="w-4 h-4" />
+                 </button>
+                 <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
+-                    <span>Care File</span> <span>/</span> <span className="font-medium text-foreground">{folder.value}</span>
++                    <span>Care File V2</span> <span>/</span> <span className="font-medium text-foreground">{folder.value}</span>
+                     {activeFormKey && <><span>/</span> <span className="text-foreground">{folder.forms.find(f => f.key === activeFormKey)?.value || "Form"}</span></>}
+                     {activeFile && <><span>/</span> <span className="text-foreground">{activeFile.name}</span></>}
+                 </div>
+diff --git a/app/(dashboard)/dashboard/residents/[id]/(pages)/care-file-v2/page.tsx b/app/(dashboard)/dashboard/residents/[id]/(pages)/care-file-v2/page.tsx
+index a6c7a5c..4ee6dc5 100644
+--- a/app/(dashboard)/dashboard/residents/[id]/(pages)/care-file-v2/page.tsx
++++ b/app/(dashboard)/dashboard/residents/[id]/(pages)/care-file-v2/page.tsx
+@@ -99,9 +99,9 @@ export default function CareFileV2Page() {
+                     </AvatarFallback>
+                 </Avatar>
+                 <div className="flex-1">
+-                    <h1 className="text-xl sm:text-2xl font-bold">Care File</h1>
++                    <h1 className="text-xl sm:text-2xl font-bold">Care File V2</h1>
+                     <p className="text-muted-foreground text-sm">
+-                        View and manage care files for {resident.first_name} {resident.last_name}.
++                        View and manage enhanced care files for {resident.first_name} {resident.last_name}.
+                     </p>
+                 </div>
+             </div>
+diff --git a/components/navigation/AppSidebar.tsx b/components/navigation/AppSidebar.tsx
+index cd10905..c3e7a5b 100644
+--- a/components/navigation/AppSidebar.tsx
++++ b/components/navigation/AppSidebar.tsx
+@@ -24,7 +24,9 @@ import {
+   CalendarIcon,
+   Shield,
+   BellIcon,
+-  ListTodo
++  ListTodo,
++  Heart,
++  Briefcase
+ } from "lucide-react";
+ import Link from "next/link";
+ import { useEffect, useState, useCallback } from "react";
+@@ -40,6 +42,7 @@ import {
+   canViewSidebarNotification,
+   canViewSidebarResidents,
+   canViewSidebarStaff,
++  canViewSidebarAgencyStaff,
+   canViewSidebarHome,
+   getAuditLabel,
+   canCreateResident
+@@ -297,6 +300,18 @@ export function AppSidebar() {
+                 </SidebarMenuButton>
+               </SidebarMenuItem>
+             )}
++
++            {/* Agency Staff */}
++            {canViewSidebarAgencyStaff(effectiveRole) && (
++              <SidebarMenuItem className="list-none">
++                <SidebarMenuButton asChild>
++                  <Link href="/dashboard/agency-staff">
++                    <Briefcase />
++                    <span>Agency Staff</span>
++                  </Link>
++                </SidebarMenuButton>
++              </SidebarMenuItem>
++            )}
+           </SidebarGroupContent>
+         </SidebarGroup>
+ 
+@@ -394,21 +409,27 @@ export function AppSidebar() {
+           </SidebarGroupContent>
+         </SidebarGroup>
+ 
++        {/* Clinical Section */}
++        <SidebarGroup>
++          <SidebarGroupLabel>Clinical</SidebarGroupLabel>
++          <SidebarGroupContent>
++            {/* Wounds */}
++            <SidebarMenuItem className="list-none">
++              <SidebarMenuButton asChild>
++                <Link href="/dashboard/wounds">
++                  <Heart />
++                  <span>Wounds</span>
++                </Link>
++              </SidebarMenuButton>
++            </SidebarMenuItem>
++          </SidebarGroupContent>
++        </SidebarGroup>
++
+         {/* Audit Section */}
+         {canViewSidebarAudit(effectiveRole) && (
+           <SidebarGroup className="mt-0">
+             <SidebarGroupLabel>Audit</SidebarGroupLabel>
+             <SidebarGroupContent>
+-              {/* Care File Audit */}
+-              <SidebarMenuItem className="list-none">
+-                <SidebarMenuButton asChild>
+-                  <Link href="/dashboard/manager-audit/0">
+-                    <FileTextIcon />
+-                    <span>Care File Audit</span>
+-                  </Link>
+-                </SidebarMenuButton>
+-              </SidebarMenuItem>
+-
+               {/* Audit / CareO Audit */}
+               <SidebarMenuItem className="list-none">
+                 <SidebarMenuButton asChild>
+@@ -418,16 +439,6 @@ export function AppSidebar() {
+                   </Link>
+                 </SidebarMenuButton>
+               </SidebarMenuItem>
+-
+-              {/* Manager Audit */}
+-              <SidebarMenuItem className="list-none">
+-                <SidebarMenuButton asChild>
+-                  <Link href="/dashboard/manager-audit">
+-                    <FileTextIcon />
+-                    <span>Manager Audit</span>
+-                  </Link>
+-                </SidebarMenuButton>
+-              </SidebarMenuItem>
+             </SidebarGroupContent>
+           </SidebarGroup>
+         )}
+@@ -444,12 +455,14 @@ export function AppSidebar() {
+             </SidebarMenuButton>
+           </SidebarMenuItem>
+         )}
+-        <HelpSupportDialog>
+-          <SidebarMenuButton>
+-            <MessageCircleQuestionMarkIcon />
+-            <span>Help and Support</span>
++        <SidebarMenuItem className="list-none">
++          <SidebarMenuButton asChild>
++            <Link href="/dashboard/help-support">
++              <MessageCircleQuestionMarkIcon />
++              <span>Help & Support</span>
++            </Link>
+           </SidebarMenuButton>
+-        </HelpSupportDialog>
++        </SidebarMenuItem>
+         <SidebarMenuItem className="list-none mt-2">
+           <LogoutButton />
+         </SidebarMenuItem>

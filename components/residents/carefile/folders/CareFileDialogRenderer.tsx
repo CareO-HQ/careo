@@ -5,7 +5,7 @@ import BedrailConsentDialog from "@/components/residents/carefile/dialogs/Bedrai
 import BedRailsRiskAssessmentDialog from "@/components/residents/carefile/dialogs/BedRailsRiskAssessmentDialog";
 import BladderBowelDialog from "@/components/residents/carefile/dialogs/ContinenceDialog";
 import CarePlanDialog from "@/components/residents/carefile/dialogs/CarePlanDialog";
-import DependencyDialog from "@/components/residents/carefile/dialogs/DependencyDialog";
+import DependencyAssessmentDialog from "@/components/residents/carefile/dialogs/DependencyAssessmentDialog";
 import DnacprDialog from "@/components/residents/carefile/dialogs/DnarcpDialog";
 import InfectionPreventionDialog from "@/components/residents/carefile/dialogs/InfectionPreventionDialog";
 import LongTermFallRiskDialog from "@/components/residents/carefile/dialogs/LongTermFallRiskDialog";
@@ -27,6 +27,7 @@ import BestInterestDecisionDialog from "@/components/residents/carefile/dialogs/
 import BradenRiskAssessmentDialog from "@/components/residents/carefile/dialogs/BradenRiskAssessmentDialog";
 import RestraintsConsentDialog from "@/components/residents/carefile/dialogs/RestraintsConsentDialog";
 import SmokingRiskAssessmentDialog from "@/components/residents/carefile/dialogs/SmokingRiskAssessmentDialog";
+import FallRiskAssessmentDialog from "@/components/residents/carefile/dialogs/FallRiskAssessmentDialog";
 import SpecimenRecordLogDialog from "@/components/residents/carefile/dialogs/SpecimenRecordLogDialog";
 
 
@@ -56,6 +57,7 @@ interface CareFileDialogRendererProps extends BaseDialogProps {
   onSaveSuccess?: (data: any) => void;
   onClose: () => void;
   orgLogoUrl?: string;
+  woundFolderId?: string;
 }
 
 /**
@@ -80,7 +82,8 @@ export function CareFileDialogRenderer({
   refreshForms,
   onSaveSuccess,
   onClose,
-  orgLogoUrl
+  orgLogoUrl,
+  woundFolderId,
 }: CareFileDialogRendererProps) {
   const editData = (isReviewMode || viewOnly) ? formDataForEdit : null;
   // For care plan new creation, pass the pre-selected name as a synthetic initialData
@@ -179,6 +182,7 @@ export function CareFileDialogRenderer({
             userName={userName ?? ""}
             folderKey={folderKey ?? ""}
             initialData={carePlanInitialData}
+            woundFolderId={woundFolderId}
           />
         );
 
@@ -198,7 +202,10 @@ export function CareFileDialogRenderer({
         return <PeepDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
       case "dependency-assessment":
-        return <DependencyDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
+        return <DependencyAssessmentDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
+
+      case "fall-risk-assessment":
+        return <FallRiskAssessmentDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
       case "timl":
         return <TimlDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
