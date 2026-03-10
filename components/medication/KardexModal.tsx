@@ -102,7 +102,6 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
           <div className="p-2 border-r border-black flex items-center gap-2">
             {resident.image_url ? (
               <div className="flex-shrink-0 text-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={resident.image_url}
                   alt={`${resident.first_name} ${resident.last_name}`}
@@ -271,9 +270,8 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                         return (
                           <td
                             key={`${period}-${time}`}
-                            className={`border border-black text-center align-middle ${
-                              !isScheduled ? "bg-gray-100" : "bg-blue-50"
-                            }`}
+                            className={`border border-black text-center align-middle ${!isScheduled ? "bg-gray-100" : "bg-blue-50"
+                              }`}
                             style={{ minWidth: "22px", height: "32px", verticalAlign: "middle" }}
                           >
                             {isScheduled ? (

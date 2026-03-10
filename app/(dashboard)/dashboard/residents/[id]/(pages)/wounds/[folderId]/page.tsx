@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -432,7 +433,19 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
         .order("created_at", { ascending: false });
 
       if (!error && data) {
-        setWoundAssessments(data);
+        // Generate signed URLs for assessments with photos
+        const assessmentsWithUrls = await Promise.all(
+          data.map(async (assessment) => {
+            if (assessment.photograph_storage_path) {
+              const { data: signedData } = await supabase.storage
+                .from("wound-photos")
+                .createSignedUrl(assessment.photograph_storage_path, 3600);
+              return { ...assessment, signedUrl: signedData?.signedUrl };
+            }
+            return assessment;
+          })
+        );
+        setWoundAssessments(assessmentsWithUrls);
       }
     } catch (err) {
       console.error("Error fetching wound assessments:", err);
@@ -461,7 +474,33 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
         .order("created_at", { ascending: false });
 
       if (!error && data) {
-        setPhotographEvaluations(data);
+        // Generate signed URLs for photograph evaluations
+        const evaluationsWithUrls = await Promise.all(
+          data.map(async (evaluation) => {
+            if (evaluation.photograph_url) {
+              // Extract path from public URL if needed, or assume it's the path
+              // The PhotographEvaluationForm saves the publicUrl, we need the storage path
+              // photograph_url looks like: .../storage/v1/object/public/wound-photos/wound-photographs/FOLDER_ID/FILENAME.EXT
+              // But our bucket is private, so it might be stored as a full URL or just a path.
+              // Looking at PhotographEvaluationForm.tsx:187, it saves the publicUrl.
+
+              const url = evaluation.photograph_url;
+              let path = "";
+              if (url.includes("wound-photos/")) {
+                path = url.split("wound-photos/").pop() || "";
+              } else {
+                path = url;
+              }
+
+              const { data: signedData } = await supabase.storage
+                .from("wound-photos")
+                .createSignedUrl(path, 3600);
+              return { ...evaluation, signedUrl: signedData?.signedUrl };
+            }
+            return evaluation;
+          })
+        );
+        setPhotographEvaluations(evaluationsWithUrls);
       }
     } catch (err) {
       console.error("Error fetching photograph evaluations:", err);
@@ -687,11 +726,9 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
       <WoundProgressTracker
         hasBodyMap={progressHasBodyMap}
         hasPhotograph={progressHasPhotograph}
-        hasInitialAssessment={progressHasInitialAssessment}
-        hasCarePlan={progressHasCarePlan}
-        hasOngoingAssessment={progressHasOngoingAssessment}
+        hasAssessment={progressHasInitialAssessment}
         hasEvaluation={progressHasEvaluation}
-        isHealed={progressIsHealed}
+        hasCarePlan={progressHasCarePlan}
       />
 
       {/* Body */}
@@ -955,7 +992,26 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
 
         {/* Right Sidebar */}
         <aside className="w-[200px] flex-shrink-0 border-l bg-background h-full p-3 overflow-y-auto">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
+            {/* Status section - Moved to top for visibility */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5 px-1.5">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                  Folder Status
+                </p>
+              </div>
+              <div className="px-1.5">
+                <WoundStatusForm
+                  folderId={folderId}
+                  currentStatus={folder?.status}
+                  currentNextReviewDate={folder?.next_review_date}
+                  onUpdated={fetchFolder}
+                />
+              </div>
+            </div>
+
+            <Separator className="bg-muted/50" />
+
             {/* Assessment section */}
             <div>
               <div className="flex items-center justify-between mb-1.5 px-1.5">
@@ -1208,22 +1264,6 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
               )}
             </div>
 
-            {/* Status section */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5 px-1.5">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
-                  Status
-                </p>
-              </div>
-              <div className="px-1.5">
-                <WoundStatusForm
-                  folderId={folderId}
-                  currentStatus={folder?.status}
-                  currentNextReviewDate={folder?.next_review_date}
-                  onUpdated={fetchFolder}
-                />
-              </div>
-            </div>
           </div>
         </aside>
       </div>

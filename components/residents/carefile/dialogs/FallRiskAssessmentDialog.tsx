@@ -180,13 +180,28 @@ export default function FallRiskAssessmentDialog({
             } else {
                 toast.success("Fall Risk Assessment submitted");
                 form.reset({
-                    ...form.getValues(),
-                    age: "Under 65", gender: "Male", historyOfFalls: "Never Fallen", mobilityLevel: "Independent and safe unaided",
-                    balance: "Yes", adlPersonal: "Independent & Safe", adlDomestic: "Independent & Safe",
-                    footwear: "Safe", visionProblems: "No", bladderBowel: "No identified problems",
-                    environmentalRisks: "No", socialRisks: "24-hour care",
-                    medicalConditions: "No identified medical conditions", medicines: "No medicines",
-                    safetyAwareness: "Yes", mentalState: "Orientated"
+                    residentName: `${resident.first_name} ${resident.last_name}`,
+                    dateOfBirth: resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).toISOString().split("T")[0] : "",
+                    dateOfAssessment: new Date().toISOString().split("T")[0],
+                    time: new Date().toTimeString().slice(0, 5),
+                    completedBy: userName || profile?.name || "",
+                    signature: "",
+                    age: "Under 65",
+                    gender: "Male",
+                    historyOfFalls: "Never Fallen",
+                    mobilityLevel: "Independent and safe unaided",
+                    balance: "Yes",
+                    adlPersonal: "Independent & Safe",
+                    adlDomestic: "Independent & Safe",
+                    footwear: "Safe",
+                    visionProblems: "No",
+                    bladderBowel: "No identified problems",
+                    environmentalRisks: "No",
+                    socialRisks: "24-hour care",
+                    medicalConditions: "No identified medical conditions",
+                    medicines: "No medicines",
+                    safetyAwareness: "Yes",
+                    mentalState: "Orientated"
                 });
                 fetchHistory();
             }

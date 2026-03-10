@@ -17,7 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Save } from "lucide-react";
+import { CalendarIcon, Save, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -48,10 +48,22 @@ export function WoundStatusForm({
   );
   const [isSaving, setIsSaving] = useState(false);
 
+  // Sync state when props change (data finishes loading)
+  React.useEffect(() => {
+    if (currentStatus) setStatus(currentStatus);
+  }, [currentStatus]);
+
+  React.useEffect(() => {
+    if (currentNextReviewDate) setNextReviewDate(new Date(currentNextReviewDate));
+  }, [currentNextReviewDate]);
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const { error } = await supabase
+      const today = format(new Date(), "yyyy-MM-dd");
+
+      // 1. Update wound_folders table
+      const { error: folderError } = await supabase
         .from("wound_folders")
         .update({
           status,
@@ -59,7 +71,24 @@ export function WoundStatusForm({
         })
         .eq("id", folderId);
 
-      if (error) throw error;
+      if (folderError) throw folderError;
+
+      // 2. Also sync to the linked wounds record so the wounds list page reflects the update
+      const { data: wounds } = await supabase
+        .from("wounds")
+        .select("id")
+        .eq("wound_folder_id", folderId);
+
+      if (wounds && wounds.length > 0) {
+        const woundId = wounds[0].id;
+        await supabase
+          .from("wounds")
+          .update({
+            status,
+            last_reviewed_date: today,
+          })
+          .eq("id", woundId);
+      }
 
       toast.success("Status updated successfully");
       if (onUpdated) onUpdated();
@@ -74,20 +103,20 @@ export function WoundStatusForm({
   const selectedStatusOption = STATUS_OPTIONS.find((opt) => opt.value === status);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Next Review Date */}
-      <div className="space-y-1">
-        <Label className="text-xs">Next Review Date</Label>
+      <div className="space-y-1.5">
+        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Next Review</Label>
         <Popover>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               className={cn(
-                "h-8 text-xs w-full justify-start text-left font-normal",
+                "h-9 text-xs w-full justify-start text-left font-normal bg-white shadow-sm border-muted-foreground/20",
                 !nextReviewDate && "text-muted-foreground"
               )}
             >
-              <CalendarIcon className="mr-2 h-3 w-3" />
+              <CalendarIcon className="mr-2 h-3.5 w-3.5" />
               {nextReviewDate ? format(nextReviewDate, "dd/MM/yyyy") : "Set date"}
             </Button>
           </PopoverTrigger>
@@ -103,10 +132,10 @@ export function WoundStatusForm({
       </div>
 
       {/* Status Selection */}
-      <div className="space-y-1">
-        <Label className="text-xs">Wound Status</Label>
+      <div className="space-y-1.5">
+        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Wound Status</Label>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger className="h-9 text-xs bg-white shadow-sm border-muted-foreground/20">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -127,14 +156,17 @@ export function WoundStatusForm({
       <Button
         onClick={handleSave}
         disabled={isSaving}
-        className="w-full h-7 text-xs"
-        size="sm"
+        className="w-full h-9 text-xs font-semibold shadow-sm"
+        variant="default"
       >
         {isSaving ? (
-          "Saving..."
+          <>
+            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+            Saving...
+          </>
         ) : (
           <>
-            <Save className="w-3 h-3 mr-1" />
+            <Save className="w-3.5 h-3.5 mr-2" />
             Update Status
           </>
         )}

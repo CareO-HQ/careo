@@ -594,68 +594,68 @@ export function PhotographEvaluationForm({
             </div>
           ) : (
             <div className="space-y-2">
-                {evaluations.map((evaluation) => (
-                  <div
-                    key={evaluation.id}
-                    className={cn(
-                      "border rounded-lg p-2 hover:bg-gray-50 transition-colors relative group",
-                      selectedEvaluationId === evaluation.id && "ring-1 ring-blue-500"
-                    )}
-                  >
-                    <div className="flex gap-2 cursor-pointer" onClick={() => setSelectedEvaluationId(evaluation.id)}>
-                      {/* Thumbnail */}
-                      <div className="flex-shrink-0">
-                        <img
-                          src={evaluation.photograph_url}
-                          alt="Wound"
-                          className="rounded object-cover border w-16 h-16"
-                        />
-                      </div>
-
-                      {/* Details */}
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <div className="flex items-start justify-between gap-1">
-                          <p className="text-xs font-semibold truncate">{evaluation.site_of_wound}</p>
-                          <Badge variant="outline" className="text-[10px] h-4 flex-shrink-0">{evaluation.rgn_signature}</Badge>
-                        </div>
-                        <p className="text-[10px] text-gray-500">
-                          {format(new Date(evaluation.photograph_date), "dd MMM yyyy")} {evaluation.photograph_time}
-                        </p>
-
-                        {(evaluation.length_cm || evaluation.width_cm || evaluation.depth_cm) && (
-                          <p className="text-[10px] text-gray-600">
-                            {evaluation.length_cm && `L:${evaluation.length_cm} `}
-                            {evaluation.width_cm && `W:${evaluation.width_cm} `}
-                            {evaluation.depth_cm && `D:${evaluation.depth_cm}cm`}
-                          </p>
-                        )}
-
-                        {evaluation.comment && (
-                          <p className="text-[10px] text-gray-600 italic truncate">{evaluation.comment}</p>
-                        )}
-                      </div>
+              {evaluations.map((evaluation) => (
+                <div
+                  key={evaluation.id}
+                  className={cn(
+                    "border rounded-lg p-2 hover:bg-gray-50 transition-colors relative group",
+                    selectedEvaluationId === evaluation.id && "ring-1 ring-blue-500"
+                  )}
+                >
+                  <div className="flex gap-2 cursor-pointer" onClick={() => setSelectedEvaluationId(evaluation.id)}>
+                    {/* Thumbnail */}
+                    <div className="flex-shrink-0">
+                      <img
+                        src={evaluation.signedUrl || evaluation.photograph_url}
+                        alt="Wound"
+                        className="rounded object-cover border w-16 h-16"
+                      />
                     </div>
 
-                    {/* Delete Button */}
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="absolute bottom-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(evaluation.id, evaluation.photograph_url);
-                      }}
-                      disabled={deletingId === evaluation.id}
-                    >
-                      {deletingId === evaluation.id ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-3 h-3" />
+                    {/* Details */}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-start justify-between gap-1">
+                        <p className="text-xs font-semibold truncate">{evaluation.site_of_wound}</p>
+                        <Badge variant="outline" className="text-[10px] h-4 flex-shrink-0">{evaluation.rgn_signature}</Badge>
+                      </div>
+                      <p className="text-[10px] text-gray-500">
+                        {format(new Date(evaluation.photograph_date), "dd MMM yyyy")} {evaluation.photograph_time}
+                      </p>
+
+                      {(evaluation.length_cm || evaluation.width_cm || evaluation.depth_cm) && (
+                        <p className="text-[10px] text-gray-600">
+                          {evaluation.length_cm && `L:${evaluation.length_cm} `}
+                          {evaluation.width_cm && `W:${evaluation.width_cm} `}
+                          {evaluation.depth_cm && `D:${evaluation.depth_cm}cm`}
+                        </p>
                       )}
-                    </Button>
+
+                      {evaluation.comment && (
+                        <p className="text-[10px] text-gray-600 italic truncate">{evaluation.comment}</p>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
+
+                  {/* Delete Button */}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute bottom-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(evaluation.id, evaluation.photograph_url);
+                    }}
+                    disabled={deletingId === evaluation.id}
+                  >
+                    {deletingId === evaluation.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3 h-3" />
+                    )}
+                  </Button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -681,7 +681,7 @@ export function PhotographEvaluationForm({
             </div>
             <div className="p-4">
               <img
-                src={selectedEvaluation.photograph_url}
+                src={selectedEvaluation.signedUrl || selectedEvaluation.photograph_url}
                 alt="Wound photograph"
                 className="rounded-lg object-contain mx-auto max-h-[70vh] w-full"
               />

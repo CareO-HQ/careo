@@ -24,13 +24,21 @@ import {
 } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { oralAssessmentSchema } from "@/schemas/residents/care-file/oralAssessmentSchema";
 import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { CalendarIcon, Plus, X } from "lucide-react";
+import { useState, useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -52,12 +60,85 @@ interface OralAssessmentDialogProps {
   viewOnly?: boolean;
 }
 
+// ── Evaluation constants ───────────────────────────────────────────────────────
+
+const EVAL_FIELDS: { key: string; label: string }[] = [
+  { key: "lips", label: "Lips" },
+  { key: "tongue", label: "Tongue" },
+  { key: "dentures", label: "Dentures" },
+  { key: "teeth", label: "Teeth" },
+  { key: "saliva", label: "Saliva" },
+  { key: "pain", label: "Pain" },
+  { key: "gums_soft_tissue", label: "Gums/Soft Tissue" },
+  { key: "swallowing", label: "Swallowing" },
+  { key: "nutrition", label: "Nutrition" },
+  { key: "speech_difficulty", label: "Speech Difficulty" },
+  { key: "dexterity_problems", label: "Dexterity Problems" },
+  { key: "cognitive_function", label: "Cognitive Function" },
+];
+
+const defaultEvalState = () =>
+  Object.fromEntries(EVAL_FIELDS.map((f) => [f.key, false])) as Record<string, boolean>;
+
 export default function OralAssessmentDialog({
   teamId, residentId, organizationId, userId, userName, resident,
   careHomeName = "", onClose, initialData, isEditMode = false, isInline = false, viewOnly = false
 }: OralAssessmentDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
+
+  // ── Evaluation state ────────────────────────────────────────────────────────
+  const [evaluations, setEvaluations] = useState<any[]>([]);
+  const [showEvalForm, setShowEvalForm] = useState(false);
+  const [evalValues, setEvalValues] = useState<Record<string, boolean>>(defaultEvalState());
+  const [evalCompletedBy, setEvalCompletedBy] = useState(userName || "");
+  const [evalDate, setEvalDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
+  const [isSubmittingEval, setIsSubmittingEval] = useState(false);
+
+  const fetchEvaluations = async () => {
+    if (!residentId) return;
+    const { data, error } = await supabase
+      .from("oral_assessment_evaluations")
+      .select("*")
+      .eq("resident_id", residentId)
+      .order("evaluation_date", { ascending: false });
+    if (!error && data) setEvaluations(data);
+  };
+
+  useEffect(() => {
+    fetchEvaluations();
+  }, [residentId]);
+
+  const handleSubmitEval = async () => {
+    if (!evalCompletedBy.trim()) {
+      toast.error("Please enter who completed this evaluation.");
+      return;
+    }
+    setIsSubmittingEval(true);
+    try {
+      const payload = {
+        resident_id: residentId,
+        organization_id: organizationId,
+        completed_by: evalCompletedBy.trim(),
+        evaluation_date: evalDate,
+        ...evalValues,
+      };
+      const { error } = await supabase
+        .from("oral_assessment_evaluations")
+        .insert(payload);
+      if (error) throw error;
+      toast.success("Evaluation submitted successfully.");
+      setShowEvalForm(false);
+      setEvalValues(defaultEvalState());
+      setEvalDate(format(new Date(), "yyyy-MM-dd"));
+      await fetchEvaluations();
+    } catch (err) {
+      console.error("Error submitting evaluation:", err);
+      toast.error("Failed to submit evaluation.");
+    } finally {
+      setIsSubmittingEval(false);
+    }
+  };
 
   const form = useForm<z.infer<typeof oralAssessmentSchema>>({
     resolver: zodResolver(oralAssessmentSchema),
@@ -240,13 +321,13 @@ export default function OralAssessmentDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Left Column */}
                   <div className="space-y-4">
-                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Lips, Tongue & Saliva</h4>
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Lips, Tongue &amp; Saliva</h4>
                     <YesNoField fieldName="lipsDryCracked" careField="lipsDryCrackedCare" label="Lips: Dry / Cracked" />
                     <YesNoField fieldName="tongueDryCracked" careField="tongueDryCrackedCare" label="Tongue: Dry / Cracked" />
                     <YesNoField fieldName="tongueUlceration" careField="tongueUlcerationCare" label="Tongue: Evidence of ulceration/soreness" />
                     <YesNoField fieldName="dryMouth" careField="dryMouthCare" label="Saliva: Dry Mouth" />
 
-                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1 mt-6">Dentures & Teeth</h4>
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1 mt-6">Dentures &amp; Teeth</h4>
                     <YesNoField fieldName="hasTopDenture" careField="topDentureCare" label="Dentures: Top Denture?" />
                     <YesNoField fieldName="hasLowerDenture" careField="lowerDentureCare" label="Dentures: Lower Denture?" />
                     <YesNoField fieldName="hasDenturesAndNaturalTeeth" careField="denturesAndNaturalTeethCare" label="Dentures and natural teeth?" />
@@ -256,7 +337,7 @@ export default function OralAssessmentDialog({
 
                   {/* Right Column */}
                   <div className="space-y-4">
-                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Pain, Gums & Swallowing</h4>
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Pain, Gums &amp; Swallowing</h4>
                     <YesNoField fieldName="painWhenEating" careField="painWhenEatingCare" label="Pain: When eating/drinking caused by teeth/dentures" />
                     <YesNoField fieldName="gumsUlceration" careField="gumsUlcerationCare" label="Gums / Soft tissue: Evidence of soreness/ulceration" />
                     <YesNoField fieldName="difficultySwallowing" careField="difficultySwallowingCare" label="Swallowing: Difficulty with swallowing" />
@@ -265,7 +346,7 @@ export default function OralAssessmentDialog({
                     <YesNoField fieldName="poorFluidDietaryIntake" careField="poorFluidDietaryIntakeCare" label="Fluid/dietary intake poor" />
                     <YesNoField fieldName="dehydrated" careField="dehydratedCare" label="Dehydrated" />
 
-                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1 mt-6">Speech, Dexterity & Cognition</h4>
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1 mt-6">Speech, Dexterity &amp; Cognition</h4>
                     <YesNoField fieldName="speechDifficultyDryMouth" careField="speechDifficultyDryMouthCare" label="Speech Difficulty: Due to dry mouth?" />
                     <YesNoField fieldName="speechDifficultyDenturesSlipping" careField="speechDifficultyDenturesSlippingCare" label="Speech Difficulty: Due to dentures slipping" />
                     <YesNoField fieldName="dexterityProblems" careField="dexterityProblemsCare" label="Dexterity: Difficulty or unable to hold a toothbrush" />
@@ -273,8 +354,157 @@ export default function OralAssessmentDialog({
                   </div>
                 </div>
               </div>
+
             </form>
           </fieldset>
+
+          {/* ── Evaluations Section ────────────────────────────────────────── */}
+          <div className="flex flex-col gap-4 mt-6 p-4 border rounded-lg bg-card mb-8">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                Evaluations
+                <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  {evaluations.length}
+                </span>
+              </h3>
+              {!showEvalForm && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowEvalForm(true)}
+                  className="gap-2 keep-interactive"
+                >
+                  <Plus className="h-4 w-4 keep-interactive" />
+                  Add Evaluation
+                </Button>
+              )}
+            </div>
+
+            {/* Add Evaluation inline form */}
+            {showEvalForm && (
+              <div className="border rounded-lg p-4 bg-muted/10 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-sm">New Evaluation</h4>
+                  <button
+                    type="button"
+                    onClick={() => { setShowEvalForm(false); setEvalValues(defaultEvalState()); }}
+                    className="text-muted-foreground hover:text-foreground transition-colors keep-interactive"
+                  >
+                    <X className="h-4 w-4 keep-interactive" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Completed By</label>
+                    <Input
+                      value={evalCompletedBy}
+                      onChange={e => setEvalCompletedBy(e.target.value)}
+                      placeholder="Enter name"
+                      className="keep-interactive"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Date</label>
+                    <Input
+                      type="date"
+                      value={evalDate}
+                      onChange={e => setEvalDate(e.target.value)}
+                      className="keep-interactive"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {EVAL_FIELDS.map((f) => (
+                    <div key={f.key} className="flex items-center justify-between p-2 border rounded bg-background">
+                      <span className="text-sm font-medium">{f.label}</span>
+                      <RadioGroup
+                        value={evalValues[f.key] ? "yes" : "no"}
+                        onValueChange={v => setEvalValues(prev => ({ ...prev, [f.key]: v === "yes" }))}
+                        className="flex gap-3 keep-interactive"
+                      >
+                        <div className="flex items-center space-x-1 keep-interactive">
+                          <RadioGroupItem value="yes" id={`eval-${f.key}-yes`} className="keep-interactive" />
+                          <label htmlFor={`eval-${f.key}-yes`} className="text-sm cursor-pointer keep-interactive">Yes</label>
+                        </div>
+                        <div className="flex items-center space-x-1 keep-interactive">
+                          <RadioGroupItem value="no" id={`eval-${f.key}-no`} className="keep-interactive" />
+                          <label htmlFor={`eval-${f.key}-no`} className="text-sm cursor-pointer keep-interactive">No</label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setShowEvalForm(false); setEvalValues(defaultEvalState()); }}
+                    disabled={isSubmittingEval}
+                    className="keep-interactive"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSubmitEval}
+                    disabled={isSubmittingEval}
+                    className="keep-interactive"
+                  >
+                    {isSubmittingEval ? "Submitting..." : "Submit Evaluation"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Evaluations Table */}
+            {evaluations.length > 0 ? (
+              <div className="overflow-x-auto rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="whitespace-nowrap">Date</TableHead>
+                      <TableHead className="whitespace-nowrap">Completed By</TableHead>
+                      {EVAL_FIELDS.map(f => (
+                        <TableHead key={f.key} className="text-center whitespace-nowrap text-xs px-2">{f.label}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {evaluations.map((ev) => (
+                      <TableRow key={ev.id} className="hover:bg-muted/30">
+                        <TableCell className="font-medium whitespace-nowrap">
+                          {ev.evaluation_date ? format(new Date(ev.evaluation_date), "dd/MM/yyyy") : "—"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap max-w-[120px] truncate">
+                          {ev.completed_by || "—"}
+                        </TableCell>
+                        {EVAL_FIELDS.map(f => (
+                          <TableCell key={f.key} className="text-center px-2">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${ev[f.key]
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                              : "bg-rose-50 text-rose-700 border border-rose-200"
+                              }`}>
+                              {ev[f.key] ? "Yes" : "No"}
+                            </span>
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : !showEvalForm ? (
+              <div className="text-center py-8 rounded-xl border border-dashed text-sm text-muted-foreground bg-muted/20">
+                No evaluations found for this assessment.
+              </div>
+            ) : null}
+          </div>
         </Form>
       </div>
       {!isInline && !viewOnly && (

@@ -307,8 +307,8 @@ export default function CareFileV2FolderPage() {
         }
 
         const formState = getFormState(key);
-        // Braden form should always be in edit mode as per user request
-        if (key === "braden-risk-assessment-form") {
+        // Braden form, Dependency Assessment, Fall Risk Assessment, and Choking Risk Assessment should always be in edit mode
+        if (key === "braden-risk-assessment-form" || key === "dependency-assessment" || key === "fall-risk-assessment" || key === "choking-risk-assessment-form") {
             setIsViewOnly(false);
             setIsReviewMode(false);
             setFormDataForEdit(null);
@@ -374,7 +374,8 @@ export default function CareFileV2FolderPage() {
     };
 
     const handlePrint = async () => {
-        if (!activeFormKey || !formDataForEdit || !resident) return;
+        if (!activeFormKey || !resident) return;
+        if (activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && !formDataForEdit) return;
         const formName = activeFormKey === "care-plan-form" ? (formDataForEdit.care_plan_type || "Care Plan") : (folder?.forms.find(f => f.key === activeFormKey)?.value || "Form");
 
         toast.info(`Generating PDF for ${formName}...`);
@@ -399,6 +400,59 @@ export default function CareFileV2FolderPage() {
                     staff_name: e.reviewed_by_name,
                     next_review_date: e.new_review_date
                 }));
+            }
+        }
+
+        // If it's a dependency assessment, fetch all past assessments
+        if (activeFormKey === "dependency-assessment") {
+            const { data: history, error } = await supabase
+                .from('dependency_assessments')
+                .select('*')
+                .eq('resident_id', residentId)
+                .order('assessment_date', { ascending: false });
+
+            if (!error && history) {
+                dataToPrint.history = history;
+            }
+        }
+
+        // If it's a fall risk assessment, fetch all past assessments
+        if (activeFormKey === "fall-risk-assessment") {
+            const { data: history, error } = await supabase
+                .from('fall_risk_assessments')
+                .select('*')
+                .eq('resident_id', residentId)
+                .order('assessment_date', { ascending: false });
+
+            if (!error && history) {
+                dataToPrint.history = history;
+            }
+        }
+
+        // If it's a choking risk assessment, fetch all past assessments
+        if (activeFormKey === "choking-risk-assessment-form") {
+            const { data: history, error } = await supabase
+                .from('choking_risk_assessments')
+                .select('*')
+                .eq('resident_id', residentId)
+                .order('assessment_date', { ascending: false });
+
+            if (!error && history) {
+                dataToPrint.history = history;
+            }
+        }
+
+        // If it's an oral assessment, fetch the 5 most recent evaluations
+        if (activeFormKey === "oral-assessment-form") {
+            const { data: evaluations, error } = await supabase
+                .from('oral_assessment_evaluations')
+                .select('*')
+                .eq('resident_id', residentId)
+                .order('evaluation_date', { ascending: false })
+                .limit(5);
+
+            if (!error && evaluations) {
+                dataToPrint.evaluations = evaluations;
             }
         }
 
@@ -533,12 +587,11 @@ export default function CareFileV2FolderPage() {
                                     <div className="flex items-center gap-2">
                                         {isViewOnly ? (
                                             <>
-                                                <Button variant="outline" size="sm" onClick={() => { setIsViewOnly(false); setIsReviewMode(true); }} className="gap-2">
-                                                    <Edit3 className="w-4 h-4" /> Edit
-                                                </Button>
-                                                <Button variant="outline" size="sm" onClick={handlePrint} disabled={!formDataForEdit} className="gap-2">
-                                                    <Printer className="w-4 h-4" /> Print
-                                                </Button>
+                                                {activeFormKey !== "dependency-assessment" && (
+                                                    <Button variant="outline" size="sm" onClick={() => { setIsViewOnly(false); setIsReviewMode(true); }} className="gap-2">
+                                                        <Edit3 className="w-4 h-4" /> Edit
+                                                    </Button>
+                                                )}
                                             </>
                                         ) : (
                                             <>
@@ -548,6 +601,15 @@ export default function CareFileV2FolderPage() {
                                                 </Button>
                                             </>
                                         )}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handlePrint}
+                                            disabled={activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && !formDataForEdit}
+                                            className="gap-2"
+                                        >
+                                            <Printer className="w-4 h-4" /> Print
+                                        </Button>
                                         <Button variant="ghost" size="icon" onClick={handleCloseForm}><X className="w-4 h-4" /></Button>
                                     </div>
                                 </div>

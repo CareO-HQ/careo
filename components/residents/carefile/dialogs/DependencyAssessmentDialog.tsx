@@ -175,9 +175,21 @@ export default function DependencyAssessmentDialog({
                 toast.success("Dependency Assessment submitted");
                 form.reset({
                     ...form.getValues(),
-                    mobility: 0, dressing: 0, personalHygiene: 0, feeding: 0, eyesight: 0, hearing: 0,
-                    pressureSoreRisk: 0, continenceUrine: 0, continenceFaeces: 0, communication: 0,
-                    socialDependency: 0, behaviour: 0
+                    signature: "",
+                    dateOfAssessment: new Date().toISOString().split("T")[0],
+                    time: new Date().toTimeString().slice(0, 5),
+                    mobility: 0,
+                    dressing: 0,
+                    personalHygiene: 0,
+                    feeding: 0,
+                    eyesight: 0,
+                    hearing: 0,
+                    pressureSoreRisk: 0,
+                    continenceUrine: 0,
+                    continenceFaeces: 0,
+                    communication: 0,
+                    socialDependency: 0,
+                    behaviour: 0
                 });
                 fetchHistory();
             }

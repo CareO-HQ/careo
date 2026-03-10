@@ -24,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
+import { Plus } from "lucide-react";
 
 interface ChokingRiskAssessmentDialogProps {
   teamId: string;
@@ -207,7 +208,12 @@ export default function ChokingRiskAssessmentDialog({
       } else {
         toast.success("Choking Risk Assessment submitted");
         form.reset({
-          ...form.getValues(),
+          residentName: `${resident.first_name} ${resident.last_name}`,
+          dateOfBirth: resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : "",
+          dateOfAssessment: new Date().toISOString().split("T")[0],
+          time: new Date().toTimeString().slice(0, 5),
+          completedBy: form.getValues("completedBy"),
+          signature: "",
           weakCough: false, chestInfections: false, breathingDifficulties: false, knownToAspirate: false,
           chokingHistory: false, gurgledVoice: false, epilepsy: false, cerebralPalsy: false, dementia: false,
           mentalHealth: false, neurologicalConditions: false, learningDisabilities: false, posturalProblems: false,
@@ -475,6 +481,30 @@ export default function ChokingRiskAssessmentDialog({
             </Table>
           </div>
         )}
+      </div>
+
+      <div className="flex flex-col gap-4 mt-6 p-4 border rounded-lg bg-card text-left">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-bold flex items-center gap-2">
+            Evaluations
+            <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+              0
+            </span>
+          </h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => { }}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Add Evaluation
+          </Button>
+        </div>
+        <div className="text-center py-8 rounded-xl border border-dashed text-sm text-muted-foreground bg-muted/20">
+          No evaluations found for this assessment.
+        </div>
       </div>
     </>
   );

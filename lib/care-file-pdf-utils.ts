@@ -242,7 +242,495 @@ export const generateCareFilePDF = async ({
         return y + 5 + (splitValue.length * 5);
     };
 
-    // --- Specialized Layouts ---
+    // --- Dependency Assessment Specialized Layout ---
+    if (formName.toUpperCase().includes("DEPENDENCY ASSESSMENT")) {
+        // Resident info section
+        yPos = addSectionTitle("RESIDENT INFORMATION", yPos);
+        const col2 = margin + (pageWidth - margin * 2) / 2;
+        const colWidth = (pageWidth - margin * 2) / 2 - 5;
+
+        let y1 = addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
+        const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
+        const formattedDob = dobValue ? format(new Date(dobValue), "dd/MM/yyyy") : "N/A";
+        y1 = addField("Date of Birth", formattedDob, margin, y1, colWidth);
+        y1 = addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1, colWidth);
+
+        let y2 = addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
+        y2 = addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2, colWidth);
+        y2 = addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2, colWidth);
+
+        yPos = Math.max(y1, y2) + 10;
+
+        // History Table (Show this first after resident info)
+        if (data.history && Array.isArray(data.history) && data.history.length > 0) {
+            yPos = addSectionTitle("PAST ASSESSMENTS HISTORY", yPos);
+
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Date', 'By', 'Mob', 'Dre', 'Hyg', 'Fed', 'Eye', 'Hea', 'Brad', 'Uri', 'Fae', 'Com', 'Soc', 'Beh', 'Tot', 'Lvl']],
+                body: data.history.map((h: any) => {
+                    const det = h.assessment_details || {};
+                    return [
+                        format(new Date(h.assessment_date), "dd/MM/yy"),
+                        h.completed_by || h.completedBy || "N/A",
+                        det.mobility || 0,
+                        det.dressing || 0,
+                        det.personalHygiene || 0,
+                        det.feeding || 0,
+                        det.eyesight || 0,
+                        det.hearing || 0,
+                        det.pressureSoreRisk || 0,
+                        det.continenceUrine || 0,
+                        det.continenceFaeces || 0,
+                        det.communication || 0,
+                        det.socialDependency || 0,
+                        det.behaviour || 0,
+                        h.total_score || 0,
+                        h.dependency_level?.[0] || ""
+                    ];
+                }),
+                theme: 'grid',
+                headStyles: { fillColor: [34, 197, 94] },
+                styles: { fontSize: 7, cellPadding: 1, halign: 'center' },
+                columnStyles: {
+                    0: { halign: 'left', cellWidth: 15 },
+                    1: { halign: 'left', cellWidth: 20 },
+                }
+            });
+            yPos = (doc as any).lastAutoTable.finalY + 15;
+        }
+
+        // Current assessment details (Show only if data exists and is not just the empty form)
+        const hasCurrentData = data.total_score !== undefined || data.assessment_details;
+        if (hasCurrentData) {
+            yPos = addSectionTitle("CURRENT ASSESSMENT DETAILS", yPos);
+            const assessmentDate = data.assessment_date || data.created_at || new Date();
+            const completedBy = data.completed_by || data.completedBy || "N/A";
+
+            let ay1 = addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
+            ay1 = addField("Total Score", `${data.total_score || 0} pts`, margin, ay1, colWidth);
+
+            let ay2 = addField("Completed By", completedBy, col2, yPos, colWidth);
+            ay2 = addField("Dependency Level", data.dependency_level || "N/A", col2, ay2, colWidth);
+
+            yPos = Math.max(ay1, ay2) + 10;
+
+            const details = data.assessment_details || {};
+            const breakdownData = [
+                ['Mobility', `${details.mobility || 0} pts`, 'Dressing', `${details.dressing || 0} pts`],
+                ['Personal Hygiene', `${details.personalHygiene || 0} pts`, 'Feeding', `${details.feeding || 0} pts`],
+                ['Eyesight', `${details.eyesight || 0} pts`, 'Hearing', `${details.hearing || 0} pts`],
+                ['Pressure Sore Risk', `${details.pressureSoreRisk || 0} pts`, 'Communication', `${details.communication || 0} pts`],
+                ['Continence (Urine)', `${details.continenceUrine || 0} pts`, 'Continence (Faeces)', `${details.continenceFaeces || 0} pts`],
+                ['Social Dependency', `${details.socialDependency || 0} pts`, 'Behaviour', `${details.behaviour || 0} pts`],
+            ];
+
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Category', 'Score', 'Category', 'Score']],
+                body: breakdownData,
+                theme: 'grid',
+                headStyles: { fillColor: [34, 197, 94] },
+                styles: { fontSize: 9 }
+            });
+
+            yPos = (doc as any).lastAutoTable.finalY + 15;
+        }
+
+        doc.save(`${resident?.last_name || "Resident"}_Dependency_Assessment_${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    // --- Fall Risk Assessment Specialized Layout ---
+    if (formName.toUpperCase().includes("FALL RISK ASSESSMENT")) {
+        // Resident info section
+        yPos = addSectionTitle("RESIDENT INFORMATION", yPos);
+        const col2 = margin + (pageWidth - margin * 2) / 2;
+        const colWidth = (pageWidth - margin * 2) / 2 - 5;
+
+        let y1 = addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
+        const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
+        const formattedDob = dobValue ? format(new Date(dobValue), "dd/MM/yyyy") : "N/A";
+        y1 = addField("Date of Birth", formattedDob, margin, y1, colWidth);
+        y1 = addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1, colWidth);
+
+        let y2 = addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
+        y2 = addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2, colWidth);
+        y2 = addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2, colWidth);
+
+        yPos = Math.max(y1, y2) + 10;
+
+        // History Table
+        if (data.history && Array.isArray(data.history) && data.history.length > 0) {
+            yPos = addSectionTitle("PAST ASSESSMENTS HISTORY", yPos);
+
+            const FALL_RISK_OPTIONS: any = {
+                age: [{ label: "86+", value: 3 }, { label: "81-85", value: 2 }, { label: "65-80", value: 1 }, { label: "Under 65", value: 0 }],
+                gender: [{ label: "Female", value: 3 }, { label: "Male", value: 1 }],
+                historyOfFalls: [{ label: "Recurrent falls in last 12 months", value: 3 }, { label: "Fall in last 12 months", value: 2 }, { label: "Fall more than 12 months ago", value: 1 }, { label: "Never Fallen", value: 0 }],
+                mobilityLevel: [{ label: "Assistance of 1 +/- aid", value: 3 }, { label: "Assistance of 2 +/- aid", value: 2 }, { label: "Independent with walking aid", value: 1 }, { label: "Independent and safe unaided", value: 0 }, { label: "Immobile/Hoist", value: 0 }],
+                balance: [{ label: "No", value: 3 }, { label: "Yes", value: 0 }],
+                adlPersonal: [{ label: "Requires assistance", value: 2 }, { label: "Independent with equipment", value: 1 }, { label: "Independent & Safe", value: 0 }],
+                adlDomestic: [{ label: "Requires assistance", value: 2 }, { label: "Independent with equipment", value: 1 }, { label: "Independent & Safe", value: 0 }],
+                footwear: [{ label: "Unsafe", value: 3 }, { label: "Safe", value: 0 }],
+                visionProblems: [{ label: "Yes", value: 3 }, { label: "No", value: 0 }],
+                bladderBowel: [{ label: "Frequency", value: 3 }, { label: "Identified problems", value: 2 }, { label: "No identified problems", value: 0 }],
+                environmentalRisks: [{ label: "Yes", value: 3 }, { label: "No", value: 0 }],
+                socialRisks: [{ label: "Lives Alone", value: 3 }, { label: "Residential limited support", value: 2 }, { label: "24-hour care", value: 1 }],
+                medicalConditions: [{ label: "Neurological/Postural/Cardiac/MuscularSkeletal/Fracture", value: 2 }, { label: "Listed conditions", value: 1 }, { label: "No identified medical conditions", value: 0 }],
+                medicines: [{ label: "4 or more medicines", value: 3 }, { label: "Less than 4 medicines", value: 1 }, { label: "No medicines", value: 0 }],
+                safetyAwareness: [{ label: "No", value: 3 }, { label: "Yes", value: 0 }],
+                mentalState: [{ label: "Confused", value: 3 }, { label: "Orientated", value: 0 }]
+            };
+
+            const getPointValue = (field: string, label: string) => {
+                const options = FALL_RISK_OPTIONS[field];
+                if (!options) return 0;
+                const option = options.find((o: any) => o.label === label);
+                return option ? option.value : 0;
+            };
+
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Date', 'Age', 'Sex', 'Fall', 'Mob', 'Bal', 'ADLP', 'ADLD', 'Foot', 'Vis', 'B&B', 'Env', 'Soc', 'MedC', 'Meds', 'Safe', 'Ment', 'Tot', 'Risk', 'By']],
+                body: data.history.map((h: any) => {
+                    const det = h.assessment_details || {};
+                    return [
+                        format(new Date(h.assessment_date), "dd/MM"),
+                        getPointValue('age', det.age),
+                        getPointValue('gender', det.gender),
+                        getPointValue('historyOfFalls', det.historyOfFalls),
+                        getPointValue('mobilityLevel', det.mobilityLevel),
+                        getPointValue('balance', det.balance),
+                        getPointValue('adlPersonal', det.adlPersonal),
+                        getPointValue('adlDomestic', det.adlDomestic),
+                        getPointValue('footwear', det.footwear),
+                        getPointValue('visionProblems', det.visionProblems),
+                        getPointValue('bladderBowel', det.bladderBowel),
+                        getPointValue('environmentalRisks', det.environmentalRisks),
+                        getPointValue('socialRisks', det.socialRisks),
+                        getPointValue('medicalConditions', det.medicalConditions),
+                        getPointValue('medicines', det.medicines),
+                        getPointValue('safetyAwareness', det.safetyAwareness),
+                        getPointValue('mentalState', det.mentalState),
+                        h.total_score || 0,
+                        h.risk_level?.replace(" Risk", "") || "N/A",
+                        h.completed_by || h.completedBy || "N/A"
+                    ];
+                }),
+                theme: 'grid',
+                headStyles: { fillColor: [34, 197, 94] },
+                styles: { fontSize: 6, cellPadding: 1 },
+                columnStyles: {
+                    0: { cellWidth: 12 },
+                    17: { halign: 'center', fontStyle: 'bold', cellWidth: 8 },
+                    18: { halign: 'center', fontStyle: 'bold', cellWidth: 12 },
+                    19: { cellWidth: 15 }
+                }
+            });
+            yPos = (doc as any).lastAutoTable.finalY + 15;
+        }
+
+        // Current assessment details
+        const hasCurrentData = data.total_score !== undefined || data.assessment_details;
+        if (hasCurrentData) {
+            yPos = addSectionTitle("CURRENT ASSESSMENT DETAILS", yPos);
+            const assessmentDate = data.assessment_date || data.created_at || new Date();
+            const completedBy = data.completed_by || data.completedBy || "N/A";
+
+            let ay1 = addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
+            ay1 = addField("Total Score", `${data.total_score || 0} pts`, margin, ay1, colWidth);
+
+            let ay2 = addField("Completed By", completedBy, col2, yPos, colWidth);
+            ay2 = addField("Risk Level", data.risk_level || "N/A", col2, ay2, colWidth);
+
+            const FALL_RISK_OPTIONS: any = {
+                age: [{ label: "86+", value: 3 }, { label: "81-85", value: 2 }, { label: "65-80", value: 1 }, { label: "Under 65", value: 0 }],
+                gender: [{ label: "Female", value: 3 }, { label: "Male", value: 1 }],
+                historyOfFalls: [{ label: "Recurrent falls in last 12 months", value: 3 }, { label: "Fall in last 12 months", value: 2 }, { label: "Fall more than 12 months ago", value: 1 }, { label: "Never Fallen", value: 0 }],
+                mobilityLevel: [{ label: "Assistance of 1 +/- aid", value: 3 }, { label: "Assistance of 2 +/- aid", value: 2 }, { label: "Independent with walking aid", value: 1 }, { label: "Independent and safe unaided", value: 0 }, { label: "Immobile/Hoist", value: 0 }],
+                balance: [{ label: "No", value: 3 }, { label: "Yes", value: 0 }],
+                adlPersonal: [{ label: "Requires assistance", value: 2 }, { label: "Independent with equipment", value: 1 }, { label: "Independent & Safe", value: 0 }],
+                adlDomestic: [{ label: "Requires assistance", value: 2 }, { label: "Independent with equipment", value: 1 }, { label: "Independent & Safe", value: 0 }],
+                footwear: [{ label: "Unsafe", value: 3 }, { label: "Safe", value: 0 }],
+                visionProblems: [{ label: "Yes", value: 3 }, { label: "No", value: 0 }],
+                bladderBowel: [{ label: "Frequency", value: 3 }, { label: "Identified problems", value: 2 }, { label: "No identified problems", value: 0 }],
+                environmentalRisks: [{ label: "Yes", value: 3 }, { label: "No", value: 0 }],
+                socialRisks: [{ label: "Lives Alone", value: 3 }, { label: "Residential limited support", value: 2 }, { label: "24-hour care", value: 1 }],
+                medicalConditions: [{ label: "Neurological/Postural/Cardiac/MuscularSkeletal/Fracture", value: 2 }, { label: "Listed conditions", value: 1 }, { label: "No identified medical conditions", value: 0 }],
+                medicines: [{ label: "4 or more medicines", value: 3 }, { label: "Less than 4 medicines", value: 1 }, { label: "No medicines", value: 0 }],
+                safetyAwareness: [{ label: "No", value: 3 }, { label: "Yes", value: 0 }],
+                mentalState: [{ label: "Confused", value: 3 }, { label: "Orientated", value: 0 }]
+            };
+
+            const getSectionScore = (field: string, label: string) => {
+                const options = FALL_RISK_OPTIONS[field];
+                if (!options) return 0;
+                const option = options.find((o: any) => o.label === label);
+                return option ? option.value : 0;
+            };
+
+            const details = data.assessment_details || {};
+            const breakdownData = Object.entries(details)
+                .map(([k, v]) => {
+                    const label = k.replace(/_/g, " ").replace(/([A-Z])/g, " $1").replace(/\b\w/g, l => l.toUpperCase()).trim();
+                    const score = getSectionScore(k, String(v));
+                    return [label, `${v} (${score} pts)`];
+                });
+
+            const tableRows: any[][] = [];
+            for (let i = 0; i < breakdownData.length; i += 2) {
+                const row = [
+                    breakdownData[i][0], breakdownData[i][1],
+                    breakdownData[i + 1] ? breakdownData[i + 1][0] : "",
+                    breakdownData[i + 1] ? breakdownData[i + 1][1] : ""
+                ];
+                tableRows.push(row);
+            }
+
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Category', 'Details', 'Category', 'Details']],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: [34, 197, 94] },
+                styles: { fontSize: 8 }
+            });
+
+            yPos = (doc as any).lastAutoTable.finalY + 15;
+        }
+
+        doc.save(`${resident?.last_name || "Resident"}_Fall_Risk_Assessment_${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    // --- Choking Risk Assessment Specialized Layout ---
+    if (formName.toUpperCase().includes("CHOKING RISK ASSESSMENT")) {
+        const col2 = margin + (pageWidth - margin * 2) / 2;
+        const colWidth = (pageWidth - margin * 2) / 2 - 5;
+
+        // 1. Resident Information (always first)
+        yPos = addSectionTitle("RESIDENT INFORMATION", yPos);
+
+        let y1 = addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
+        const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
+        const formattedDob = dobValue ? format(new Date(dobValue), "dd/MM/yyyy") : "N/A";
+        y1 = addField("Date of Birth", formattedDob, margin, y1, colWidth);
+        y1 = addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1, colWidth);
+
+        let y2 = addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
+        y2 = addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2, colWidth);
+        y2 = addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2, colWidth);
+
+        yPos = Math.max(y1, y2) + 10;
+
+        // Helper to calculate section score from risk_factors JSONB
+        const calcSectionScore = (factors: any, keys: { [k: string]: number }) => {
+            return Object.entries(keys).reduce((acc, [key, pts]) => {
+                return factors?.[key] ? acc + pts : acc;
+            }, 0);
+        };
+
+        // 2. Past Assessments History table
+        if (data.history && Array.isArray(data.history) && data.history.length > 0) {
+            yPos = addSectionTitle("PAST ASSESSMENTS HISTORY", yPos);
+
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Date', 'Completed By', 'Resp', 'At Risk', 'Phys', 'Behavr', 'Eating', 'Recogn', 'Med', 'Total', 'Level']],
+                body: data.history.map((h: any) => {
+                    const f = h.risk_factors || {};
+                    const resp = calcSectionScore(f, { weakCough: 10, chestInfections: 10, breathingDifficulties: 10, knownToAspirate: 10, chokingHistory: 10, gurgledVoice: 10 });
+                    const atRisk = calcSectionScore(f, { epilepsy: 4, cerebralPalsy: 4, dementia: 4, mentalHealth: 4, neurologicalConditions: 10, learningDisabilities: 10 });
+                    const phys = calcSectionScore(f, { posturalProblems: 8, poorHeadControl: 8, tongueThrust: 8, chewingDifficulties: 8, slurredSpeech: 10, neckTrauma: 10 });
+                    const behav = calcSectionScore(f, { eatsRapidly: 8, drinksRapidly: 8, eatsWhileCoughing: 8, drinksWhileCoughing: 8, crammingFood: 10, pocketingFood: 10, swallowingWithoutChewing: 10, wouldTakeFood: 4 });
+                    const eating = calcSectionScore(f, { drinksIndependentlySafely: -2, eatsIndependentlySafely: -2, poorDentition: 8, fatigueAtMealtimes: 8, needsFoodCutting: 6, texturedModifiedDiet: 10, thickenedFluids: 10, specialistFeedingAids: 5, specialistDrinkingAids: 5 });
+                    const recogn = calcSectionScore(f, { acceptAnyItem: 10, acceptAnyItemAndSwallow: 10 });
+                    const med = calcSectionScore(f, { medicationAffectingSwallowing: 10 });
+                    return [
+                        format(new Date(h.assessment_date), "dd/MM/yyyy"),
+                        h.completed_by || h.completedBy || "N/A",
+                        resp, atRisk, phys, behav, eating, recogn, med,
+                        h.total_score || 0,
+                        h.risk_level?.replace(" Risk", "") || "N/A"
+                    ];
+                }),
+                theme: 'grid',
+                headStyles: { fillColor: [34, 197, 94] },
+                styles: { fontSize: 7, cellPadding: 1.5 },
+                columnStyles: {
+                    0: { halign: 'left', cellWidth: 18 },
+                    1: { halign: 'left', cellWidth: 28 },
+                    9: { halign: 'center', fontStyle: 'bold', cellWidth: 12 },
+                    10: { halign: 'center', fontStyle: 'bold', cellWidth: 16 },
+                }
+            });
+            yPos = (doc as any).lastAutoTable.finalY + 15;
+        }
+
+        // 3. Current assessment details
+        const hasCurrentData = data.total_score !== undefined || data.risk_factors;
+        if (hasCurrentData) {
+            yPos = addSectionTitle("CURRENT ASSESSMENT DETAILS", yPos);
+            const assessmentDate = data.assessment_date || data.created_at || new Date();
+            const completedBy = data.completed_by || data.completedBy || "N/A";
+
+            let ay1 = addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
+            ay1 = addField("Total Score", `${data.total_score || 0} pts`, margin, ay1, colWidth);
+            ay1 = addField("Completed By", completedBy, margin, ay1, colWidth);
+
+            const ay2 = addField("Risk Level", data.risk_level || "N/A", col2, yPos, colWidth);
+
+            yPos = Math.max(ay1, ay2) + 10;
+
+            const factors = data.risk_factors || {};
+            const sectionBreakdownData = [
+                ['Respiratory Risks', `${calcSectionScore(factors, { weakCough: 10, chestInfections: 10, breathingDifficulties: 10, knownToAspirate: 10, chokingHistory: 10, gurgledVoice: 10 })} pts`, 'At Risk Groups', `${calcSectionScore(factors, { epilepsy: 4, cerebralPalsy: 4, dementia: 4, mentalHealth: 4, neurologicalConditions: 10, learningDisabilities: 10 })} pts`],
+                ['Physical Risks', `${calcSectionScore(factors, { posturalProblems: 8, poorHeadControl: 8, tongueThrust: 8, chewingDifficulties: 8, slurredSpeech: 10, neckTrauma: 10 })} pts`, 'Eating Behaviours', `${calcSectionScore(factors, { eatsRapidly: 8, drinksRapidly: 8, eatsWhileCoughing: 8, drinksWhileCoughing: 8, crammingFood: 10, pocketingFood: 10, swallowingWithoutChewing: 10, wouldTakeFood: 4 })} pts`],
+                ['Eating Risks', `${calcSectionScore(factors, { drinksIndependentlySafely: -2, eatsIndependentlySafely: -2, poorDentition: 8, fatigueAtMealtimes: 8, needsFoodCutting: 6, texturedModifiedDiet: 10, thickenedFluids: 10, specialistFeedingAids: 5, specialistDrinkingAids: 5 })} pts`, 'Food Recognition', `${calcSectionScore(factors, { acceptAnyItem: 10, acceptAnyItemAndSwallow: 10 })} pts`],
+                ['Medication', `${calcSectionScore(factors, { medicationAffectingSwallowing: 10 })} pts`, '', ''],
+            ];
+
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Section', 'Score', 'Section', 'Score']],
+                body: sectionBreakdownData,
+                theme: 'grid',
+                headStyles: { fillColor: [34, 197, 94] },
+                styles: { fontSize: 9 }
+            });
+
+            yPos = (doc as any).lastAutoTable.finalY + 15;
+        }
+
+        doc.save(`${resident?.last_name || "Resident"}_Choking_Risk_Assessment_${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    // --- Oral Assessment Specialized Layout ---
+    if (formName.toUpperCase().includes("ORAL ASSESSMENT")) {
+        const col2 = margin + (pageWidth - margin * 2) / 2;
+        const colWidth = (pageWidth - margin * 2) / 2 - 5;
+
+        // 1. Resident Information
+        yPos = addSectionTitle("RESIDENT INFORMATION", yPos);
+
+        let y1 = addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
+        const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
+        const formattedDob = dobValue ? format(new Date(dobValue), "dd/MM/yyyy") : "N/A";
+        y1 = addField("Date of Birth", formattedDob, margin, y1, colWidth);
+        y1 = addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1, colWidth);
+
+        let y2 = addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
+        y2 = addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2, colWidth);
+        y2 = addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2, colWidth);
+
+        yPos = Math.max(y1, y2) + 10;
+
+        // 2. Current Assessment Details
+        yPos = addSectionTitle("ASSESSMENT DETAILS", yPos);
+        const assessmentDate = data.assessment_date || data.created_at || new Date();
+        const completedBy = data.completed_by || data.completedBy || "N/A";
+
+        let ay1 = addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
+        ay1 = addField("Completed By", completedBy, margin, ay1, colWidth);
+        ay1 = addField("Normal Hygiene Routine", data.oral_hygiene_routine || "N/A", margin, ay1, pageWidth - margin * 2);
+
+        yPos = ay1 + 5;
+
+        // Dental Info
+        const d = data.dental_info || {};
+        yPos = addSectionTitle("DENTAL INFORMATION", yPos);
+        let dy1 = addField("Registered with Dentist", d.isRegisteredWithDentist ? "Yes" : "No", margin, yPos, colWidth);
+        if (d.isRegisteredWithDentist) {
+            dy1 = addField("Last Seen", d.lastSeenByDentist || "N/A", margin, dy1, colWidth);
+            dy1 = addField("Dentist Name", d.dentistName || "N/A", margin, dy1, colWidth);
+            dy1 = addField("Contact", d.contactTelephone || "N/A", margin, dy1, colWidth);
+            addField("Practice Address", d.dentalPracticeAddress || "N/A", col2, yPos, colWidth);
+        }
+        yPos = dy1 + 10;
+
+        // Examination Findings & Symptoms
+        const ef = data.exam_findings || {};
+        const s = data.symptoms || {};
+        yPos = addSectionTitle("EXAMINATION FINDINGS & SYMPTOMS", yPos);
+
+        const examRows = [
+            ["Lips: Dry/Cracked", ef.lipsDryCracked ? "Yes" : "No"],
+            ["Tongue: Dry/Cracked", ef.tongueDryCracked ? "Yes" : "No"],
+            ["Tongue: Ulceration/Soreness", ef.tongueUlceration ? "Yes" : "No"],
+            ["Saliva: Dry Mouth", ef.dryMouth ? "Yes" : "No"],
+            ["Dentures: Top", ef.hasTopDenture ? "Yes" : "No"],
+            ["Dentures: Lower", ef.hasLowerDenture ? "Yes" : "No"],
+            ["Dentures & Natural Teeth", ef.hasDenturesAndNaturalTeeth ? "Yes" : "No"],
+            ["Teeth: Natural", ef.hasNaturalTeeth ? "Yes" : "No"],
+            ["Teeth: Plaque/Debris", ef.evidencePlaqueDebris ? "Yes" : "No"],
+            ["Pain: When eating/drinking", s.painWhenEating ? "Yes" : "No"],
+            ["Gums: Soreness/Ulceration", s.gumsUlceration ? "Yes" : "No"],
+            ["Swallowing: Difficulty", s.difficultySwallowing ? "Yes" : "No"],
+            ["Nutrition: Poor intake", s.poorFluidDietaryIntake ? "Yes" : "No"],
+            ["Dehydrated", s.dehydrated ? "Yes" : "No"],
+            ["Speech: Dry mouth", s.speechDifficultyDryMouth ? "Yes" : "No"],
+            ["Speech: Dentures slipping", s.speechDifficultyDenturesSlipping ? "Yes" : "No"],
+            ["Dexterity: Toothbrushing difficulty", s.dexterityProblems ? "Yes" : "No"],
+            ["Cognitive: Memory loss/confusion", s.cognitiveImpairment ? "Yes" : "No"],
+        ];
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Field / Symptom', 'Status']],
+            body: examRows,
+            theme: 'grid',
+            headStyles: { fillColor: [34, 197, 94] },
+            styles: { fontSize: 8 },
+            columnStyles: {
+                0: { cellWidth: 'auto' },
+                1: { cellWidth: 30, halign: 'center' }
+            }
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 15;
+
+        // 3. Evaluations Table (Latest 5) - Moved to End
+        if (data.evaluations && Array.isArray(data.evaluations) && data.evaluations.length > 0) {
+            yPos = addSectionTitle("ORAL EVALUATIONS HISTORY (LATEST 5)", yPos);
+
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Date', 'Completed By', 'Lip', 'Ton', 'Dnt', 'Tth', 'Sal', 'Pan', 'Gum', 'Swl', 'Nut', 'Spc', 'Dex', 'Cog']],
+                body: data.evaluations.map((ev: any) => [
+                    ev.evaluation_date ? format(new Date(ev.evaluation_date), "dd/MM") : "—",
+                    ev.completed_by || "—",
+                    ev.lips ? "Y" : "N",
+                    ev.tongue ? "Y" : "N",
+                    ev.dentures ? "Y" : "N",
+                    ev.teeth ? "Y" : "N",
+                    ev.saliva ? "Y" : "N",
+                    ev.pain ? "Y" : "N",
+                    ev.gums_soft_tissue ? "Y" : "N",
+                    ev.swallowing ? "Y" : "N",
+                    ev.nutrition ? "Y" : "N",
+                    ev.speech_difficulty ? "Y" : "N",
+                    ev.dexterity_problems ? "Y" : "N",
+                    ev.cognitive_function ? "Y" : "N",
+                ]),
+                theme: 'grid',
+                headStyles: { fillColor: [34, 197, 94] },
+                styles: { fontSize: 7, cellPadding: 1 },
+                columnStyles: {
+                    0: { cellWidth: 12 },
+                    1: { cellWidth: 20 },
+                }
+            });
+            yPos = (doc as any).lastAutoTable.finalY + 15;
+        }
+
+        doc.save(`${resident?.last_name || "Resident"}_Oral_Assessment_${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    // --- Specimen Record Log ---
+
     if (formName.toUpperCase().includes("SPECIMEN RECORD LOG") || formName.includes("v2-specimen-log")) {
         const records = Array.isArray(data) ? data : (data.records || []);
 

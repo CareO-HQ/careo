@@ -502,6 +502,16 @@ export function WoundAssessmentForm({
                     <p className="text-muted-foreground mt-1">{selectedAssessment.clinical_notes}</p>
                   </div>
                 )}
+                {selectedAssessment.signedUrl && (
+                  <div className="col-span-full mt-4">
+                    <span className="font-semibold block mb-2">Wound Photograph:</span>
+                    <img
+                      src={selectedAssessment.signedUrl}
+                      alt="Wound"
+                      className="max-w-full h-auto rounded-lg border shadow-sm"
+                    />
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

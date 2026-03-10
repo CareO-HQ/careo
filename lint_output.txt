@@ -1,0 +1,19 @@
+`next lint` is deprecated and will be removed in Next.js 16.
+For new projects, use create-next-app to choose your preferred linter.
+For existing projects, migrate to the ESLint CLI:
+npx @next/codemod@canary next-lint-to-eslint-cli .
+
+
+./app/(dashboard)/dashboard/residents/[id]/(pages)/medication/docs/page.tsx
+243:11  Warning: Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any').
+
+./components/medication/forms/PRNConsentForm.tsx
+329:21  Warning: Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps').
+
+./components/medication/KardexModal.tsx
+105:18  Warning: Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element').
+
+./lib/care-file-pdf-utils.ts
+582:17  Error: 'ay2' is never reassigned. Use 'const' instead.  prefer-const
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules

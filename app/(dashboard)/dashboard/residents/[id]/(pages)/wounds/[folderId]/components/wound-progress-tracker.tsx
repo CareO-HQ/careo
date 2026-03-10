@@ -14,30 +14,24 @@ type ProgressStep = {
 type WoundProgressTrackerProps = {
   hasBodyMap: boolean;
   hasPhotograph: boolean;
-  hasInitialAssessment: boolean;
-  hasCarePlan: boolean;
-  hasOngoingAssessment: boolean;
+  hasAssessment: boolean;
   hasEvaluation: boolean;
-  isHealed: boolean;
+  hasCarePlan: boolean;
 };
 
 export function WoundProgressTracker({
   hasBodyMap,
   hasPhotograph,
-  hasInitialAssessment,
-  hasCarePlan,
-  hasOngoingAssessment,
+  hasAssessment,
   hasEvaluation,
-  isHealed,
+  hasCarePlan,
 }: WoundProgressTrackerProps) {
   const steps: ProgressStep[] = [
     { id: "bodymap", label: "Body Map", completed: hasBodyMap },
     { id: "photograph", label: "Photograph", completed: hasPhotograph },
-    { id: "initial", label: "Initial Assessment", completed: hasInitialAssessment },
-    { id: "careplan", label: "Care Plan", completed: hasCarePlan },
-    { id: "ongoing", label: "Ongoing Assessment", completed: hasOngoingAssessment },
+    { id: "assessment", label: "Assessment", completed: hasAssessment },
     { id: "evaluation", label: "Evaluation", completed: hasEvaluation },
-    { id: "healed", label: "Healed", completed: isHealed },
+    { id: "careplan", label: "Care Plan", completed: hasCarePlan },
   ];
 
   // Calculate current step (first incomplete step)
@@ -60,8 +54,8 @@ export function WoundProgressTracker({
                   step.completed
                     ? "bg-emerald-500 border-emerald-500 text-white"
                     : step.current
-                    ? "bg-blue-500 border-blue-500 text-white"
-                    : "bg-white border-gray-300 text-gray-400"
+                      ? "bg-blue-500 border-blue-500 text-white"
+                      : "bg-white border-gray-300 text-gray-400"
                 )}
               >
                 {step.completed && (
@@ -76,8 +70,8 @@ export function WoundProgressTracker({
                   step.completed
                     ? "text-emerald-700"
                     : step.current
-                    ? "text-blue-700 font-semibold"
-                    : "text-gray-500"
+                      ? "text-blue-700 font-semibold"
+                      : "text-gray-500"
                 )}
               >
                 {step.label}
@@ -93,8 +87,8 @@ export function WoundProgressTracker({
                     steps[index].completed && steps[index + 1].completed
                       ? "bg-emerald-500"
                       : steps[index].completed
-                      ? "bg-gradient-to-r from-emerald-500 to-gray-300"
-                      : "bg-gray-300"
+                        ? "bg-gradient-to-r from-emerald-500 to-gray-300"
+                        : "bg-gray-300"
                   )}
                 />
               </div>

@@ -713,66 +713,12 @@ export default function WoundsPage({ params }: WoundsPageProps) {
                             <span className="text-gray-400 text-sm">-</span>
                           )}
                         </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
+                        <TableCell>
                           {wound ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button className="flex items-center gap-1 focus:outline-none">
-                                  <Badge className={`${getStatusColor(wound.status)} border-0 text-xs`}>
-                                    {getStatusIcon(wound.status)}
-                                    <span className="ml-1 capitalize">{wound.status}</span>
-                                  </Badge>
-                                  <ChevronDown className="w-3 h-3 text-gray-400" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="start">
-                                <DropdownMenuItem
-                                  onClick={() => handleStatusChange(wound.id, "active")}
-                                  className="cursor-pointer"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                    <span>Active</span>
-                                  </div>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleStatusChange(wound.id, "healed")}
-                                  className="cursor-pointer"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                                    <span>Healed</span>
-                                  </div>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleStatusChange(wound.id, "healing")}
-                                  className="cursor-pointer"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                                    <span>Healing</span>
-                                  </div>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleStatusChange(wound.id, "deteriorating")}
-                                  className="cursor-pointer"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                                    <span>Deteriorating</span>
-                                  </div>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleStatusChange(wound.id, "infected")}
-                                  className="cursor-pointer"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                                    <span>Infected</span>
-                                  </div>
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <Badge className={`${getStatusColor(wound.status)} border-0 text-xs`}>
+                              {getStatusIcon(wound.status)}
+                              <span className="ml-1 capitalize">{wound.status}</span>
+                            </Badge>
                           ) : (
                             <Badge className="bg-gray-100 text-gray-800 border-0 text-xs">
                               New
