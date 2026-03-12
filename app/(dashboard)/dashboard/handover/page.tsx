@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { Resident } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getColumns } from "./columns";
-import { DataTable } from "./data-table";
+import { HandoverSheetView } from "./handover-sheet-view";
 import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
 import { getAge } from "@/lib/utils";
@@ -313,7 +312,7 @@ export default function HandoverPage() {
   return (
     <div className="flex flex-col min-h-full w-full bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between border-b px-6 py-4">
+      <div className="flex items-center justify-between border-b px-6 py-4 print:hidden">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-semibold">Handover Sheet</h1>
           <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm">
@@ -341,14 +340,7 @@ export default function HandoverPage() {
         </div>
       </div>
 
-      {/* Filters - matching careo-audit style */}
-      <div className="flex items-center gap-2 border-b px-6 py-3">
-        <Badge variant="outline" className="rounded-sm">
-          {isLoadingResidents ? "Loading..." : `${residents.length} Residents`}
-        </Badge>
-      </div>
-
-      {/* Table */}
+      {/* Handover Sheet View */}
       <div className="flex-1 overflow-auto">
         {isLoadingResidents ? (
           <div className="flex items-center justify-center h-full">
@@ -358,15 +350,13 @@ export default function HandoverPage() {
             </div>
           </div>
         ) : (
-          <DataTable<Resident, unknown>
-            columns={getColumns(
-              activeTeamId ?? undefined,
-              currentUser?.id,
-              currentUser?.name || "Unknown",
-              currentUser?.active_organization_id || undefined
-            )}
-            data={residents || []}
-            teamName={activeTeam?.name ?? ""}
+          <HandoverSheetView
+            residents={residents || []}
+            teamId={activeTeamId ?? ""}
+            teamName={activeTeam?.name ?? "CEDAR UNIT"}
+            currentUserId={currentUser?.id}
+            currentUserName={currentUser?.name || "Unknown"}
+            organizationId={currentUser?.active_organization_id || undefined}
           />
         )}
       </div>
