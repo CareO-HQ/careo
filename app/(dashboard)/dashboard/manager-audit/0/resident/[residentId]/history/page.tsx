@@ -17,6 +17,8 @@ import {
 import { ArrowLeft, Eye, Download, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { withRoleGuard } from "@/lib/route-guards";
+import { useProfile } from "@/hooks/use-profile";
+import { useActiveTeam } from "@/hooks/use-active-team";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 
@@ -35,6 +37,8 @@ interface ResidentCareFileHistoryPageProps {
 
 function ResidentCareFileHistoryPage({ params }: ResidentCareFileHistoryPageProps) {
   const router = useRouter();
+  const { profile, isLoading: isContextLoading } = useProfile();
+  const { activeCareHomeId, activeOrganizationId } = useActiveTeam();
   const resolvedParams = React.use(params);
   const residentId = resolvedParams.residentId;
 
@@ -43,9 +47,11 @@ function ResidentCareFileHistoryPage({ params }: ResidentCareFileHistoryPageProp
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
 
   useEffect(() => {
-    loadResidentData();
-    loadHistory();
-  }, [residentId]);
+    if (activeCareHomeId && activeOrganizationId) {
+      loadResidentData();
+      loadHistory();
+    }
+  }, [residentId, activeCareHomeId, activeOrganizationId]);
 
   const loadResidentData = async () => {
     try {
@@ -71,32 +77,41 @@ function ResidentCareFileHistoryPage({ params }: ResidentCareFileHistoryPageProp
   };
 
   const loadHistory = async () => {
-    // Load history from localStorage
-    const savedHistory = localStorage.getItem(`care-file-audit-history-${residentId}`);
-    if (savedHistory) {
-      setHistoryRecords(JSON.parse(savedHistory));
-    } else {
-      // Mock data for demonstration
-      setHistoryRecords([
-        {
-          id: "1",
-          completedDate: new Date(2024, 0, 15).toISOString(),
-          auditor: "Jane Smith",
-          frequency: "monthly",
+    if (!activeCareHomeId) return;
+
+    try {
+      setIsLoading(true);
+
+      // 1. Context already available via hook!
+      const chId = activeCareHomeId;
+
+      // Load history from Supabase
+      const { data, error } = await supabase
+        .from('manager_audit_history')
+        .select('id, completed_date, auditor, notes, entries_count')
+        .eq('care_home_id', chId)
+        .eq('audit_type_id', `resident-0-${residentId}`)
+        .order('completed_date', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        const mappedRecords: HistoryRecord[] = data.map(record => ({
+          id: record.id,
+          completedDate: record.completed_date,
+          auditor: record.auditor,
+          frequency: "monthly", // Default
           status: "completed",
-          notes: "All documentation up to date"
-        },
-        {
-          id: "2",
-          completedDate: new Date(2023, 11, 15).toISOString(),
-          auditor: "John Doe",
-          frequency: "monthly",
-          status: "completed",
-          notes: "Minor updates required"
-        },
-      ]);
+          notes: record.notes
+        }));
+        setHistoryRecords(mappedRecords);
+      }
+    } catch (err) {
+      console.error("Error loading history:", err);
+      toast.error("Failed to load audit history");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleBack = () => {

@@ -339,6 +339,46 @@ export default function FallRiskAssessmentDialog({
             </fieldset>
 
             <div className="mt-12 space-y-6 text-left">
+                <div className="space-y-4">
+                    <h3 className="text-xl font-bold border-b pb-2 text-primary">Risk Assessment Actions</h3>
+                    <div className="border rounded-lg overflow-hidden">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-muted/50">
+                                    <TableHead className="w-[150px] font-bold">Risk Level</TableHead>
+                                    <TableHead className="w-[120px] font-bold text-center">Score Range</TableHead>
+                                    <TableHead className="font-bold">Action Required</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow className="hover:bg-muted/30">
+                                    <TableCell className="font-bold text-emerald-700">Low Risk</TableCell>
+                                    <TableCell className="text-center font-medium">3-17</TableCell>
+                                    <TableCell className="text-sm">Refer to appropriate authorities.</TableCell>
+                                </TableRow>
+                                <TableRow className="hover:bg-muted/30">
+                                    <TableCell className="font-bold text-amber-700 leading-tight">Medium Risk</TableCell>
+                                    <TableCell className="text-center font-medium">18-23</TableCell>
+                                    <TableCell className="text-sm">
+                                        <ul className="list-disc list-inside space-y-1">
+                                            <li>Address problems identified.</li>
+                                            <li>Refer to appropriate authorities.</li>
+                                            <li>Highlight risk to staff/resident/family.</li>
+                                            <li>Give advice.</li>
+                                            <li>Monitor & Review.</li>
+                                        </ul>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow className="hover:bg-muted/30">
+                                    <TableCell className="font-bold text-rose-700">High Risk</TableCell>
+                                    <TableCell className="text-center font-medium">24+</TableCell>
+                                    <TableCell className="text-sm">Immediate intervention, refer to appropriate professionals, implement risk management plan, monitor and review.</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+                </div>
+
                 <h3 className="text-xl font-bold border-b pb-2">Past Assessments</h3>
                 {isLoadingHistory ? (
                     <div className="flex justify-center p-8"><p className="text-muted-foreground animate-pulse text-sm">Loading history...</p></div>

@@ -60,6 +60,7 @@ import { BodyMapData } from "@/types/body-map";
 import { generateBodyMapPDF } from "@/lib/body-map-pdf-utils";
 import { generatePassportPDF } from "@/lib/hospital-passport-pdf-utils";
 import { Map as MapIcon } from "lucide-react";
+import KardexModal from "@/components/medication/KardexModal";
 
 type HospitalTransferPageProps = {
   params: Promise<{ id: string }>;
@@ -92,6 +93,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const [hospitalPassports, setHospitalPassports] = useState<any[]>([]);
   const [transferLogs, setTransferLogs] = useState<any[]>([]);
   const [residentBodyMaps, setResidentBodyMaps] = useState<any[]>([]);
+  const [medications, setMedications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch data on load
@@ -100,18 +102,20 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       if (!id) return;
       setIsLoading(true);
       try {
-        const [residentData, dietData, passportData, logData, bodyMapData] = await Promise.all([
+        const [residentData, dietData, passportData, logData, bodyMapData, { data: medsData }] = await Promise.all([
           hospitalTransferService.getResidentWithContacts(id),
           hospitalTransferService.getDietInformation(id),
           hospitalTransferService.getPassportsByResidentId(id),
           hospitalTransferService.getTransferLogsByResidentId(id),
-          hospitalTransferService.getBodyMapsByResidentId(id)
+          hospitalTransferService.getBodyMapsByResidentId(id),
+          supabase.from("medications").select("*").eq("resident_id", id)
         ]);
         setResident(residentData);
         setDietInformation(dietData);
         setHospitalPassports(passportData);
         setTransferLogs(logData);
         setResidentBodyMaps(bodyMapData);
+        setMedications(medsData || []);
       } catch (error) {
         console.error("Error loading hospital transfer data:", error);
         toast.error("Failed to load resident data");
@@ -855,6 +859,22 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               <Ambulance className="w-4 h-4 mr-2" />
               Hospital Transfer Entry
             </Button>
+            <KardexModal
+              medications={medications}
+              resident={{
+                id: resident.id,
+                first_name: resident.firstName,
+                last_name: resident.lastName,
+                date_of_birth: resident.dateOfBirth,
+                room_number: resident.room_number,
+                nhs_health_number: resident.nhsHealthNumber,
+                image_url: resident.imageUrl,
+                gp_name: resident.gpName,
+                gp_address: resident.gpAddress,
+              }}
+              triggerLabel="Kardex"
+              triggerIcon={Pill}
+            />
             <Button
               variant="outline"
               onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}

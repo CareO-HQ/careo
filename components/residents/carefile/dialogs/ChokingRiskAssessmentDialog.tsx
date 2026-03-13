@@ -24,7 +24,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
-import { Plus } from "lucide-react";
 
 interface ChokingRiskAssessmentDialogProps {
   teamId: string;
@@ -404,6 +403,13 @@ export default function ChokingRiskAssessmentDialog({
         </form>
       </fieldset>
 
+      <div className="mt-8 p-4 border rounded-lg bg-card text-sm space-y-4">
+        <h3 className="font-bold text-base">Risk Score and Actions</h3>
+        <p><strong>Low Risk: 0-24</strong> - This should be recorded within a care plan along with actions to be taken to minimize the risk of choking e.g. supervision arrangements, consistency of food and the need to cut up food prior to serving. The risk assessment must be repeated if there is any change in the resident&apos;s condition and at least monthly.</p>
+        <p><strong>Medium Risk: 25-49</strong> - This should be recorded within a care plan with clear guidelines on assistance required with eating and drinking and level of supervision required. If a referral to SALT is not necessary, a full explanation and who was involved in making this decision should be recorded in the care plan. The risk assessment must be repeated if there is any change in the resident&apos;s condition and at a least monthly.</p>
+        <p><strong>High Risk: 50 or over</strong> - This should be recorded within a care plan with clear guidelines on assistance required with eating and drinking and level of supervision required. A referral to the SALT team for assessment should take place. The risk assessment must be repeated if there is any change in the resident&apos;s condition and at a least monthly.</p>
+      </div>
+
       <div className="mt-12 space-y-6">
         <h3 className="text-xl font-bold border-b pb-2">Past Assessments</h3>
         {isLoadingHistory ? (
@@ -483,29 +489,6 @@ export default function ChokingRiskAssessmentDialog({
         )}
       </div>
 
-      <div className="flex flex-col gap-4 mt-6 p-4 border rounded-lg bg-card text-left">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold flex items-center gap-2">
-            Evaluations
-            <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-              0
-            </span>
-          </h3>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => { }}
-            className="gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Add Evaluation
-          </Button>
-        </div>
-        <div className="text-center py-8 rounded-xl border border-dashed text-sm text-muted-foreground bg-muted/20">
-          No evaluations found for this assessment.
-        </div>
-      </div>
     </>
   );
 }

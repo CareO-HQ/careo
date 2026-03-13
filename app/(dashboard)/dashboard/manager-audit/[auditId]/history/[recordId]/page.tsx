@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -73,29 +74,37 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
     loadRecordData();
   }, [auditId, recordId]);
 
-  const loadRecordData = () => {
+  const loadRecordData = async () => {
     try {
       setIsLoading(true);
-      const historyKey = `manager-audit-history-${auditId}`;
-      const existingHistory = localStorage.getItem(historyKey);
 
-      if (existingHistory) {
-        const history = JSON.parse(existingHistory);
-        const record = history.find((h: any) => h.id === recordId);
+      const { data, error } = await supabase
+        .from('manager_audit_history')
+        .select('*')
+        .eq('id', recordId)
+        .single();
 
-        if (record) {
-          setRecordData(record);
-        } else {
-          toast.error("Audit record not found");
-          router.push(`/dashboard/manager-audit/${auditId}/history`);
-        }
+      if (error) throw error;
+
+      if (data) {
+        // Transform Supabase structure to match the frontend expectations
+        const record = {
+          ...data,
+          id: data.id,
+          completedDate: data.completed_date,
+          auditor: data.auditor,
+          residentsAudited: data.entries_count,
+          data: data.data // This contains the full snapshot
+        };
+        setRecordData(record);
       } else {
-        toast.error("No audit history found");
+        toast.error("Audit record not found");
         router.push(`/dashboard/manager-audit/${auditId}/history`);
       }
     } catch (error) {
       console.error("Error loading audit record:", error);
       toast.error("Failed to load audit record");
+      router.push(`/dashboard/manager-audit/${auditId}/history`);
     } finally {
       setIsLoading(false);
     }
@@ -181,72 +190,127 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
 
       {/* Audit Results Table */}
       <div className="rounded-md border flex-1 overflow-auto bg-white">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="w-[200px] font-semibold">Resident</TableHead>
-              {auditData.questions.map((q: any) => (
-                <TableHead key={q.id} className="min-w-[140px] max-w-[180px] font-semibold">
-                  <div className="flex items-center justify-between px-2 gap-1">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="text-xs leading-tight truncate flex-1 cursor-help">
-                          {q.text.length > 20 ? `${q.text.substring(0, 20)}...` : q.text}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p className="text-sm">{q.text}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                </TableHead>
-              ))}
-              <TableHead className="w-[250px] font-semibold">Comment</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {auditData.residents.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={auditData.questions.length + 2} className="h-32 text-center text-muted-foreground">
-                  No residents in this audit
-                </TableCell>
+        {auditData.gridData ? (
+          /* Grid-based Audit View */
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="w-[300px] font-semibold sticky left-0 bg-muted z-10 border-r">Questions</TableHead>
+                {auditData.gridData.columnQuestions.map((q: any) => (
+                  <TableHead key={q.id} className="min-w-[120px] font-semibold text-center border-r">
+                    {q.text}
+                  </TableHead>
+                ))}
+                <TableHead className="min-w-[200px] font-semibold border-r">Comment</TableHead>
+                <TableHead className="min-w-[200px] font-semibold border-r">Action Required</TableHead>
+                <TableHead className="min-w-[150px] font-semibold">Action Completed</TableHead>
               </TableRow>
-            ) : (
-              auditData.residents.map((resident: any) => (
-                <TableRow key={resident.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="font-medium">
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={resident.imageUrl} />
-                        <AvatarFallback className="text-xs">
-                          {resident.firstName[0]}{resident.lastName[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="text-sm">{resident.firstName} {resident.lastName}</div>
-                        {resident.roomNumber && (
-                          <div className="text-xs text-muted-foreground">Room {resident.roomNumber}</div>
-                        )}
-                      </div>
-                    </div>
+            </TableHeader>
+            <TableBody>
+              {auditData.gridData.rowQuestions.map((rowQ: any) => (
+                <TableRow key={rowQ.id} className={rowQ.isSection ? "bg-accent/30 font-bold" : "hover:bg-muted/30 transition-colors"}>
+                  <TableCell className={`sticky left-0 bg-white border-r z-10 ${rowQ.isSection ? "bg-accent/30" : ""}`}>
+                    {rowQ.text}
                   </TableCell>
-                  {resident.answers.map((answer: any) => (
-                    <TableCell key={answer.questionId} className="px-2 py-3">
-                      <span className={`text-sm ${getAnswerColor(answer.value)}`}>
-                        {getAnswerDisplay(answer.value)}
-                      </span>
-                    </TableCell>
-                  ))}
-                  <TableCell className="px-3">
-                    <span className="text-sm text-muted-foreground">
-                      {resident.comment || "-"}
-                    </span>
+                  {!rowQ.isSection && (
+                    <>
+                      {auditData.gridData.columnQuestions.map((colQ: any) => {
+                        const answer = auditData.gridData.answers?.find((a: any) => a.residentId === rowQ.id && a.questionId === colQ.id);
+                        return (
+                          <TableCell key={colQ.id} className="text-center border-r">
+                            <span className={`text-sm ${getAnswerColor(answer?.value)}`}>
+                              {getAnswerDisplay(answer?.value)}
+                            </span>
+                          </TableCell>
+                        );
+                      })}
+                      <TableCell className="text-sm text-muted-foreground border-r italic">
+                        {auditData.gridData.fixedColumnData?.[rowQ.id]?.comment || "-"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground border-r italic">
+                        {auditData.gridData.fixedColumnData?.[rowQ.id]?.actionRequired || "-"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground italic">
+                        {auditData.gridData.fixedColumnData?.[rowQ.id]?.actionCompleted || "-"}
+                      </TableCell>
+                    </>
+                  )}
+                  {rowQ.isSection && (
+                    <TableCell colSpan={auditData.gridData.columnQuestions.length + 3} />
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          /* Standard Resident-based Audit View */
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="w-[200px] font-semibold">Resident</TableHead>
+                {(auditData.questions || []).map((q: any) => (
+                  <TableHead key={q.id} className="min-w-[140px] max-w-[180px] font-semibold">
+                    <div className="flex items-center justify-between px-2 gap-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-xs leading-tight truncate flex-1 cursor-help">
+                            {q.text.length > 20 ? `${q.text.substring(0, 20)}...` : q.text}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-sm">{q.text}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TableHead>
+                ))}
+                <TableHead className="w-[250px] font-semibold">Comment</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(!auditData.residents || auditData.residents.length === 0) ? (
+                <TableRow>
+                  <TableCell colSpan={(auditData.questions?.length || 0) + 2} className="h-32 text-center text-muted-foreground">
+                    No residents in this audit
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                auditData.residents.map((resident: any) => (
+                  <TableRow key={resident.id} className="hover:bg-muted/30 transition-colors">
+                    <TableCell className="font-medium">
+                      <div className="flex items-center space-x-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={resident.imageUrl} />
+                          <AvatarFallback className="text-xs">
+                            {resident.firstName[0]}{resident.lastName[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="text-sm">{resident.firstName} {resident.lastName}</div>
+                          {resident.roomNumber && (
+                            <div className="text-xs text-muted-foreground">Room {resident.roomNumber}</div>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    {resident.answers.map((answer: any) => (
+                      <TableCell key={answer.questionId} className="px-2 py-3">
+                        <span className={`text-sm ${getAnswerColor(answer.value)}`}>
+                          {getAnswerDisplay(answer.value)}
+                        </span>
+                      </TableCell>
+                    ))}
+                    <TableCell className="px-3">
+                      <span className="text-sm text-muted-foreground">
+                        {resident.comment || "-"}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
       </div>
 
       {/* Action Plans */}

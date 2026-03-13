@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/lib/supabase";
 import { withRoleGuard } from "@/lib/route-guards";
+import { auditService } from "@/lib/audit-service";
 
 const auditNames: Record<string, string> = {
   "0": "Care File Audit",
@@ -102,7 +103,8 @@ interface ActionPlan {
   id: string;
   auditId: string;
   text: string;
-  assignedTo: string;
+  assignedTo: string; // This will be the UUID
+  assignedToName: string; // This will be the name for display
   assignedToEmail: string;
   dueDate: Date | undefined;
   priority: string;
@@ -116,6 +118,24 @@ interface AuditDetailPageProps {
   params: Promise<{ auditId: string }>;
 }
 
+// Helper set of audit IDs that are home-based (grid layout)
+const HOME_BASED_AUDIT_IDS = new Set([
+  "1",  // Accidents and Incidents Analysis
+  "2",  // Agency Profiles and Induction Records
+  "4",  // Domestic Services
+  "6",  // Catering Audit
+  "9",  // Decontamination
+  "10", // Dining Experience
+  "12", // Domestic Audit
+  "13", // Falls Analysis
+  "14", // Hand Hygiene Audit
+  "16", // IPC Short Audit
+  "18", // Medication Audit
+  "23", // Safeguarding Database
+  "24", // Safety Alerts
+  "29", // GDPR
+]);
+
 function AuditDetailPage({ params }: AuditDetailPageProps) {
   const router = useRouter();
   const resolvedParams = React.use(params);
@@ -123,45 +143,51 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
 
   // Check if this is a custom audit
   const isCustomAudit = auditId.startsWith('custom-');
-  const templateType = isCustomAudit ? localStorage.getItem(`manager-audit-template-${auditId}`) : null;
-  const savedCategory = isCustomAudit ? localStorage.getItem(`manager-audit-category-${auditId}`) : null;
-  const savedStaffType = isCustomAudit ? localStorage.getItem(`manager-audit-staff-type-${auditId}`) : null;
+  // templateType for custom audits is loaded from Supabase in loadData
+  const [templateType, setTemplateType] = React.useState<string | null>(null);
+  const [savedCategory, setSavedCategory] = React.useState<string | null>(null);
+  const [savedStaffType, setSavedStaffType] = React.useState<string | null>(null);
+  // Care home id (populated in loadData)
+  const [careHomeId, setCareHomeId] = React.useState<string | null>(null);
 
-  // Determine audit name
-  let auditName = auditNames[auditId];
-  if (isCustomAudit) {
-    const savedName = localStorage.getItem(`manager-audit-name-${auditId}`);
-    auditName = savedName || (
-      templateType === 'resident-based' ? 'New Resident-based Audit' :
-        templateType === 'home-based' ? 'New Home-based Audit' :
-          templateType === 'staff-based' ? 'New Staff-based Audit' :
-            templateType === 'plain-template' ? 'New Custom Audit' :
-              'New Audit'
-    );
-  } else if (!auditName) {
-    auditName = "Unknown Audit";
-  }
+  // Determine audit name (for custom, name is loaded from Supabase state)
+  const [editableAuditName, setEditableAuditName] = React.useState(
+    auditNames[auditId] || 'Loading...'
+  );
+  const auditName = editableAuditName;
 
-  const { profile } = useProfile();
-  const { activeTeamId, activeOrganizationId } = useActiveTeam();
+  const { profile, isLoading: isContextLoading } = useProfile();
+  const { activeTeamId, activeOrganizationId, activeCareHomeId } = useActiveTeam();
   const [isLoading, setIsLoading] = useState(true);
+
+  // Use the care home ID from the hook directly
+  React.useEffect(() => {
+    if (activeCareHomeId) {
+      setCareHomeId(activeCareHomeId);
+    }
+  }, [activeCareHomeId]);
 
   const [allResidents, setAllResidents] = useState<any[]>([]); // All available residents
   const [selectedResidents, setSelectedResidents] = useState<any[]>([]); // Residents in the audit
   const [residentAuditData, setResidentAuditData] = useState<{ [residentId: string]: { frequency: string; lastAudited: string; nextAudit: string; auditor: string } }>({});
 
   // State for custom audit name editing
-  const [editableAuditName, setEditableAuditName] = useState(auditName);
   const [isEditingName, setIsEditingName] = useState(false);
 
-  // Update audit name when it changes
-  React.useEffect(() => {
-    setEditableAuditName(auditName);
-  }, [auditName]);
-
-  const handleSaveAuditName = () => {
-    if (isCustomAudit && editableAuditName.trim()) {
-      localStorage.setItem(`manager-audit-name-${auditId}`, editableAuditName.trim());
+  const handleSaveAuditName = async () => {
+    if (isCustomAudit && editableAuditName.trim() && careHomeId && activeOrganizationId) {
+      // Update in Supabase
+      await supabase.from('manager_audit_state').upsert({
+        care_home_id: careHomeId,
+        organization_id: activeOrganizationId,
+        audit_type_id: auditId,
+        custom_name: editableAuditName.trim(),
+      }, { onConflict: 'care_home_id,audit_type_id' });
+      // Also update the custom audit name
+      await supabase.from('manager_custom_audits')
+        .update({ name: editableAuditName.trim() })
+        .eq('id', auditId)
+        .eq('care_home_id', careHomeId);
       setIsEditingName(false);
       toast.success("Audit name updated");
     }
@@ -209,122 +235,109 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
 
   // Load data
   const loadData = useCallback(async () => {
+    if (!activeCareHomeId || !activeOrganizationId) return;
+
     try {
       setIsLoading(true);
 
-      // Load ALL residents from the entire organization (all units/teams)
+      // 1. Context already available via hook!
+      setCareHomeId(activeCareHomeId);
+
+      // 2. Load ALL residents from the entire organization
       let allResidentsData: any[] = [];
-      if (activeOrganizationId) {
-        const { data: resData } = await supabase.from('residents').select('*').eq('organization_id', activeOrganizationId);
-        if (resData) {
-          const mapped = resData.map((r: any) => ({
-            _id: r.id,
-            firstName: r.first_name || r.firstName,
-            lastName: r.last_name || r.lastName,
-            roomNumber: r.room_number || r.roomNumber,
-            imageUrl: r.image_url || r.imageUrl
+      const { data: resData } = await supabase.from('residents').select('*').eq('organization_id', activeOrganizationId);
+      if (resData) {
+        const mapped = resData.map((r: any) => ({
+          _id: r.id,
+          firstName: r.first_name || r.firstName,
+          lastName: r.last_name || r.lastName,
+          roomNumber: r.room_number || r.roomNumber,
+          imageUrl: r.image_url || r.imageUrl
+        }));
+        setAllResidents(mapped);
+        allResidentsData = mapped;
+      }
+
+      // 3. Load org members for action plan assignments
+      const { data: members } = await supabase
+        .from('users')
+        .select('id, email, name, image_url, role')
+        .eq('active_organization_id', activeOrganizationId);
+      setOrgMembers(members || []);
+
+      // 4. Load saved state from Supabase
+      const { data: stateData, error: stateError } = await supabase
+        .from('manager_audit_state')
+        .select('*')
+        .eq('care_home_id', activeCareHomeId)
+        .eq('audit_type_id', auditId)
+        .single();
+
+      if (stateError && stateError.code !== 'PGRST116') {
+        throw stateError;
+      }
+
+      if (stateData) {
+        // Restore state from Supabase
+        if (stateData.questions) setQuestions(stateData.questions as Question[]);
+        if (stateData.answers) setAnswers(stateData.answers as Answer[]);
+        if (stateData.comments) setComments(stateData.comments as Comment[]);
+        if (stateData.row_questions) setRowQuestions(stateData.row_questions as Question[]);
+        if (stateData.column_questions) setColumnQuestions(stateData.column_questions as Question[]);
+        if (stateData.fixed_column_data) setFixedColumnData(stateData.fixed_column_data as any);
+        if (stateData.resident_audit_data) setResidentAuditData(stateData.resident_audit_data as any);
+        if (stateData.custom_name) setEditableAuditName(stateData.custom_name);
+        if (stateData.template_type) setTemplateType(stateData.template_type as any);
+        if (stateData.category) setSavedCategory(stateData.category as any);
+        if (stateData.staff_type) setSavedStaffType(stateData.staff_type as any);
+
+        if (stateData.action_plans) {
+          const plans = (stateData.action_plans as any[]).map(plan => ({
+            ...plan,
+            dueDate: plan.dueDate ? new Date(plan.dueDate) : undefined
           }));
-          setAllResidents(mapped);
-          allResidentsData = mapped;
+          setActionPlans(plans);
         }
-      }
 
-      // Load org members for action plan assignments
-      if (activeOrganizationId) {
-        const { data: members } = await supabase
-          .from('users')
-          .select('id, email, name, image_url, role')
-          .eq('active_organization_id', activeOrganizationId);
-        setOrgMembers(members || []);
-      }
-
-      // FLEXIBLE AUDIT SYSTEM:
-      // 1. First time or after completion: Load ALL residents (manager can remove unwanted ones)
-      // 2. Work in progress: Keep exactly what manager has selected/removed
-      // 3. Questions persist forever (each care home customizes their own)
-      const savedSelectedResidents = localStorage.getItem(`manager-audit-selected-residents-${auditId}`);
-      if (savedSelectedResidents) {
-        const parsedResidents = JSON.parse(savedSelectedResidents);
-        // Restore work-in-progress state (residents manager is currently auditing)
-        setSelectedResidents(parsedResidents);
-
-        // If saved data is empty but we have residents available (and not a grid audit), reload all residents
-        const isGridBasedAudit = auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18" || templateType === 'home-based';
-        if (parsedResidents.length === 0 && allResidentsData.length > 0 && !isGridBasedAudit) {
-          setSelectedResidents(allResidentsData);
-          localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify(allResidentsData));
+        if (stateData.selected_residents && (stateData.selected_residents as any[]).length > 0) {
+          setSelectedResidents(stateData.selected_residents as any[]);
+        } else {
+          // If state exists but selected residents is empty, handle defaults
+          const isGridBasedAudit = HOME_BASED_AUDIT_IDS.has(auditId) || stateData.template_type === 'home-based';
+          if (!isGridBasedAudit && templateType !== 'staff-based' && allResidentsData.length > 0) {
+            setSelectedResidents(allResidentsData);
+            await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, { selected_residents: allResidentsData });
+          }
         }
       } else {
-
-        // Special handling for Grid-based audits (ID: 1, 2, 9, 18, or home-based template)
-        const isGridBasedAudit = auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18" || templateType === 'home-based';
+        // 5. Initial setup if no state exists in Supabase
+        const isGridBasedAudit = HOME_BASED_AUDIT_IDS.has(auditId);
         if (isGridBasedAudit) {
-          // Start with empty array - manager adds numbered entries manually
           setSelectedResidents([]);
-          localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify([]));
-        } else if (templateType === 'staff-based') {
-          // For staff-based audits, start empty (will load staff members instead)
-          setSelectedResidents([]);
-          localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify([]));
+        } else if (auditId.startsWith('custom-')) {
+          // For custom audits, we should check the manager_custom_audits table for metadata
+          const { data: customMeta } = await supabase
+            .from('manager_custom_audits')
+            .select('*')
+            .eq('id', auditId)
+            .single();
+          
+          if (customMeta) {
+            setEditableAuditName(customMeta.name);
+            setSavedCategory(customMeta.category);
+            setTemplateType(customMeta.template_type);
+            const isCustomHomeBased = customMeta.template_type === 'home-based';
+            setSelectedResidents(isCustomHomeBased ? [] : allResidentsData);
+          }
         } else {
-          // First time or fresh start: Load ALL residents, manager removes unwanted ones
           setSelectedResidents(allResidentsData);
-          localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify(allResidentsData));
         }
-      }
 
-      // Questions are permanent for this audit type (each care home customizes)
-      const savedQuestions = localStorage.getItem(`manager-audit-questions-${auditId}`);
-      if (savedQuestions) {
-        setQuestions(JSON.parse(savedQuestions));
-      }
-
-      // Load work-in-progress answers
-      const savedAnswers = localStorage.getItem(`manager-audit-answers-${auditId}`);
-      if (savedAnswers) {
-        setAnswers(JSON.parse(savedAnswers));
-      }
-
-      // Load work-in-progress comments
-      const savedComments = localStorage.getItem(`manager-audit-comments-${auditId}`);
-      if (savedComments) {
-        setComments(JSON.parse(savedComments));
-      }
-
-      // Load saved action plans from localStorage
-      const savedActionPlans = localStorage.getItem(`manager-audit-action-plans-${auditId}`);
-      if (savedActionPlans) {
-        const parsedPlans = JSON.parse(savedActionPlans);
-        // Convert dueDate strings back to Date objects
-        const plansWithDates = parsedPlans.map((plan: ActionPlan) => ({
-          ...plan,
-          dueDate: plan.dueDate ? new Date(plan.dueDate) : undefined
-        }));
-        setActionPlans(plansWithDates);
-      }
-
-      // Load grid questions for Grid-based Audits (ID 1, 2, 9, 18)
-      if (auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18") {
-        const savedRowQuestions = localStorage.getItem(`manager-audit-row-questions-${auditId}`);
-        if (savedRowQuestions) {
-          setRowQuestions(JSON.parse(savedRowQuestions));
-        }
-        const savedColumnQuestions = localStorage.getItem(`manager-audit-column-questions-${auditId}`);
-        if (savedColumnQuestions) {
-          setColumnQuestions(JSON.parse(savedColumnQuestions));
-        }
-        const savedFixedColumnData = localStorage.getItem(`manager-audit-fixed-columns-${auditId}`);
-        if (savedFixedColumnData) {
-          setFixedColumnData(JSON.parse(savedFixedColumnData));
-        }
-      }
-
-      // Load saved resident audit data for Care File Audit (ID 0)
-      if (auditId === "0") {
-        const savedResidentAuditData = localStorage.getItem(`manager-audit-resident-data-${auditId}`);
-        if (savedResidentAuditData) {
-          setResidentAuditData(JSON.parse(savedResidentAuditData));
-        }
+        // Initialize state in Supabase
+        await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
+          selected_residents: !isGridBasedAudit ? allResidentsData : [],
+          template_type: auditId === "0" ? "general" : (isGridBasedAudit ? "home-based" : "general")
+        });
       }
 
     } catch (err) {
@@ -333,14 +346,24 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [auditId, activeOrganizationId]);
+  }, [auditId, activeOrganizationId, activeCareHomeId, isCustomAudit]);
+
+  // Helper: upsert audit state to Supabase
+  const upsertAuditState = async (chId: string, orgId: string, typeId: string, updates: Record<string, any>) => {
+    await supabase.from('manager_audit_state').upsert(
+      { care_home_id: chId, organization_id: orgId, audit_type_id: typeId, ...updates },
+      { onConflict: 'care_home_id,audit_type_id' }
+    );
+  };
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (activeOrganizationId && activeCareHomeId) {
+      loadData();
+    }
+  }, [loadData, activeOrganizationId, activeCareHomeId]);
 
   // Add resident to audit
-  const handleAddResident = (residentId: string) => {
+  const handleAddResident = async (residentId: string) => {
     // Check if resident already added
     if (selectedResidents.some((r) => r._id === residentId)) {
       toast.error("This resident has already been added to the audit");
@@ -351,7 +374,9 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     if (resident) {
       const updatedResidents = [...selectedResidents, resident];
       setSelectedResidents(updatedResidents);
-      localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify(updatedResidents));
+      if (careHomeId && activeOrganizationId) {
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, { selected_residents: updatedResidents });
+      }
       toast.success(`${resident.firstName} ${resident.lastName} added to audit`);
       setIsAddResidentDialogOpen(false);
       setSearchQuery("");
@@ -359,21 +384,28 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   };
 
   // Remove resident from audit
-  const handleRemoveResident = (residentId: string) => {
+  const handleRemoveResident = async (residentId: string) => {
     const resident = selectedResidents.find((r) => r._id === residentId);
     const updatedResidents = selectedResidents.filter((r) => r._id !== residentId);
     setSelectedResidents(updatedResidents);
 
     // Also remove their answers and comments
-    setAnswers(answers.filter((a) => a.residentId !== residentId));
-    setComments(comments.filter((c) => c.residentId !== residentId));
+    const updatedAnswers = answers.filter((a) => a.residentId !== residentId);
+    const updatedComments = comments.filter((c) => c.residentId !== residentId);
+    const updatedActionPlans = actionPlans.filter((p) => p.residentId !== residentId);
 
-    // Remove action plans for this resident
-    setActionPlans(actionPlans.filter((p) => p.residentId !== residentId));
+    setAnswers(updatedAnswers);
+    setComments(updatedComments);
+    setActionPlans(updatedActionPlans);
 
-    localStorage.setItem(`manager-audit-selected-residents-${auditId}`, JSON.stringify(updatedResidents));
-    localStorage.setItem(`manager-audit-answers-${auditId}`, JSON.stringify(answers.filter((a) => a.residentId !== residentId)));
-    localStorage.setItem(`manager-audit-comments-${auditId}`, JSON.stringify(comments.filter((c) => c.residentId !== residentId)));
+    if (careHomeId && activeOrganizationId) {
+      await upsertAuditState(careHomeId, activeOrganizationId, auditId, {
+        selected_residents: updatedResidents,
+        answers: updatedAnswers,
+        comments: updatedComments,
+        action_plans: updatedActionPlans
+      });
+    }
 
     toast.success(`${resident?.firstName} ${resident?.lastName} removed from audit`);
   };
@@ -398,7 +430,8 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       id: `plan-${Date.now()}`,
       auditId: auditId,
       text: actionPlanText,
-      assignedTo: assignedTo,
+      assignedTo: assignedTo, // This is the UUID
+      assignedToName: orgMembers.find(m => m.id === assignedTo)?.name || assignedToEmail,
       assignedToEmail: assignedToEmail,
       dueDate: dueDate,
       priority: priority,
@@ -407,15 +440,46 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       residentName: selectedResidentForActionPlan ? `${selectedResidentForActionPlan.firstName} ${selectedResidentForActionPlan.lastName}` : undefined
     };
 
-    const updatedActionPlans = [...actionPlans, newPlan];
-    setActionPlans(updatedActionPlans);
+    if (careHomeId && activeOrganizationId) {
+      try {
+        const createdPlan = await auditService.createManagerActionPlan({
+          audit_type_id: auditId,
+          description: actionPlanText,
+          priority: priority,
+          due_date: dueDate.toISOString(),
+          assigned_to: assignedTo,
+          assigned_to_email: assignedToEmail,
+          resident_id: selectedResidentForActionPlan?._id,
+          resident_name: newPlan.residentName,
+          careHomeId: careHomeId,
+          organization_id: activeOrganizationId,
+          creatorId: profile?.id,
+          created_by: profile?.id,
+          created_by_name: profile?.name || profile?.email || "Manager"
+        });
 
-    // Persist to localStorage
-    localStorage.setItem(`manager-audit-action-plans-${auditId}`, JSON.stringify(updatedActionPlans));
+        if (createdPlan) {
+          const updatedActionPlans = [...actionPlans, { ...newPlan, id: createdPlan.id }];
+          setActionPlans(updatedActionPlans);
+          await upsertAuditState(careHomeId, activeOrganizationId, auditId, { action_plans: updatedActionPlans });
+          toast.success("Action plan added and synchronized");
+        }
+      } catch (err) {
+        console.error("Error creating action plan:", err);
+        toast.error("Failed to synchronize action plan");
+        // Fallback: still add to local state
+        const updatedActionPlans = [...actionPlans, newPlan];
+        setActionPlans(updatedActionPlans);
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, { action_plans: updatedActionPlans });
+      }
+    } else {
+      const updatedActionPlans = [...actionPlans, newPlan];
+      setActionPlans(updatedActionPlans);
+      toast.success("Action plan added to audit (local only)");
+    }
 
     setIsActionPlanDialogOpen(false);
     setSelectedResidentForActionPlan(null);
-    toast.success("Action plan added to audit");
   };
 
   const handleRemoveActionPlan = (planId: string) => {
@@ -426,11 +490,20 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   const confirmDeleteActionPlan = async () => {
     if (!actionPlanToDelete) return;
 
+    if (careHomeId && activeOrganizationId && !actionPlanToDelete.startsWith('plan-')) {
+      try {
+        await auditService.deleteManagerActionPlan(actionPlanToDelete);
+      } catch (err) {
+        console.error("Error deleting action plan:", err);
+      }
+    }
+
     const updatedActionPlans = actionPlans.filter(p => p.id !== actionPlanToDelete);
     setActionPlans(updatedActionPlans);
 
-    // Update localStorage
-    localStorage.setItem(`manager-audit-action-plans-${auditId}`, JSON.stringify(updatedActionPlans));
+    if (careHomeId && activeOrganizationId) {
+      await upsertAuditState(careHomeId, activeOrganizationId, auditId, { action_plans: updatedActionPlans });
+    }
 
     setDeleteDialogOpen(false);
     setActionPlanToDelete(null);
@@ -449,7 +522,9 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
 
     const updatedQuestions = [...questions, newQuestion];
     setQuestions(updatedQuestions);
-    localStorage.setItem(`manager-audit-questions-${auditId}`, JSON.stringify(updatedQuestions));
+    if (careHomeId && activeOrganizationId) {
+      await upsertAuditState(careHomeId, activeOrganizationId, auditId, { questions: updatedQuestions });
+    }
     toast.success("Question added");
 
     setNewQuestionText("");
@@ -459,14 +534,17 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
 
   const handleRemoveQuestion = async (questionId: string) => {
     const updatedQuestions = questions.filter(q => q.id !== questionId);
+    const updatedAnswers = answers.filter(a => a.questionId !== questionId);
     setQuestions(updatedQuestions);
-    setAnswers(answers.filter(a => a.questionId !== questionId));
-    localStorage.setItem(`manager-audit-questions-${auditId}`, JSON.stringify(updatedQuestions));
+    setAnswers(updatedAnswers);
+    if (careHomeId && activeOrganizationId) {
+      await upsertAuditState(careHomeId, activeOrganizationId, auditId, { questions: updatedQuestions, answers: updatedAnswers });
+    }
     toast.success("Question removed");
   };
 
   // Answer Handling
-  const handleAnswerChange = (residentId: string, questionId: string, value: string) => {
+  const handleAnswerChange = async (residentId: string, questionId: string, value: string) => {
     const existingAnswer = answers.find(a => a.residentId === residentId && a.questionId === questionId);
     let updatedAnswers;
     if (existingAnswer) {
@@ -475,14 +553,16 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       updatedAnswers = [...answers, { residentId, questionId, value }];
     }
     setAnswers(updatedAnswers);
-    localStorage.setItem(`manager-audit-answers-${auditId}`, JSON.stringify(updatedAnswers));
+    if (careHomeId && activeOrganizationId) {
+      await upsertAuditState(careHomeId, activeOrganizationId, auditId, { answers: updatedAnswers });
+    }
   };
 
   const getAnswer = (residentId: string, questionId: string) => {
     return answers.find(a => a.residentId === residentId && a.questionId === questionId);
   };
 
-  const handleCommentChange = (residentId: string, text: string) => {
+  const handleCommentChange = async (residentId: string, text: string) => {
     const existing = comments.find(c => c.residentId === residentId);
     let updatedComments;
     if (existing) {
@@ -491,15 +571,17 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       updatedComments = [...comments, { residentId, text }];
     }
     setComments(updatedComments);
-    localStorage.setItem(`manager-audit-comments-${auditId}`, JSON.stringify(updatedComments));
+    if (careHomeId && activeOrganizationId) {
+      await upsertAuditState(careHomeId, activeOrganizationId, auditId, { comments: updatedComments });
+    }
   };
 
   const getComment = (residentId: string) => comments.find(c => c.residentId === residentId)?.text || "";
 
   // Completion
   const handleCompleteAudit = async () => {
-    // Check if this is a grid-based audit
-    const isGridAudit = auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18";
+    // Determine if this is a grid-based audit
+    const isGridAudit = HOME_BASED_AUDIT_IDS.has(auditId) || templateType === 'home-based';
 
     // Validation for grid-based audits
     if (isGridAudit) {
@@ -520,6 +602,10 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     }
 
     try {
+      if (!careHomeId || !activeOrganizationId) {
+        throw new Error("Missing care home or organization context");
+      }
+
       // Prepare audit completion data
       const auditCompletionData = {
         auditId: auditId,
@@ -543,6 +629,13 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           comment: getComment(resident._id)
         })),
         questions: questions,
+        // Include grid data if applicable
+        gridData: isGridAudit ? {
+          rowQuestions,
+          columnQuestions,
+          fixedColumnData,
+          answers: answers // For grid audits, answers are stored differently
+        } : undefined,
         actionPlans: actionPlans.map(plan => ({
           ...plan,
           dueDate: plan.dueDate
@@ -552,63 +645,54 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         status: 'completed'
       };
 
-      // Save completed audit to localStorage history
-      const historyKey = `manager-audit-history-${auditId}`;
-      const existingHistory = localStorage.getItem(historyKey);
-      const history = existingHistory ? JSON.parse(existingHistory) : [];
-
-      // Add new completion to history
-      const newHistoryRecord = {
-        id: `completion-${Date.now()}`,
-        completedDate: auditCompletionData.completedDate,
+      // Save completed audit to Supabase history
+      await supabase.from('manager_audit_history').insert({
+        care_home_id: careHomeId,
+        organization_id: activeOrganizationId,
+        audit_type_id: auditId,
+        audit_type_name: auditName,
+        completed_date: auditCompletionData.completedDate,
         auditor: auditCompletionData.auditor,
-        residentsAudited: selectedResidents.length,
-        status: 'completed',
+        entries_count: isGridAudit ? rowQuestions.length : selectedResidents.length,
         notes: `${actionPlans.length} action plan(s) created`,
         data: auditCompletionData
-      };
+      });
 
-      history.unshift(newHistoryRecord);
-      localStorage.setItem(historyKey, JSON.stringify(history));
-
-      // If this is a custom audit being completed for the first time, add it to the main listing
-      if (isCustomAudit && history.length === 1) {
-        const customAuditsKey = 'manager-custom-audits';
-        const existingCustomAudits = localStorage.getItem(customAuditsKey);
-        const customAudits = existingCustomAudits ? JSON.parse(existingCustomAudits) : [];
-
-        // Use saved category or fallback to determining from template type
+      // If this is a custom audit, ensure its status is updated in the main listing
+      if (isCustomAudit) {
         const category = (savedCategory as 'staff' | 'clinical' | 'operational' | 'general') || (
           templateType === 'staff-based' ? 'staff' :
             templateType === 'home-based' ? 'operational' :
               'general'
         );
 
-        const newCustomAudit = {
+        await supabase.from('manager_custom_audits').upsert({
           id: auditId,
+          care_home_id: careHomeId,
+          organization_id: activeOrganizationId,
           name: editableAuditName,
-          status: 'completed' as const,
+          status: 'completed',
           auditor: auditCompletionData.auditor,
-          lastAudited: auditCompletionData.completedDate.split('T')[0],
-          dueDate: '-',
-          frequency: 'monthly' as const,
-          category: category
-        };
-
-        customAudits.push(newCustomAudit);
-        localStorage.setItem(customAuditsKey, JSON.stringify(customAudits));
+          last_audited: auditCompletionData.completedDate.split('T')[0],
+          frequency: 'monthly',
+          category: category,
+          template_type: templateType || 'general'
+        });
       }
 
-      // RESET FOR NEXT AUDIT CYCLE:
-      // ✓ KEEP: Questions (each care home has custom questions)
-      // ✗ CLEAR: Residents (will load all residents again next time)
-      // ✗ CLEAR: Answers, Comments, Action Plans (fresh start for next audit)
-      localStorage.removeItem(`manager-audit-selected-residents-${auditId}`);
-      // Questions INTENTIONALLY NOT removed - they persist forever for this audit type
-      localStorage.removeItem(`manager-audit-answers-${auditId}`);
-      localStorage.removeItem(`manager-audit-comments-${auditId}`);
-      localStorage.removeItem(`manager-audit-action-plans-${auditId}`);
-      localStorage.removeItem(`manager-audit-fixed-columns-${auditId}`);
+      // RESET FOR NEXT AUDIT CYCLE in Supabase:
+      // ✓ KEEP: Questions & template metadata
+      // ✗ CLEAR: Residents, Answers, Comments, Action Plans, Grid state
+      await upsertAuditState(careHomeId, activeOrganizationId, auditId, {
+        selected_residents: [],
+        answers: [],
+        comments: [],
+        action_plans: [],
+        row_questions: isGridAudit ? rowQuestions : [], // Keep row questions (templates)
+        column_questions: isGridAudit ? columnQuestions : [], // Keep col questions
+        fixed_column_data: {},
+        resident_audit_data: {}
+      });
 
       toast.success(`Audit completed! ${actionPlans.length} action plan(s) attached.`);
       router.push('/dashboard/manager-audit');
@@ -625,7 +709,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   };
 
   // Update resident audit data for Care File Audit
-  const updateResidentAuditData = (residentId: string, field: string, value: string) => {
+  const updateResidentAuditData = async (residentId: string, field: string, value: string) => {
     const updatedData = {
       ...residentAuditData,
       [residentId]: {
@@ -634,7 +718,9 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       }
     };
     setResidentAuditData(updatedData);
-    localStorage.setItem(`manager-audit-resident-data-${auditId}`, JSON.stringify(updatedData));
+    if (careHomeId && activeOrganizationId) {
+      await upsertAuditState(careHomeId, activeOrganizationId, auditId, { resident_audit_data: updatedData });
+    }
   };
 
   // Navigate to resident care file audit
@@ -774,11 +860,11 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   }
 
   // Grid-based Audits (ID: 1, 2, 9, 18, or home-based custom audits)
-  const isGridAudit = auditId === "1" || auditId === "2" || auditId === "9" || auditId === "18" || templateType === 'home-based';
+  const isGridAudit = HOME_BASED_AUDIT_IDS.has(auditId) || templateType === 'home-based';
   const isPlainTemplate = auditId === "1" || templateType === 'plain-template'; // Plain template has no fixed columns
 
   if (isGridAudit) {
-    const handleAddRowQuestion = () => {
+    const handleAddRowQuestion = async () => {
       if (!newQuestionText.trim()) {
         toast.error("Please enter a question");
         return;
@@ -790,13 +876,15 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       };
       const updatedRowQuestions = [...rowQuestions, newQuestion];
       setRowQuestions(updatedRowQuestions);
-      localStorage.setItem(`manager-audit-row-questions-${auditId}`, JSON.stringify(updatedRowQuestions));
+      if (careHomeId && activeOrganizationId) {
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, { row_questions: updatedRowQuestions });
+      }
       toast.success("Row added");
       setNewQuestionText("");
       setIsQuestionDialogOpen(false);
     };
 
-    const handleAddColumnQuestion = () => {
+    const handleAddColumnQuestion = async () => {
       if (!newQuestionText.trim()) {
         toast.error("Please enter a question");
         return;
@@ -808,7 +896,9 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       };
       const updatedColumnQuestions = [...columnQuestions, newQuestion];
       setColumnQuestions(updatedColumnQuestions);
-      localStorage.setItem(`manager-audit-column-questions-${auditId}`, JSON.stringify(updatedColumnQuestions));
+      if (careHomeId && activeOrganizationId) {
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, { column_questions: updatedColumnQuestions });
+      }
       toast.success("Column added");
       setNewQuestionText("");
       setNewQuestionType("compliance");
@@ -833,7 +923,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       setIsSectionDialogOpen(true);
     };
 
-    const handleAddSection = () => {
+    const handleAddSection = async () => {
       if (!sectionText.trim()) {
         toast.error("Please enter a section title");
         return;
@@ -847,38 +937,48 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       };
       const updatedRowQuestions = [...rowQuestions, newSection];
       setRowQuestions(updatedRowQuestions);
-      localStorage.setItem(`manager-audit-row-questions-${auditId}`, JSON.stringify(updatedRowQuestions));
+      if (careHomeId && activeOrganizationId) {
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, { row_questions: updatedRowQuestions });
+      }
 
       setSectionText("");
       setIsSectionDialogOpen(false);
       toast.success("Section added");
     };
 
-    const handleUpdateSectionText = (sectionId: string, text: string) => {
+    const handleUpdateSectionText = async (sectionId: string, text: string) => {
       const updatedRowQuestions = rowQuestions.map(q =>
         q.id === sectionId ? { ...q, text } : q
       );
       setRowQuestions(updatedRowQuestions);
-      localStorage.setItem(`manager-audit-row-questions-${auditId}`, JSON.stringify(updatedRowQuestions));
+      if (careHomeId && activeOrganizationId) {
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, { row_questions: updatedRowQuestions });
+      }
     };
 
-    const handleRemoveRowQuestion = (questionId: string) => {
+    const handleRemoveRowQuestion = async (questionId: string) => {
       const updatedRowQuestions = rowQuestions.filter(q => q.id !== questionId);
+      const updatedAnswers = answers.filter(a => a.residentId !== questionId);
       setRowQuestions(updatedRowQuestions);
-      setAnswers(answers.filter(a => a.residentId !== questionId));
-      localStorage.setItem(`manager-audit-row-questions-${auditId}`, JSON.stringify(updatedRowQuestions));
+      setAnswers(updatedAnswers);
+      if (careHomeId && activeOrganizationId) {
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, { row_questions: updatedRowQuestions, answers: updatedAnswers });
+      }
       toast.success("Row question removed");
     };
 
-    const handleRemoveColumnQuestion = (questionId: string) => {
+    const handleRemoveColumnQuestion = async (questionId: string) => {
       const updatedColumnQuestions = columnQuestions.filter(q => q.id !== questionId);
+      const updatedAnswers = answers.filter(a => a.questionId !== questionId);
       setColumnQuestions(updatedColumnQuestions);
-      setAnswers(answers.filter(a => a.questionId !== questionId));
-      localStorage.setItem(`manager-audit-column-questions-${auditId}`, JSON.stringify(updatedColumnQuestions));
+      setAnswers(updatedAnswers);
+      if (careHomeId && activeOrganizationId) {
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, { column_questions: updatedColumnQuestions, answers: updatedAnswers });
+      }
       toast.success("Column question removed");
     };
 
-    const handleGridAnswerChange = (rowQuestionId: string, columnQuestionId: string, value: string) => {
+    const handleGridAnswerChange = async (rowQuestionId: string, columnQuestionId: string, value: string) => {
       const existingAnswer = answers.find(a => a.residentId === rowQuestionId && a.questionId === columnQuestionId);
       let updatedAnswers;
       if (existingAnswer) {
@@ -889,14 +989,16 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         updatedAnswers = [...answers, { residentId: rowQuestionId, questionId: columnQuestionId, value }];
       }
       setAnswers(updatedAnswers);
-      localStorage.setItem(`manager-audit-answers-${auditId}`, JSON.stringify(updatedAnswers));
+      if (careHomeId && activeOrganizationId) {
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, { answers: updatedAnswers });
+      }
     };
 
     const getGridAnswer = (rowQuestionId: string, columnQuestionId: string) => {
       return answers.find(a => a.residentId === rowQuestionId && a.questionId === columnQuestionId);
     };
 
-    const handleFixedColumnChange = (rowId: string, field: 'comment' | 'actionRequired' | 'actionCompleted', value: string) => {
+    const handleFixedColumnChange = async (rowId: string, field: 'comment' | 'actionRequired' | 'actionCompleted', value: string) => {
       const updatedData = {
         ...fixedColumnData,
         [rowId]: {
@@ -905,7 +1007,9 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         }
       };
       setFixedColumnData(updatedData);
-      localStorage.setItem(`manager-audit-fixed-columns-${auditId}`, JSON.stringify(updatedData));
+      if (careHomeId && activeOrganizationId) {
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, { fixed_column_data: updatedData });
+      }
     };
 
     const getFixedColumnValue = (rowId: string, field: 'comment' | 'actionRequired' | 'actionCompleted') => {
@@ -1229,10 +1333,12 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                   className="col-span-3"
                   placeholder={questionDialogMode === "row" ? "Enter row question..." : "Enter column question..."}
                   onKeyDown={(e) => {
-                    if (questionDialogMode === "row") {
-                      handleAddRowQuestion();
-                    } else {
-                      handleAddColumnQuestion();
+                    if (e.key === "Enter") {
+                      if (questionDialogMode === "row") {
+                        handleAddRowQuestion();
+                      } else {
+                        handleAddColumnQuestion();
+                      }
                     }
                   }}
                 />
@@ -1672,7 +1778,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
               <Select value={assignedToEmail} onValueChange={(val) => {
                 setAssignedToEmail(val);
                 const member = orgMembers.find(m => m.email === val);
-                if (member) setAssignedTo(member.name || member.email);
+                if (member) setAssignedTo(member.id); // Store UUID instead of name/email
               }}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Select member" /></SelectTrigger>
                 <SelectContent>
@@ -1762,7 +1868,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                   <TableRow key={plan.id}>
                     <TableCell className="font-medium text-primary">{plan.residentName || 'General'}</TableCell>
                     <TableCell>{plan.text}</TableCell>
-                    <TableCell>{plan.assignedTo}</TableCell>
+                    <TableCell>{plan.assignedToName || plan.assignedTo}</TableCell>
                     <TableCell>{plan.dueDate ? format(plan.dueDate, "dd/MM/yyyy") : 'N/A'}</TableCell>
                     <TableCell>
                       <Badge variant={plan.priority === 'High' ? 'destructive' : 'outline'}>

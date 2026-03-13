@@ -83,6 +83,8 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   // Dialog state
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isCreationTypeDialogOpen, setIsCreationTypeDialogOpen] = useState(false);
+  const [creationType, setCreationType] = useState<"incident" | "fall">("incident");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newIncidentName, setNewIncidentName] = useState("");
 
@@ -249,6 +251,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
         .insert({
           resident_id: residentId,
           name: newIncidentName.trim(),
+          folder_type: creationType,
           created_at: new Date().toISOString(),
         })
         .select()
@@ -606,7 +609,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
           <CardTitle className="flex items-center justify-between">
             <span>Incident Folders ({incidentFolders.length})</span>
             <Button
-              onClick={() => setIsCreateDialogOpen(true)}
+              onClick={() => setIsCreationTypeDialogOpen(true)}
               size="sm"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -640,23 +643,29 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                   </TableHeader>
                   <TableBody>
                     {/* Incident Folders */}
-                    {incidentFolders.map((folder) => (
-                      <TableRow
-                        key={folder.id}
-                        className="bg-blue-50/50 hover:bg-blue-100/50 cursor-pointer"
-                        onClick={() => router.push(`/dashboard/residents/${residentId}/incidents/${folder.id}`)}
-                      >
-                        <TableCell colSpan={7}>
-                          <div className="flex items-center gap-3 py-1">
-                            <Folder className="w-5 h-5 text-blue-600" />
-                            <span className="font-medium text-blue-900">{folder.name}</span>
-                            <Badge variant="outline" className="ml-auto text-xs">
-                              Folder
-                            </Badge>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {incidentFolders.map((folder) => {
+                      const isFall = folder.folder_type === "fall";
+                      return (
+                        <TableRow
+                          key={folder.id}
+                          className={`${isFall
+                            ? "bg-red-50/50 hover:bg-red-100/50"
+                            : "bg-blue-50/50 hover:bg-blue-100/50"
+                            } cursor-pointer`}
+                          onClick={() => router.push(`/dashboard/residents/${residentId}/incidents/${folder.id}`)}
+                        >
+                          <TableCell colSpan={7}>
+                            <div className="flex items-center gap-3 py-1">
+                              <Folder className={`w-5 h-5 ${isFall ? "text-red-600" : "text-blue-600"}`} />
+                              <span className={`font-medium ${isFall ? "text-red-900" : "text-blue-900"}`}>{folder.name}</span>
+                              <Badge variant="outline" className={`ml-auto text-xs ${isFall ? "border-red-200 text-red-700 bg-red-50" : ""}`}>
+                                {isFall ? "Fall Record" : "Incident Folder"}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -815,13 +824,53 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
         </DialogContent>
       </Dialog>
 
+      {/* Creation Type Dialog */}
+      <Dialog open={isCreationTypeDialogOpen} onOpenChange={setIsCreationTypeDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Record</DialogTitle>
+            <DialogDescription>
+              What type of record would you like to create?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCreationType("incident");
+                setIsCreationTypeDialogOpen(false);
+                setIsCreateDialogOpen(true);
+              }}
+              className="h-24 text-sm bg-blue-50/50 hover:bg-blue-100/50 text-blue-600 border border-blue-100 hover:border-blue-200 transition-colors flex flex-col items-center justify-center gap-2"
+            >
+              <AlertTriangle className="w-6 h-6 text-blue-500" />
+              Incident
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCreationType("fall");
+                setIsCreationTypeDialogOpen(false);
+                setIsCreateDialogOpen(true);
+              }}
+              className="h-24 text-sm bg-red-50/50 hover:bg-red-100/50 text-red-600 border border-red-100 hover:border-red-200 transition-colors flex flex-col items-center justify-center gap-2"
+            >
+              <TrendingDown className="w-6 h-6 text-red-500" />
+              Falls
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Create Incident Folder Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Create Incident Folder</DialogTitle>
+            <DialogTitle>
+              {creationType === "fall" ? "Create Falls Record" : "Create Incident Record"}
+            </DialogTitle>
             <DialogDescription>
-              Create a new incident folder for organizing reports
+              Create a new folder for organizing {creationType === "fall" ? "fall" : "incident"} reports
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

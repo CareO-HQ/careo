@@ -42,7 +42,6 @@ import {
   canViewSidebarResidents,
   canViewSidebarStaff,
   canViewSidebarHome,
-  getAuditLabel,
   canCreateResident
 } from "@/lib/permissions";
 
@@ -426,15 +425,6 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
-              {/* Audit / CareO Audit */}
-              <SidebarMenuItem className="list-none">
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/careo-audit">
-                    <ClipboardListIcon />
-                    <span>{getAuditLabel(effectiveRole) ?? "Audit"}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
 
               {/* Manager Audit */}
               <SidebarMenuItem className="list-none">

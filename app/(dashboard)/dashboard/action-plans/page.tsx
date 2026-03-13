@@ -44,7 +44,7 @@ export default function MyActionPlansPage() {
   const { user } = useSupabase();
   const { profile } = useProfile();
   const userEmail = user?.email || "";
-  const { activeOrganizationId, role } = useActiveTeam();
+  const { activeOrganizationId, activeCareHomeId, role } = useActiveTeam();
   const isOwner = role === "owner" || role === "saas_admin";
 
   // State
@@ -65,6 +65,8 @@ export default function MyActionPlansPage() {
       let plans: any[] = [];
       if (isOwner && activeOrganizationId) {
         plans = await auditService.getOrgActionPlans(activeOrganizationId);
+      } else if (role === 'manager' && activeOrganizationId && activeCareHomeId) {
+        plans = await auditService.getCareHomeActionPlans(activeOrganizationId, activeCareHomeId);
       } else {
         plans = await auditService.getMyActionPlans(userEmail);
       }
@@ -81,7 +83,7 @@ export default function MyActionPlansPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [userEmail, activeOrganizationId, isOwner]);
+  }, [userEmail, activeOrganizationId, activeCareHomeId, isOwner, role]);
 
   useEffect(() => {
     fetchData();

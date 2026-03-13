@@ -430,76 +430,93 @@ function ManagerAuditPage() {
   const [newAuditCategory, setNewAuditCategory] = useState<'staff' | 'clinical' | 'operational' | 'general'>('clinical');
   const [staffType, setStaffType] = useState<'nurses' | 'care-staff' | 'both'>('both');
 
-  // Load audit completion data from localStorage
+  // Load audit completion data from Supabase (shared across all managers in same care home)
   useEffect(() => {
-    const loadAuditCompletionData = () => {
-      // Load custom audits from localStorage
-      const customAuditsKey = 'manager-custom-audits';
-      const customAuditsData = localStorage.getItem(customAuditsKey);
-      let customAudits: ManagerAudit[] = [];
+    const loadAuditCompletionData = async () => {
+      if (!activeOrganizationId) return;
 
-      if (customAuditsData) {
-        customAudits = JSON.parse(customAuditsData);
+      try {
+        // Get care_home_id from the user's active profile via supabase
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('active_care_home_id')
+          .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+          .single();
+
+        const careHomeId = userProfile?.active_care_home_id;
+        if (!careHomeId) {
+          // No care home set — just use initial audits as-is
+          setAudits(initialAudits);
+          return;
+        }
+
+        // Load latest completion per audit type from manager_audit_history
+        const { data: historyData } = await supabase
+          .from('manager_audit_history')
+          .select('audit_type_id, completed_date, auditor, data')
+          .eq('care_home_id', careHomeId)
+          .order('completed_date', { ascending: false });
+
+        // Build a map: audit_type_id -> latest record
+        const latestByType: Record<string, { completedDate: string; auditor: string }> = {};
+        if (historyData) {
+          for (const record of historyData) {
+            if (!latestByType[record.audit_type_id]) {
+              latestByType[record.audit_type_id] = {
+                completedDate: record.completed_date,
+                auditor: record.auditor,
+              };
+            }
+          }
+        }
+
+        // Update initial audits with completion data
+        const updatedInitialAudits = initialAudits.map(audit => {
+          const latest = latestByType[audit.id];
+          if (latest) {
+            const lastAuditedDate = latest.completedDate.split('T')[0];
+            const dueDate = calculateDueDate(lastAuditedDate, audit.frequency);
+            const status = determineAuditStatus(dueDate);
+            return { ...audit, status, auditor: latest.auditor, lastAudited: lastAuditedDate, dueDate };
+          }
+          return audit;
+        });
+
+        // Load custom audits from Supabase
+        const { data: customAuditsData } = await supabase
+          .from('manager_custom_audits')
+          .select('*')
+          .eq('care_home_id', careHomeId);
+
+        const customAudits: ManagerAudit[] = (customAuditsData || []).map((ca: any) => {
+          const latest = latestByType[ca.id];
+          const lastAuditedDate = latest?.completedDate?.split('T')[0] || ca.last_audited || '-';
+          const dueDate = latest
+            ? calculateDueDate(lastAuditedDate, ca.frequency)
+            : ca.due_date || '-';
+          const status = latest ? determineAuditStatus(dueDate) : (ca.status as ManagerAudit['status']) || 'new';
+          return {
+            id: ca.id,
+            name: ca.name,
+            status,
+            auditor: latest?.auditor || ca.auditor || '-',
+            lastAudited: lastAuditedDate,
+            dueDate,
+            frequency: ca.frequency as ManagerAudit['frequency'],
+            category: ca.category as ManagerAudit['category'],
+          };
+        });
+
+        setAudits([...updatedInitialAudits, ...customAudits]);
+      } catch (err) {
+        console.error('Error loading audit completion data:', err);
+        // Fallback: show initial audits without status
+        setAudits(initialAudits);
       }
-
-      // Update initial audits with completion data
-      const updatedInitialAudits = initialAudits.map(audit => {
-        const historyKey = `manager-audit-history-${audit.id}`;
-        const historyData = localStorage.getItem(historyKey);
-
-        if (historyData) {
-          const history = JSON.parse(historyData);
-          if (history.length > 0) {
-            const latestCompletion = history[0]; // Most recent completion
-            const lastAuditedDate = latestCompletion.completedDate.split('T')[0];
-            const dueDate = calculateDueDate(lastAuditedDate, audit.frequency);
-            const status = determineAuditStatus(dueDate);
-
-            return {
-              ...audit,
-              status,
-              auditor: latestCompletion.auditor,
-              lastAudited: lastAuditedDate,
-              dueDate
-            };
-          }
-        }
-
-        return audit;
-      });
-
-      // Update custom audits with completion data
-      const updatedCustomAudits = customAudits.map(audit => {
-        const historyKey = `manager-audit-history-${audit.id}`;
-        const historyData = localStorage.getItem(historyKey);
-
-        if (historyData) {
-          const history = JSON.parse(historyData);
-          if (history.length > 0) {
-            const latestCompletion = history[0];
-            const lastAuditedDate = latestCompletion.completedDate.split('T')[0];
-            const dueDate = calculateDueDate(lastAuditedDate, audit.frequency);
-            const status = determineAuditStatus(dueDate);
-
-            return {
-              ...audit,
-              status,
-              auditor: latestCompletion.auditor,
-              lastAudited: lastAuditedDate,
-              dueDate
-            };
-          }
-        }
-
-        return audit;
-      });
-
-      // Combine initial and custom audits
-      setAudits([...updatedInitialAudits, ...updatedCustomAudits]);
     };
 
     loadAuditCompletionData();
-  }, []);
+  }, [activeOrganizationId]);
 
   const handleNewAudit = () => {
     // Reset form
@@ -534,7 +551,7 @@ function ManagerAuditPage() {
     setNewAuditStep(newAuditStep - 1);
   };
 
-  const handleCreateAudit = () => {
+  const handleCreateAudit = async () => {
     if (!newAuditName.trim()) {
       toast.error("Please enter an audit name");
       return;
@@ -543,13 +560,48 @@ function ManagerAuditPage() {
     // Create a new audit ID
     const newAuditId = `custom-${Date.now()}`;
 
-    // Store audit metadata in localStorage
-    localStorage.setItem(`manager-audit-template-${newAuditId}`, selectedTemplate);
-    localStorage.setItem(`manager-audit-name-${newAuditId}`, newAuditName.trim());
-    localStorage.setItem(`manager-audit-category-${newAuditId}`, newAuditCategory);
+    try {
+      // Get care home id
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('active_care_home_id')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+        .single();
 
-    if (newAuditCategory === 'staff') {
-      localStorage.setItem(`manager-audit-staff-type-${newAuditId}`, staffType);
+      const careHomeId = userProfile?.active_care_home_id;
+
+      if (careHomeId && activeOrganizationId) {
+        // Save to Supabase (shared across managers)
+        await supabase.from('manager_custom_audits').insert({
+          id: newAuditId,
+          care_home_id: careHomeId,
+          organization_id: activeOrganizationId,
+          name: newAuditName.trim(),
+          template_type: selectedTemplate,
+          category: newAuditCategory,
+          staff_type: newAuditCategory === 'staff' ? staffType : null,
+          status: 'new',
+          frequency: 'monthly',
+        });
+
+        // Also save template metadata in audit state so the detail page knows the type
+        await supabase.from('manager_audit_state').upsert({
+          care_home_id: careHomeId,
+          organization_id: activeOrganizationId,
+          audit_type_id: newAuditId,
+          template_type: selectedTemplate,
+          custom_name: newAuditName.trim(),
+          custom_category: newAuditCategory,
+          custom_staff_type: newAuditCategory === 'staff' ? staffType : null,
+        }, { onConflict: 'care_home_id,audit_type_id' });
+      } else {
+        toast.error("Care home context not found. Cannot create audit.");
+        return;
+      }
+    } catch (err) {
+      console.error('Error creating custom audit:', err);
+      toast.error("Failed to create audit in database");
+      return;
     }
 
     // Close dialog and navigate

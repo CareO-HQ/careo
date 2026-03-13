@@ -448,7 +448,7 @@ export const config = {
       description: "Hygiene and skin integrity assessments.",
       carePlan: true,
       forms: [
-        { type: "form", key: "v2-body-map-hygiene", value: "Body Map (monthly reassessment)", isComingSoon: true },
+        { type: "form", key: "v2-body-map-hygiene", value: "Body Map (monthly reassessment)" },
         { type: "form", key: "braden-risk-assessment-form", value: "Braden Risk Assessment (score required)" },
         { type: "form", key: "oral-assessment-form", value: "Oral Assessment + Evaluation Sheet" },
         { type: "form", key: "v2-skin-dermatology", value: "Skin Integrity / Dermatology Assessment", isComingSoon: true }
@@ -462,8 +462,7 @@ export const config = {
       carePlan: true,
       forms: [
         { type: "form", key: "braden-risk-assessment-form", value: "Braden Risk Assessment" },
-        { type: "form", key: "v2-body-map-skin", value: "Body Map", isComingSoon: true },
-        { type: "form", key: "v2-wound-assessment", value: "Wound Assessment", isComingSoon: true },
+        { type: "form", key: "v2-body-map-skin", value: "Body Map" },
         { type: "form", key: "skin-integrity-form", value: "Skin Integrity / Tissue Viability Assessment" }
       ]
     },
@@ -522,7 +521,7 @@ export const config = {
       description: "Safeguarding and Liberty Protection Safeguards.",
       forms: [
         { type: "form", key: "v2-safe-risk", value: "Safeguarding Risk Assessment", isComingSoon: true },
-        { type: "form", key: "v2-safe-body-map", value: "Safeguarding Body Map", isComingSoon: true },
+        { type: "form", key: "v2-safe-body-map", value: "Safeguarding Body Map" },
         { type: "form", key: "v2-dols-app", value: "DoLS Application Form", isComingSoon: true }
       ]
     },

@@ -1,7 +1,7 @@
 
 "use client";
-
-import PRNConsentForm from "@/components/medication/forms/PRNConsentForm";
+import PRNProtocolForm from "@/components/medication/forms/PRNProtocolForm";
+import BloodMonitoringChartForm from "@/components/medication/forms/BloodMonitoringChartForm";
 import UploadFileModal from "@/components/residents/carefile/folders/UploadFileModal";
 import { useProfile } from "@/hooks/use-profile";
 import { useActiveTeam } from "@/hooks/use-active-team";
@@ -12,7 +12,7 @@ import React, { useCallback, useEffect, useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type MedicationFormKey = "prn-care-consent";
+type MedicationFormKey = "prn-protocol" | "bm-chart";
 
 type ResidentData = {
   id: string;
@@ -21,6 +21,7 @@ type ResidentData = {
   date_of_birth?: string;
   phone_number?: string;
   room_number?: string;
+  care_homes?: { name: string };
 };
 
 type UploadedFile = {
@@ -38,7 +39,8 @@ const SIDEBAR_SECTIONS: { title: string; forms: { key: MedicationFormKey; label:
   {
     title: "Forms",
     forms: [
-      { key: "prn-care-consent", label: "PRN Care Consent" },
+      { key: "prn-protocol", label: "PRN Protocol" },
+      { key: "bm-chart", label: "Blood Monitoring Chart (BM)" },
     ],
   },
 ];
@@ -167,7 +169,7 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
     if (!residentId) return;
     supabase
       .from("residents")
-      .select("*")
+      .select("*, care_homes(name)")
       .eq("id", residentId)
       .single()
       .then(({ data, error }) => {
@@ -272,8 +274,8 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
         <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {activeFile ? (
             <FileViewer file={activeFile} />
-          ) : activeFormKey === "prn-care-consent" && resident ? (
-            <PRNConsentForm
+          ) : activeFormKey === "prn-protocol" && resident ? (
+            <PRNProtocolForm
               residentId={residentId}
               resident={resident}
               teamId={activeTeamId ?? ""}
@@ -281,8 +283,17 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
               userId={profile?.id ?? ""}
               userName={profile?.name || profile?.email || ""}
               onSaved={() => {
-                // Optional: refresh any form status indicators if needed
+                // Optional refresh logic
               }}
+            />
+          ) : activeFormKey === "bm-chart" && resident ? (
+            <BloodMonitoringChartForm
+              residentId={residentId}
+              resident={resident}
+              teamId={activeTeamId ?? ""}
+              organizationId={profile?.active_organization_id ?? ""}
+              userId={profile?.id ?? ""}
+              userName={profile?.name || profile?.email || ""}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-8">

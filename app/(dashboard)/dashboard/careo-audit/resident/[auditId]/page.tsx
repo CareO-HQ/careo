@@ -64,7 +64,8 @@ interface ActionPlan {
   id: string;
   auditId: string;
   text: string;
-  assignedTo: string;
+  assignedTo: string; // This will be the UUID
+  assignedToName: string; // This will be the name for display
   assignedToEmail: string;
   dueDate: Date | undefined;
   priority: string;
@@ -80,7 +81,7 @@ export default function ResidentAuditPage() {
   const auditId = params.auditId as string;
 
   const { profile } = useProfile();
-  const { activeTeamId, activeOrganizationId } = useActiveTeam();
+  const { activeTeamId, activeOrganizationId, activeCareHomeId } = useActiveTeam();
   const [auditName, setAuditName] = useState("");
 
   // Data State
@@ -225,8 +226,9 @@ export default function ResidentAuditPage() {
             id: p.id,
             auditId: p.audit_response_id,
             text: p.description,
-            assignedTo: p.assigned_to_name || p.assigned_to,
-            assignedToEmail: p.assigned_to,
+            assignedTo: p.assigned_to,
+            assignedToName: p.assigned_to_name || p.assigned_to,
+            assignedToEmail: p.assigned_to_email || "",
             dueDate: p.due_date ? new Date(p.due_date) : undefined,
             priority: p.priority,
             status: p.status,
@@ -335,12 +337,13 @@ export default function ResidentAuditPage() {
           audit_response_id: responseId,
           template_id: template?.id,
           description: actionPlanText,
-          assigned_to: assignedToEmail,
-          assigned_to_name: assignedTo,
+          assigned_to: assignedTo, // Pass the UUID here
+          assigned_to_name: assignedTo, // This might need to be the name if you want to store it, but let's see how createResidentActionPlan uses it
           priority: priority,
           due_date: dueDate.toISOString(),
           team_id: activeTeamId,
           organization_id: activeOrganizationId,
+          careHomeId: activeCareHomeId,
           created_by: profile?.email,
           created_by_name: profile?.name || profile?.email,
           creatorId: profile?.id,
@@ -354,7 +357,8 @@ export default function ResidentAuditPage() {
         id: savedPlan?.id || `temp-${Date.now()}`,
         auditId: responseId || 'new',
         text: actionPlanText,
-        assignedTo: assignedTo,
+        assignedTo: assignedTo, // This is the UUID
+        assignedToName: orgMembers.find(m => m.id === assignedTo)?.name || assignedToEmail,
         assignedToEmail: assignedToEmail,
         dueDate: dueDate,
         priority: priority,
@@ -510,6 +514,7 @@ export default function ResidentAuditPage() {
             due_date: plan.dueDate?.toISOString(),
             team_id: activeTeamId,
             organization_id: activeOrganizationId,
+            careHomeId: activeCareHomeId,
             created_by: profile?.email,
             created_by_name: profile?.name || profile?.email,
             creatorId: profile?.id,
@@ -734,7 +739,7 @@ export default function ResidentAuditPage() {
               <Select value={assignedToEmail} onValueChange={(val) => {
                 setAssignedToEmail(val);
                 const member = orgMembers.find(m => m.email === val);
-                if (member) setAssignedTo(member.name || member.email);
+                if (member) setAssignedTo(member.id); // Store UUID instead of name/email
               }}>
                 <SelectTrigger className="col-span-3"><SelectValue placeholder="Select member" /></SelectTrigger>
                 <SelectContent>
@@ -823,7 +828,7 @@ export default function ResidentAuditPage() {
                   <TableRow key={plan.id}>
                     <TableCell className="font-medium text-primary">{plan.residentName || 'General'}</TableCell>
                     <TableCell>{plan.text}</TableCell>
-                    <TableCell>{plan.assignedTo}</TableCell>
+                    <TableCell>{plan.assignedToName || plan.assignedTo}</TableCell>
                     <TableCell>{plan.dueDate ? format(plan.dueDate, "dd/MM/yyyy") : 'N/A'}</TableCell>
                     <TableCell>
                       <Badge variant={plan.priority === 'High' ? 'destructive' : 'outline'}>
