@@ -27,7 +27,8 @@ UPDATE public.audit_resident_action_plans
 SET care_home_id = team_id::UUID
 WHERE care_home_id IS NULL 
 AND team_id IS NOT NULL 
-AND team_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+AND team_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+AND EXISTS (SELECT 1 FROM public.care_homes WHERE id = team_id::UUID);
 
 -- 5. Care File Action Plans
 ALTER TABLE public.audit_care_file_action_plans
@@ -39,4 +40,5 @@ UPDATE public.audit_care_file_action_plans
 SET care_home_id = team_id::UUID
 WHERE care_home_id IS NULL 
 AND team_id IS NOT NULL 
-AND team_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+AND team_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+AND EXISTS (SELECT 1 FROM public.care_homes WHERE id = team_id::UUID);
