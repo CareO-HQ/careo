@@ -260,12 +260,17 @@ export default function CareFileV2FolderPage() {
     useEffect(() => { fetchUploadedFiles(); }, [fetchUploadedFiles]);
 
     useEffect(() => {
-        if (folderKey === "v2-medication" || folderKey === "v2-hygiene") {
+        if (folderKey === "v2-medication" || folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity" || folderKey === "v2-safeguarding") {
             fetchFolderBodyMap();
         }
     }, [fetchFolderBodyMap, folderKey]);
 
     const handleFormClick = async (key: CareFileFormKey) => {
+        if (key === "v2-body-map-hygiene" || key === "v2-body-map-skin" || key === "v2-safe-body-map") {
+            setIsBodyMapDialogOpen(true);
+            return;
+        }
+
         const v2Form = folder?.forms.find(f => f.key === key);
         if (v2Form?.isComingSoon) {
             toast.info("Coming Soon", { description: "This form is currently being developed." });
@@ -486,35 +491,29 @@ export default function CareFileV2FolderPage() {
         }
 
         try {
-            if (folderBodyMap?.id) {
-                const { error } = await supabase
-                    .from("care_folder_body_maps")
-                    .update({ body_map_data: bodyMapData })
-                    .eq("id", folderBodyMap.id);
-
-                if (error) {
-                    throw error;
-                }
-            } else {
-                const { data, error } = await supabase
-                    .from("care_folder_body_maps")
-                    .insert({
+            const { data, error } = await supabase
+                .from("care_folder_body_maps")
+                .upsert(
+                    {
                         resident_id: residentId,
                         folder_key: folderKey,
                         body_map_data: bodyMapData,
                         organization_id: activeOrganizationId,
                         created_by: profile.id,
-                    })
-                    .select("id, resident_id, folder_key, body_map_data")
-                    .single();
+                        updated_at: new Date().toISOString(),
+                    },
+                    {
+                        onConflict: "resident_id,folder_key",
+                    }
+                )
+                .select("id, resident_id, folder_key, body_map_data")
+                .single();
 
-                if (error) {
-                    throw error;
-                }
-
-                setFolderBodyMap(data as CareFolderBodyMapRecord);
+            if (error) {
+                throw error;
             }
 
+            setFolderBodyMap((data as CareFolderBodyMapRecord) || null);
             await fetchFolderBodyMap();
             toast.success("Body map saved");
         } catch (error) {
@@ -735,7 +734,7 @@ export default function CareFileV2FolderPage() {
                             </div>
                         )}
 
-                        {(folderKey === "v2-medication" || folderKey === "v2-hygiene") && (
+                        {(folderKey === "v2-medication" || folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity" || folderKey === "v2-safeguarding") && (
                             <div>
                                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1 mb-2">
                                     Body Map
@@ -1115,7 +1114,7 @@ export default function CareFileV2FolderPage() {
                 incidentType={folder.value ? `${folder.value} Body Map` : "Care File Body Map"}
                 incidentDate={new Date().toISOString().split("T")[0]}
                 orgLogoUrl={activeOrganization?.logo_url}
-                simpleMode={folderKey === "v2-medication" || folderKey === "v2-hygiene"}
+                simpleMode={folderKey === "v2-medication" || folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity" || folderKey === "v2-safeguarding"}
             />
         </div >
     );

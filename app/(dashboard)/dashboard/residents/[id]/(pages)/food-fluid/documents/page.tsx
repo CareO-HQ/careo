@@ -55,6 +55,8 @@ import {
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { useProfile } from "@/hooks/use-profile";
+import { generateFoodFluidPDF } from "@/lib/food-fluid-pdf-utils";
 
 type FoodFluidDocumentsPageProps = {
   params: Promise<{ id: string }>;
@@ -63,6 +65,7 @@ type FoodFluidDocumentsPageProps = {
 export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+  const { profile } = useProfile();
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -360,99 +363,80 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
     };
   }, [paginatedData, selectedYear, selectedMonth]);
 
-  const handleDownloadReport = (report: any) => {
+  const handleDownloadReport = async (report: any) => {
     if (!resident) {
       toast.error('Resident data not available');
       return;
     }
 
-    const reportToDownload = selectedReportData && selectedReport?.date === report.date
+    let reportToDownload = selectedReportData && selectedReport?.date === report.date
       ? selectedReportData
-      : { logs: [], reportGenerated: false, totalEntries: 0, foodEntries: 0, fluidEntries: 0, totalFluidMl: 0 };
+      : null;
 
-    const htmlContent = generatePDFContent({
-      resident,
-      report: reportToDownload,
-      date: report.date
-    });
+    // If data isn't loaded (e.g. from history table directly), fetch it first
+    if (!reportToDownload) {
+      const loadingToast = toast.loading(`Preparing report for ${formatInTimeZone(new Date(report.date + "T00:00:00"), UK_TIMEZONE, "dd MMM yyyy")}...`);
+      try {
+        const { data: logs, error } = await supabase
+          .from("food_fluid_logs")
+          .select("*")
+          .eq("resident_id", id)
+          .eq("date", report.date)
+          .order("timestamp", { ascending: false });
 
-    generatePDFFromHTML(htmlContent);
-    toast.success(`Food & Fluid report will open for printing`);
+        if (error) throw error;
+
+        const transformedLogs = (logs || []).map((log: any) => ({
+          typeOfFoodDrink: log.type_of_food_drink,
+          amountEaten: log.amount_eaten,
+          portionServed: log.portion_served,
+          fluidConsumedMl: log.fluid_consumed_ml,
+          section: log.section,
+          signature: log.signature,
+          timestamp: new Date(log.timestamp).getTime()
+        }));
+
+        const foodEntries = transformedLogs.filter((log: any) => !log.fluidConsumedMl).length;
+        const fluidEntries = transformedLogs.filter((log: any) => log.fluidConsumedMl).length;
+        const totalFluidMl = transformedLogs.reduce((sum: number, log: any) => sum + (log.fluidConsumedMl || 0), 0);
+
+        reportToDownload = {
+          logs: transformedLogs,
+          reportGenerated: true,
+          totalEntries: transformedLogs.length,
+          foodEntries,
+          fluidEntries,
+          totalFluidMl
+        };
+        toast.dismiss(loadingToast);
+      } catch (error) {
+        console.error("Error fetching report data for download:", error);
+        toast.error("Failed to prepare report data");
+        toast.dismiss(loadingToast);
+        return;
+      }
+    }
+
+    if (!reportToDownload || reportToDownload.logs.length === 0) {
+      toast.error("No data found for this date");
+      return;
+    }
+
+    try {
+      await generateFoodFluidPDF({
+        resident,
+        report: reportToDownload,
+        date: report.date,
+        orgLogoUrl: profile?.organization_logo_url || undefined
+      });
+      toast.success(`Food & Fluid report generated for ${formatInTimeZone(new Date(report.date + "T00:00:00"), UK_TIMEZONE, "dd MMM yyyy")}`);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF report");
+    }
   };
 
-  const generatePDFContent = ({ resident, report, date }: { resident: any; report: any; date: string; }) => {
-    // Format date in UK timezone
-    const formattedDate = formatDateForDisplay(date);
-
-    return `
-      <div class="header">
-        <h1>Daily Food & Fluid Report</h1>
-        <p style="color: #64748B; margin: 0;">${resident.first_name} ${resident.last_name}</p>
-      </div>
-
-      <div class="info-grid">
-        <div class="info-box">
-          <h3>Report Date</h3>
-          <p>${formattedDate}</p>
-        </div>
-        <div class="info-box">
-          <h3>Total Entries</h3>
-          <p>${report.totalEntries || 0}</p>
-        </div>
-        <div class="info-box">
-          <h3>Food Entries</h3>
-          <p>${report.foodEntries || 0}</p>
-        </div>
-        <div class="info-box">
-          <h3>Fluid Entries</h3>
-          <p>${report.fluidEntries || 0}</p>
-        </div>
-      </div>
-
-      <div class="activities">
-        <h2>Food & Fluid Log</h2>
-        ${report.logs && report.logs.length > 0
-          ? report.logs.map((log: any) => `
-              <div class="log-entry">
-                <strong>${log.typeOfFoodDrink}</strong> - ${log.amountEaten}<br>
-                Time: ${formatTimestampToUKTime(log.timestamp)}<br>
-                Staff: ${log.signature}
-              </div>
-            `).join('')
-          : '<p>No entries logged for this date.</p>'
-        }
-      </div>
-    `;
-  };
-
-  const generatePDFFromHTML = (content: string) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Daily Food & Fluid Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
-            .info-box { background: #f5f5f5; padding: 10px; border-radius: 5px; }
-            .log-entry { margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; }
-          </style>
-        </head>
-        <body>
-          ${content}
-          <button onclick="window.print()" style="margin-top: 20px; padding: 10px 20px;">Print PDF</button>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.onload = () => setTimeout(() => printWindow.print(), 500);
-  };
+  // Legacy PDF generation removed in favor of jsPDF utility
 
   // Loading state
   if (!resident || isLoading) {

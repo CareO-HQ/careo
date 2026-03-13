@@ -96,15 +96,6 @@ export function canViewSidebarAudit(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "saas_admin";
 }
 
-export function getAuditLabel(role?: string): "Audit" | "CareO Audit" | null {
-  if (role === "owner" || role === "saas_admin") {
-    return "Audit";
-  }
-  if (role === "manager") {
-    return "CareO Audit";
-  }
-  return null;
-}
 
 // Resident Overview
 export function canViewOverview(role?: string): boolean {

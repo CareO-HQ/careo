@@ -464,6 +464,40 @@ export default function DependencyAssessmentDialog({
             </fieldset>
 
             <div className="mt-12 space-y-6">
+                <div className="p-4 border rounded-lg bg-card">
+                    <h3 className="font-bold text-sm mb-4">DEPENDENCY SCALE & LEVEL</h3>
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="bg-muted/50">
+                                <TableHead className="font-bold">Score Range</TableHead>
+                                <TableHead className="font-bold text-right">Dependency Level</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow>
+                                <TableCell>0 – 22</TableCell>
+                                <TableCell className="text-right">Low Dependency Level</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell>23 – 44</TableCell>
+                                <TableCell className="text-right">Medium Dependency Level</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell>45 – 66</TableCell>
+                                <TableCell className="text-right">High Dependency Level</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell>67 &gt;</TableCell>
+                                <TableCell className="text-right">Very High Dependency Level</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                    <div className="mt-4 p-3 bg-muted/30 rounded-md text-xs space-y-2 leading-relaxed">
+                        <p><span className="font-bold">NB.</span> Evaluate the Care Plan monthly. If the score increases by 10 or more, consider holding a Care Review and document in the Care File.</p>
+                        <p>If dependency rises to 45 or above alert the Home Manager.</p>
+                    </div>
+                </div>
+
                 <h3 className="text-xl font-bold border-b pb-2">Past Assessments</h3>
                 {isLoadingHistory ? (
                     <div className="flex justify-center p-8"><p className="text-muted-foreground animate-pulse text-sm">Loading history...</p></div>

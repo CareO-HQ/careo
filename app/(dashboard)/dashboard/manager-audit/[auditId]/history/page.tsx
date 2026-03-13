@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,6 +18,7 @@ import { ArrowLeft, Eye, Download, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { withRoleGuard } from "@/lib/route-guards";
 import { format } from "date-fns";
+import { useActiveTeam } from "@/hooks/use-active-team";
 
 const auditNames: Record<string, string> = {
   "0": "Care File Audit",
@@ -72,45 +74,48 @@ function AuditHistoryPage({ params }: AuditHistoryPageProps) {
   const auditId = resolvedParams.auditId;
   const auditName = auditNames[auditId] || "Unknown Audit";
 
+  const { activeCareHomeId, activeOrganizationId } = useActiveTeam();
   const [isLoading, setIsLoading] = useState(true);
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
 
   useEffect(() => {
-    // Load history from localStorage
-    const savedHistory = localStorage.getItem(`manager-audit-history-${auditId}`);
-    if (savedHistory) {
-      setHistoryRecords(JSON.parse(savedHistory));
-    } else {
-      // Mock data for demonstration
-      setHistoryRecords([
-        {
-          id: "1",
-          completedDate: new Date(2024, 0, 15).toISOString(),
-          auditor: "Jane Smith",
-          residentsAudited: 24,
+    const loadHistory = async () => {
+      if (!activeCareHomeId) return;
+
+      try {
+        setIsLoading(true);
+
+        const { data, error } = await supabase
+          .from('manager_audit_history')
+          .select('id, completed_date, auditor, entries_count, notes')
+          .eq('care_home_id', activeCareHomeId)
+          .eq('audit_type_id', auditId)
+          .order('completed_date', { ascending: false });
+
+          if (error) throw error;
+
+      if (data) {
+        setHistoryRecords(data.map(r => ({
+          id: r.id,
+          completedDate: r.completed_date,
+          auditor: r.auditor,
+          residentsAudited: r.entries_count,
           status: "completed",
-          notes: "All residents compliant"
-        },
-        {
-          id: "2",
-          completedDate: new Date(2024, 1, 15).toISOString(),
-          auditor: "John Doe",
-          residentsAudited: 22,
-          status: "completed",
-          notes: "Minor issues identified and resolved"
-        },
-        {
-          id: "3",
-          completedDate: new Date(2023, 11, 15).toISOString(),
-          auditor: "Sarah Johnson",
-          residentsAudited: 25,
-          status: "completed",
-          notes: "Full compliance achieved"
-        },
-      ]);
+          notes: r.notes
+        })));
+      }
+    } catch (error) {
+      console.error("Error loading history:", error);
+      toast.error("Failed to load audit history");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  }, [auditId]);
+  };
+
+    if (activeCareHomeId && activeOrganizationId) {
+      loadHistory();
+    }
+  }, [auditId, activeCareHomeId, activeOrganizationId]);
 
   const handleBack = () => {
     router.push("/dashboard/manager-audit");

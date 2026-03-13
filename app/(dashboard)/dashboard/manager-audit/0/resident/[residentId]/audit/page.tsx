@@ -34,6 +34,7 @@ import { ArrowLeft, Plus, X, History } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { useProfile } from "@/hooks/use-profile";
+import { useActiveTeam } from "@/hooks/use-active-team";
 import { supabase } from "@/lib/supabase";
 import { withRoleGuard } from "@/lib/route-guards";
 
@@ -58,8 +59,8 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
   const router = useRouter();
   const resolvedParams = React.use(params);
   const residentId = resolvedParams.residentId;
-
-  const { profile } = useProfile();
+  const { profile, isLoading: isContextLoading } = useProfile();
+  const { activeCareHomeId, activeOrganizationId } = useActiveTeam();
   const [isLoading, setIsLoading] = useState(true);
   const [resident, setResident] = useState<any>(null);
 
@@ -83,10 +84,15 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
 
   // Load data
   const loadData = useCallback(async () => {
+    if (!activeCareHomeId) return;
+
     try {
       setIsLoading(true);
 
-      // Load resident
+      // 1. Context already available via hook!
+      const chId = activeCareHomeId;
+
+      // 2. Load resident
       const { data: resData } = await supabase
         .from('residents')
         .select('*')
@@ -104,29 +110,32 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
         };
         setResident(mappedResident);
 
-        // Load saved row questions (shared across all residents in organization)
-        const savedRowQuestions = localStorage.getItem(`care-file-audit-row-questions-${resData.organization_id}`);
-        if (savedRowQuestions) {
-          setRowQuestions(JSON.parse(savedRowQuestions));
+        // 3. Load shared templates (Row/Col Questions) for Care File Audit (ID 0)
+        // We use a special audit_type_id 'template-0' for organization/carehome wide templates
+        const { data: templateData } = await supabase
+          .from('manager_audit_state')
+          .select('row_questions, column_questions')
+          .eq('care_home_id', chId)
+          .eq('audit_type_id', 'template-0')
+          .single();
+
+        if (templateData) {
+          if (templateData.row_questions) setRowQuestions(templateData.row_questions as Question[]);
+          if (templateData.column_questions) setColumnQuestions(templateData.column_questions as Question[]);
         }
 
-        // Load saved column questions (shared across all residents in organization)
-        const savedColumnQuestions = localStorage.getItem(`care-file-audit-column-questions-${resData.organization_id}`);
-        if (savedColumnQuestions) {
-          setColumnQuestions(JSON.parse(savedColumnQuestions));
+        // 4. Load saved in-progress state for THIS resident
+        const { data: stateData } = await supabase
+          .from('manager_audit_state')
+          .select('answers, fixed_column_data')
+          .eq('care_home_id', chId)
+          .eq('audit_type_id', `resident-0-${residentId}`)
+          .single();
+
+        if (stateData) {
+          if (stateData.answers) setAnswers(stateData.answers as Answer[]);
+          if (stateData.fixed_column_data) setFixedColumnData(stateData.fixed_column_data as any);
         }
-      }
-
-      // Load saved answers
-      const savedAnswers = localStorage.getItem(`care-file-audit-answers-${residentId}`);
-      if (savedAnswers) {
-        setAnswers(JSON.parse(savedAnswers));
-      }
-
-      // Load fixed column data
-      const savedFixedColumnData = localStorage.getItem(`care-file-audit-fixed-columns-${residentId}`);
-      if (savedFixedColumnData) {
-        setFixedColumnData(JSON.parse(savedFixedColumnData));
       }
 
     } catch (err) {
@@ -135,11 +144,35 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [residentId]);
+  }, [residentId, supabase]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (activeCareHomeId && activeOrganizationId) {
+      loadData();
+    }
+  }, [loadData, activeCareHomeId, activeOrganizationId]);
+
+  // Helper: upsert audit state
+  const upsertState = async (typeId: string, updates: Record<string, any>) => {
+    if (!resident?.organizationId) return;
+
+    // Get care home id again or store it in state
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('active_care_home_id')
+      .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+      .single();
+
+    const chId = userProfile?.active_care_home_id;
+    if (!chId) return;
+
+    await supabase.from('manager_audit_state').upsert({
+      care_home_id: chId,
+      organization_id: resident.organizationId,
+      audit_type_id: typeId,
+      ...updates
+    }, { onConflict: 'care_home_id,audit_type_id' });
+  };
 
   const handleBack = () => {
     router.push("/dashboard/manager-audit/0");
@@ -150,13 +183,9 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
   };
 
   // Row Question Management
-  const handleAddRowQuestion = () => {
+  const handleAddRowQuestion = async () => {
     if (!newQuestionText.trim()) {
       toast.error("Please enter a question");
-      return;
-    }
-    if (!resident?.organizationId) {
-      toast.error("Organization not found");
       return;
     }
     const newQuestion: Question = {
@@ -166,29 +195,23 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
     };
     const updatedRowQuestions = [...rowQuestions, newQuestion];
     setRowQuestions(updatedRowQuestions);
-    localStorage.setItem(`care-file-audit-row-questions-${resident.organizationId}`, JSON.stringify(updatedRowQuestions));
+    await upsertState('template-0', { row_questions: updatedRowQuestions });
     toast.success("Row added");
     setNewQuestionText("");
     setIsQuestionDialogOpen(false);
   };
 
-  const handleRemoveRowQuestion = (questionId: string) => {
-    if (!resident?.organizationId) return;
+  const handleRemoveRowQuestion = async (questionId: string) => {
     const updatedRowQuestions = rowQuestions.filter(q => q.id !== questionId);
     setRowQuestions(updatedRowQuestions);
-    setAnswers(answers.filter(a => a.residentId !== questionId));
-    localStorage.setItem(`care-file-audit-row-questions-${resident.organizationId}`, JSON.stringify(updatedRowQuestions));
+    await upsertState('template-0', { row_questions: updatedRowQuestions });
     toast.success("Row removed");
   };
 
   // Column Question Management
-  const handleAddColumnQuestion = () => {
+  const handleAddColumnQuestion = async () => {
     if (!newQuestionText.trim()) {
       toast.error("Please enter a question");
-      return;
-    }
-    if (!resident?.organizationId) {
-      toast.error("Organization not found");
       return;
     }
     const newQuestion: Question = {
@@ -198,28 +221,22 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
     };
     const updatedColumnQuestions = [...columnQuestions, newQuestion];
     setColumnQuestions(updatedColumnQuestions);
-    localStorage.setItem(`care-file-audit-column-questions-${resident.organizationId}`, JSON.stringify(updatedColumnQuestions));
+    await upsertState('template-0', { column_questions: updatedColumnQuestions });
     toast.success("Column added");
     setNewQuestionText("");
     setNewQuestionType("compliance");
     setIsQuestionDialogOpen(false);
   };
 
-  const handleRemoveColumnQuestion = (questionId: string) => {
-    if (!resident?.organizationId) return;
+  const handleRemoveColumnQuestion = async (questionId: string) => {
     const updatedColumnQuestions = columnQuestions.filter(q => q.id !== questionId);
     setColumnQuestions(updatedColumnQuestions);
-    setAnswers(answers.filter(a => a.questionId !== questionId));
-    localStorage.setItem(`care-file-audit-column-questions-${resident.organizationId}`, JSON.stringify(updatedColumnQuestions));
+    await upsertState('template-0', { column_questions: updatedColumnQuestions });
     toast.success("Column removed");
   };
 
   // Section Management
-  const handleAddSection = () => {
-    if (!resident?.organizationId) {
-      toast.error("Organization not found");
-      return;
-    }
+  const handleAddSection = async () => {
     const sectionText = prompt("Enter section title:");
     if (!sectionText?.trim()) return;
 
@@ -231,17 +248,16 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
     };
     const updatedRowQuestions = [...rowQuestions, newSection];
     setRowQuestions(updatedRowQuestions);
-    localStorage.setItem(`care-file-audit-row-questions-${resident.organizationId}`, JSON.stringify(updatedRowQuestions));
+    await upsertState('template-0', { row_questions: updatedRowQuestions });
     toast.success("Section added");
   };
 
-  const handleUpdateSectionText = (sectionId: string, text: string) => {
-    if (!resident?.organizationId) return;
+  const handleUpdateSectionText = async (sectionId: string, text: string) => {
     const updatedRowQuestions = rowQuestions.map(q =>
       q.id === sectionId ? { ...q, text } : q
     );
     setRowQuestions(updatedRowQuestions);
-    localStorage.setItem(`care-file-audit-row-questions-${resident.organizationId}`, JSON.stringify(updatedRowQuestions));
+    await upsertState('template-0', { row_questions: updatedRowQuestions });
   };
 
   // Dialog openers
@@ -259,7 +275,7 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
   };
 
   // Answer Handling
-  const handleGridAnswerChange = (rowQuestionId: string, columnQuestionId: string, value: string) => {
+  const handleGridAnswerChange = async (rowQuestionId: string, columnQuestionId: string, value: string) => {
     const existingAnswer = answers.find(a => a.residentId === rowQuestionId && a.questionId === columnQuestionId);
     let updatedAnswers;
     if (existingAnswer) {
@@ -270,7 +286,7 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
       updatedAnswers = [...answers, { residentId: rowQuestionId, questionId: columnQuestionId, value }];
     }
     setAnswers(updatedAnswers);
-    localStorage.setItem(`care-file-audit-answers-${residentId}`, JSON.stringify(updatedAnswers));
+    await upsertState(`resident-0-${residentId}`, { answers: updatedAnswers });
   };
 
   const getGridAnswer = (rowQuestionId: string, columnQuestionId: string) => {
@@ -278,7 +294,7 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
   };
 
   // Fixed Column Handling
-  const handleFixedColumnChange = (rowId: string, field: 'comment' | 'actionRequired' | 'actionCompleted', value: string) => {
+  const handleFixedColumnChange = async (rowId: string, field: 'comment' | 'actionRequired' | 'actionCompleted', value: string) => {
     const updatedData = {
       ...fixedColumnData,
       [rowId]: {
@@ -287,7 +303,7 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
       }
     };
     setFixedColumnData(updatedData);
-    localStorage.setItem(`care-file-audit-fixed-columns-${residentId}`, JSON.stringify(updatedData));
+    await upsertState(`resident-0-${residentId}`, { fixed_column_data: updatedData });
   };
 
   const getFixedColumnValue = (rowId: string, field: 'comment' | 'actionRequired' | 'actionCompleted') => {
@@ -298,6 +314,18 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
   const handleCompleteAudit = async () => {
     if (rowQuestions.length === 0) {
       toast.error("Please add at least one row to the audit");
+      return;
+    }
+
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('active_care_home_id')
+      .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+      .single();
+
+    const chId = userProfile?.active_care_home_id;
+    if (!chId || !resident?.organizationId) {
+      toast.error("Missing context");
       return;
     }
 
@@ -313,29 +341,24 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
       status: 'completed'
     };
 
-    // Save completed audit to localStorage history
-    const historyKey = `care-file-audit-history-${residentId}`;
-    const existingHistory = localStorage.getItem(historyKey);
-    const history = existingHistory ? JSON.parse(existingHistory) : [];
-
-    const newHistoryRecord = {
-      id: `completion-${Date.now()}`,
-      completedDate: auditCompletionData.completedDate,
+    // Save completed audit to Supabase history
+    await supabase.from('manager_audit_history').insert({
+      care_home_id: chId,
+      organization_id: resident.organizationId,
+      audit_type_id: `resident-0-${residentId}`,
+      audit_type_name: `Care File Audit: ${auditCompletionData.residentName}`,
+      completed_date: auditCompletionData.completedDate,
       auditor: auditCompletionData.auditor,
-      frequency: "monthly",
-      status: 'completed',
-      rowCount: rowQuestions.filter(q => !q.isSection).length,
+      entries_count: rowQuestions.filter(q => !q.isSection).length,
+      notes: "Audit completed",
       data: auditCompletionData
-    };
+    });
 
-    history.unshift(newHistoryRecord);
-    localStorage.setItem(historyKey, JSON.stringify(history));
-
-    // Clear current audit data for THIS resident only
-    // Row questions and column questions are shared across all residents - DON'T remove them
-    localStorage.removeItem(`care-file-audit-answers-${residentId}`);
-    localStorage.removeItem(`care-file-audit-fixed-columns-${residentId}`);
-    // Questions intentionally NOT removed - they're organization-wide and persist for all residents
+    // Clear current audit data for THIS resident only in Supabase
+    await upsertState(`resident-0-${residentId}`, {
+      answers: [],
+      fixed_column_data: {}
+    });
 
     toast.success("Audit completed!");
     router.push('/dashboard/manager-audit/0');

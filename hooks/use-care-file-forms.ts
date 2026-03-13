@@ -45,6 +45,9 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       "braden-risk-assessment-form",
       "best-interest-decision-form",
       "v2-restraints-risk",
+      "v2-body-map-hygiene",
+      "v2-body-map-skin",
+      "v2-safe-body-map",
       "fall-risk-assessment",
       "smoking-risk-assessment"
     ];
@@ -87,13 +90,35 @@ export function useCareFileForms({ residentId }: UseCareFileFormsProps) {
       if (!table) return;
 
       try {
-        const { data, error } = await supabase
+        let data, error;
+
+        if (key === "v2-body-map-hygiene" || key === "v2-body-map-skin" || key === "v2-safe-body-map") {
+          const folderKey = key === "v2-body-map-hygiene" ? "v2-hygiene" : (key === "v2-body-map-skin" ? "v2-skin-integrity" : "v2-safeguarding");
+          ({ data, error } = await supabase
+            .from("care_folder_body_maps")
+            .select("*")
+            .eq("resident_id", residentId)
+            .eq("folder_key", folderKey)
+            .maybeSingle());
+          
+          // Data is considered "completed" if body_map_data exists and has sessions
+          const hasSessions = data?.body_map_data?.sessions?.length > 0;
+          newState[key] = {
+            status: hasSessions ? 'completed' : 'not-started',
+            hasData: hasSessions,
+            lastUpdated: data ? new Date(data.updated_at).getTime() : undefined,
+            isAudited: false
+          };
+          return;
+        }
+
+        ({ data, error } = await supabase
           .from(table)
-          .select('*')
-          .eq('resident_id', residentId)
-          .order('created_at', { ascending: false })
+          .select("*")
+          .eq("resident_id", residentId)
+          .order("created_at", { ascending: false })
           .limit(1)
-          .single();
+          .single());
 
         // It's okay if not found (error code PGRST116 usually, or null data)
         const latestForm = data;

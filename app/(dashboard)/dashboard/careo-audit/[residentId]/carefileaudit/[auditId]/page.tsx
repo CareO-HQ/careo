@@ -59,7 +59,8 @@ interface ActionPlan {
   id: string;
   auditId: string;
   text: string;
-  assignedTo: string;
+  assignedTo: string; // This will be the UUID
+  assignedToName: string; // This will be the name for display
   assignedToEmail: string;
   dueDate: Date | undefined;
   priority: string;
@@ -74,7 +75,7 @@ function CareFileAuditEditorPageContent() {
   const router = useRouter();
   const residentId = params.residentId as string;
   const auditId = params.auditId as string;
-  const { activeTeamId, activeOrganizationId } = useActiveTeam();
+  const { activeTeamId, activeOrganizationId, activeCareHomeId } = useActiveTeam();
   const { profile } = useProfile();
 
   // Fetch resident data
@@ -160,8 +161,9 @@ function CareFileAuditEditorPageContent() {
               id: p.id,
               auditId: p.audit_response_id,
               text: p.description,
-              assignedTo: p.assigned_to_name,
-              assignedToEmail: p.assigned_to,
+              assignedTo: p.assigned_to,
+              assignedToName: p.assigned_to_name || p.assigned_to,
+              assignedToEmail: p.assigned_to_email || "",
               dueDate: p.due_date ? new Date(p.due_date) : undefined,
               priority: p.priority,
               status: p.status,
@@ -205,8 +207,9 @@ function CareFileAuditEditorPageContent() {
             id: p.id,
             auditId: p.audit_response_id,
             text: p.description,
-            assignedTo: p.assigned_to_name,
-            assignedToEmail: p.assigned_to,
+            assignedTo: p.assigned_to,
+            assignedToName: p.assigned_to_name || p.assigned_to,
+            assignedToEmail: p.assigned_to_email || "",
             dueDate: p.due_date ? new Date(p.due_date) : undefined,
             priority: p.priority,
             status: p.status
@@ -325,6 +328,7 @@ function CareFileAuditEditorPageContent() {
           priority: priority,
           due_date: dueDate.toISOString(),
           organization_id: activeOrganizationId,
+          careHomeId: activeCareHomeId,
           created_by: profile?.email,
           created_by_name: profile?.name || profile?.email,
           creatorId: profile?.id,
@@ -336,7 +340,8 @@ function CareFileAuditEditorPageContent() {
         id: savedPlan?.id || `temp-${Date.now()}`,
         auditId: responseId || 'new',
         text: actionPlanText,
-        assignedTo: assignedTo,
+        assignedTo: assignedTo, // This is the UUID
+        assignedToName: orgMembers.find(m => m.id === assignedTo)?.name || assignedToEmail,
         assignedToEmail: assignedToEmail,
         dueDate: dueDate,
         priority: priority,
@@ -394,11 +399,12 @@ function CareFileAuditEditorPageContent() {
         await auditService.createCareFileActionPlan({
           audit_response_id: responseId,
           description: plan.text,
-          assigned_to: plan.assignedToEmail,
-          assigned_to_name: plan.assignedTo,
+          assigned_to: plan.assignedTo, // This is the UUID
+          assigned_to_name: plan.assignedToName,
           priority: plan.priority,
           due_date: plan.dueDate?.toISOString(),
           organization_id: activeOrganizationId,
+          careHomeId: activeCareHomeId,
           resident_id: residentId,
           resident_name: resident ? `${resident.first_name || resident.firstName} ${resident.last_name || resident.lastName}` : "Unknown",
           created_by: profile?.email,
@@ -541,7 +547,7 @@ function CareFileAuditEditorPageContent() {
               <Select value={assignedToEmail} onValueChange={(val) => {
                 setAssignedToEmail(val);
                 const member = orgMembers.find(m => m.email === val);
-                if (member) setAssignedTo(member.name || member.email);
+                if (member) setAssignedTo(member.id); // Store UUID instead of name/email
               }}>
                 <SelectTrigger className="col-span-3"><SelectValue placeholder="Select member" /></SelectTrigger>
                 <SelectContent>
@@ -628,7 +634,7 @@ function CareFileAuditEditorPageContent() {
                 {actionPlans.map((plan) => (
                   <TableRow key={plan.id}>
                     <TableCell className="font-medium">{plan.text}</TableCell>
-                    <TableCell>{plan.assignedTo}</TableCell>
+                    <TableCell>{plan.assignedToName || plan.assignedTo}</TableCell>
                     <TableCell>{plan.dueDate ? format(plan.dueDate, "dd/MM/yyyy") : 'N/A'}</TableCell>
                     <TableCell>
                       <Badge variant={plan.priority === 'High' ? 'destructive' : 'outline'}>

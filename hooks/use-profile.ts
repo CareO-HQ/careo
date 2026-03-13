@@ -24,6 +24,7 @@ export type Profile = {
     next_of_kin_address: string | null;
     // Computed/Joined fields
     organization_name?: string;
+    organization_logo_url?: string | null;
     care_home_name?: string;
     active_team_name?: string;
     role?: string;
@@ -124,10 +125,13 @@ export function useProfile() {
                 if (enrichedProfile.active_organization_id) {
                     const { data: org } = await supabase
                         .from("organizations")
-                        .select("name")
+                        .select("name, logo_url")
                         .eq("id", enrichedProfile.active_organization_id)
                         .single();
-                    if (org) enrichedProfile.organization_name = org.name;
+                    if (org) {
+                        enrichedProfile.organization_name = org.name;
+                        enrichedProfile.organization_logo_url = org.logo_url;
+                    }
                 }
 
                 setProfile(enrichedProfile);

@@ -5,7 +5,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { supabase } from "@/lib/supabase";
-import { ArrowLeft, Download, FileText, Folder, Loader2, Paperclip, Trash2, Plus, X, Map as MapIcon, Edit, CircleCheckIcon, CircleDashedIcon } from "lucide-react";
+import { ArrowLeft, Download, FileText, Folder, Loader2, Paperclip, Trash2, Plus, X, Map as MapIcon, Edit, CircleCheckIcon, CircleDashedIcon, PanelRight, PanelRightClose } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,9 @@ import { BodyRegion, BodyMapEntry, BodyMapData, BodyMapSession } from "@/types/b
 import { BODY_REGIONS } from "@/lib/config/body-regions";
 import { normalizeBodyMapData } from "@/lib/body-map-utils";
 import { generateBodyMapPDF } from "@/lib/body-map-pdf-utils";
+import { PostFallAssessmentForm } from "./components/post-fall-assessment-form";
+import { PostFallObservationChart } from "./components/post-fall-observation-chart";
+import { PostFallGuidelines } from "./components/post-fall-guidelines";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 
@@ -69,6 +72,7 @@ type IncidentFolder = {
   id: string;
   resident_id: string;
   name: string;
+  folder_type?: "incident" | "fall";
   body_map_data: BodyMapData | null;
   created_at: string;
   updated_at: string;
@@ -103,12 +107,15 @@ type IncidentFormType =
   | "nhs"
   | "whsct"
   | "shsct"
-  | "nhsct";
+  | "nhsct"
+  | "post-fall-assessment"
+  | "post-fall-observation";
 
 type FormOption = {
   key: IncidentFormType;
   label: string;
   description: string;
+  type?: "incident" | "fall" | "both";
 };
 
 const FORM_OPTIONS: FormOption[] = [
@@ -116,41 +123,61 @@ const FORM_OPTIONS: FormOption[] = [
     key: "incident-report",
     label: "Incident Report",
     description: "General incident report form",
+    type: "incident",
   },
   {
     key: "restrictive-practice",
     label: "Restrictive Practice",
     description: "Restrictive practice documentation",
+    type: "incident",
   },
   {
     key: "bhsct",
     label: "BHSCT",
     description: "Belfast Health and Social Care Trust",
+    type: "incident",
   },
   {
     key: "sehsct",
     label: "SEHSCT",
     description: "South Eastern Health and Social Care Trust",
+    type: "incident",
   },
   {
     key: "nhs",
     label: "NHS",
     description: "Generic NHS Trust Report",
+    type: "incident",
   },
   {
     key: "whsct",
     label: "WHSCT",
     description: "Western Health and Social Care Trust",
+    type: "incident",
   },
   {
     key: "shsct",
     label: "SHSCT",
     description: "Southern Health and Social Care Trust",
+    type: "incident",
   },
   {
     key: "nhsct",
     label: "NHSCT",
     description: "Northern Health and Social Care Trust",
+    type: "incident",
+  },
+  {
+    key: "post-fall-assessment",
+    label: "Post-fall assessment and management tool",
+    description: "Assessment to be completed after a resident fall.",
+    type: "fall",
+  },
+  {
+    key: "post-fall-observation",
+    label: "24-hour post-fall observation chart",
+    description: "Neurological and general observation timeline.",
+    type: "fall",
   },
 ];
 
@@ -260,6 +287,7 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
   const [folder, setFolder] = useState<IncidentFolder | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [activeFormKey, setActiveFormKey] = useState<IncidentFormType | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [addedForms, setAddedForms] = useState<IncidentFormType[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
@@ -625,29 +653,45 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
   };
 
   return (
-    <div className="flex flex-col -mx-16 -mt-16 -mb-6 h-screen overflow-hidden">
+    <div className="flex flex-col -mx-6 -mt-16 -mb-6 h-screen overflow-hidden">
       {/* Top Bar */}
-      <div className="flex items-center gap-3 px-6 py-3 bg-background border-b flex-shrink-0">
+      <div className="flex items-center gap-2 px-6 py-3 bg-background border-b flex-shrink-0">
         <button
           onClick={() => router.push(`/dashboard/residents/${residentId}/incidents`)}
-          className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground flex-shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Incidents</span>
-          <span className="text-muted-foreground">/</span>
-          <span className="font-medium flex items-center gap-1.5">
-            <Folder className="w-4 h-4" />
-            {folder?.name || "Loading..."}
+        <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground min-w-0 overflow-hidden">
+          <span>Incidents</span> <span>/</span>
+          <span className="font-medium text-foreground flex items-center gap-1.5 truncate">
+            <Folder className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">{folder?.name || "Loading..."}</span>
+            {folder?.folder_type === "fall" && (
+              <Badge variant="outline" className="ml-1 text-[10px] uppercase bg-red-50 text-red-700 border-red-200 flex-shrink-0">Fall</Badge>
+            )}
           </span>
           {activeFile && (
             <>
-              <span className="text-muted-foreground">/</span>
-              <span className="text-muted-foreground">{activeFile.name}</span>
+              <span>/</span>
+              <span className="text-foreground truncate">{activeFile.name}</span>
             </>
           )}
         </div>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground transition-all duration-200 flex-shrink-0"
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isSidebarCollapsed ? (
+            <PanelRight className="h-4 w-4" />
+          ) : (
+            <PanelRightClose className="h-4 w-4" />
+          )}
+        </Button>
       </div>
 
       {/* Body */}
@@ -847,30 +891,21 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
               />
             )
           ) : activeFormKey === "sehsct" ? (
-            getSavedReport("sehsct") ? (
-              <TrustReportViewer
-                report={getSavedReport("sehsct")!}
-                orgLogoUrl={orgLogoUrl}
-                careHomeName={profile?.care_home_name || profile?.organization_name || ""}
-                residentName={fullName}
-                residentDOB={resident?.date_of_birth}
-              />
-            ) : (
-              <SEHSCTReportForm
-                folderId={folderId}
-                residentId={residentId}
-                residentName={fullName}
-                residentDOB={resident?.date_of_birth}
-                residentGender={resident?.gender}
-                nhsNumber={resident?.nhs_health_number}
-                careManagerName={resident?.care_manager_name}
-                providerName={profile?.care_home_name || profile?.organization_name || ""}
-                reporterName={profile?.name || ""}
-                orgLogoUrl={orgLogoUrl}
-                careHomeName={profile?.care_home_name || profile?.organization_name || ""}
-                onSaved={() => { fetchSavedReports(); }}
-              />
-            )
+            <SEHSCTReportForm
+              folderId={folderId}
+              residentId={residentId}
+              residentName={fullName}
+              residentDOB={resident?.date_of_birth}
+              residentGender={resident?.gender}
+              nhsNumber={resident?.nhs_health_number}
+              careManagerName={resident?.care_manager_name}
+              providerName={profile?.care_home_name || profile?.organization_name || ""}
+              reporterName={profile?.name || ""}
+              orgLogoUrl={orgLogoUrl}
+              careHomeName={profile?.care_home_name || profile?.organization_name || ""}
+              savedReport={getSavedReport("sehsct") ? { ...getSavedReport("sehsct")!.report_data as Record<string, any>, id: getSavedReport("sehsct")!.id } : undefined}
+              onSaved={() => { fetchSavedReports(); }}
+            />
           ) : activeFormKey === "nhs" ? (
             getSavedReport("nhs") ? (
               <TrustReportViewer
@@ -997,6 +1032,32 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                 onSaved={() => { fetchSavedReports(); }}
               />
             )
+          ) : activeFormKey === "post-fall-assessment" ? (
+            <div className="flex-1 overflow-auto h-full bg-muted/10 p-4">
+              <PostFallAssessmentForm
+                folderId={folderId}
+                residentId={residentId}
+                residentName={fullName}
+                orgLogoUrl={orgLogoUrl}
+                savedReport={getSavedReport("post-fall-assessment") ? { ...getSavedReport("post-fall-assessment")!.report_data, id: getSavedReport("post-fall-assessment")!.id } : undefined}
+                onSaved={() => fetchSavedReports()}
+              />
+            </div>
+          ) : activeFormKey === "post-fall-observation" ? (
+            <div className="flex-1 overflow-auto h-full bg-muted/10 p-4">
+              <PostFallObservationChart
+                folderId={folderId}
+                residentId={residentId}
+                residentName={fullName}
+                residentDOB={resident?.date_of_birth}
+                hcNumber={resident?.nhs_health_number}
+                orgLogoUrl={orgLogoUrl}
+                savedReport={getSavedReport("post-fall-observation")}
+                onSaved={() => fetchSavedReports()}
+              />
+            </div>
+          ) : folder?.folder_type === "fall" ? (
+            <PostFallGuidelines />
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-8">
               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -1010,8 +1071,10 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
         </main>
 
         {/* Right Sidebar */}
-        <aside className="w-[200px] flex-shrink-0 border-l bg-background h-full p-3 overflow-y-auto">
-          <div className="flex flex-col gap-4">
+        <aside className={`transition-all duration-300 ease-in-out ${isSidebarCollapsed ? "w-0 p-0 border-l-0" : "w-[240px] p-3 border-l"
+          } flex-shrink-0 bg-background h-full overflow-y-auto`}>
+          <div className={`transition-opacity duration-300 ${isSidebarCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+            <div className="flex flex-col gap-4 min-w-[214px]">
             {/* Forms section */}
             <div>
               <div className="flex items-center justify-between mb-1.5 px-1.5">
@@ -1180,79 +1243,79 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
               )}
             </div>
           </div>
-        </aside>
-      </div>
-
-      {/* Form Selection Dialog */}
-      <Dialog open={isFormSelectionOpen} onOpenChange={setIsFormSelectionOpen}>
-        <DialogContent className="max-w-md sm:max-w-md">
-          <DialogHeader className="pb-2">
-            <DialogTitle className="text-sm font-semibold">Select Form Type</DialogTitle>
-            <DialogDescription className="text-[10px]">
-              Choose incident report type
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-1.5 max-h-[45vh] overflow-y-auto pr-1">
-            {FORM_OPTIONS.filter(
-              // Don't show forms that are already completed
-              (option) => !isFormCompleted(option.key)
-            ).map((option, index) => {
-              const colors = [
-                "bg-blue-100 text-blue-600",
-                "bg-green-100 text-green-600",
-                "bg-gray-100 text-gray-600",
-                "bg-purple-100 text-purple-600",
-                "bg-orange-100 text-orange-600",
-                "bg-blue-100 text-blue-600",
-                "bg-green-100 text-green-600",
-                "bg-purple-100 text-purple-600",
-                "bg-orange-100 text-orange-600",
-                "bg-gray-100 text-gray-600",
-              ];
-              return (
-                <Card
-                  key={option.key}
-                  className="cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors border bg-white"
-                  onClick={() => handleFormSelect(option.key)}
-                >
-                  <CardContent className="p-2.5">
-                    <div className="flex items-start gap-2">
-                      <div className={`p-1.5 rounded-md ${colors[index]}`}>
-                        <FileText className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-xs">{option.label}</h3>
-                        <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
-                          {option.description}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Clear Body Map Confirmation */}
-      <AlertDialog open={showClearBodyMapDialog} onOpenChange={setShowClearBodyMapDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear Body Map?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove all body map sessions and observations for this incident folder. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmClearBodyMap} className="bg-red-600">
-              Clear
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
+        </div>
+      </aside>
     </div>
-  );
+
+    {/* Form Selection Dialog */}
+    <Dialog open={isFormSelectionOpen} onOpenChange={setIsFormSelectionOpen}>
+      <DialogContent className="max-w-md sm:max-w-md">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="text-sm font-semibold">Select Form Type</DialogTitle>
+          <DialogDescription className="text-[10px]">
+            Choose incident report type
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-1.5 max-h-[45vh] overflow-y-auto pr-1">
+          {FORM_OPTIONS.filter(
+            // Don't show forms that are already completed, and filter by folder type
+            (option) => !isFormCompleted(option.key) && (!option.type || option.type === folder?.folder_type)
+          ).map((option, index) => {
+            const colors = [
+              "bg-blue-100 text-blue-600",
+              "bg-green-100 text-green-600",
+              "bg-gray-100 text-gray-600",
+              "bg-purple-100 text-purple-600",
+              "bg-orange-100 text-orange-600",
+              "bg-blue-100 text-blue-600",
+              "bg-green-100 text-green-600",
+              "bg-purple-100 text-purple-600",
+              "bg-orange-100 text-orange-600",
+              "bg-gray-100 text-gray-600",
+            ];
+            return (
+              <Card
+                key={option.key}
+                className="cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors border bg-white"
+                onClick={() => handleFormSelect(option.key)}
+              >
+                <CardContent className="p-2.5">
+                  <div className="flex items-start gap-2">
+                    <div className={`p-1.5 rounded-md ${colors[index]}`}>
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-xs">{option.label}</h3>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                        {option.description}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Clear Body Map Confirmation */}
+    <AlertDialog open={showClearBodyMapDialog} onOpenChange={setShowClearBodyMapDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Clear Body Map?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will remove all body map sessions and observations for this incident folder. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmClearBodyMap} className="bg-red-600">
+            Clear
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </div>
+);
 }

@@ -27,6 +27,9 @@ export type CareFileFormKey =
   | "v2-restraints-risk"
   | "must-calculator"
   | "v2-specimen-log"
+  | "v2-body-map-hygiene"
+  | "v2-body-map-skin"
+  | "v2-safe-body-map"
   | "fall-risk-assessment"
   | "smoking-risk-assessment";
 

@@ -70,6 +70,11 @@ const calculateNextDueDate = (completedAt: string | Date, frequency?: string): s
     return nextDate.toISOString();
 };
 
+const isValidUUID = (uuid: string) => {
+    if (!uuid) return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+};
+
 export const auditService = {
     // --- Resident Audits ---
 
@@ -215,18 +220,23 @@ export const auditService = {
     },
 
     async createResidentActionPlan(plan: any) {
-        const { creatorId, ...dbPlan } = plan;
+        const { creatorId, careHomeId, ...dbPlan } = plan;
         const { data, error } = await supabase
             .from('audit_resident_action_plans')
-            .insert({ ...dbPlan, status: dbPlan.status || 'pending' })
+            .insert({ 
+                ...dbPlan, 
+                status: dbPlan.status || 'pending',
+                care_home_id: careHomeId 
+            })
             .select()
             .single();
         if (error) throw error;
 
         // Create notification for assignee
-        if (data && data.assigned_to) {
+        if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
             supabase.from("notifications").insert({
                 organization_id: data.organization_id,
+                care_home_id: careHomeId || null,
                 user_id: data.assigned_to,
                 type: "action_plan",
                 title: "New Action Plan Assigned",
@@ -401,18 +411,23 @@ export const auditService = {
     },
 
     async createCareFileActionPlan(plan: any) {
-        const { creatorId, ...dbPlan } = plan;
+        const { creatorId, careHomeId, ...dbPlan } = plan;
         const { data, error } = await supabase
             .from('audit_care_file_action_plans')
-            .insert({ ...dbPlan, status: dbPlan.status || 'pending' })
+            .insert({ 
+                ...dbPlan, 
+                status: dbPlan.status || 'pending',
+                care_home_id: careHomeId 
+            })
             .select()
             .single();
         if (error) throw error;
 
         // Create notification for assignee
-        if (data && data.assigned_to) {
+        if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
             supabase.from("notifications").insert({
                 organization_id: data.organization_id,
+                care_home_id: careHomeId || null,
                 user_id: data.assigned_to,
                 type: "action_plan",
                 title: "New Action Plan Assigned",
@@ -578,18 +593,23 @@ export const auditService = {
     },
 
     async createGovernanceActionPlan(plan: any) {
-        const { creatorId, ...dbPlan } = plan;
+        const { creatorId, careHomeId, ...dbPlan } = plan;
         const { data, error } = await supabase
             .from('audit_governance_action_plans')
-            .insert({ ...dbPlan, status: dbPlan.status || 'pending' })
+            .insert({ 
+                ...dbPlan, 
+                status: dbPlan.status || 'pending',
+                care_home_id: careHomeId 
+            })
             .select()
             .single();
         if (error) throw error;
 
         // Create notification for assignee
-        if (data && data.assigned_to) {
+        if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
             supabase.from("notifications").insert({
                 organization_id: data.organization_id,
+                care_home_id: careHomeId || null,
                 user_id: data.assigned_to,
                 type: "action_plan",
                 title: "New Action Plan Assigned",
@@ -755,17 +775,23 @@ export const auditService = {
     },
 
     async createClinicalActionPlan(plan: any) {
+        const { creatorId, careHomeId, ...dbPlan } = plan;
         const { data, error } = await supabase
             .from('audit_clinical_action_plans')
-            .insert({ ...plan, status: plan.status || 'pending' })
+            .insert({ 
+                ...dbPlan, 
+                status: dbPlan.status || 'pending',
+                care_home_id: careHomeId 
+            })
             .select()
             .single();
         if (error) throw error;
 
         // Create notification for assignee
-        if (data && data.assigned_to) {
+        if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
             supabase.from("notifications").insert({
                 organization_id: data.organization_id,
+                care_home_id: careHomeId || null,
                 user_id: data.assigned_to,
                 type: "action_plan",
                 title: "New Action Plan Assigned",
@@ -931,17 +957,23 @@ export const auditService = {
     },
 
     async createEnvironmentActionPlan(plan: any) {
+        const { creatorId, careHomeId, ...dbPlan } = plan;
         const { data, error } = await supabase
             .from('audit_environment_action_plans')
-            .insert({ ...plan, status: plan.status || 'pending' })
+            .insert({ 
+                ...dbPlan, 
+                status: dbPlan.status || 'pending',
+                care_home_id: careHomeId 
+            })
             .select()
             .single();
         if (error) throw error;
 
         // Create notification for assignee
-        if (data && data.assigned_to) {
+        if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
             supabase.from("notifications").insert({
                 organization_id: data.organization_id,
+                care_home_id: careHomeId || null,
                 user_id: data.assigned_to,
                 type: "action_plan",
                 title: "New Action Plan Assigned",
@@ -959,6 +991,58 @@ export const auditService = {
     async deleteEnvironmentActionPlan(id: string) {
         const { error } = await supabase
             .from('audit_environment_action_plans')
+            .delete()
+            .eq('id', id);
+        if (error) throw error;
+    },
+
+    // --- Manager Audits ---
+
+    async getManagerActionPlans(auditTypeId: string, careHomeId: string) {
+        const { data, error } = await supabase
+            .from('audit_manager_action_plans')
+            .select('*')
+            .eq('audit_type_id', auditTypeId)
+            .eq('care_home_id', careHomeId);
+        if (error) throw error;
+        return data;
+    },
+
+    async createManagerActionPlan(plan: any) {
+        const { creatorId, careHomeId, ...dbPlan } = plan;
+        const { data, error } = await supabase
+            .from('audit_manager_action_plans')
+            .insert({ 
+                ...dbPlan, 
+                status: dbPlan.status || 'pending',
+                care_home_id: careHomeId 
+            })
+            .select()
+            .single();
+        if (error) throw error;
+
+        // Create notification for assignee
+        if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
+            supabase.from("notifications").insert({
+                organization_id: data.organization_id,
+                care_home_id: careHomeId || null,
+                user_id: data.assigned_to,
+                type: "action_plan",
+                title: "New Action Plan Assigned",
+                message: `You have been assigned a new action plan: ${data.description}`,
+                link: `/dashboard/action-plans`,
+                sender_id: data.created_by || creatorId || null,
+                sender_name: data.created_by_name || "Manager",
+                metadata: { actionPlanId: data.id, auditCategory: 'manager' }
+            }).then(({ error }) => { if (error) console.error("Notification error:", error); });
+        }
+
+        return data;
+    },
+
+    async deleteManagerActionPlan(id: string) {
+        const { error } = await supabase
+            .from('audit_manager_action_plans')
             .delete()
             .eq('id', id);
         if (error) throw error;
@@ -983,7 +1067,8 @@ export const auditService = {
             { name: 'audit_care_file_action_plans', category: 'carefile' },
             { name: 'audit_governance_action_plans', category: 'governance' },
             { name: 'audit_clinical_action_plans', category: 'clinical' },
-            { name: 'audit_environment_action_plans', category: 'environment' }
+            { name: 'audit_environment_action_plans', category: 'environment' },
+            { name: 'audit_manager_action_plans', category: 'manager' }
         ];
 
         const allPlans: any[] = [];
@@ -1010,7 +1095,8 @@ export const auditService = {
             { name: 'audit_care_file_action_plans', category: 'carefile' },
             { name: 'audit_governance_action_plans', category: 'governance' },
             { name: 'audit_clinical_action_plans', category: 'clinical' },
-            { name: 'audit_environment_action_plans', category: 'environment' }
+            { name: 'audit_environment_action_plans', category: 'environment' },
+            { name: 'audit_manager_action_plans', category: 'manager' }
         ];
 
         const allPlans: any[] = [];
@@ -1020,6 +1106,35 @@ export const auditService = {
                     .from(table.name)
                     .select('*')
                     .eq('organization_id', organizationId);
+
+                if (!error && data) {
+                    allPlans.push(...data.map(p => ({ ...p, auditCategory: table.category })));
+                }
+            } catch (err) {
+                console.error(`Error fetching from ${table.name}:`, err);
+            }
+        }
+        return allPlans;
+    },
+
+    async getCareHomeActionPlans(organizationId: string, careHomeId: string) {
+        const tables = [
+            { name: 'audit_resident_action_plans', category: 'resident' },
+            { name: 'audit_care_file_action_plans', category: 'carefile' },
+            { name: 'audit_governance_action_plans', category: 'governance' },
+            { name: 'audit_clinical_action_plans', category: 'clinical' },
+            { name: 'audit_environment_action_plans', category: 'environment' },
+            { name: 'audit_manager_action_plans', category: 'manager' }
+        ];
+
+        const allPlans: any[] = [];
+        for (const table of tables) {
+            try {
+                let query = supabase.from(table.name).select('*');
+                query = query.eq('organization_id', organizationId);
+                query = query.eq('care_home_id', careHomeId);
+                
+                const { data, error } = await query;
 
                 if (!error && data) {
                     allPlans.push(...data.map(p => ({ ...p, auditCategory: table.category })));
