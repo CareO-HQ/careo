@@ -1096,6 +1096,68 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
           } flex-shrink-0 bg-background h-full overflow-y-auto`}>
           <div className={`transition-opacity duration-300 ${isSidebarCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
             <div className="flex flex-col gap-4 min-w-[214px]">
+            {/* Fall Forms section - Only for fall folders */}
+            {folder?.folder_type === "fall" && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5 px-1.5">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                    Fall Forms
+                  </p>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  {/* Post-fall Assessment */}
+                  <button
+                    onClick={() => handleFormClick("post-fall-assessment")}
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeFormKey === "post-fall-assessment"
+                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                      : "hover:bg-muted/60 text-foreground"
+                      }`}
+                  >
+                    {hasPostFallAssessment ? (
+                      <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                    ) : (
+                      <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                        Post-fall Assessment
+                      </p>
+                      {hasPostFallAssessment && (
+                        <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                          Completed
+                        </p>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* 24-hour Post-Fall Observation */}
+                  <button
+                    onClick={() => handleFormClick("post-fall-observation")}
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeFormKey === "post-fall-observation"
+                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                      : "hover:bg-muted/60 text-foreground"
+                      }`}
+                  >
+                    {hasPostFallObservation ? (
+                      <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                    ) : (
+                      <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                        24-hour Post-Fall Observation
+                      </p>
+                      {hasPostFallObservation && (
+                        <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                          Completed
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Forms section */}
             <div>
               <div className="flex items-center justify-between mb-1.5 px-1.5">
@@ -1110,13 +1172,21 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                   <Plus className="w-3.5 h-3.5 text-muted-foreground" />
                 </button>
               </div>
-              {addedForms.length === 0 ? (
+              {addedForms.filter(formKey =>
+                // Exclude fall-specific forms from general forms section when it's a fall folder
+                !(folder?.folder_type === "fall" && (formKey === "post-fall-assessment" || formKey === "post-fall-observation"))
+              ).length === 0 ? (
                 <p className="text-[11px] text-muted-foreground px-1.5 py-1">
                   No forms added
                 </p>
               ) : (
                 <div className="flex flex-col gap-0.5">
-                  {addedForms.map((formKey) => {
+                  {addedForms
+                    .filter(formKey =>
+                      // Exclude fall-specific forms from general forms section when it's a fall folder
+                      !(folder?.folder_type === "fall" && (formKey === "post-fall-assessment" || formKey === "post-fall-observation"))
+                    )
+                    .map((formKey) => {
                     const isActive = activeFormKey === formKey;
                     const formOption = FORM_OPTIONS.find((f) => f.key === formKey);
                     const completed = isFormCompleted(formKey);
@@ -1280,7 +1350,11 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
         <div className="grid grid-cols-2 gap-1.5 max-h-[45vh] overflow-y-auto pr-1">
           {FORM_OPTIONS.filter(
             // Don't show forms that are already completed, and filter by folder type
-            (option) => !isFormCompleted(option.key) && (!option.type || option.type === folder?.folder_type)
+            // Also exclude fall-specific forms from the Add Form dialog when it's a fall folder (they're always visible)
+            (option) =>
+              !isFormCompleted(option.key) &&
+              (!option.type || option.type === folder?.folder_type) &&
+              !(folder?.folder_type === "fall" && (option.key === "post-fall-assessment" || option.key === "post-fall-observation"))
           ).map((option, index) => {
             const colors = [
               "bg-blue-100 text-blue-600",
