@@ -46,6 +46,7 @@ import { generateBodyMapPDF } from "@/lib/body-map-pdf-utils";
 import { PostFallAssessmentForm } from "./components/post-fall-assessment-form";
 import { PostFallObservationChart } from "./components/post-fall-observation-chart";
 import { PostFallGuidelines } from "./components/post-fall-guidelines";
+import { FallProgressTracker } from "./components/fall-progress-tracker";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 
@@ -74,6 +75,7 @@ type IncidentFolder = {
   name: string;
   folder_type?: "incident" | "fall";
   body_map_data: BodyMapData | null;
+  selected_pathway?: "green" | "amber" | "red" | null;
   created_at: string;
   updated_at: string;
 };
@@ -652,6 +654,12 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
     }
   };
 
+  // Calculate progress for fall folders
+  const hasPostFallAssessment = !!getSavedReport("post-fall-assessment");
+  const hasPostFallObservation = !!getSavedReport("post-fall-observation");
+  const hasBodyMapWithEntries = bodyMapData.sessions.length > 0 &&
+    bodyMapData.sessions.some(s => s.entries && s.entries.length > 0);
+
   return (
     <div className="flex flex-col -mx-6 -mt-16 -mb-6 h-screen overflow-hidden">
       {/* Top Bar */}
@@ -693,6 +701,16 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
           )}
         </Button>
       </div>
+
+      {/* Progress Tracker - Only for Fall Folders */}
+      {folder?.folder_type === "fall" && (
+        <FallProgressTracker
+          hasIncidentReport={hasIncidentReport}
+          hasPostFallAssessment={hasPostFallAssessment}
+          hasPostFallObservation={hasPostFallObservation}
+          hasBodyMap={hasBodyMapWithEntries}
+        />
+      )}
 
       {/* Body */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -1057,7 +1075,10 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
               />
             </div>
           ) : folder?.folder_type === "fall" ? (
-            <PostFallGuidelines />
+            <PostFallGuidelines
+              folderId={folderId}
+              savedPathway={folder?.selected_pathway}
+            />
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-8">
               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">

@@ -19,6 +19,8 @@ import {
   CircleDashedIcon,
   Edit3,
   X,
+  PanelRight,
+  PanelRightClose,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
@@ -197,6 +199,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   const [folder, setFolder] = useState<WoundFolder | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"assessment" | "evaluation" | "photograph" | "body-map" | "care-plans" | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
 
@@ -702,24 +705,38 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
       <div className="flex items-center gap-3 px-6 py-3 bg-background border-b flex-shrink-0">
         <button
           onClick={() => router.push(`/dashboard/residents/${residentId}/wounds`)}
-          className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground flex-shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-1 items-center gap-2 text-sm min-w-0">
           <span className="text-muted-foreground">Wounds</span>
           <span className="text-muted-foreground">/</span>
-          <span className="font-medium flex items-center gap-1.5">
-            <Folder className="w-4 h-4" />
-            {folder?.name || "Loading..."}
+          <span className="font-medium flex items-center gap-1.5 truncate">
+            <Folder className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">{folder?.name || "Loading..."}</span>
           </span>
           {activeFile && (
             <>
               <span className="text-muted-foreground">/</span>
-              <span className="text-muted-foreground">{activeFile.name}</span>
+              <span className="text-muted-foreground truncate">{activeFile.name}</span>
             </>
           )}
         </div>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground transition-all duration-200 flex-shrink-0"
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isSidebarCollapsed ? (
+            <PanelRight className="h-4 w-4" />
+          ) : (
+            <PanelRightClose className="h-4 w-4" />
+          )}
+        </Button>
       </div>
 
       {/* Progress Tracker */}
@@ -991,8 +1008,8 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
         </main>
 
         {/* Right Sidebar */}
-        <aside className="w-[200px] flex-shrink-0 border-l bg-background h-full p-3 overflow-y-auto">
-          <div className="flex flex-col gap-6">
+        <aside className={`transition-all duration-300 ease-in-out ${isSidebarCollapsed ? "w-0 p-0 border-l-0" : "w-[200px] p-3 border-l"} flex-shrink-0 bg-background h-full overflow-y-auto`}>
+          <div className={`transition-opacity duration-300 ${isSidebarCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"} flex flex-col gap-6`}>
             {/* Status section - Moved to top for visibility */}
             <div>
               <div className="flex items-center justify-between mb-1.5 px-1.5">
