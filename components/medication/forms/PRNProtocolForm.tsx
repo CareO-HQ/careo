@@ -160,7 +160,6 @@ function PRNProtocolDocumentView({
       ["Countersigned", { content: String(data.countersigned || "—"), colSpan: 2 }, `Date: ${safeDate(data.countersignedDate)}`]
     ];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     autoTable(doc, {
       startY: currentY,
       body: tableData as any,
@@ -170,7 +169,6 @@ function PRNProtocolDocumentView({
         0: { fontStyle: "bold", cellWidth: 45 },
         2: { fontStyle: "bold", cellWidth: 45 },
       },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       didParseCell: function (data: { row: { index: number }, cell: any, column: { index: number } }) {
         // Additional styling for two column rows where the second column is value
         if (data.row.index >= 10 && data.row.index <= 12) {

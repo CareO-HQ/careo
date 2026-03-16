@@ -483,10 +483,10 @@ function ManagerAuditPage() {
       const newQuestionsByAuditId: Record<string, string[]> = {};
 
       for (let i = 1; i < lines.length; i++) {
-        let row: string[] = [];
+        const row: string[] = [];
         let inQuotes = false;
         let currentField = '';
-        for (let char of lines[i]) {
+        for (const char of lines[i]) {
           if (char === '"') {
             inQuotes = !inQuotes;
           } else if (char === ',' && !inQuotes) {
