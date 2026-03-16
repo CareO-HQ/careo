@@ -1158,35 +1158,37 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
               </div>
             )}
 
-            {/* Forms section */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5 px-1.5">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
-                  Forms
-                </p>
-                <button
-                  onClick={() => setIsFormSelectionOpen(true)}
-                  className="p-1 rounded-md hover:bg-muted transition-colors"
-                  title="Add form"
-                >
-                  <Plus className="w-3.5 h-3.5 text-muted-foreground" />
-                </button>
-              </div>
-              {addedForms.filter(formKey =>
+            {/* Forms section - Hide if fall folder and no additional forms */}
+            {(() => {
+              const filteredForms = addedForms.filter(formKey =>
                 // Exclude fall-specific forms from general forms section when it's a fall folder
                 !(folder?.folder_type === "fall" && (formKey === "post-fall-assessment" || formKey === "post-fall-observation"))
-              ).length === 0 ? (
-                <p className="text-[11px] text-muted-foreground px-1.5 py-1">
-                  No forms added
-                </p>
-              ) : (
-                <div className="flex flex-col gap-0.5">
-                  {addedForms
-                    .filter(formKey =>
-                      // Exclude fall-specific forms from general forms section when it's a fall folder
-                      !(folder?.folder_type === "fall" && (formKey === "post-fall-assessment" || formKey === "post-fall-observation"))
-                    )
-                    .map((formKey) => {
+              );
+              const shouldShowFormsSection = folder?.folder_type !== "fall" || filteredForms.length > 0;
+
+              if (!shouldShowFormsSection) return null;
+
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5 px-1.5">
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                      Forms
+                    </p>
+                    <button
+                      onClick={() => setIsFormSelectionOpen(true)}
+                      className="p-1 rounded-md hover:bg-muted transition-colors"
+                      title="Add form"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                  {filteredForms.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground px-1.5 py-1">
+                      No forms added
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-0.5">
+                      {filteredForms.map((formKey) => {
                     const isActive = activeFormKey === formKey;
                     const formOption = FORM_OPTIONS.find((f) => f.key === formKey);
                     const completed = isFormCompleted(formKey);
@@ -1230,10 +1232,12 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                         )}
                       </div>
                     );
-                  })}
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Body Map section */}
             <div>
