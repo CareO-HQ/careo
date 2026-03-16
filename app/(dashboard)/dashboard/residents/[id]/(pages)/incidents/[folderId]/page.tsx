@@ -641,6 +641,12 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
     setActiveFormKey(formKey);
   };
 
+  const handleFallFormClick = (formKey: IncidentFormType) => {
+    setActiveFileId(null); // Clear any active file
+    // Toggle: if clicking the same form, close it to show guidelines
+    setActiveFormKey(activeFormKey === formKey ? null : formKey);
+  };
+
   const handleRemoveForm = (formKey: IncidentFormType, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm("Remove this form? Any unsaved data will be lost.")) return;
@@ -1107,7 +1113,7 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                 <div className="flex flex-col gap-0.5">
                   {/* Post-fall Assessment */}
                   <button
-                    onClick={() => handleFormClick("post-fall-assessment")}
+                    onClick={() => handleFallFormClick("post-fall-assessment")}
                     className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeFormKey === "post-fall-assessment"
                       ? "bg-primary/10 text-primary ring-1 ring-primary/20"
                       : "hover:bg-muted/60 text-foreground"
@@ -1132,7 +1138,7 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
 
                   {/* 24-hour Post-Fall Observation */}
                   <button
-                    onClick={() => handleFormClick("post-fall-observation")}
+                    onClick={() => handleFallFormClick("post-fall-observation")}
                     className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeFormKey === "post-fall-observation"
                       ? "bg-primary/10 text-primary ring-1 ring-primary/20"
                       : "hover:bg-muted/60 text-foreground"
