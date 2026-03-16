@@ -40,9 +40,6 @@ interface ResidentHandoverData {
     diabeticStatus?: string;
     dietaryRequirements?: string;
   };
-  mobilityStatus?: string;
-  continenceStatus?: string;
-  adlSupport?: string;
 }
 
 const ResidentRow = ({
@@ -111,15 +108,6 @@ const ResidentRow = ({
             )}
             {handoverData?.dietInfo?.diabeticStatus && (
               <div>• Diabetic {handoverData.dietInfo.diabeticStatus}</div>
-            )}
-            {handoverData?.mobilityStatus && (
-              <div>• {handoverData.mobilityStatus}</div>
-            )}
-            {handoverData?.adlSupport && (
-              <div>• {handoverData.adlSupport}</div>
-            )}
-            {handoverData?.continenceStatus && (
-              <div>• {handoverData.continenceStatus}</div>
             )}
           </div>
 
@@ -228,15 +216,6 @@ const ResidentRow = ({
               )}
               {handoverData?.dietInfo?.diabeticStatus && (
                 <div>• Diabetic {handoverData.dietInfo.diabeticStatus}</div>
-              )}
-              {handoverData?.mobilityStatus && (
-                <div>• {handoverData.mobilityStatus}</div>
-              )}
-              {handoverData?.adlSupport && (
-                <div>• {handoverData.adlSupport}</div>
-              )}
-              {handoverData?.continenceStatus && (
-                <div>• {handoverData.continenceStatus}</div>
               )}
             </div>
 
@@ -420,9 +399,6 @@ export function HandoverSheetView({
                 dietaryRequirements: dietInfo.dietary_requirements,
               }
             : undefined,
-          mobilityStatus: "Independently mobile with Zimmer", // TODO: Fetch from database
-          continenceStatus: "Doubly incontinent wears pull ups", // TODO: Fetch from database
-          adlSupport: "Assistance x1 with ADLs", // TODO: Fetch from database
         };
       });
 
