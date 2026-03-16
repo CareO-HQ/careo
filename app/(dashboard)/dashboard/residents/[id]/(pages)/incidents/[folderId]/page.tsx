@@ -1111,6 +1111,31 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                   </p>
                 </div>
                 <div className="flex flex-col gap-0.5">
+                  {/* Incident Report */}
+                  <button
+                    onClick={() => handleFallFormClick("incident-report")}
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeFormKey === "incident-report"
+                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                      : "hover:bg-muted/60 text-foreground"
+                      }`}
+                  >
+                    {hasIncidentReport ? (
+                      <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                    ) : (
+                      <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                        Incident Report
+                      </p>
+                      {hasIncidentReport && (
+                        <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                          Completed
+                        </p>
+                      )}
+                    </div>
+                  </button>
+
                   {/* Post-fall Assessment */}
                   <button
                     onClick={() => handleFallFormClick("post-fall-assessment")}
@@ -1168,7 +1193,7 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
             {(() => {
               const filteredForms = addedForms.filter(formKey =>
                 // Exclude fall-specific forms from general forms section when it's a fall folder
-                !(folder?.folder_type === "fall" && (formKey === "post-fall-assessment" || formKey === "post-fall-observation"))
+                !(folder?.folder_type === "fall" && (formKey === "incident-report" || formKey === "post-fall-assessment" || formKey === "post-fall-observation"))
               );
               const shouldShowFormsSection = folder?.folder_type !== "fall" || filteredForms.length > 0;
 
@@ -1364,7 +1389,7 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
             (option) =>
               !isFormCompleted(option.key) &&
               (!option.type || option.type === folder?.folder_type) &&
-              !(folder?.folder_type === "fall" && (option.key === "post-fall-assessment" || option.key === "post-fall-observation"))
+              !(folder?.folder_type === "fall" && (option.key === "incident-report" || option.key === "post-fall-assessment" || option.key === "post-fall-observation"))
           ).map((option, index) => {
             const colors = [
               "bg-blue-100 text-blue-600",
