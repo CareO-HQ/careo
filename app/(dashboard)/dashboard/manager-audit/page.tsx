@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, MoreHorizontal, Eye, Download, Trash2, Search, SlidersHorizontal, X, ArrowUpRight } from "lucide-react";
+import { Plus, MoreHorizontal, Eye, Download, Trash2, Search, SlidersHorizontal, X, ArrowUpRight, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -54,7 +54,25 @@ interface ManagerAudit {
   dueDate: string;
   frequency: "monthly" | "quarterly" | "6month" | "yearly";
   category: "staff" | "clinical" | "operational" | "general";
+  template_type?: string;
 }
+
+const HOME_BASED_AUDIT_IDS = new Set([
+  "1",  // Accidents and Incidents Analysis
+  "2",  // Agency Profiles and Induction Records
+  "4",  // Domestic Services
+  "6",  // Catering Audit
+  "9",  // Decontamination
+  "10", // Dining Experience
+  "12", // Domestic Audit
+  "13", // Falls Analysis
+  "14", // Hand Hygiene Audit
+  "16", // IPC Short Audit
+  "18", // Medication Audit
+  "23", // Safeguarding Database
+  "24", // Safety Alerts
+  "29", // GDPR
+]);
 
 const initialAudits: ManagerAudit[] = [
   {
@@ -416,6 +434,138 @@ function ManagerAuditPage() {
   const [frequencyFilter, setFrequencyFilter] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("clinical");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCsvUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!activeOrganizationId) {
+      toast.error("Organization context missing");
+      return;
+    }
+
+    try {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('active_care_home_id')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+        .single();
+
+      const chId = userProfile?.active_care_home_id;
+      if (!chId) {
+        toast.error("Care home context not found");
+        return;
+      }
+
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(line => line.trim());
+      if (lines.length < 1) {
+        toast.error("CSV file is empty");
+        return;
+      }
+
+      // Basic CSV parser for headers
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+      const auditNameIdx = headers.findIndex(h => h === 'audit name');
+      const questionsIdx = headers.findIndex(h => h === 'questions');
+
+      if (auditNameIdx === -1 || questionsIdx === -1) {
+        toast.error("CSV must contain 'Audit Name' and 'Questions' columns");
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      let updatedCount = 0;
+      let matchedAudits = 0;
+
+      // Group new questions by audit ID
+      const newQuestionsByAuditId: Record<string, string[]> = {};
+
+      for (let i = 1; i < lines.length; i++) {
+        let row: string[] = [];
+        let inQuotes = false;
+        let currentField = '';
+        for (let char of lines[i]) {
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            row.push(currentField);
+            currentField = '';
+          } else {
+            currentField += char;
+          }
+        }
+        row.push(currentField);
+
+        if (row.length <= Math.max(auditNameIdx, questionsIdx)) continue;
+
+        const csvAuditName = row[auditNameIdx].trim().replace(/^"|"$/g, '');
+        const csvQuestion = row[questionsIdx].trim().replace(/^"|"$/g, '');
+
+        if (!csvAuditName || !csvQuestion) continue;
+
+        // Find matching home audit
+        const matchingAudit = audits.find(a => 
+          a.name.toLowerCase() === csvAuditName.toLowerCase() && 
+          a.template_type === 'home-based'
+        );
+
+        if (matchingAudit) {
+          if (!newQuestionsByAuditId[matchingAudit.id]) {
+            newQuestionsByAuditId[matchingAudit.id] = [];
+            matchedAudits++;
+          }
+          newQuestionsByAuditId[matchingAudit.id].push(csvQuestion);
+          updatedCount++;
+        }
+      }
+
+      if (updatedCount === 0) {
+        toast.info("No matching home audits found for the provided rows.");
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      // Append questions to manager_audit_state for each matched audit
+      for (const [auditId, questionsList] of Object.entries(newQuestionsByAuditId)) {
+        // Fetch current state
+        const { data: stateData } = await supabase
+          .from('manager_audit_state')
+          .select('row_questions')
+          .eq('care_home_id', chId)
+          .eq('audit_type_id', auditId)
+          .single();
+
+        let currentRowQuestions: any[] = stateData?.row_questions || [];
+        
+        // Ensure format is an array
+        if (!Array.isArray(currentRowQuestions)) currentRowQuestions = [];
+
+        // Append new questions
+        const newFormattedQuestions = questionsList.map(q => ({
+          id: `q${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          text: q,
+          type: "compliance"
+        }));
+
+        await supabase.from('manager_audit_state').upsert({
+          care_home_id: chId,
+          organization_id: activeOrganizationId,
+          audit_type_id: auditId,
+          row_questions: [...currentRowQuestions, ...newFormattedQuestions]
+        }, { onConflict: 'care_home_id,audit_type_id' });
+      }
+
+      toast.success(`Added ${updatedCount} question(s) to ${matchedAudits} home audit(s)`);
+
+    } catch (err) {
+      console.error('Error parsing CSV:', err);
+      toast.error("Failed to parse CSV file");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   // Care File Audit resident selector
   const [isResidentSelectorOpen, setIsResidentSelectorOpen] = useState(false);
@@ -473,13 +623,15 @@ function ManagerAuditPage() {
         // Update initial audits with completion data
         const updatedInitialAudits = initialAudits.map(audit => {
           const latest = latestByType[audit.id];
+          const isHomeBased = HOME_BASED_AUDIT_IDS.has(audit.id);
+          const baseAudit = { ...audit, template_type: isHomeBased ? "home-based" : "general" };
           if (latest) {
             const lastAuditedDate = latest.completedDate.split('T')[0];
             const dueDate = calculateDueDate(lastAuditedDate, audit.frequency);
             const status = determineAuditStatus(dueDate);
-            return { ...audit, status, auditor: latest.auditor, lastAudited: lastAuditedDate, dueDate };
+            return { ...baseAudit, status, auditor: latest.auditor, lastAudited: lastAuditedDate, dueDate };
           }
-          return audit;
+          return baseAudit;
         });
 
         // Load custom audits from Supabase
@@ -504,6 +656,7 @@ function ManagerAuditPage() {
             dueDate,
             frequency: ca.frequency as ManagerAudit['frequency'],
             category: ca.category as ManagerAudit['category'],
+            template_type: ca.template_type,
           };
         });
 
@@ -779,6 +932,16 @@ function ManagerAuditPage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Manager Audit</h2>
         <div className="flex items-center space-x-2">
+          <input 
+            type="file" 
+            accept=".csv" 
+            className="hidden" 
+            ref={fileInputRef} 
+            onChange={handleCsvUpload} 
+          />
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="mr-2 h-4 w-4" /> Upload CSV
+          </Button>
           <Button onClick={handleNewAudit}>
             <Plus className="mr-2 h-4 w-4" /> New Audit
           </Button>
