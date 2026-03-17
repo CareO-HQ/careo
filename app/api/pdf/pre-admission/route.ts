@@ -1,384 +1,227 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chromium } from "playwright";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { format } from "date-fns";
 
 export const runtime = "nodejs";
-
 
 function formatDate(dateString?: string | number): string {
   if (!dateString) return "Not specified";
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return "Not specified";
-  return date.toLocaleDateString("en-GB");
+  return format(date, "PPP");
 }
 
 function formatDateTime(dateString?: string | number): string {
   if (!dateString) return "Not specified";
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return "Not specified";
-  return (
-    date.toLocaleDateString("en-GB") +
-    " at " +
-    date.toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit"
-    })
-  );
+  return format(date, "PPP 'at' p");
 }
 
-function generatePreAdmissionHTML(data: any): string {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Pre-Admission Assessment Form</title>
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-          line-height: 1.5;
-          color: #111827;
-          max-width: 800px;
-          margin: 0 auto;
-          padding: 20px;
-          background: white;
-        }
-        .header {
-          border-bottom: 2px solid #e5e7eb;
-          padding-bottom: 24px;
-          margin-bottom: 32px;
-        }
-        h1 {
-          font-size: 1.875rem;
-          font-weight: bold;
-          margin-bottom: 8px;
-          color: #111827;
-        }
-        h2 {
-          font-size: 1.25rem;
-          font-weight: 600;
-          margin-bottom: 16px;
-          color: #111827;
-        }
-        h3 {
-          font-weight: 500;
-          margin-bottom: 4px;
-          color: #111827;
-        }
-        .grid {
-          display: grid;
-          gap: 16px;
-        }
-        .grid-cols-2 {
-          grid-template-columns: 1fr 1fr;
-        }
-        .section {
-          margin-bottom: 32px;
-        }
-        .consent-box {
-          background-color: #f0fdf4;
-          border: 1px solid #bbf7d0;
-          border-radius: 8px;
-          padding: 16px;
-        }
-        .info-box {
-          background-color: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 4px;
-          padding: 12px;
-          color: #374151;
-        }
-        .footer {
-          margin-top: 48px;
-          padding-top: 24px;
-          border-top: 1px solid #e5e7eb;
-          font-size: 0.75rem;
-          color: #6b7280;
-        }
-        strong {
-          font-weight: 600;
-        }
-        .subsection {
-          margin-bottom: 16px;
-        }
-        .space-y-2 > * + * {
-          margin-top: 8px;
-        }
-        .space-y-4 > * + * {
-          margin-top: 16px;
-        }
-        @media print {
-          body { max-width: none; margin: 0; padding: 16px; }
-        }
-      </style>
-    </head>
-    <body>
-      <!-- Header -->
-      <div class="header">
-        <h1>Pre-Admission Assessment Form</h1>
-        <div class="grid grid-cols-2">
-          <div>
-            <p><strong>Care Home:</strong> ${data.careHomeName}</p>
-            <p><strong>NHS Health & Care Number:</strong> ${data.nhsHealthCareNumber}</p>
-          </div>
-          <div>
-            <p><strong>Completed by:</strong> ${data.userName}</p>
-            <p><strong>Job Role:</strong> ${data.jobRole}</p>
-            <p><strong>Date:</strong> ${formatDate(data.date)}</p>
-          </div>
-        </div>
-      </div>
+function generatePDF(data: any): ArrayBuffer {
+  // A4 size: 210 x 297 mm
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+  });
 
-      <!-- Consent -->
-      <div class="section">
-        <h2>Consent</h2>
-        <div class="consent-box">
-          <p>✓ The person being assessed agreed to the assessment being completed on ${formatDateTime(data.consentAcceptedAt)}</p>
-        </div>
-      </div>
+  const margin = 20;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const contentWidth = pageWidth - 2 * margin;
+  let currentY = margin;
 
-      <!-- Resident Information -->
-      <div class="section">
-        <h2>Resident Information</h2>
-        <div class="grid grid-cols-2">
-          <div class="space-y-2">
-            <p><strong>First Name:</strong> ${data.firstName}</p>
-            <p><strong>Last Name:</strong> ${data.lastName}</p>
-            <p><strong>Address:</strong> ${data.address}</p>
-            <p><strong>Phone Number:</strong> ${data.phoneNumber}</p>
-          </div>
-          <div class="space-y-2">
-            <p><strong>Ethnicity:</strong> ${data.ethnicity}</p>
-            <p><strong>Gender:</strong> ${data.gender}</p>
-            <p><strong>Religion:</strong> ${data.religion}</p>
-            <p><strong>Date of Birth:</strong> ${data.dateOfBirth}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Next of Kin -->
-      <div class="section">
-        <h2>Next of Kin</h2>
-        <div class="grid grid-cols-2">
-          <div class="space-y-2">
-            <p><strong>First Name:</strong> ${data.kinFirstName}</p>
-            <p><strong>Last Name:</strong> ${data.kinLastName}</p>
-          </div>
-          <div class="space-y-2">
-            <p><strong>Relationship:</strong> ${data.kinRelationship}</p>
-            <p><strong>Phone Number:</strong> ${data.kinPhoneNumber}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Professional Contacts -->
-      <div class="section">
-        <h2>Professional Contacts</h2>
-        
-        <div class="subsection">
-          <h3>Care Manager / Social Worker</h3>
-          <div class="grid grid-cols-2">
-            <p><strong>Name:</strong> ${data.careManagerName}</p>
-            <p><strong>Phone:</strong> ${data.careManagerPhoneNumber}</p>
-          </div>
-        </div>
-
-        <div class="subsection">
-          <h3>District Nurse</h3>
-          <div class="grid grid-cols-2">
-            <p><strong>Name:</strong> ${data.districtNurseName}</p>
-            <p><strong>Phone:</strong> ${data.districtNursePhoneNumber}</p>
-          </div>
-        </div>
-
-        <div class="subsection">
-          <h3>General Practitioner</h3>
-          <div class="grid grid-cols-2">
-            <p><strong>Name:</strong> ${data.generalPractitionerName}</p>
-            <p><strong>Phone:</strong> ${data.generalPractitionerPhoneNumber}</p>
-          </div>
-        </div>
-
-        <div class="subsection">
-          <h3>Healthcare Information Provider</h3>
-          <div class="grid grid-cols-2">
-            <p><strong>Name:</strong> ${data.providerHealthcareInfoName}</p>
-            <p><strong>Designation:</strong> ${data.providerHealthcareInfoDesignation}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Medical Information -->
-      <div class="section">
-        <h2>Medical Information</h2>
-        <div class="space-y-4">
-          <div>
-            <h3>Known Allergies</h3>
-            <div class="info-box">${data.allergies}</div>
-          </div>
-          <div>
-            <h3>Medical History</h3>
-            <div class="info-box">${data.medicalHistory}</div>
-          </div>
-          <div>
-            <h3>Medication Prescribed</h3>
-            <div class="info-box">${data.medicationPrescribed}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Assessment Sections -->
-      <div class="section">
-        <h2>Assessment Sections</h2>
-        <div class="space-y-4">
-          <div class="grid grid-cols-2">
-            <div>
-              <h3>Consent Capacity Rights</h3>
-              <div class="info-box">${data.consentCapacityRights}</div>
-            </div>
-            <div>
-              <h3>Medication</h3>
-              <div class="info-box">${data.medication}</div>
-            </div>
-            <div>
-              <h3>Mobility</h3>
-              <div class="info-box">${data.mobility}</div>
-            </div>
-            <div>
-              <h3>Nutrition</h3>
-              <div class="info-box">${data.nutrition}</div>
-            </div>
-            <div>
-              <h3>Continence</h3>
-              <div class="info-box">${data.continence}</div>
-            </div>
-            <div>
-              <h3>Personal Hygiene & Dressing</h3>
-              <div class="info-box">${data.hygieneDressing}</div>
-            </div>
-            <div>
-              <h3>Skin Integrity</h3>
-              <div class="info-box">${data.skin}</div>
-            </div>
-            <div>
-              <h3>Cognition</h3>
-              <div class="info-box">${data.cognition}</div>
-            </div>
-            <div>
-              <h3>Infection Control</h3>
-              <div class="info-box">${data.infection}</div>
-            </div>
-            <div>
-              <h3>Breathing</h3>
-              <div class="info-box">${data.breathing}</div>
-            </div>
-          </div>
-          <div>
-            <h3>Altered State of Consciousness</h3>
-            <div class="info-box">${data.alteredStateOfConsciousness}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Palliative Care -->
-      <div class="section">
-        <h2>Palliative and End of Life Care</h2>
-        <div class="grid grid-cols-2 subsection">
-          <div>
-            <p><strong>DNACPR in place:</strong> ${data.dnacpr ? "Yes" : "No"}</p>
-            <p><strong>Has capacity:</strong> ${data.capacity ? "Yes" : "No"}</p>
-          </div>
-          <div>
-            <p><strong>Advanced decision:</strong> ${data.advancedDecision ? "Yes" : "No"}</p>
-            <p><strong>Advanced care plan:</strong> ${data.advancedCarePlan ? "Yes" : "No"}</p>
-          </div>
-        </div>
-        ${data.comments
-      ? `
-          <div>
-            <h3>Comments</h3>
-            <div class="info-box">${data.comments}</div>
-          </div>
-        `
-      : ""
+  // --- Helper Functions ---
+  const addPageIfNeeded = (heightNeeded: number) => {
+    if (currentY + heightNeeded > doc.internal.pageSize.getHeight() - margin) {
+      doc.addPage();
+      currentY = margin;
     }
-      </div>
+  };
 
-      <!-- Preferences -->
-      <div class="section">
-        <h2>Preferences</h2>
-        <div class="space-y-4">
-          <div>
-            <h3>Room Preferences</h3>
-            <div class="info-box">${data.roomPreferences}</div>
-          </div>
-          <div>
-            <h3>Admission Contact</h3>
-            <div class="info-box">${data.admissionContact}</div>
-          </div>
-          <div>
-            <h3>Food Preferences</h3>
-            <div class="info-box">${data.foodPreferences}</div>
-          </div>
-          <div>
-            <h3>Preferred Name</h3>
-            <div class="info-box">${data.preferedName}</div>
-          </div>
-          <div>
-            <h3>Family Concerns</h3>
-            <div class="info-box">${data.familyConcerns}</div>
-          </div>
-        </div>
-      </div>
+  const drawSectionHeader = (title: string) => {
+    addPageIfNeeded(15);
+    doc.setFillColor(37, 99, 235); // primary color (blue-600)
+    doc.rect(margin, currentY, 2, 6, "F");
+    
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(17, 24, 39); // gray-900
+    doc.text(title, margin + 4, currentY + 5);
+    
+    currentY += 10;
+    doc.setDrawColor(229, 231, 235); // border-b color (gray-200)
+    doc.line(margin, currentY, margin + contentWidth, currentY);
+    currentY += 8;
+  };
 
-      <!-- Other Information -->
-      <div class="section">
-        <h2>Other Information</h2>
-        <div class="space-y-4">
-          <div>
-            <h3>Other Healthcare Professionals</h3>
-            <div class="info-box">${data.otherHealthCareProfessional}</div>
-          </div>
-          <div>
-            <h3>Equipment Required</h3>
-            <div class="info-box">${data.equipment}</div>
-          </div>
-        </div>
-      </div>
+  const drawFieldBox = (label: string, value: string, x: number, width: number, height: number = 20) => {
+    addPageIfNeeded(height + 10);
+    
+    // Label
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(17, 24, 39);
+    doc.text(label, x, currentY);
+    
+    // Box
+    const boxY = currentY + 3;
+    doc.setDrawColor(226, 232, 240); // slate-200
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(x, boxY, width, height, 2, 2, "FD");
+    
+    // Value
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const displayValue = value || "-";
+    
+    // Handle text wrapping
+    const textLines = doc.splitTextToSize(displayValue, width - 4);
+    doc.text(textLines, x + 2, boxY + 6);
+    
+    return boxY + height + 8; // Return next Y position
+  };
 
-      <!-- Financial Information -->
-      <div class="section">
-        <h2>Financial Information</h2>
-        <p><strong>Can attend to own finances:</strong> ${data.attendFinances ? "Yes" : "No"}</p>
-      </div>
+  const drawTwoColumnRow = (label1: string, val1: string, label2: string, val2: string, height: number = 10) => {
+    const colWidth = (contentWidth - 10) / 2;
+    const startY = currentY;
+    
+    drawFieldBox(label1, val1, margin, colWidth, height);
+    const nextY = drawFieldBox(label2, val2, margin + colWidth + 10, colWidth, height);
+    
+    currentY = Math.max(startY + height + 15, nextY);
+  };
+  
+  const drawOneColumnRow = (label: string, value: string, height: number = 20) => {
+    const nextY = drawFieldBox(label, value, margin, contentWidth, height);
+    currentY = nextY;
+  };
 
-      <!-- Additional Considerations -->
-      <div class="section">
-        <h2>Additional Considerations</h2>
-        <div class="info-box">${data.additionalConsiderations}</div>
-      </div>
+  // --- Header ---
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(24);
+  doc.text("Pre-Admission Assessment", margin, currentY);
+  currentY += 8;
+  
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(107, 114, 128); // text-muted-foreground (gray-500)
+  doc.text("Record pre-admission details and suitability for the resident.", margin, currentY);
+  currentY += 15;
 
-      <!-- Assessment Outcome -->
-      <div class="section">
-        <h2>Assessment Outcome</h2>
-        <div class="grid grid-cols-2">
-          <p><strong>Outcome:</strong> ${data.outcome}</p>
-          ${data.plannedAdmissionDate
-      ? `
-            <p><strong>Planned Admission Date:</strong> ${formatDate(data.plannedAdmissionDate)}</p>
-          `
-      : ""
-    }
-        </div>
-      </div>
+  // --- Section 1: Consent ---
+  drawSectionHeader("Consent");
+  addPageIfNeeded(25);
+  doc.setFillColor(248, 250, 252); // bg-card
+  doc.setDrawColor(226, 232, 240); // border
+  doc.roundedRect(margin, currentY, contentWidth, 20, 3, 3, "FD");
+  
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(17, 24, 39);
+  doc.text("✓", margin + 5, currentY + 8);
+  
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text("The person being assessed agrees to the assessment being completed", margin + 12, currentY + 8);
+  
+  doc.setFontSize(9);
+  doc.setTextColor(107, 114, 128);
+  doc.text(`Consent accepted at: ${formatDateTime(data.consentAcceptedAt)}`, margin + 12, currentY + 14);
+  currentY += 30;
 
-      <!-- Footer -->
-      <div class="footer">
-        <p>Document generated on ${formatDateTime(Date.now())}</p>
-        <p>Pre-Admission Assessment Form - ${data.careHomeName}</p>
-      </div>
-    </body>
-    </html>
-  `;
+  // --- Section 2: Administrative Details ---
+  drawSectionHeader("Administrative Details");
+  drawTwoColumnRow("Care Home Name", data.careHomeName, "NHS Number", data.nhsHealthCareNumber);
+  drawTwoColumnRow("Assessing Worker", data.userName, "Job Role", data.jobRole);
+  drawOneColumnRow("Assessment Date", formatDate(data.date), 10);
+
+  // --- Section 3: Resident Information ---
+  drawSectionHeader("Resident Information");
+  drawTwoColumnRow("First Name", data.firstName, "Last Name", data.lastName);
+  drawOneColumnRow("Current Address", data.address, 20);
+  drawTwoColumnRow("Phone Number", data.phoneNumber, "Ethnicity", data.ethnicity);
+  drawTwoColumnRow("Gender", data.gender, "Religion", data.religion);
+  drawOneColumnRow("Date of Birth", formatDate(data.dateOfBirth), 10);
+
+  // --- Section 4: Next of Kin ---
+  drawSectionHeader("Next of Kin");
+  drawTwoColumnRow("First Name", data.kinFirstName, "Last Name", data.kinLastName);
+  drawTwoColumnRow("Relationship", data.kinRelationship, "Phone Number", data.kinPhoneNumber);
+
+  // --- Section 5: Professional Contacts ---
+  drawSectionHeader("Professional Contacts");
+  drawTwoColumnRow("Care Manager Name", data.careManagerName, "Care Manager Phone", data.careManagerPhoneNumber);
+  drawTwoColumnRow("District Nurse Name", data.districtNurseName, "District Nurse Phone", data.districtNursePhoneNumber);
+  drawTwoColumnRow("General Practitioner Name", data.generalPractitionerName, "GP Phone", data.generalPractitionerPhoneNumber);
+  drawTwoColumnRow("Provider Name", data.providerHealthcareInfoName, "Designation", data.providerHealthcareInfoDesignation);
+
+  // --- Section 6: Medical Assessment ---
+  drawSectionHeader("Medical Assessment");
+  drawOneColumnRow("Known Allergies", data.allergies, 20);
+  drawOneColumnRow("Medical History & Diagnoses", data.medicalHistory, 30);
+  drawOneColumnRow("Medications Prescribed", data.medicationPrescribed, 25);
+
+  // --- Section 7: Activities of Daily Living ---
+  drawSectionHeader("Activities of Daily Living");
+  drawTwoColumnRow("Consent Capacity Rights", data.consentCapacityRights, "Medication", data.medication, 25);
+  drawTwoColumnRow("Mobility", data.mobility, "Nutrition", data.nutrition, 25);
+  drawTwoColumnRow("Continence", data.continence, "Hygiene Dressing", data.hygieneDressing, 25);
+  drawTwoColumnRow("Skin", data.skin, "Cognition", data.cognition, 25);
+  drawTwoColumnRow("Infection", data.infection, "Breathing", data.breathing, 25);
+  drawOneColumnRow("Altered State of Consciousness", data.alteredStateOfConsciousness, 25);
+
+  // --- Section 8: Legal & End of Life ---
+  drawSectionHeader("Legal & End of Life");
+  drawTwoColumnRow("DNACPR", data.dnacpr ? "Yes" : "No", "Advanced Decision", data.advancedDecision ? "Yes" : "No");
+  drawTwoColumnRow("Capacity", data.capacity ? "Yes" : "No", "Advanced Care Plan", data.advancedCarePlan ? "Yes" : "No");
+  drawOneColumnRow("Palliative Care Comments", data.comments, 20);
+
+  // --- Section 9: Resident Preferences ---
+  drawSectionHeader("Resident Preferences");
+  drawTwoColumnRow("Room Preferences", data.roomPreferences, "Admission Contact", data.admissionContact, 20);
+  drawTwoColumnRow("Food Preferences", data.foodPreferences, "Preferred Name", data.preferedName, 20);
+  drawOneColumnRow("Family Concerns", data.familyConcerns, 20);
+
+  // --- Section 10: Financial & Final Details ---
+  drawSectionHeader("Financial & Final Details");
+  drawOneColumnRow("Does anyone attend to finances?", data.attendFinances ? "Yes" : "No", 10);
+  drawOneColumnRow("Additional Considerations", data.additionalConsiderations, 20);
+  
+  // Outcome highlighted box
+  addPageIfNeeded(35);
+  doc.setFillColor(239, 246, 255); // blue-50
+  doc.setDrawColor(191, 219, 254); // blue-200
+  doc.roundedRect(margin, currentY, contentWidth, 30, 3, 3, "FD");
+  
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(17, 24, 39);
+  doc.text("Assessment Outcome", margin + 5, currentY + 8);
+  
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  const outcomeLines = doc.splitTextToSize(data.outcome || "-", contentWidth - 10);
+  doc.text(outcomeLines, margin + 5, currentY + 14);
+  currentY += 35;
+
+  drawOneColumnRow("Planned Admission Date", formatDate(data.plannedAdmissionDate), 10);
+
+  // --- Footer on all pages ---
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8);
+    doc.setTextColor(156, 163, 175);
+    const footerText = `Pre-Admission Assessment Form - ${data.careHomeName} | Page ${i} of ${pageCount}`;
+    doc.text(footerText, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: "center" });
+    
+    doc.text(`Generated on ${formatDateTime(Date.now())}`, margin, doc.internal.pageSize.getHeight() - 10);
+  }
+
+  return doc.output("arraybuffer");
 }
 
 export async function POST(request: NextRequest) {
@@ -412,7 +255,6 @@ export async function POST(request: NextRequest) {
       date: assessmentData.date || assessmentData.assessment_date || assessmentData.created_at || Date.now(),
       userName: assessmentData.userName || assessmentData.completedBy || assessmentData.completed_by || "Staff Member",
       jobRole: assessmentData.jobRole || assessmentData.job_role || "Staff",
-      // Sub-objects like professional contacts are likely already at top level after spread
     };
 
     console.log("Pre-Admission PDF API flattening data:", {
@@ -421,52 +263,19 @@ export async function POST(request: NextRequest) {
       formId: flattenedData._id || flattenedData.id
     });
 
-    // Generate HTML content
-    const htmlContent = generatePreAdmissionHTML(flattenedData);
+    // Generate PDF Buffer using jsPDF
+    const pdfArrayBuffer = generatePDF(flattenedData);
+    const pdfBuffer = Buffer.from(pdfArrayBuffer);
 
-    // Launch Playwright browser
-    const browser = await chromium.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    // Return the PDF as a response
+    return new NextResponse(pdfBuffer, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="pre-admission-form-${flattenedData.firstName?.replace(/\s+/g, "-") || "resident"}-${flattenedData.lastName?.replace(/\s+/g, "-") || ""}.pdf"`,
+        "Content-Length": pdfBuffer.length.toString()
+      }
     });
 
-    const page = await browser.newPage();
-
-    try {
-      // Set the HTML content directly
-      await page.setContent(htmlContent, {
-        waitUntil: "networkidle",
-        timeout: 30000
-      });
-
-      // Generate PDF
-      const pdfBuffer = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        margin: {
-          top: "20px",
-          bottom: "20px",
-          left: "20px",
-          right: "20px"
-        },
-        displayHeaderFooter: false,
-        preferCSSPageSize: true
-      });
-
-      await browser.close();
-
-      // Return the PDF as a response
-      return new NextResponse(pdfBuffer as any, {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="pre-admission-form-${flattenedData.firstName?.replace(/\s+/g, "-") || "resident"}-${flattenedData.lastName?.replace(/\s+/g, "-") || ""}.pdf"`,
-          "Content-Length": pdfBuffer.length.toString()
-        }
-      });
-    } catch (error) {
-      await browser.close();
-      throw error;
-    }
   } catch (error) {
     console.error("PDF generation error:", error);
     return NextResponse.json(
@@ -478,3 +287,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
