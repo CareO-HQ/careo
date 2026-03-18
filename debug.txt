@@ -1,0 +1,23 @@
+Initialising login role...
+Connecting to remote database...
+Do you want to push these migrations to the remote database?
+ ΓÇó 20260309000000_create_modified_diet_audit.sql
+ ΓÇó 20260309120000_complete_choking_risk_schema_fix.sql
+ ΓÇó 20260316000000_add_selected_pathway_to_incident_folders.sql
+ ΓÇó 20260316000001_create_folder_collaborators_tables.sql
+
+ [Y/n] Applying migration 20260309000000_create_modified_diet_audit.sql...
+NOTICE (00000): drop cascades to constraint modified_diet_audit_entries_audit_id_fkey on table modified_diet_audit_entries
+NOTICE (42P07): relation "modified_diet_audit_entries" already exists, skipping
+NOTICE (42P07): relation "idx_modified_diet_entries_audit" already exists, skipping
+NOTICE (42P07): relation "idx_modified_diet_entries_resident" already exists, skipping
+NOTICE (42P07): relation "idx_modified_diet_entries_org" already exists, skipping
+NOTICE (42P07): relation "idx_modified_diet_entries_compliant" already exists, skipping
+NOTICE (00000): trigger "update_manager_audits_updated_at" for relation "public.manager_audits" does not exist, skipping
+ERROR: policy "Users can view audit entries in their organization" for table "modified_diet_audit_entries" already exists (SQLSTATE 42710)
+At statement: 24                                                                                                                          
+-- RLS Policies for modified_diet_audit_entries                                                                                           
+CREATE POLICY "Users can view audit entries in their organization"                                                                        
+  ON public.modified_diet_audit_entries FOR SELECT                                                                                        
+  USING ( public.can_access_organization(organization_id) )                                                                               
+Try rerunning the command with --debug to troubleshoot the error.

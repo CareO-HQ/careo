@@ -1,0 +1,98 @@
+"use client";
+
+import React from "react";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+type ProgressStep = {
+  id: string;
+  label: string;
+  completed: boolean;
+  current?: boolean;
+};
+
+type FallProgressTrackerProps = {
+  hasIncidentReport: boolean;
+  hasPostFallAssessment: boolean;
+  hasPostFallObservation: boolean;
+  hasBodyMap: boolean;
+};
+
+export function FallProgressTracker({
+  hasIncidentReport,
+  hasPostFallAssessment,
+  hasPostFallObservation,
+  hasBodyMap,
+}: FallProgressTrackerProps) {
+  const steps: ProgressStep[] = [
+    { id: "incident-report", label: "Incident Report", completed: hasIncidentReport },
+    { id: "post-fall-assessment", label: "Post-fall Assessment", completed: hasPostFallAssessment },
+    { id: "post-fall-observation", label: "24-hour Post-Fall Observation Chart", completed: hasPostFallObservation },
+    { id: "body-map", label: "Body Map", completed: hasBodyMap },
+  ];
+
+  // Calculate current step (first incomplete step)
+  const currentStepIndex = steps.findIndex((step) => !step.completed);
+  if (currentStepIndex !== -1) {
+    steps[currentStepIndex].current = true;
+  }
+
+  return (
+    <div className="bg-white border-b px-6 py-2">
+      <div className="flex items-center justify-between max-w-7xl">
+        {steps.map((step, index) => (
+          <React.Fragment key={step.id}>
+            {/* Step */}
+            <div className="flex flex-col items-center gap-0.5 relative">
+              {/* Circle */}
+              <div
+                className={cn(
+                  "w-4 h-4 rounded-full flex items-center justify-center border transition-all",
+                  step.completed
+                    ? "bg-emerald-500 border-emerald-500 text-white"
+                    : step.current
+                      ? "bg-blue-500 border-blue-500 text-white"
+                      : "bg-white border-gray-300 text-gray-400"
+                )}
+              >
+                {step.completed && (
+                  <Check className="w-2.5 h-2.5" />
+                )}
+              </div>
+
+              {/* Label */}
+              <span
+                className={cn(
+                  "text-[9px] font-medium text-center max-w-[80px] leading-tight",
+                  step.completed
+                    ? "text-emerald-700"
+                    : step.current
+                      ? "text-blue-700 font-semibold"
+                      : "text-gray-500"
+                )}
+              >
+                {step.label}
+              </span>
+            </div>
+
+            {/* Connecting Line */}
+            {index < steps.length - 1 && (
+              <div className="flex-1 h-px mx-1.5 mb-3">
+                <div
+                  className={cn(
+                    "h-full transition-all",
+                    steps[index].completed && steps[index + 1].completed
+                      ? "bg-emerald-500"
+                      : steps[index].completed
+                        ? "bg-gradient-to-r from-emerald-500 to-gray-300"
+                        : "bg-gray-300"
+                  )}
+                />
+              </div>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}

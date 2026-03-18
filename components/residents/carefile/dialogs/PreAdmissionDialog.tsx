@@ -94,14 +94,18 @@ export default function PreAdmissionDialog({
         savedAsDraft: initialData.saved_as_draft || false,
         consentAcceptedAt: initialData.consent_accepted_at ? new Date(initialData.consent_accepted_at).getTime() : 0,
         careHomeName: initialData.care_home_name || initialData.careHomeName || careHomeName,
-        nhsHealthCareNumber: initialData.nhs_number || initialData.nhsHealthCareNumber || resident.nhs_health_number || "",
+        nhsHealthCareNumber: initialData.nhs_number || initialData.nhsHealthCareNumber || resident.nhs_health_number || resident.nhsHealthNumber || "",
         ...(initialData.assessment_data || {}),
         userName: initialData.assessment_data?.userName || initialData.userName || userName,
         jobRole: initialData.assessment_data?.jobRole || initialData.jobRole || userRole || "",
         date: initialData.assessment_data?.date || initialData.date || undefined,
-        firstName: initialData.assessment_data?.firstName || initialData.firstName || resident.first_name || "",
-        lastName: initialData.assessment_data?.lastName || initialData.lastName || resident.last_name || "",
-        dateOfBirth: initialData.assessment_data?.dateOfBirth || initialData.dateOfBirth || resident.date_of_birth || "",
+        firstName: initialData.assessment_data?.firstName || initialData.firstName || resident.first_name || resident.firstName || "",
+        lastName: initialData.assessment_data?.lastName || initialData.lastName || resident.last_name || resident.lastName || "",
+        dateOfBirth: initialData.assessment_data?.dateOfBirth || initialData.dateOfBirth || resident.date_of_birth || resident.dateOfBirth || "",
+        financesName: initialData.assessment_data?.financesName || "",
+        financesAddress: initialData.assessment_data?.financesAddress || "",
+        financesContactNumber: initialData.assessment_data?.financesContactNumber || "",
+        signature: initialData.assessment_data?.signature || "",
       }
       : {
         residentId,
@@ -110,18 +114,18 @@ export default function PreAdmissionDialog({
         savedAsDraft: false,
         consentAcceptedAt: 0,
         careHomeName,
-        nhsHealthCareNumber: resident.nhs_health_number ?? "",
+        nhsHealthCareNumber: resident.nhs_health_number || resident.nhsHealthNumber || "",
         userName: userName,
         jobRole: userRole || "",
         date: undefined,
-        firstName: resident.first_name ?? "",
-        lastName: resident.last_name ?? "",
+        firstName: resident.first_name || resident.firstName || "",
+        lastName: resident.last_name || resident.lastName || "",
         address: "",
-        phoneNumber: resident.phone_number ?? "",
+        phoneNumber: resident.phone_number || resident.phoneNumber || "",
         ethnicity: "",
         gender: undefined,
         religion: "",
-        dateOfBirth: resident.date_of_birth ?? "",
+        dateOfBirth: resident.date_of_birth || resident.dateOfBirth || "",
         kinFirstName: kinFirstName,
         kinLastName: kinLastName,
         kinRelationship: firstKin?.relationship ?? "",
@@ -161,6 +165,10 @@ export default function PreAdmissionDialog({
         otherHealthCareProfessional: "",
         equipment: "",
         attendFinances: undefined,
+        financesName: "",
+        financesAddress: "",
+        financesContactNumber: "",
+        signature: "",
         additionalConsiderations: "",
         outcome: "",
         plannedAdmissionDate: undefined
@@ -216,9 +224,9 @@ export default function PreAdmissionDialog({
 
   const setPopover = (key: string, open: boolean) => setDatePopovers(prev => ({ ...prev, [key]: open }));
 
-  const DateField = ({ name, label, required = false }: { name: "date" | "plannedAdmissionDate" | "consentAcceptedAt", label: string, required?: boolean }) => (
+  const DateField = ({ name, label, required = false }: { name: "date" | "plannedAdmissionDate" | "consentAcceptedAt" | "dateOfBirth", label: string, required?: boolean }) => (
     <FormField control={form.control} name={name} render={({ field }) => {
-      const value = field.value as number | undefined;
+      const value = typeof field.value === "string" ? (field.value ? new Date(field.value).getTime() : undefined) : field.value as number | undefined;
       return (
         <FormItem className="flex flex-col">
           <FormLabel required={required}>{label}</FormLabel>
@@ -232,7 +240,14 @@ export default function PreAdmissionDialog({
               </FormControl>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={value ? new Date(value) : undefined} captionLayout="dropdown" onSelect={d => { field.onChange(d?.getTime()); setPopover(name, false); }} disabled={d => d > new Date() || d < new Date("1900-01-01")} initialFocus />
+              <Calendar mode="single" selected={value ? new Date(value) : undefined} captionLayout="dropdown" onSelect={d => {
+                const newValue = name === "dateOfBirth" ? d?.toISOString().split('T')[0] : d?.getTime();
+                field.onChange(newValue);
+                setPopover(name, false);
+              }} disabled={d => {
+                if (name === "date" || name === "plannedAdmissionDate") return d < new Date("1900-01-01");
+                return d > new Date() || d < new Date("1900-01-01");
+              }} initialFocus />
             </PopoverContent>
           </Popover>
           <FormMessage />
@@ -301,6 +316,7 @@ export default function PreAdmissionDialog({
                   <FormField control={form.control} name="userName" render={({ field }) => (<FormItem><FormLabel>Assessing Worker</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
                   <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel>Job Role</FormLabel><FormControl><Input {...field} readOnly className="bg-muted" /></FormControl><FormMessage /></FormItem>)} />
                   <DateField name="date" label="Assessment Date" required />
+                  <FormField control={form.control} name="signature" render={({ field }) => (<FormItem><FormLabel>Signature</FormLabel><FormControl><Input {...field} placeholder="Enter signature" /></FormControl><FormMessage /></FormItem>)} />
                 </div>
               </div>
 
@@ -320,6 +336,7 @@ export default function PreAdmissionDialog({
                     <FormItem><FormLabel>Gender</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger></FormControl><SelectContent><SelectItem value="male">Male</SelectItem><SelectItem value="female">Female</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="religion" render={({ field }) => (<FormItem><FormLabel>Religion</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <DateField name="dateOfBirth" label="Date of Birth" />
                 </div>
               </div>
 
@@ -458,7 +475,19 @@ export default function PreAdmissionDialog({
                 </div>
               </div>
 
-              {/* Section 10: Financial & Additional */}
+              {/* Section 10: Other Relevant Information */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold">Other Relevant Information</h3>
+                </div>
+                <div className="space-y-6">
+                  <FormField control={form.control} name="otherHealthCareProfessional" render={({ field }) => <FormItem><FormLabel>Other health professionals involved in Persons care</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="equipment" render={({ field }) => <FormItem><FormLabel>Equipment required</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>} />
+                </div>
+              </div>
+
+              {/* Section 11: Financial & Additional */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 border-b pb-2">
                   <div className="h-6 w-1 bg-primary rounded-full" />
@@ -474,6 +503,14 @@ export default function PreAdmissionDialog({
                       </Select>
                     </FormItem>
                   )} />
+
+                  {form.watch("attendFinances") === true && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border rounded-xl bg-card">
+                      <FormField control={form.control} name="financesName" render={({ field }) => (<FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name="financesContactNumber" render={({ field }) => (<FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name="financesAddress" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Address</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    </div>
+                  )}
                   <FormField control={form.control} name="additionalConsiderations" render={({ field }) => <FormItem><FormLabel>Additional Considerations</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>} />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border rounded-xl bg-primary/5">
                     <FormField control={form.control} name="outcome" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel className="text-lg font-bold">Assessment Outcome</FormLabel><FormControl><Textarea className="min-h-[100px] bg-background" placeholder="e.g. Suitability, agreed care package..." {...field} /></FormControl><FormMessage /></FormItem>} />

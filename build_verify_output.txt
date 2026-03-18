@@ -1,0 +1,194 @@
+
+> nextjs-starter@0.1.0 build
+> next build
+
+   Γû▓ Next.js 15.5.9
+   - Environments: .env.local, .env
+
+   Creating an optimized production build ...
+ Γ£ô Compiled successfully in 12.8s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/69) ...
+[DEBUG onboarding] state: {
+  isProfileLoading: true,
+  isAuthLoading: true,
+  isSaasAdmin: false,
+  userRole: undefined,
+  isOnboardingComplete: false,
+  profileId: undefined
+}
+   Generating static pages (17/69) 
+   Generating static pages (34/69) 
+   Generating static pages (51/69) 
+ Γ£ô Generating static pages (69/69)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                                                     Size  First Load JS
+Γöî Γùï /                                                                           4 kB         160 kB
+Γö£ Γùï /_not-found                                                                 1 kB         103 kB
+Γö£ Γùï /accept-invitation                                                       4.93 kB         183 kB
+Γö£ Γùï /admin                                                                   4.75 kB         171 kB
+Γö£ Γùï /admin/admins                                                            3.56 kB         198 kB
+Γö£ Γùï /admin/analytics                                                         4.53 kB         177 kB
+Γö£ Γùï /admin/care-homes                                                        3.23 kB         202 kB
+Γö£ ╞Æ /admin/care-homes/[orgId]                                                5.36 kB         197 kB
+Γö£ ╞Æ /admin/care-homes/[orgId]/[careHomeId]                                   3.62 kB         212 kB
+Γö£ Γùï /admin/owners                                                            6.25 kB         219 kB
+Γö£ Γùï /admin/owners/create                                                     6.79 kB         205 kB
+Γö£ ╞Æ /api/appointment-notes                                                     248 B         102 kB
+Γö£ ╞Æ /api/appointment-notes/[id]                                                248 B         102 kB
+Γö£ ╞Æ /api/appointments                                                          248 B         102 kB
+Γö£ ╞Æ /api/appointments/[id]                                                     248 B         102 kB
+Γö£ ╞Æ /api/appointments/[id]/read                                                248 B         102 kB
+Γö£ ╞Æ /api/appointments/read                                                     248 B         102 kB
+Γö£ ╞Æ /api/appointments/resident/[residentId]                                    248 B         102 kB
+Γö£ ╞Æ /api/appointments/upcoming                                                 248 B         102 kB
+Γö£ ╞Æ /api/chat                                                                  248 B         102 kB
+Γö£ ╞Æ /api/manager-audit/modified-diet                                           248 B         102 kB
+Γö£ ╞Æ /api/pdf/admission                                                         248 B         102 kB
+Γö£ ╞Æ /api/pdf/bed-rails-risk-assessment                                         248 B         102 kB
+Γö£ ╞Æ /api/pdf/bedrail-consent                                                   248 B         102 kB
+Γö£ ╞Æ /api/pdf/best-interest-decision                                            248 B         102 kB
+Γö£ ╞Æ /api/pdf/bladder-bowel                                                     248 B         102 kB
+Γö£ ╞Æ /api/pdf/care-plan                                                         248 B         102 kB
+Γö£ ╞Æ /api/pdf/choking-risk                                                      248 B         102 kB
+Γö£ ╞Æ /api/pdf/cornell-depression                                                248 B         102 kB
+Γö£ ╞Æ /api/pdf/daily-care                                                        248 B         102 kB
+Γö£ ╞Æ /api/pdf/dependency                                                        248 B         102 kB
+Γö£ ╞Æ /api/pdf/diet-notification                                                 248 B         102 kB
+Γö£ ╞Æ /api/pdf/dnacpr                                                            248 B         102 kB
+Γö£ ╞Æ /api/pdf/get-url                                                           248 B         102 kB
+Γö£ ╞Æ /api/pdf/infection-prevention                                              248 B         102 kB
+Γö£ ╞Æ /api/pdf/long-term-falls                                                   248 B         102 kB
+Γö£ ╞Æ /api/pdf/moving-handling                                                   248 B         102 kB
+Γö£ ╞Æ /api/pdf/multidisciplinary-note                                            248 B         102 kB
+Γö£ ╞Æ /api/pdf/nhs-report                                                        248 B         102 kB
+Γö£ ╞Æ /api/pdf/nutritional-assessment                                            248 B         102 kB
+Γö£ ╞Æ /api/pdf/oral-assessment                                                   248 B         102 kB
+Γö£ ╞Æ /api/pdf/pain-assessment                                                   248 B         102 kB
+Γö£ ╞Æ /api/pdf/peep                                                              248 B         102 kB
+Γö£ ╞Æ /api/pdf/photography-consent                                               248 B         102 kB
+Γö£ ╞Æ /api/pdf/pre-admission                                                     248 B         102 kB
+Γö£ ╞Æ /api/pdf/resident-handling-profile                                         248 B         102 kB
+Γö£ ╞Æ /api/pdf/resident-valuables                                                248 B         102 kB
+Γö£ ╞Æ /api/pdf/skin-integrity                                                    248 B         102 kB
+Γö£ ╞Æ /api/pdf/timl                                                              248 B         102 kB
+Γö£ ╞Æ /api/progress-notes                                                        248 B         102 kB
+Γö£ ╞Æ /api/progress-notes/[id]                                                   248 B         102 kB
+Γö£ ╞Æ /api/progress-notes/all                                                    248 B         102 kB
+Γö£ ╞Æ /api/progress-notes/stats                                                  248 B         102 kB
+Γö£ Γùï /dashboard                                                               12.7 kB         183 kB
+Γö£ Γùï /dashboard/action-plans                                                  7.95 kB         232 kB
+Γö£ Γùï /dashboard/appointment                                                   7.92 kB         216 kB
+Γö£ Γùï /dashboard/careo-audit                                                   12.3 kB         246 kB
+Γö£ ╞Æ /dashboard/careo-audit/[residentId]/carefileaudit                        9.74 kB         239 kB
+Γö£ ╞Æ /dashboard/careo-audit/[residentId]/carefileaudit/[auditId]              12.1 kB         250 kB
+Γö£ ╞Æ /dashboard/careo-audit/[residentId]/carefileaudit/[auditId]/view         5.49 kB         183 kB
+Γö£ ╞Æ /dashboard/careo-audit/[residentId]/carefileaudit/[auditId]/view-single  7.11 kB         210 kB
+Γö£ ╞Æ /dashboard/careo-audit/[residentId]/carefileaudit/view                   7.59 kB         170 kB
+Γö£ Γùï /dashboard/careo-audit/archived                                          5.97 kB         176 kB
+Γö£ ╞Æ /dashboard/careo-audit/clinical/[auditId]                                  11 kB         249 kB
+Γö£ ╞Æ /dashboard/careo-audit/clinical/[auditId]/view                           6.11 kB         183 kB
+Γö£ ╞Æ /dashboard/careo-audit/clinical/[auditId]/view-single                     5.3 kB         208 kB
+Γö£ ╞Æ /dashboard/careo-audit/environment/[auditId]                               11 kB         249 kB
+Γö£ ╞Æ /dashboard/careo-audit/environment/[auditId]/view                        6.22 kB         183 kB
+Γö£ ╞Æ /dashboard/careo-audit/environment/[auditId]/view-single                  5.3 kB         208 kB
+Γö£ ╞Æ /dashboard/careo-audit/governance/[auditId]                                11 kB         249 kB
+Γö£ ╞Æ /dashboard/careo-audit/governance/[auditId]/view                         6.21 kB         183 kB
+Γö£ ╞Æ /dashboard/careo-audit/governance/[auditId]/view-single                   5.3 kB         208 kB
+Γö£ ╞Æ /dashboard/careo-audit/resident/[auditId]                                11.6 kB         249 kB
+Γö£ ╞Æ /dashboard/careo-audit/resident/[auditId]/view                           6.19 kB         183 kB
+Γö£ ╞Æ /dashboard/careo-audit/resident/[auditId]/view-single                    7.19 kB         210 kB
+Γö£ Γùï /dashboard/handover                                                      14.5 kB         268 kB
+Γö£ Γùï /dashboard/handover/documents                                            6.14 kB         176 kB
+Γö£ ╞Æ /dashboard/handover/documents/[reportId]                                 6.54 kB         179 kB
+Γö£ Γùï /dashboard/incidents                                                     7.62 kB         219 kB
+Γö£ Γùï /dashboard/manager-audit                                                 9.61 kB         240 kB
+Γö£ ╞Æ /dashboard/manager-audit/[auditId]                                       12.6 kB         261 kB
+Γö£ ╞Æ /dashboard/manager-audit/[auditId]/history                               6.49 kB         186 kB
+Γö£ ╞Æ /dashboard/manager-audit/[auditId]/history/[recordId]                    7.55 kB         208 kB
+Γö£ ╞Æ /dashboard/manager-audit/0/resident/[residentId]/audit                   10.9 kB         222 kB
+Γö£ ╞Æ /dashboard/manager-audit/0/resident/[residentId]/history                 8.52 kB         188 kB
+Γö£ ╞Æ /dashboard/manager-audit/0/resident/[residentId]/history/[recordId]      5.77 kB         188 kB
+Γö£ Γùï /dashboard/notification                                                  7.86 kB         228 kB
+Γö£ Γùï /dashboard/residents                                                     9.77 kB         314 kB
+Γö£ ╞Æ /dashboard/residents/[id]                                                8.33 kB         206 kB
+Γö£ ╞Æ /dashboard/residents/[id]/additional                                     10.5 kB         173 kB
+Γö£ ╞Æ /dashboard/residents/[id]/appointments                                   16.5 kB         287 kB
+Γö£ ╞Æ /dashboard/residents/[id]/appointments/documents                         10.6 kB         218 kB
+Γö£ ╞Æ /dashboard/residents/[id]/care-file                                      3.83 kB         176 kB
+Γö£ ╞Æ /dashboard/residents/[id]/care-file-v2                                   3.76 kB         176 kB
+Γö£ ╞Æ /dashboard/residents/[id]/care-file-v2/[folderKey]                       12.9 kB         584 kB
+Γö£ ╞Æ /dashboard/residents/[id]/care-file-v2/[folderKey]/past-records          3.16 kB         207 kB
+Γö£ ╞Æ /dashboard/residents/[id]/care-file/[folderKey]                          8.14 kB         569 kB
+Γö£ ╞Æ /dashboard/residents/[id]/care-file/all-care-plans                       5.15 kB         195 kB
+Γö£ ╞Æ /dashboard/residents/[id]/care-file/all-risk-assessments                 5.81 kB         203 kB
+Γö£ ╞Æ /dashboard/residents/[id]/care-file/archived-care-plans                  5.34 kB         195 kB
+Γö£ ╞Æ /dashboard/residents/[id]/care-file/archived-risk-assessments            3.77 kB         201 kB
+Γö£ ╞Æ /dashboard/residents/[id]/clinical                                       7.14 kB         199 kB
+Γö£ ╞Æ /dashboard/residents/[id]/clinical/documents                             6.49 kB         360 kB
+Γö£ ╞Æ /dashboard/residents/[id]/continence                                     7.77 kB         262 kB
+Γö£ ╞Æ /dashboard/residents/[id]/continence/documents                           12.1 kB         228 kB
+Γö£ ╞Æ /dashboard/residents/[id]/daily-care                                     12.8 kB         288 kB
+Γö£ ╞Æ /dashboard/residents/[id]/daily-care/documents                           11.3 kB         227 kB
+Γö£ ╞Æ /dashboard/residents/[id]/documents                                      11.5 kB         222 kB
+Γö£ ╞Æ /dashboard/residents/[id]/food-fluid                                     16.8 kB         268 kB
+Γö£ ╞Æ /dashboard/residents/[id]/food-fluid/documents                           11.7 kB         365 kB
+Γö£ ╞Æ /dashboard/residents/[id]/health-monitoring                              6.74 kB         275 kB
+Γö£ ╞Æ /dashboard/residents/[id]/health-monitoring/documents                    8.14 kB         355 kB
+Γö£ ╞Æ /dashboard/residents/[id]/hospital-transfer                                22 kB         452 kB
+Γö£ ╞Æ /dashboard/residents/[id]/hospital-transfer/documents                    9.55 kB         225 kB
+Γö£ ╞Æ /dashboard/residents/[id]/incidents                                      5.21 kB         232 kB
+Γö£ ╞Æ /dashboard/residents/[id]/incidents/[folderId]                           53.7 kB         528 kB
+Γö£ ╞Æ /dashboard/residents/[id]/incidents/documents                            5.31 kB         232 kB
+Γö£ ╞Æ /dashboard/residents/[id]/lifestyle-social                               12.7 kB         280 kB
+Γö£ ╞Æ /dashboard/residents/[id]/lifestyle-social/documents                     6.58 kB         227 kB
+Γö£ ╞Æ /dashboard/residents/[id]/medication                                     27.7 kB         331 kB
+Γö£ ╞Æ /dashboard/residents/[id]/medication/docs                                19.7 kB         418 kB
+Γö£ ╞Æ /dashboard/residents/[id]/medication/documents                           7.16 kB         210 kB
+Γö£ ╞Æ /dashboard/residents/[id]/medication/history                             9.99 kB         242 kB
+Γö£ ╞Æ /dashboard/residents/[id]/multidisciplinary-note                         13.6 kB         283 kB
+Γö£ ╞Æ /dashboard/residents/[id]/multidisciplinary-note/documents               11.3 kB         227 kB
+Γö£ ╞Æ /dashboard/residents/[id]/night-check                                    17.4 kB         273 kB
+Γö£ ╞Æ /dashboard/residents/[id]/night-check/documents                          12.5 kB         228 kB
+Γö£ ╞Æ /dashboard/residents/[id]/overview                                       9.27 kB         304 kB
+Γö£ ╞Æ /dashboard/residents/[id]/progress-notes                                 15.1 kB         271 kB
+Γö£ ╞Æ /dashboard/residents/[id]/progress-notes/documents                       9.72 kB         169 kB
+Γö£ ╞Æ /dashboard/residents/[id]/wounds                                         11.3 kB         230 kB
+Γö£ ╞Æ /dashboard/residents/[id]/wounds/[folderId]                              24.9 kB         569 kB
+Γö£ Γùï /dashboard/staff                                                         7.58 kB         183 kB
+Γö£ ╞Æ /dashboard/staff/[id]                                                    7.47 kB         183 kB
+Γö£ ╞Æ /dashboard/staff/[id]/overview                                             10 kB         257 kB
+Γö£ ╞Æ /dashboard/staff/[id]/trainings                                          10.6 kB         232 kB
+Γö£ Γùï /dashboard/wounds                                                        7.05 kB         215 kB
+Γö£ Γùï /login                                                                   7.28 kB         275 kB
+Γö£ Γùï /login/two-factor                                                        8.99 kB         216 kB
+Γö£ Γùï /new-password                                                             4.7 kB         211 kB
+Γö£ Γùï /onboarding                                                              11.4 kB         259 kB
+Γö£ Γùï /privacy                                                                   248 B         102 kB
+Γö£ Γùï /reset-password                                                          5.94 kB         207 kB
+Γö£ ╞Æ /settings/billing                                                          248 B         102 kB
+Γö£ ╞Æ /settings/company                                                          248 B         102 kB
+Γö£ ╞Æ /settings/labels                                                         7.52 kB         258 kB
+Γö£ ╞Æ /settings/members                                                        11.5 kB         255 kB
+Γö£ ╞Æ /settings/members/session                                                2.85 kB         197 kB
+Γö£ ╞Æ /settings/organization                                                   6.39 kB         230 kB
+Γö£ ╞Æ /settings/profile                                                        6.35 kB         235 kB
+Γö£ ╞Æ /settings/security                                                       7.58 kB         226 kB
+Γö£ ╞Æ /settings/teams                                                          3.64 kB         180 kB
+Γö£ ╞Æ /settings/teams/[teamId]                                                 6.35 kB         255 kB
+Γö£ Γùï /signup                                                                  7.18 kB         275 kB
+Γöö Γùï /terms                                                                     248 B         102 kB
++ First Load JS shared by all                                                 102 kB
+  Γö£ chunks/1255-8befde0980f5cba9.js                                          45.6 kB
+  Γö£ chunks/4bd1b696-100b9d70ed4e49c1.js                                      54.2 kB
+  Γöö other shared chunks (total)                                              2.24 kB
+
+
+╞Æ Middleware                                                                 79.6 kB
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+

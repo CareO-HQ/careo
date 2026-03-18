@@ -556,6 +556,16 @@ export default function CareFileV2FolderPage() {
                 </div>
 
                 <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file-v2/${folderKey}/past-records` as any)}
+                    className="h-8 gap-1.5 text-xs"
+                    title="View all past versions of forms and care plans in this folder"
+                >
+                    <History className="h-3.5 w-3.5" />
+                    View All Past Records
+                </Button>
+                <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}

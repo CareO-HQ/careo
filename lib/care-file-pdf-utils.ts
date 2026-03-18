@@ -702,50 +702,59 @@ export const generateCareFilePDF = async ({
         return;
     }
 
-    // --- Header ---
-    const headerHeight = 22;
-    doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, pageWidth, headerHeight, 'F');
-
-    // Green bottom border line
-    doc.setFillColor(34, 197, 94); // #22c55e green
-    doc.rect(0, headerHeight - 2, pageWidth, 1, 'F');
-
-    // Title
-    doc.setTextColor(31, 41, 55);
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text(formName.toUpperCase(), margin, 14);
-
-    // Org Logo
-    if (orgLogoUrl) {
-        try {
-            const logoImg = await loadImage(orgLogoUrl);
-            const canvas = document.createElement('canvas');
-            canvas.width = logoImg.naturalWidth;
-            canvas.height = logoImg.naturalHeight;
-            const ctx = canvas.getContext('2d')!;
-            ctx.drawImage(logoImg, 0, 0);
-            const logoDataUrl = canvas.toDataURL('image/png');
-            const logoSize = 14;
-            const aspect = logoImg.naturalWidth / logoImg.naturalHeight;
-            const logoW = logoSize * aspect;
-            doc.addImage(logoDataUrl, 'PNG', pageWidth - margin - logoW, (headerHeight - logoSize) / 2, logoW, logoSize);
-        } catch (e) {
-            console.warn("Logo load failed", e);
+    // --- PDF Layout Helpers ---
+    const drawHeader = async () => {
+        const headerHeight = 22;
+        doc.setFillColor(255, 255, 255);
+        doc.rect(0, 0, pageWidth, headerHeight, 'F');
+        doc.setFillColor(34, 197, 94); // #22c55e green
+        doc.rect(0, headerHeight - 2, pageWidth, 1, 'F');
+        doc.setTextColor(31, 41, 55);
+        // Reduce font size for long form names to prevent logo overlap
+        if (formName.toUpperCase().includes("INFECTION PREVENTION")) {
+            doc.setFontSize(13);
+        } else {
+            doc.setFontSize(16);
         }
-    }
+        doc.setFont("helvetica", "bold");
+        doc.text(formName.toUpperCase(), margin, 14);
+
+        if (orgLogoUrl) {
+            try {
+                const logoImg = await loadImage(orgLogoUrl);
+                const canvas = document.createElement('canvas');
+                canvas.width = logoImg.naturalWidth;
+                canvas.height = logoImg.naturalHeight;
+                const ctx = canvas.getContext('2d')!;
+                ctx.drawImage(logoImg, 0, 0);
+                const logoDataUrl = canvas.toDataURL('image/png');
+                const logoSize = 14;
+                const aspect = logoImg.naturalWidth / logoImg.naturalHeight;
+                const logoW = logoSize * aspect;
+                doc.addImage(logoDataUrl, 'PNG', pageWidth - margin - logoW, (headerHeight - logoSize) / 2, logoW, logoSize);
+            } catch (e) {
+                console.warn("Logo load failed", e);
+            }
+        }
+    };
+
+    const ensureSpace = async (heightNeeded: number, currentY: number) => {
+        if (currentY + heightNeeded > 280) {
+            doc.addPage();
+            await drawHeader();
+            return 30; // Return new yPos after header
+        }
+        return currentY;
+    };
 
     let yPos = 30;
+    await drawHeader();
 
-    const addSectionTitle = (title: string, y: number) => {
-        if (y > 270) {
-            doc.addPage();
-            y = 20;
-        }
+    const addSectionTitle = async (title: string, y: number) => {
+        y = await ensureSpace(12, y);
         doc.setFillColor(243, 244, 246);
         doc.rect(margin, y, pageWidth - (margin * 2), 8, 'F');
-        doc.setDrawColor(34, 197, 94); // Use green for section accent too
+        doc.setDrawColor(34, 197, 94);
         doc.setLineWidth(0.5);
         doc.line(margin, y, margin, y + 8);
         doc.setTextColor(31, 41, 55);
@@ -753,7 +762,27 @@ export const generateCareFilePDF = async ({
         doc.setFont("helvetica", "bold");
         doc.text(title.toUpperCase(), margin + 4, y + 5.5);
         doc.setTextColor(0, 0, 0);
-        return y + 12;
+        return y + 10;
+    };
+
+    const addField = async (label: string, value: any, x: number, y: number, width: number, skipSpaceCheck = false) => {
+        if (!skipSpaceCheck) {
+            y = await ensureSpace(12, y); 
+        }
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(107, 114, 128);
+        doc.text(label.toUpperCase(), x, y);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(17, 24, 39);
+
+        const displayValue = formatValue(value);
+        if (!displayValue && typeof value === 'object') return y; 
+
+        const splitValue = doc.splitTextToSize(displayValue, width);
+        doc.text(splitValue, x, y + 4);
+        return y + 4 + (splitValue.length * 4);
     };
 
     const formatValue = (value: any): string => {
@@ -782,49 +811,30 @@ export const generateCareFilePDF = async ({
         return String(value);
     };
 
-    const addField = (label: string, value: any, x: number, y: number, width: number) => {
-        if (y > 270) {
-            doc.addPage();
-            y = 20;
-        }
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(107, 114, 128);
-        doc.text(label.toUpperCase(), x, y);
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(17, 24, 39);
-
-        const displayValue = formatValue(value);
-        if (!displayValue && typeof value === 'object') return y; // Don't render empty labels for objects
-
-        const splitValue = doc.splitTextToSize(displayValue, width);
-        doc.text(splitValue, x, y + 5);
-        return y + 5 + (splitValue.length * 5);
-    };
-
     // --- Dependency Assessment Specialized Layout ---
     if (formName.toUpperCase().includes("DEPENDENCY ASSESSMENT")) {
         // Resident info section
-        yPos = addSectionTitle("RESIDENT INFORMATION", yPos);
+        yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
         const col2 = margin + (pageWidth - margin * 2) / 2;
         const colWidth = (pageWidth - margin * 2) / 2 - 5;
 
-        let y1 = addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
+        yPos = await ensureSpace(25, yPos);
+        const rowDepY = yPos;
+        let y1 = await addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, rowDepY, colWidth, true);
         const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
         const formattedDob = dobValue ? format(new Date(dobValue), "dd/MM/yyyy") : "N/A";
-        y1 = addField("Date of Birth", formattedDob, margin, y1, colWidth);
-        y1 = addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1, colWidth);
+        y1 = await addField("Date of Birth", formattedDob, margin, y1 + 1, colWidth, true);
+        y1 = await addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1 + 1, colWidth, true);
 
-        let y2 = addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
-        y2 = addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2, colWidth);
-        y2 = addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2, colWidth);
+        let y2 = await addField("Care Home", careHomeName || "N/A", col2, rowDepY, colWidth, true);
+        y2 = await addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2 + 1, colWidth, true);
+        y2 = await addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2 + 1, colWidth, true);
 
-        yPos = Math.max(y1, y2) + 10;
+        yPos = Math.max(y1, y2) + 6;
 
         // History Table (Show this first after resident info)
         if (data.history && Array.isArray(data.history) && data.history.length > 0) {
-            yPos = addSectionTitle("PAST ASSESSMENTS HISTORY", yPos);
+            yPos = await addSectionTitle("PAST ASSESSMENTS HISTORY", yPos);
 
             autoTable(doc, {
                 startY: yPos,
@@ -864,15 +874,15 @@ export const generateCareFilePDF = async ({
         // Current assessment details (Show only if data exists and is not just the empty form)
         const hasCurrentData = data.total_score !== undefined || data.assessment_details;
         if (hasCurrentData) {
-            yPos = addSectionTitle("CURRENT ASSESSMENT DETAILS", yPos);
+            yPos = await addSectionTitle("CURRENT ASSESSMENT DETAILS", yPos);
             const assessmentDate = data.assessment_date || data.created_at || new Date();
             const completedBy = data.completed_by || data.completedBy || "N/A";
 
-            let ay1 = addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
-            ay1 = addField("Total Score", `${data.total_score || 0} pts`, margin, ay1, colWidth);
+            let ay1 = await addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
+            ay1 = await addField("Total Score", `${data.total_score || 0} pts`, margin, ay1, colWidth);
 
-            let ay2 = addField("Completed By", completedBy, col2, yPos, colWidth);
-            ay2 = addField("Dependency Level", data.dependency_level || "N/A", col2, ay2, colWidth);
+            let ay2 = await addField("Completed By", completedBy, col2, yPos, colWidth);
+            ay2 = await addField("Dependency Level", data.dependency_level || "N/A", col2, ay2, colWidth);
 
             yPos = Math.max(ay1, ay2) + 10;
 
@@ -905,25 +915,27 @@ export const generateCareFilePDF = async ({
     // --- Fall Risk Assessment Specialized Layout ---
     if (formName.toUpperCase().includes("FALL RISK ASSESSMENT")) {
         // Resident info section
-        yPos = addSectionTitle("RESIDENT INFORMATION", yPos);
+        yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
         const col2 = margin + (pageWidth - margin * 2) / 2;
         const colWidth = (pageWidth - margin * 2) / 2 - 5;
 
-        let y1 = addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
+        yPos = await ensureSpace(25, yPos);
+        const rowFallY = yPos;
+        let y1 = await addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, rowFallY, colWidth, true);
         const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
         const formattedDob = dobValue ? format(new Date(dobValue), "dd/MM/yyyy") : "N/A";
-        y1 = addField("Date of Birth", formattedDob, margin, y1, colWidth);
-        y1 = addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1, colWidth);
+        y1 = await addField("Date of Birth", formattedDob, margin, y1 + 1, colWidth, true);
+        y1 = await addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1 + 1, colWidth, true);
 
-        let y2 = addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
-        y2 = addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2, colWidth);
-        y2 = addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2, colWidth);
+        let y2 = await addField("Care Home", careHomeName || "N/A", col2, rowFallY, colWidth, true);
+        y2 = await addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2 + 1, colWidth, true);
+        y2 = await addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2 + 1, colWidth, true);
 
-        yPos = Math.max(y1, y2) + 10;
+        yPos = Math.max(y1, y2) + 6;
 
         // History Table
         if (data.history && Array.isArray(data.history) && data.history.length > 0) {
-            yPos = addSectionTitle("PAST ASSESSMENTS HISTORY", yPos);
+            yPos = await addSectionTitle("PAST ASSESSMENTS HISTORY", yPos);
 
             const FALL_RISK_OPTIONS: any = {
                 age: [{ label: "86+", value: 3 }, { label: "81-85", value: 2 }, { label: "65-80", value: 1 }, { label: "Under 65", value: 0 }],
@@ -995,15 +1007,15 @@ export const generateCareFilePDF = async ({
         // Current assessment details
         const hasCurrentData = data.total_score !== undefined || data.assessment_details;
         if (hasCurrentData) {
-            yPos = addSectionTitle("CURRENT ASSESSMENT DETAILS", yPos);
+            yPos = await addSectionTitle("CURRENT ASSESSMENT DETAILS", yPos);
             const assessmentDate = data.assessment_date || data.created_at || new Date();
             const completedBy = data.completed_by || data.completedBy || "N/A";
 
-            let ay1 = addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
-            ay1 = addField("Total Score", `${data.total_score || 0} pts`, margin, ay1, colWidth);
+            let ay1 = await addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
+            ay1 = await addField("Total Score", `${data.total_score || 0} pts`, margin, ay1, colWidth);
 
-            let ay2 = addField("Completed By", completedBy, col2, yPos, colWidth);
-            ay2 = addField("Risk Level", data.risk_level || "N/A", col2, ay2, colWidth);
+            let ay2 = await addField("Completed By", completedBy, col2, yPos, colWidth);
+            ay2 = await addField("Risk Level", data.risk_level || "N/A", col2, ay2, colWidth);
 
             const FALL_RISK_OPTIONS: any = {
                 age: [{ label: "86+", value: 3 }, { label: "81-85", value: 2 }, { label: "65-80", value: 1 }, { label: "Under 65", value: 0 }],
@@ -1071,19 +1083,21 @@ export const generateCareFilePDF = async ({
         const colWidth = (pageWidth - margin * 2) / 2 - 5;
 
         // 1. Resident Information (always first)
-        yPos = addSectionTitle("RESIDENT INFORMATION", yPos);
+        yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
 
-        let y1 = addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
+        yPos = await ensureSpace(25, yPos);
+        const rowChokeY = yPos;
+        let y1 = await addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, rowChokeY, colWidth, true);
         const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
         const formattedDob = dobValue ? format(new Date(dobValue), "dd/MM/yyyy") : "N/A";
-        y1 = addField("Date of Birth", formattedDob, margin, y1, colWidth);
-        y1 = addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1, colWidth);
+        y1 = await addField("Date of Birth", formattedDob, margin, y1 + 1, colWidth, true);
+        y1 = await addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1 + 1, colWidth, true);
 
-        let y2 = addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
-        y2 = addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2, colWidth);
-        y2 = addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2, colWidth);
+        let y2 = await addField("Care Home", careHomeName || "N/A", col2, rowChokeY, colWidth, true);
+        y2 = await addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2 + 1, colWidth, true);
+        y2 = await addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2 + 1, colWidth, true);
 
-        yPos = Math.max(y1, y2) + 10;
+        yPos = Math.max(y1, y2) + 6;
 
         // Helper to calculate section score from risk_factors JSONB
         const calcSectionScore = (factors: any, keys: { [k: string]: number }) => {
@@ -1094,7 +1108,7 @@ export const generateCareFilePDF = async ({
 
         // 2. Past Assessments History table
         if (data.history && Array.isArray(data.history) && data.history.length > 0) {
-            yPos = addSectionTitle("PAST ASSESSMENTS HISTORY", yPos);
+            yPos = await addSectionTitle("PAST ASSESSMENTS HISTORY", yPos);
 
             autoTable(doc, {
                 startY: yPos,
@@ -1132,15 +1146,15 @@ export const generateCareFilePDF = async ({
         // 3. Current assessment details
         const hasCurrentData = data.total_score !== undefined || data.risk_factors;
         if (hasCurrentData) {
-            yPos = addSectionTitle("CURRENT ASSESSMENT DETAILS", yPos);
+            yPos = await addSectionTitle("CURRENT ASSESSMENT DETAILS", yPos);
             const assessmentDate = data.assessment_date || data.created_at || new Date();
             const completedBy = data.completed_by || data.completedBy || "N/A";
 
-            let ay1 = addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
-            ay1 = addField("Total Score", `${data.total_score || 0} pts`, margin, ay1, colWidth);
-            ay1 = addField("Completed By", completedBy, margin, ay1, colWidth);
+            let ay1 = await addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
+            ay1 = await addField("Total Score", `${data.total_score || 0} pts`, margin, ay1, colWidth);
+            ay1 = await addField("Completed By", completedBy, margin, ay1, colWidth);
 
-            const ay2 = addField("Risk Level", data.risk_level || "N/A", col2, yPos, colWidth);
+            const ay2 = await addField("Risk Level", data.risk_level || "N/A", col2, yPos, colWidth);
 
             yPos = Math.max(ay1, ay2) + 10;
 
@@ -1174,47 +1188,49 @@ export const generateCareFilePDF = async ({
         const colWidth = (pageWidth - margin * 2) / 2 - 5;
 
         // 1. Resident Information
-        yPos = addSectionTitle("RESIDENT INFORMATION", yPos);
+        yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
 
-        let y1 = addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
+        yPos = await ensureSpace(25, yPos);
+        const rowOralY = yPos;
+        let y1 = await addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, rowOralY, colWidth, true);
         const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
         const formattedDob = dobValue ? format(new Date(dobValue), "dd/MM/yyyy") : "N/A";
-        y1 = addField("Date of Birth", formattedDob, margin, y1, colWidth);
-        y1 = addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1, colWidth);
+        y1 = await addField("Date of Birth", formattedDob, margin, y1 + 1, colWidth, true);
+        y1 = await addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, y1 + 1, colWidth, true);
 
-        let y2 = addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
-        y2 = addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2, colWidth);
-        y2 = addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2, colWidth);
+        let y2 = await addField("Care Home", careHomeName || "N/A", col2, rowOralY, colWidth, true);
+        y2 = await addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, y2 + 1, colWidth, true);
+        y2 = await addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2 + 1, colWidth, true);
 
-        yPos = Math.max(y1, y2) + 10;
+        yPos = Math.max(y1, y2) + 6;
 
         // 2. Current Assessment Details
-        yPos = addSectionTitle("ASSESSMENT DETAILS", yPos);
+        yPos = await addSectionTitle("ASSESSMENT DETAILS", yPos);
         const assessmentDate = data.assessment_date || data.created_at || new Date();
         const completedBy = data.completed_by || data.completedBy || "N/A";
 
-        let ay1 = addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
-        ay1 = addField("Completed By", completedBy, margin, ay1, colWidth);
-        ay1 = addField("Normal Hygiene Routine", data.oral_hygiene_routine || "N/A", margin, ay1, pageWidth - margin * 2);
+        let ay1 = await addField("Assessment Date", format(new Date(assessmentDate), "dd/MM/yyyy"), margin, yPos, colWidth);
+        ay1 = await addField("Completed By", completedBy, margin, ay1, colWidth);
+        ay1 = await addField("Normal Hygiene Routine", data.oral_hygiene_routine || "N/A", margin, ay1, pageWidth - margin * 2);
 
         yPos = ay1 + 5;
 
         // Dental Info
         const d = data.dental_info || {};
-        yPos = addSectionTitle("DENTAL INFORMATION", yPos);
-        let dy1 = addField("Registered with Dentist", d.isRegisteredWithDentist ? "Yes" : "No", margin, yPos, colWidth);
+        yPos = await addSectionTitle("DENTAL INFORMATION", yPos);
+        let dy1 = await addField("Registered with Dentist", d.isRegisteredWithDentist ? "Yes" : "No", margin, yPos, colWidth);
         if (d.isRegisteredWithDentist) {
-            dy1 = addField("Last Seen", d.lastSeenByDentist || "N/A", margin, dy1, colWidth);
-            dy1 = addField("Dentist Name", d.dentistName || "N/A", margin, dy1, colWidth);
-            dy1 = addField("Contact", d.contactTelephone || "N/A", margin, dy1, colWidth);
-            addField("Practice Address", d.dentalPracticeAddress || "N/A", col2, yPos, colWidth);
+            dy1 = await addField("Last Seen", d.lastSeenByDentist || "N/A", margin, dy1, colWidth);
+            dy1 = await addField("Dentist Name", d.dentistName || "N/A", margin, dy1, colWidth);
+            dy1 = await addField("Contact", d.contactTelephone || "N/A", margin, dy1, colWidth);
+            await addField("Practice Address", d.dentalPracticeAddress || "N/A", col2, yPos, colWidth);
         }
         yPos = dy1 + 10;
 
         // Examination Findings & Symptoms
         const ef = data.exam_findings || {};
         const s = data.symptoms || {};
-        yPos = addSectionTitle("EXAMINATION FINDINGS & SYMPTOMS", yPos);
+        yPos = await addSectionTitle("EXAMINATION FINDINGS & SYMPTOMS", yPos);
 
         const examRows = [
             ["Lips: Dry/Cracked", ef.lipsDryCracked ? "Yes" : "No"],
@@ -1254,7 +1270,7 @@ export const generateCareFilePDF = async ({
 
         // 3. Evaluations Table (Latest 5) - Moved to End
         if (data.evaluations && Array.isArray(data.evaluations) && data.evaluations.length > 0) {
-            yPos = addSectionTitle("ORAL EVALUATIONS HISTORY (LATEST 5)", yPos);
+            yPos = await addSectionTitle("ORAL EVALUATIONS HISTORY (LATEST 5)", yPos);
 
             autoTable(doc, {
                 startY: yPos,
@@ -1296,22 +1312,22 @@ export const generateCareFilePDF = async ({
         const records = Array.isArray(data) ? data : (data.records || []);
 
         // Resident Details Section
-        yPos = addSectionTitle("RESIDENT INFORMATION", yPos);
+        yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
         const col2 = margin + (pageWidth - margin * 2) / 2;
         const colWidth = (pageWidth - margin * 2) / 2 - 5;
 
-        let y1 = addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
+        let y1 = await addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
         const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
         const formattedDob = dobValue ? format(new Date(dobValue), "dd/MM/yyyy") : "N/A";
-        y1 = addField("Date of Birth", formattedDob, margin, y1, colWidth);
+        y1 = await addField("Date of Birth", formattedDob, margin, y1, colWidth);
 
-        let y2 = addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
-        y2 = addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2, colWidth);
+        let y2 = await addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
+        y2 = await addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, y2, colWidth);
 
         yPos = Math.max(y1, y2) + 10;
 
         // Records Table
-        yPos = addSectionTitle("HISTORICAL SPECIMEN RECORDS", yPos);
+        yPos = await addSectionTitle("HISTORICAL SPECIMEN RECORDS", yPos);
 
         autoTable(doc, {
             startY: yPos,
@@ -1335,17 +1351,17 @@ export const generateCareFilePDF = async ({
     }
 
     // --- Resident Info Section ---
-    yPos = addSectionTitle("RESIDENT INFORMATION", yPos);
+    yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
     const col2 = margin + (pageWidth - margin * 2) / 2;
     const colWidth = (pageWidth - margin * 2) / 2 - 5;
 
-    let y1 = addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
+    let y1 = await addField("Full Name", `${resident?.first_name} ${resident?.last_name}`, margin, yPos, colWidth);
     const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
     const formattedDob = dobValue ? new Date(dobValue).toLocaleDateString('en-GB') : "N/A";
-    y1 = addField("Date of Birth", formattedDob, margin, y1, colWidth);
+    y1 = await addField("Date of Birth", formattedDob, margin, y1, colWidth);
 
-    let y2 = addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
-    y2 = addField("Date Generated", new Date().toLocaleDateString('en-GB'), col2, y2, colWidth);
+    let y2 = await addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
+    y2 = await addField("Date Generated", new Date().toLocaleDateString('en-GB'), col2, y2, colWidth);
 
     yPos = Math.max(y1, y2) + 5;
 
@@ -1381,13 +1397,11 @@ export const generateCareFilePDF = async ({
             .trim();
     };
 
-    yPos = addSectionTitle("FORM DETAILS", yPos);
-
-    const renderData = (obj: any, currentY: number, currentX: number, depth: number = 0): number => {
+    yPos = await addSectionTitle("FORM DETAILS", yPos);
+    const renderData = async (obj: any, startY: number, startX: number, depth: number = 0): Promise<number> => {
         // Specialized layout for Smoking Risk Assessment
         if (formName.toUpperCase().includes("SMOKING RISK ASSESSMENT")) {
             const smokingQuestions = [
-                // Resident-specific ignition sources
                 {
                     hazard: "IGNITION SOURCES",
                     label: "Are the Resident's smoking materials controlled by the Home? If 'Yes', detail where they are secured and who is designated as the Responsible Person.",
@@ -1424,16 +1438,12 @@ export const generateCareFilePDF = async ({
                     yesNo: obj.bedroom_control_measures_bool,
                     details: obj.bedroom_control_measures
                 },
-
-                // Oxygen sources
                 {
                     hazard: "OXYGEN SOURCES",
                     label: "Are controls in place to ensure that the resident does NOT smoke/vape in bed or whilst seated on an air flow cushion? If 'Yes' detail what controls have been put in place.",
                     yesNo: obj.oxygen_in_use_in_bedroom,
                     details: obj.oxygen_in_use_in_bedroom_details
                 },
-
-                // Fuel sources
                 {
                     hazard: "FUEL SOURCES",
                     label: "Has a Fire Resistant Fire Apron been provided? (Suppliers Countywide). This product is seen as a control measure to prevent ignition sources coming in contact with: 1. Fumes emanating from a build-up of emollient cream on the residents' clothes, 2. Non-fire retardant clothing i.e. sleepwear. If \"Yes\" detail where the apron is stored when not in use.",
@@ -1452,8 +1462,6 @@ export const generateCareFilePDF = async ({
                     yesNo: obj.fuel_waste_bins_and_rubbish_managed,
                     details: obj.fuel_waste_bins_and_rubbish_managed_details
                 },
-
-                // Smoking room / area
                 {
                     hazard: "SMOKING ROOM / AREA",
                     label: "Are staff directed to restrict flammable material being taken into the smoking room/area by the Resident? (Newspapers, books, etc.).",
@@ -1487,7 +1495,7 @@ export const generateCareFilePDF = async ({
             ];
 
             autoTable(doc, {
-                startY: currentY,
+                startY: startY,
                 head: [['HAZARD/PROBLEM', 'INFORMATION TO CONSIDER', 'YES/NO', 'DETAILS / ACTION']],
                 body: smokingQuestions.map(q => [
                     q.hazard,
@@ -1503,64 +1511,54 @@ export const generateCareFilePDF = async ({
                     1: { cellWidth: 70 },
                     2: { cellWidth: 15, halign: 'center' },
                     3: { cellWidth: 'auto' }
-                },
-                didDrawPage: (data) => {
-                    // Update currentY if it spans multiple pages
                 }
             });
 
             let finalY = (doc as any).lastAutoTable.finalY + 10;
+            const colWidth = (pageWidth - margin * 2) / 2 - 5;
+            const col2 = margin + (pageWidth - margin * 2) / 2;
 
-            // Add completion & review/sign-off sections
             if (obj.completed_by || obj.completedBy) {
                 const completedBy = obj.completed_by || obj.completedBy;
                 const assessmentDate = obj.assessment_date || obj.assessmentDate;
                 const completedByRole = obj.completed_by_role || obj.completedByRole;
 
-                finalY = addSectionTitle("SIGN-OFF", finalY);
-                const sigY1 = addField("Signature Of Person Completing Form And Updating Room File", completedBy, margin, finalY, colWidth);
-                const sigY2 = addField("Print Staff Name", completedBy, col2, finalY, colWidth);
-                const sigY3 = addField("Date", assessmentDate ? new Date(assessmentDate).toLocaleDateString('en-GB') : "N/A", margin, Math.max(sigY1, sigY2) + 2, colWidth);
-                addField("Role", completedByRole || "", col2, Math.max(sigY1, sigY2) + 2, colWidth);
+                finalY = await addSectionTitle("SIGN-OFF", finalY);
+                const sigY1 = await addField("Signature Of Person Completing Form And Updating Room File", completedBy, margin, finalY, colWidth);
+                const sigY2 = await addField("Print Staff Name", completedBy, col2, finalY, colWidth);
+                const sigY3 = await addField("Date", assessmentDate ? new Date(assessmentDate).toLocaleDateString('en-GB') : "N/A", margin, Math.max(sigY1, sigY2) + 2, colWidth);
+                await addField("Role", completedByRole || "", col2, Math.max(sigY1, sigY2) + 2, colWidth);
                 finalY = Math.max(sigY1, sigY2, sigY3) + 8;
             }
 
-            // Risk assessment review section
-            finalY = addSectionTitle("RISK ASSESSMENT REVIEW", finalY);
-            const reviewY1 = addField("Reviewed Monthly", obj.risk_review_monthly, margin, finalY, colWidth);
-            const reviewY2 = addField("Reviewed On Significant Change In Resident's Condition", obj.risk_review_on_condition_change, col2, finalY, colWidth);
-            const reviewY3 = addField("Reviewed After Smoking Related Incident", obj.risk_review_on_incident, margin, Math.max(reviewY1, reviewY2) + 2, colWidth);
+            finalY = await addSectionTitle("RISK ASSESSMENT REVIEW", finalY);
+            const reviewY1 = await addField("Reviewed Monthly", obj.risk_review_monthly, margin, finalY, colWidth);
+            const reviewY2 = await addField("Reviewed On Significant Change In Resident's Condition", obj.risk_review_on_condition_change, col2, finalY, colWidth);
+            const reviewY3 = await addField("Reviewed After Smoking Related Incident", obj.risk_review_on_incident, margin, Math.max(reviewY1, reviewY2) + 2, colWidth);
             finalY = Math.max(reviewY1, reviewY2, reviewY3) + 6;
 
-            // Relatives / visitors awareness (single column to avoid overlap)
-            finalY = addSectionTitle("RELATIVES / VISITORS AWARENESS", finalY);
+            finalY = await addSectionTitle("RELATIVES / VISITORS AWARENESS", finalY);
             const fullWidthRel = pageWidth - margin * 2;
+            const relQuestion = "Have relatives/visitors been made aware of the content of this risk assessment and of the risk to the resident while smoking?";
+            finalY = await addField(relQuestion, obj.relatives_aware, margin, finalY, fullWidthRel) + 4;
 
-            const relQuestion =
-                "Have relatives/visitors been made aware of the content of this risk assessment and of the risk to the resident while smoking?";
-            finalY = addField(relQuestion, obj.relatives_aware, margin, finalY, fullWidthRel) + 4;
-
-            const meetingDate = obj.relatives_awareness_date
-                ? new Date(obj.relatives_awareness_date).toLocaleDateString("en-GB")
-                : "";
+            const meetingDate = obj.relatives_awareness_date ? new Date(obj.relatives_awareness_date).toLocaleDateString("en-GB") : "";
             const meetingTime = obj.relatives_awareness_time || "";
-            const meetingCombined =
-                meetingDate || meetingTime ? `${meetingDate} ${meetingTime}`.trim() : "";
-
-            finalY =
-                addField(
-                    "If yes, record the date and time of the meeting",
-                    meetingCombined,
-                    margin,
-                    finalY,
-                    fullWidthRel
-                ) + 6;
+            const meetingCombined = meetingDate || meetingTime ? `${meetingDate} ${meetingTime}`.trim() : "";
+            finalY = await addField("If yes, record the date and time of the meeting", meetingCombined, margin, finalY, fullWidthRel) + 6;
 
             return finalY;
         }
 
+        let localY = startY;
+        let localX = startX;
+        let maxY = startY;
+        const cWidth = (pageWidth - margin * 2) / 2 - 5;
+        const c2 = margin + (pageWidth - margin * 2) / 2;
+
         const consentType = data.consentType || data.assessment_data?.consentType;
         const isRestraintsForm = formName.toUpperCase().includes("CONSENT AND RISK ASSESSMENT FOR RESTRAINTS");
+
         const entries = Object.entries(obj).filter(([k, v]) => {
             if (SKIP_KEYS.has(k) || isEmptyValue(v)) return false;
 
@@ -1572,69 +1570,42 @@ export const generateCareFilePDF = async ({
             return true;
         });
 
-        let localY = currentY;
-        let localX = currentX;
-        let maxY = currentY;
-
         for (const [key, value] of entries) {
-            if (localY > 260) {
-                doc.addPage();
-                localY = 20;
-                maxY = 20;
+            if (localX === margin) {
+                localY = await ensureSpace(12, localY);
+                maxY = localY;
             }
 
             if (typeof value === 'object' && value !== null) {
                 if (Array.isArray(value)) {
                     const filteredItems = value.filter(item => !isEmptyValue(item));
                     if (filteredItems.length === 0) continue;
+                    if (localX !== margin) { localY = maxY + 4; localX = margin; }
 
-                    if (localX !== margin) { localY = maxY + 5; localX = margin; }
-
-                    if (typeof filteredItems[0] === 'object') {
-                        localY = addSectionTitle(formatFieldKey(key), localY);
-                        // Complex array handling (evaluations/tables)
-                        // [Simplified for brevity - keeping original array logic logic here but wrapped]
-                        const isEvaluation = Object.keys(filteredItems[0]).some(k => ["evaluationDate", "evaluation_date", "progress_notes", "comments"].includes(k));
-                        if (isEvaluation) {
-                            // ... existing evaluation card logic ...
-                            // To keep this clean, I'll assume we want to keep the existing logic 
-                            // but I'll make sure maxY is updated.
-                            // I'll re-implement the essence or just call a sub-function.
-                        } else {
-                            // ... existing table logic ...
-                        }
-                        // For the sake of this edit, I will implement a simpler version that works for most cases
-                        // and specifically fix the restraints array issue.
-                        if (typeof filteredItems[0] !== 'object') {
-                            localY = addField(formatFieldKey(key), filteredItems, margin, localY, pageWidth - margin * 2);
-                        } else {
-                            // Complex array - just list them for now if not evaluation
-                            localY = addSectionTitle(formatFieldKey(key), localY);
-                            filteredItems.forEach((item, i) => {
-                                localY = renderData(item, localY, margin, depth + 1);
-                            });
-                        }
+                    if (typeof filteredItems[0] !== 'object') {
+                        localY = await addField(formatFieldKey(key), filteredItems, margin, localY, pageWidth - margin * 2);
                     } else {
-                        localY = addField(formatFieldKey(key), filteredItems, localX, localY, colWidth);
+                        localY = await addSectionTitle(formatFieldKey(key), localY);
+                        for (const item of filteredItems) {
+                            localY = await renderData(item, localY, margin, depth + 1);
+                        }
                     }
                     maxY = Math.max(maxY, localY);
                 } else {
-                    // Nested Object
-                    if (localX !== margin) { localY = maxY + 5; localX = margin; }
-                    localY = addSectionTitle(formatFieldKey(key), localY);
-                    localY = renderData(value, localY, margin, depth + 1);
+                    if (localX !== margin) { localY = maxY + 4; localX = margin; }
+                    localY = await addSectionTitle(formatFieldKey(key), localY);
+                    localY = await renderData(value, localY, margin, depth + 1);
                     maxY = Math.max(maxY, localY);
                 }
             } else {
-                // Primitive
-                const fieldY = addField(formatFieldKey(key), value, localX, localY, colWidth);
+                const fieldY = await addField(formatFieldKey(key), value, localX, localY, cWidth, true);
                 maxY = Math.max(maxY, fieldY);
 
                 if (localX === margin) {
-                    localX = col2;
+                    localX = c2;
                 } else {
                     localX = margin;
-                    localY = maxY + 2;
+                    localY = maxY + 3; // Spacing for new row
                     maxY = localY;
                 }
             }
@@ -1642,10 +1613,360 @@ export const generateCareFilePDF = async ({
         return maxY;
     };
 
-    // The original logic was complex for evaluations. Let's stick to a robust recursive renderer 
-    // that handles the specific nested objects in Restraints.
+    const assessmentDataForSpecialized = data.assessment_data || data;
 
-    yPos = renderData(data, yPos, margin);
+    // --- Infection Prevention Assessment Specialized Layout ---
+    if (formName.toUpperCase().includes("INFECTION PREVENTION")) {
+        const assessmentData = assessmentDataForSpecialized;
+        const details = assessmentData.symptoms?.details || {};
+        const exposure = assessmentData.exposure_history || {};
+        const colWidth = (pageWidth - margin * 2) / 2 - 5;
+        const col2 = margin + colWidth + 10;
+
+        // 1. Resident Details
+        yPos = await addSectionTitle("RESIDENT DETAILS", yPos);
+        const row1Y = yPos;
+        const y1 = await addField("RESIDENT NAME", assessmentData.name || details.name || "N/A", margin, row1Y, colWidth, true);
+        const y2 = await addField("CONSULTANT / GP NAME", details.consultantGP || resident?.gp_name || resident?.gpName || "N/A", col2, row1Y, colWidth, true);
+        yPos = Math.max(y1, y2) + 2;
+
+        const row2Y = yPos;
+        const y3 = await addField("DATE OF BIRTH", assessmentData.dateOfBirth || details.dateOfBirth ? format(new Date(assessmentData.dateOfBirth || details.dateOfBirth), "dd/MM/yyyy") : "N/A", margin, row2Y, colWidth, true);
+        const y4 = await addField("ASSESSMENT TYPE", assessmentData.assessment_type || assessmentData.assessmentType || "N/A", col2, row2Y, colWidth, true);
+        yPos = Math.max(y3, y4) + 2;
+
+        const row3Y = yPos;
+        const y5 = await addField("HOME ADDRESS", details.homeAddress || "N/A", margin, row3Y, colWidth, true);
+        const y6 = await addField("INFO PROVIDED BY", details.informationProvidedBy || "N/A", col2, row3Y, colWidth, true);
+        yPos = Math.max(y5, y6) + 2;
+
+        const row4Y = yPos;
+        const y7 = await addField("ADMITTED FROM", exposure.admittedFrom || "N/A", margin, row4Y, colWidth, true);
+        const y8 = await addField("ADMISSION DATE", exposure.dateOfAdmission ? format(new Date(exposure.dateOfAdmission), "dd/MM/yyyy") : "N/A", col2, row4Y, colWidth, true);
+        yPos = Math.max(y7, y8) + 2;
+
+        yPos = await addField("REASON FOR ADMISSION", exposure.reasonForAdmission || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // 2. Acute Respiratory Illness (ARI)
+        yPos = await addSectionTitle("ACUTE RESPIRATORY ILLNESS (ARI)", yPos + 2);
+        const respiratory = assessmentData.symptoms?.respiratory || {};
+        const ariFields = [
+            { label: "New Continuous Cough", val: respiratory.newContinuousCough },
+            { label: "Worsening Cough", val: respiratory.worseningCough },
+            { label: "High Temperature", val: respiratory.temperatureHigh },
+            { label: "Tested for Covid-19", val: respiratory.testedForCovid19 },
+            { label: "Tested for Influenza A", val: respiratory.testedForInfluenzaA },
+            { label: "Tested for Influenza B", val: respiratory.testedForInfluenzaB },
+            { label: "Tested for Respiratory Screen", val: respiratory.testedForRespiratoryScreen }
+        ];
+
+        for (let i = 0; i < ariFields.length; i += 2) {
+            const startY = yPos;
+            const h1 = await addField(ariFields[i].label, ariFields[i].val ? "Yes" : "No", margin, startY, colWidth, true);
+            let h2 = startY;
+            if (ariFields[i + 1]) {
+                h2 = await addField(ariFields[i + 1].label, ariFields[i + 1].val ? "Yes" : "No", col2, startY, colWidth, true);
+            }
+            yPos = Math.max(h1, h2) + 1;
+        }
+
+        const resRowY = yPos;
+        const resY1 = await addField("Influenza B Result", respiratory.influenzaB ? "Positive" : "Negative", margin, resRowY, colWidth, true);
+        const resY2 = await addField("Respiratory Screen Result", respiratory.respiratoryScreen ? "Positive" : "Negative", col2, resRowY, colWidth, true);
+        yPos = Math.max(resY1, resY2) + 2;
+        yPos = await addField("Other Symptoms", respiratory.otherRespiratorySymptoms || "None", margin, yPos, pageWidth - margin * 2);
+
+        // 3. Exposure History
+        yPos = await addSectionTitle("EXPOSURE HISTORY", yPos + 2);
+        const expRow1Y = yPos;
+        const expY1 = await addField("Exposed to COVID+ Patients", exposure.exposureToPatientsCovid ? "Yes" : "No", margin, expRow1Y, colWidth, true);
+        const expY2 = await addField("Exposed to COVID+ Staff", exposure.exposureToStaffCovid ? "Yes" : "No", col2, expRow1Y, colWidth, true);
+        yPos = Math.max(expY1, expY2) + 2;
+
+        const expRow2Y = yPos;
+        const expY3 = await addField("Isolation Required", assessmentData.isolationRequired ? "Yes" : "No", margin, expRow2Y, colWidth, true);
+        const expY4 = await addField("Further Treatment Required", exposure.furtherTreatmentRequired ? "Yes" : "No", col2, expRow2Y, colWidth, true);
+        yPos = Math.max(expY3, expY4) + 2;
+        yPos = await addField("Isolation Details", exposure.isolationDetails || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // 4. Diarrhoea & Vomiting
+        yPos = await addSectionTitle("DIARRHOEA & VOMITING (D/V)", yPos + 2);
+        const dv = assessmentData.symptoms?.diarrheaVomiting || {};
+        yPos = await addField("D/V Symptoms (Infection Not Confirmed)", dv.currentSymptoms ? "Yes" : "No", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Contact with D/V (72h)", dv.contactWithOthers ? "Yes" : "No", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Family with D/V (72h)", dv.familyHistory72h ? "Yes" : "No", margin, yPos, pageWidth - margin * 2);
+
+        // 5. Clostridium Difficile
+        yPos = await addSectionTitle("CLOSTRIDIUM DIFFICILE", yPos + 2);
+        const clostridium = assessmentData.symptoms?.clostridium || {};
+        const cRow1Y = yPos;
+        const cY1 = await addField("Active C. Diff", clostridium.active ? "Yes" : "No", margin, cRow1Y, colWidth, true);
+        const cY2 = await addField("History of C. Diff", clostridium.history ? "Yes" : "No", col2, cRow1Y, colWidth, true);
+        yPos = Math.max(cY1, cY2) + 2;
+
+        const cRow2Y = yPos;
+        const cY3 = await addField("Stool Count (72h)", clostridium.stoolCount72h || "N/A", margin, cRow2Y, colWidth, true);
+        const cY4 = await addField("Last Positive Specimen", clostridium.lastPositiveSpecimenDate ? format(new Date(clostridium.lastPositiveSpecimenDate), "dd/MM/yyyy") : "N/A", col2, cRow2Y, colWidth, true);
+        yPos = Math.max(cY3, cY4) + 2;
+
+        const cRow3Y = yPos;
+        const cY5 = await addField("Specimen Result", clostridium.result || "N/A", margin, cRow3Y, colWidth, true);
+        const cY6 = await addField("Treatment Complete", clostridium.treatmentComplete ? "Yes" : "No", col2, cRow3Y, colWidth, true);
+        yPos = Math.max(cY5, cY6) + 2;
+        yPos = await addField("Treatment Received", clostridium.treatmentReceived || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        yPos = await addField("Ongoing Antibiotic Details", clostridium.ongoingDetails || "N/A", margin, yPos + 2, pageWidth - margin * 2);
+        const cRow4Y = yPos;
+        const cY7 = await addField("Date Commenced", clostridium.ongoingDateCommenced ? format(new Date(clostridium.ongoingDateCommenced), "dd/MM/yyyy") : "N/A", margin, cRow4Y, colWidth, true);
+        const cY8 = await addField("Length of Course", clostridium.ongoingLengthOfCourse || "N/A", col2, cRow4Y, colWidth, true);
+        yPos = Math.max(cY7, cY8) + 2;
+        yPos = await addField("Follow-up Required", clostridium.ongoingFollowUpRequired || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // 6. MRSA / MSSA Status
+        yPos = await addSectionTitle("MRSA / MSSA STATUS", yPos + 2);
+        const mrsa = assessmentData.symptoms?.mrsa || {};
+        const mRow1Y = yPos;
+        const mY1 = await addField("Colonised", mrsa.colonised ? "Yes" : "No", margin, mRow1Y, colWidth, true);
+        const mY2 = await addField("Infected", mrsa.infected ? "Yes" : "No", col2, mRow1Y, colWidth, true);
+        yPos = Math.max(mY1, mY2) + 2;
+
+        const mRow2Y = yPos;
+        const mY3 = await addField("Sites Positive", mrsa.sitesPositive || "N/A", margin, mRow2Y, colWidth, true);
+        const mY4 = await addField("Last Positive Swab", mrsa.lastPositiveSwabDate ? format(new Date(mrsa.lastPositiveSwabDate), "dd/MM/yyyy") : "N/A", col2, mRow2Y, colWidth, true);
+        yPos = Math.max(mY3, mY4) + 2;
+
+        const mRow3Y = yPos;
+        const mY5 = await addField("Treatment Received", mrsa.treatmentReceived || "N/A", margin, mRow3Y, colWidth, true);
+        const mY6 = await addField("Treatment Complete", mrsa.treatmentComplete ? "Yes" : "No", col2, mRow3Y, colWidth, true);
+        yPos = Math.max(mY5, mY6) + 2;
+
+        yPos = await addField("Decolonisation Details", mrsa.mrsaMssaDetails || "N/A", margin, yPos + 2, pageWidth - margin * 2);
+        const mRow4Y = yPos;
+        const mY7 = await addField("Date Commenced", mrsa.mrsaMssaDateCommenced ? format(new Date(mrsa.mrsaMssaDateCommenced), "dd/MM/yyyy") : "N/A", margin, mRow4Y, colWidth, true);
+        const mY8 = await addField("Duration", mrsa.mrsaMssaLengthOfCourse || "N/A", col2, mRow4Y, colWidth, true);
+        yPos = Math.max(mY7, mY8) + 2;
+        yPos = await addField("Follow-up Required", mrsa.mrsaMssaFollowUpRequired || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // 7. Multi-drug Resistant Organisms (MDRO)
+        yPos = await addSectionTitle("MULTI-DRUG RESISTANT ORGANISMS (MDRO)", yPos + 2);
+        const mdro = assessmentData.symptoms?.multiDrugResistance || {};
+        const mdroRow1Y = yPos;
+        const mdroY1 = await addField("ESBL", mdro.esbl ? "Yes" : "No", margin, mdroRow1Y, colWidth / 2, true);
+        const mdroY2 = await addField("VRE / GRE", mdro.vreGre ? "Yes" : "No", margin + colWidth / 2 + 5, mdroRow1Y, colWidth / 2, true);
+        const mdroY3 = await addField("CPE", mdro.cpe ? "Yes" : "No", col2, mdroRow1Y, colWidth / 2, true);
+        yPos = Math.max(mdroY1, mdroY2, mdroY3) + 2;
+        yPos = await addField("Other MDR Organisms", mdro.other || "None", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Relevant Information", mdro.relevantInformation || "N/A", margin, yPos + 1, pageWidth - margin * 2);
+
+        // 8. Vaccinations & Awareness
+        yPos = await addSectionTitle("VACCINATIONS & AWARENESS", yPos + 2);
+        const vRow1Y = yPos;
+        const vY1 = await addField("Awareness of Status", exposure.awarenessOfInfection ? "Yes" : "No", margin, vRow1Y, colWidth, true);
+        const vY2 = await addField("Last Flu Vaccination", exposure.lastFluVaccinationDate ? format(new Date(exposure.lastFluVaccinationDate), "dd/MM/yyyy") : "N/A", col2, vRow1Y, colWidth, true);
+        yPos = Math.max(vY1, vY2) + 8;
+
+        // Completion Info
+        yPos = await ensureSpace(20, yPos);
+        const compRowY = yPos;
+        const c1 = await addField("COMPLETED BY", assessmentData.completed_by || "N/A", margin, compRowY, colWidth, true);
+        const c2 = await addField("JOB ROLE", details.jobRole || assessmentData.jobRole || "N/A", col2, compRowY, colWidth, true);
+        yPos = Math.max(c1, c2) + 2;
+        const compDate = assessmentData.assessment_date || assessmentData.completionDate || assessmentData.assessmentDate;
+        yPos = await addField("COMPLETION DATE", compDate ? format(new Date(compDate), "dd/MM/yyyy") : (assessmentData.created_at ? format(new Date(assessmentData.created_at), "dd/MM/yyyy") : "N/A"), margin, yPos, colWidth);
+
+        doc.save(`Infection-Prevention-Assessment-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    // --- Pre-Admission Assessment Specialized Layout ---
+    if (formName.toUpperCase().includes("PRE-ADMISSION ASSESSMENT FORM") || (formName.toUpperCase().includes("PRE-ADMISSION") && !formName.toUpperCase().includes("INFECTION PREVENTION"))) {
+        const assessmentData = assessmentDataForSpecialized;
+        
+        // 1. Consent
+        yPos = await addSectionTitle("CONSENT", yPos);
+        const consentAcceptedAt = assessmentData.consentAcceptedAt || data.consent_accepted_at;
+        const consentText = consentAcceptedAt 
+            ? `The person being assessed agreed to the assessment being completed on ${format(new Date(consentAcceptedAt), "PPP 'at' p")}`
+            : "Consent not recorded.";
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        const consentLines = doc.splitTextToSize(consentText, pageWidth - margin * 2);
+        doc.text(consentLines, margin, yPos);
+        yPos += (consentLines.length * 5) + 10;
+
+        const cpWidth = (pageWidth - margin * 2) / 2 - 5;
+        const cpCol2 = margin + (pageWidth - margin * 2) / 2;
+
+        // 2. Administrative Details
+        yPos = await addSectionTitle("ADMINISTRATIVE DETAILS", yPos);
+        yPos = await ensureSpace(20, yPos);
+        const rowAdminY = yPos;
+        let yAdmin1 = await addField("Care Home Name", assessmentData.careHomeName || data.care_home_name || careHomeName, margin, rowAdminY, cpWidth, true);
+        yAdmin1 = await addField("Assessing Worker", assessmentData.userName || data.user_name || "N/A", margin, yAdmin1 + 1, cpWidth, true);
+        
+        let yAdmin2 = await addField("NHS Number", assessmentData.nhsHealthCareNumber || data.nhs_number || "N/A", cpCol2, rowAdminY, cpWidth, true);
+        yAdmin2 = await addField("Job Role", assessmentData.jobRole || data.job_role || "N/A", cpCol2, yAdmin2 + 1, cpWidth, true);
+        
+        const assessmentDate = assessmentData.date || data.date;
+        yPos = Math.max(yAdmin1, yAdmin2);
+        const yAdmin3 = await addField("Assessment Date", assessmentDate ? format(new Date(assessmentDate), "PPP") : "N/A", margin, yPos + 1, cpWidth, true);
+        const yAdmin4 = await addField("Signature", assessmentData.signature || "N/A", cpCol2, yPos + 1, cpWidth, true);
+        yPos = Math.max(yAdmin3, yAdmin4) + 3;
+
+        // 3. Resident Information
+        yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
+        yPos = await ensureSpace(30, yPos);
+        const rowResY = yPos;
+        const fName = assessmentData.firstName || data.first_name || resident?.first_name || "";
+        const lName = assessmentData.lastName || data.last_name || resident?.last_name || "";
+        let yRes1 = await addField("Full Name", `${fName} ${lName}`.trim(), margin, rowResY, cpWidth, true);
+        yRes1 = await addField("Phone Number", assessmentData.phoneNumber || data.phone_number || "N/A", margin, yRes1 + 1, cpWidth, true);
+        yRes1 = await addField("Gender", assessmentData.gender || "N/A", margin, yRes1 + 1, cpWidth, true);
+        
+        const dob = assessmentData.dateOfBirth || data.date_of_birth || resident?.date_of_birth;
+        let yRes2 = await addField("Date of Birth", dob ? format(new Date(dob), "dd/MM/yyyy") : "N/A", cpCol2, rowResY, cpWidth, true);
+        yRes2 = await addField("Ethnicity", assessmentData.ethnicity || "N/A", cpCol2, yRes2 + 1, cpWidth, true);
+        yRes2 = await addField("Religion", assessmentData.religion || "N/A", cpCol2, yRes2 + 1, cpWidth, true);
+        
+        yPos = Math.max(yRes1, yRes2);
+        yPos = await addField("Current Address", assessmentData.address || "N/A", margin, yPos + 1, pageWidth - margin * 2) + 3;
+
+        // 4. Next of Kin
+        yPos = await addSectionTitle("NEXT OF KIN", yPos);
+        yPos = await ensureSpace(15, yPos);
+        const rowKinY = yPos;
+        let yKin1 = await addField("Name", `${assessmentData.kinFirstName || ""} ${assessmentData.kinLastName || ""}`.trim(), margin, rowKinY, cpWidth, true);
+        yKin1 = await addField("Relationship", assessmentData.kinRelationship || "N/A", margin, yKin1 + 1, cpWidth, true);
+        
+        const yKin2 = await addField("Phone Number", assessmentData.kinPhoneNumber || "N/A", cpCol2, rowKinY, cpWidth, true);
+        yPos = Math.max(yKin1, yKin2) + 3;
+
+        // 5. Professional Contacts
+        yPos = await addSectionTitle("PROFESSIONAL CONTACTS", yPos);
+        
+        const contacts = [
+            { nLabel: "Care Manager", nVal: assessmentData.careManagerName, pLabel: "Care Manager Phone", pVal: assessmentData.careManagerPhoneNumber },
+            { nLabel: "District Nurse", nVal: assessmentData.districtNurseName, pLabel: "District Nurse Phone", pVal: assessmentData.districtNursePhoneNumber },
+            { nLabel: "General Practitioner", nVal: assessmentData.generalPractitionerName, pLabel: "GP Phone", pVal: assessmentData.generalPractitionerPhoneNumber },
+            { nLabel: "Provider Name", nVal: assessmentData.providerHealthcareInfoName, pLabel: "Designation", pVal: assessmentData.providerHealthcareInfoDesignation }
+        ];
+
+        for (const c of contacts) {
+            yPos = await ensureSpace(15, yPos);
+            const rowYValue = yPos;
+            const h1 = await addField(c.nLabel, c.nVal || "N/A", margin, rowYValue, colWidth, true);
+            const h2 = await addField(c.pLabel, c.pVal || "N/A", col2, rowYValue, colWidth, true);
+            yPos = Math.max(h1, h2) + 1;
+        }
+        yPos += 4;
+
+        // 6. Medical Assessment
+        yPos = await addSectionTitle("MEDICAL ASSESSMENT", yPos);
+        yPos = await addField("Known Allergies", assessmentData.allergies || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Medical History & Diagnoses", assessmentData.medicalHistory || "N/A", margin, yPos + 1, pageWidth - margin * 2);
+        yPos = await addField("Medications Prescribed", assessmentData.medicationPrescribed || "N/A", margin, yPos + 1, pageWidth - margin * 2) + 3;
+
+        // 7. Activities of Daily Living
+        yPos = await addSectionTitle("ACTIVITIES OF DAILY LIVING", yPos);
+        const adlFields = [
+            { label: "Consent Capacity Rights", key: "consentCapacityRights" },
+            { label: "Medication", key: "medication" },
+            { label: "Mobility", key: "mobility" },
+            { label: "Nutrition", key: "nutrition" },
+            { label: "Continence", key: "continence" },
+            { label: "Hygiene Dressing", key: "hygieneDressing" },
+            { label: "Skin", key: "skin" },
+            { label: "Cognition", key: "cognition" },
+            { label: "Infection", key: "infection" },
+            { label: "Breathing", key: "breathing" },
+            { label: "Altered State of Consciousness", key: "alteredStateOfConsciousness" }
+        ];
+
+        for (let i = 0; i < adlFields.length; i += 2) {
+            yPos = await ensureSpace(15, yPos);
+            const f1 = adlFields[i];
+            const f2 = adlFields[i + 1];
+            
+            const startYValue = yPos;
+            const h1 = await addField(f1.label, assessmentData[f1.key] || "N/A", margin, startYValue, colWidth, true);
+            let h2 = startYValue;
+            if (f2) {
+                h2 = await addField(f2.label, assessmentData[f2.key] || "N/A", col2, startYValue, colWidth, true);
+            }
+            yPos = Math.max(h1, h2) + 1;
+        }
+        yPos += 3;
+
+        // 8. Legal & End of Life
+        yPos = await addSectionTitle("LEGAL & END OF LIFE", yPos);
+        yPos = await ensureSpace(15, yPos);
+        const rowLegalY = yPos;
+        let yLegal1 = await addField("DNACPR", assessmentData.dnacpr ? "Yes" : "No", margin, rowLegalY, colWidth, true);
+        const yLegal1Val = yLegal1;
+        yLegal1 = await addField("Capacity", assessmentData.capacity ? "Yes" : "No", margin, yLegal1Val + 1, colWidth, true);
+        
+        let yLegal2 = await addField("Advanced Decision", assessmentData.advancedDecision ? "Yes" : "No", col2, rowLegalY, colWidth, true);
+        yLegal2 = await addField("Advanced Care Plan", assessmentData.advancedCarePlan ? "Yes" : "No", col2, yLegal2 + 1, colWidth, true);
+        
+        yPos = Math.max(yLegal1, yLegal2);
+        yPos = await addField("Palliative Care Comments", assessmentData.comments || "N/A", margin, yPos + 1, pageWidth - margin * 2) + 3;
+
+        // 9. Resident Preferences
+        yPos = await addSectionTitle("RESIDENT PREFERENCES", yPos);
+        const prefFields = [
+            { label: "Room Preferences", key: "roomPreferences" },
+            { label: "Admission Contact", key: "admissionContact" },
+            { label: "Food Preferences", key: "foodPreferences" },
+            { label: "Preferred Name", key: "preferedName" },
+            { label: "Family Concerns", key: "familyConcerns" }
+        ];
+
+        for (let i = 0; i < prefFields.length; i += 2) {
+            yPos = await ensureSpace(15, yPos);
+            const f1 = prefFields[i];
+            const f2 = prefFields[i + 1];
+            
+            const startYValue = yPos;
+            const h1 = await addField(f1.label, assessmentData[f1.key] || "N/A", margin, startYValue, colWidth, true);
+            let h2 = startYValue;
+            if (f2) {
+                h2 = await addField(f2.label, assessmentData[f2.key] || "N/A", col2, startYValue, colWidth, true);
+            }
+            yPos = Math.max(h1, h2) + 1;
+        }
+        yPos += 3;
+
+        // 10. Other Relevant Information
+        yPos = await addSectionTitle("OTHER RELEVANT INFORMATION", yPos);
+        yPos = await addField("Other health professionals involved in Persons care", assessmentData.otherHealthCareProfessional || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Equipment required", assessmentData.equipment || "N/A", margin, yPos + 1, pageWidth - margin * 2) + 3;
+
+        // 11. Financial & Final Details
+        yPos = await addSectionTitle("FINANCIAL & FINAL DETAILS", yPos);
+        yPos = await addField("Does anyone attend to finances?", assessmentData.attendFinances ? "Yes" : "No", margin, yPos, pageWidth - margin * 2);
+        
+        if (assessmentData.attendFinances === true) {
+            yPos = await ensureSpace(20, yPos);
+            const rowFinY = yPos;
+            const yFin1 = await addField("Name", assessmentData.financesName || "N/A", margin, rowFinY, cpWidth, true);
+            const yFin2 = await addField("Contact Number", assessmentData.financesContactNumber || "N/A", cpCol2, rowFinY, cpWidth, true);
+            yPos = Math.max(yFin1, yFin2);
+            yPos = await addField("Address", assessmentData.financesAddress || "N/A", margin, yPos + 1, pageWidth - margin * 2) + 1;
+        }
+
+        yPos = await addField("Additional Considerations", assessmentData.additionalConsiderations || "N/A", margin, yPos + 3, pageWidth - margin * 2);
+        
+        yPos = await addSectionTitle("ASSESSMENT OUTCOME", yPos + 3);
+        yPos = await addField("Outcome Details", assessmentData.outcome || "N/A", margin, yPos, pageWidth - margin * 2);
+        const pDate = assessmentData.plannedAdmissionDate || data.planned_admission_date;
+        yPos = await addField("Planned Admission Date", pDate ? format(new Date(pDate), "PPP") : "N/A", margin, yPos + 1, colWidth);
+
+        doc.save(`Pre-Admission-Assessment-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    yPos = await renderData(data, yPos, margin);
 
     // Specialized narrative layout for Consent and Risk Assessment for Restraints
     if (formName.toUpperCase().includes("CONSENT AND RISK ASSESSMENT FOR RESTRAINTS")) {
@@ -1664,7 +1985,7 @@ export const generateCareFilePDF = async ({
             return map[pref] || "";
         };
 
-        yPos = addSectionTitle("Consent Statement", yPos + 5);
+        yPos = await addSectionTitle("Consent Statement", yPos + 5);
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(17, 24, 39);
@@ -1691,12 +2012,16 @@ export const generateCareFilePDF = async ({
             doc.text(lines, margin, yPos);
             yPos += lines.length * 5 + 4;
 
-            const colWidth = (pageWidth - margin * 2) / 2 - 5;
-            const sigY1 = addField("Signature Of Person", able.personSignature, margin, yPos, colWidth);
-            const sigY2 = addField("Date", able.personSignatureDate, col2, yPos, colWidth);
-            const sigY3 = addField("Signature Of Member", able.memberSignature, margin, Math.max(sigY1, sigY2) + 2, colWidth);
-            const sigY4 = addField("Date", able.memberSignatureDate, col2, Math.max(sigY1, sigY2) + 2, colWidth);
-            yPos = Math.max(sigY1, sigY2, sigY3, sigY4) + 6;
+            const cpWidth = (pageWidth - margin * 2) / 2 - 5;
+            yPos = await ensureSpace(25, yPos);
+            const rowSigY1 = yPos;
+            const sigY1 = await addField("Signature Of Person", able.personSignature, margin, rowSigY1, cpWidth, true);
+            const sigY2 = await addField("Date", able.personSignatureDate, col2, rowSigY1, cpWidth, true);
+            
+            const rowSigY2 = Math.max(sigY1, sigY2) + 2;
+            const sigY3 = await addField("Signature Of Member", able.memberSignature, margin, rowSigY2, cpWidth, true);
+            const sigY4 = await addField("Date", able.memberSignatureDate, col2, rowSigY2, cpWidth, true);
+            yPos = Math.max(sigY3, sigY4) + 4;
         } else if (consentType === "UNABLE_TO_CONSENT" && assessmentData.discussionWithRelative) {
             const rel = assessmentData.discussionWithRelative;
             const relName = rel.relativeName || "";
@@ -1723,12 +2048,16 @@ export const generateCareFilePDF = async ({
             doc.text(lines, margin, yPos);
             yPos += lines.length * 5 + 4;
 
-            const colWidth = (pageWidth - margin * 2) / 2 - 5;
-            const sigY1 = addField("Signature Of Person", rel.personSignature, margin, yPos, colWidth);
-            const sigY2 = addField("Date", rel.personSignatureDate, col2, yPos, colWidth);
-            const sigY3 = addField("Signature Of Member", rel.memberSignature, margin, Math.max(sigY1, sigY2) + 2, colWidth);
-            const sigY4 = addField("Date", rel.memberSignatureDate, col2, Math.max(sigY1, sigY2) + 2, colWidth);
-            yPos = Math.max(sigY1, sigY2, sigY3, sigY4) + 6;
+            const cpWidth = (pageWidth - margin * 2) / 2 - 5;
+            yPos = await ensureSpace(25, yPos);
+            const rowSigY1 = yPos;
+            const sigY1 = await addField("Signature Of Person", rel.personSignature, margin, rowSigY1, cpWidth, true);
+            const sigY2 = await addField("Date", rel.personSignatureDate, col2, rowSigY1, cpWidth, true);
+            
+            const rowSigY2 = Math.max(sigY1, sigY2) + 2;
+            const sigY3 = await addField("Signature Of Member", rel.memberSignature, margin, rowSigY2, cpWidth, true);
+            const sigY4 = await addField("Date", rel.memberSignatureDate, col2, rowSigY2, cpWidth, true);
+            yPos = Math.max(sigY3, sigY4) + 4;
         }
     }
 

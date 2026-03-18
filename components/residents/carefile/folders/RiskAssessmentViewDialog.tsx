@@ -557,6 +557,9 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
         { label: "Assessment Type", path: "assessment_type" },
         { label: "Info Provided By", path: "symptoms.details.informationProvidedBy" },
         { label: "Consultant / GP", path: "symptoms.details.consultantGP" },
+        { label: "Admitted From", path: "exposure_history.admittedFrom" },
+        { label: "Admission Date", path: "exposure_history.dateOfAdmission", fmt: "date" },
+        { label: "Reason for Admission", path: "exposure_history.reasonForAdmission" },
       ],
     },
     {
@@ -575,9 +578,6 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
     {
       title: "Exposure & Isolation",
       fields: [
-        { label: "Admitted From", path: "exposure_history.admittedFrom" },
-        { label: "Admission Date", path: "exposure_history.dateOfAdmission", fmt: "date" },
-        { label: "Reason for Admission", path: "exposure_history.reasonForAdmission" },
         { label: "COVID+ Patient Exposure", path: "exposure_history.exposureToPatientsCovid", fmt: "bool" },
         { label: "COVID+ Staff Exposure", path: "exposure_history.exposureToStaffCovid", fmt: "bool" },
         { label: "Isolation Required", path: "isolation_required", fmt: "bool" },
@@ -588,9 +588,9 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
     {
       title: "Diarrhoea & Vomiting",
       fields: [
-        { label: "Current Symptoms", path: "symptoms.diarrheaVomiting.currentSymptoms", fmt: "bool" },
-        { label: "Contact With Others", path: "symptoms.diarrheaVomiting.contactWithOthers", fmt: "bool" },
-        { label: "Family History (72h)", path: "symptoms.diarrheaVomiting.familyHistory72h", fmt: "bool" },
+        { label: "Does have d/v where infection not confirmed?", path: "symptoms.diarrheaVomiting.currentSymptoms", fmt: "bool" },
+        { label: "Contact with others with d/v (72h)?", path: "symptoms.diarrheaVomiting.contactWithOthers", fmt: "bool" },
+        { label: "Family with d/v (72h)?", path: "symptoms.diarrheaVomiting.familyHistory72h", fmt: "bool" },
       ],
     },
     {
@@ -604,6 +604,7 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
         { label: "Treatment Received", path: "symptoms.clostridium.treatmentReceived" },
         { label: "Treatment Complete", path: "symptoms.clostridium.treatmentComplete", fmt: "bool" },
         { label: "Ongoing Antibiotic", path: "symptoms.clostridium.ongoingDetails" },
+        { label: "Ongoing Follow-up", path: "symptoms.clostridium.ongoingFollowUpRequired" },
       ],
     },
     {
@@ -615,6 +616,7 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
         { label: "Sites Positive", path: "symptoms.mrsa.sitesPositive" },
         { label: "Treatment Received", path: "symptoms.mrsa.treatmentReceived" },
         { label: "Decolonisation Details", path: "symptoms.mrsa.mrsaMssaDetails" },
+        { label: "Decolonisation Follow-up", path: "symptoms.mrsa.mrsaMssaFollowUpRequired" },
       ],
     },
     {

@@ -52,7 +52,7 @@ export const InfectionPreventionAssessmentSchema = z.object({
   ongoingDetails: z.string().optional(),
   ongoingDateCommenced: z.number().optional(),
   ongoingLengthOfCourse: z.string().optional(),
-  ongoingFollowUpRequired: z.enum(["yes", "no"]).optional(),
+  ongoingFollowUpRequired: z.string().optional(),
 
   // 6 MRSA / MSSA
   mrsaMssaColonised: z.boolean(),

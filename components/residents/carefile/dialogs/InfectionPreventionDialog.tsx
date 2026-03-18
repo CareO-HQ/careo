@@ -85,7 +85,7 @@ export default function InfectionPreventionDialog({
         assessmentType: initialData.assessment_type || "Pre-admission",
         informationProvidedBy: initialData.symptoms?.details?.informationProvidedBy || "",
         admittedFrom: initialData.exposure_history?.admittedFrom || "",
-        consultantGP: initialData.symptoms?.details?.consultantGP || "",
+        consultantGP: initialData.symptoms?.details?.consultantGP || resident.gp_name || resident.gpName || "",
         reasonForAdmission: initialData.exposure_history?.reasonForAdmission || "",
         dateOfAdmission: initialData.exposure_history?.dateOfAdmission || undefined,
 
@@ -143,7 +143,7 @@ export default function InfectionPreventionDialog({
         lastFluVaccinationDate: initialData.exposure_history?.lastFluVaccinationDate || undefined,
 
         completedBy: initialData.completed_by || userName,
-        jobRole: initialData.jobRole || "",
+        jobRole: initialData.symptoms?.details?.jobRole || initialData.jobRole || "",
         signature: initialData.signature || userName,
         assessmentDate: (initialData.assessment_date || initialData.completion_date) ? new Date(initialData.assessment_date || initialData.completion_date).getTime() : Date.now()
       }
@@ -157,7 +157,7 @@ export default function InfectionPreventionDialog({
         assessmentType: "Pre-admission",
         informationProvidedBy: "",
         admittedFrom: "",
-        consultantGP: "",
+        consultantGP: resident.gp_name || resident.gpName || "",
         reasonForAdmission: "",
         dateOfAdmission: undefined,
         newContinuousCough: false,
@@ -225,6 +225,7 @@ export default function InfectionPreventionDialog({
             homeAddress: values.homeAddress,
             informationProvidedBy: values.informationProvidedBy,
             consultantGP: values.consultantGP,
+            jobRole: values.jobRole,
           },
           respiratory: {
             newContinuousCough: values.newContinuousCough,
@@ -340,7 +341,7 @@ export default function InfectionPreventionDialog({
     )} />
   );
 
-  const DateField = ({ name, label, required = false }: { name: keyof z.infer<typeof InfectionPreventionAssessmentSchema>, label: string, required?: boolean }) => (
+  const DateField = ({ name, label, required = false, allowFuture = false }: { name: keyof z.infer<typeof InfectionPreventionAssessmentSchema>, label: string, required?: boolean, allowFuture?: boolean }) => (
     <FormField control={form.control} name={name} render={({ field }) => (
       <FormItem className="flex flex-col">
         <FormLabel required={required}>{label}</FormLabel>
@@ -354,7 +355,7 @@ export default function InfectionPreventionDialog({
             </FormControl>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <Calendar mode="single" selected={field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={d => { field.onChange(d?.getTime()); setPopover(name, false); }} disabled={d => d > new Date() || d < new Date("1900-01-01")} initialFocus />
+            <Calendar mode="single" selected={field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={d => { field.onChange(d?.getTime()); setPopover(name, false); }} disabled={d => (!allowFuture && d > new Date()) || d < new Date("1900-01-01")} initialFocus />
           </PopoverContent>
         </Popover>
         <FormMessage />
@@ -401,6 +402,9 @@ export default function InfectionPreventionDialog({
                   <FormField control={form.control} name="informationProvidedBy" render={({ field }) => <FormItem><FormLabel>Information Provided By</FormLabel><FormControl><Input placeholder="e.g. Resident, Social Worker, Hospital Staff" {...field} /></FormControl></FormItem>} />
                   <FormField control={form.control} name="homeAddress" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Home Address / Current Location</FormLabel><FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl><FormMessage /></FormItem>} />
                   <FormField control={form.control} name="consultantGP" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Consultant / GP Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                  <FormField control={form.control} name="admittedFrom" render={({ field }) => <FormItem><FormLabel>Location Admitted From</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
+                  <DateField name="dateOfAdmission" label="Admission Date" allowFuture />
+                  <FormField control={form.control} name="reasonForAdmission" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Reason for Admission</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
                 </div>
               </div>
 
@@ -439,10 +443,6 @@ export default function InfectionPreventionDialog({
                   <h3 className="text-lg font-semibold">Exposure & Isolation History</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField control={form.control} name="admittedFrom" render={({ field }) => <FormItem><FormLabel>Location Admitted From</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-                  <DateField name="dateOfAdmission" label="Admission Date" />
-                  <FormField control={form.control} name="reasonForAdmission" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Reason for Admission</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>} />
-
                   <div className="md:col-span-2 grid gap-3 p-6 border rounded-xl bg-muted/20">
                     <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">COVID-19 Exposure</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -466,9 +466,9 @@ export default function InfectionPreventionDialog({
                   <h3 className="text-lg font-semibold">Diarrhoea & Vomiting</h3>
                 </div>
                 <div className="grid grid-cols-1 gap-4">
-                  <BooleanField name="diarrheaVomitingCurrentSymptoms" label="Current symptoms of diarrhoea/vomiting?" />
-                  <BooleanField name="diarrheaVomitingContactWithOthers" label="Contact with others showing symptoms (last 48h)?" />
-                  <BooleanField name="diarrheaVomitingFamilyHistory72h" label="Household/Family members with symptoms (last 72h)?" />
+                  <BooleanField name="diarrheaVomitingCurrentSymptoms" label="Does the person currently have diarrhoea and/or vomiting where infection has not been confirmed as the cause?" />
+                  <BooleanField name="diarrheaVomitingContactWithOthers" label="Has the person been in contact with others who have had diarrhoea and/or vomiting within the past 72 hours?" />
+                  <BooleanField name="diarrheaVomitingFamilyHistory72h" label="Has anyone in the persons family had diarrhoea and/or vomiting in the past 72 hours?" />
                 </div>
               </div>
 
@@ -497,6 +497,7 @@ export default function InfectionPreventionDialog({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <DateField name="ongoingDateCommenced" label="Course Start Date" />
                       <FormField control={form.control} name="ongoingLengthOfCourse" render={({ field }) => <FormItem><FormLabel>Projected Length (e.g. 10 days)</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl></FormItem>} />
+                      <FormField control={form.control} name="ongoingFollowUpRequired" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Follow-up required in ongoing regimen</FormLabel><FormControl><Textarea className="min-h-[80px] bg-background" {...field} /></FormControl></FormItem>} />
                     </div>
                   </div>
                 </div>
@@ -523,6 +524,7 @@ export default function InfectionPreventionDialog({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <DateField name="mrsaMssaDateCommenced" label="Regimen Start Date" />
                       <FormField control={form.control} name="mrsaMssaLengthOfCourse" render={({ field }) => <FormItem><FormLabel>Projected Duration</FormLabel><FormControl><Input className="bg-background" {...field} /></FormControl></FormItem>} />
+                      <FormField control={form.control} name="mrsaMssaFollowUpRequired" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Follow-up required in ongoing Decolonisation</FormLabel><FormControl><Textarea className="min-h-[80px] bg-background" {...field} /></FormControl></FormItem>} />
                     </div>
                   </div>
                 </div>
