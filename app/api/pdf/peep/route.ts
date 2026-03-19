@@ -10,21 +10,33 @@ function formatDate(dateString?: string | number): string {
   return date.toLocaleDateString("en-GB");
 }
 
-function formatDateTime(dateString?: string | number): string {
-  if (!dateString) return "Not specified";
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return "Not specified";
-  return (
-    date.toLocaleDateString("en-GB") +
-    " at " +
-    date.toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit"
-    })
-  );
-}
-
 function generatePeepHTML(data: any): string {
+  // Extract data with defaults
+  const facilityName = data.facilityName || "";
+  const residentName = data.residentName || "Resident";
+  const dob = formatDate(data.residentDateOfBirth);
+  const roomNo = data.bedroomNumber || "";
+  const unit = data.unit || "";
+  
+  const informedBy = data.informedBy || {};
+  const awarenessSteps = [
+    { label: "Existing alarm system", checked: !!informedBy.alarmSystem },
+    { label: "Visual Alarm System", checked: !!informedBy.visualAlarm },
+    { label: "Pager Device", checked: !!informedBy.pagerDevice },
+    { label: "Other", checked: !!informedBy.other, details: informedBy.otherDetails }
+  ];
+
+  const designatedAssistance = data.designatedAssistance || "";
+  const equipmentRequired = data.equipmentRequired || "";
+  const steps = data.steps || [];
+  
+  const hazards = data.hazards || {};
+  const hazardList = [
+    { label: "Are there any oxygen cylinders?", value: hazards.oxygenCylinders },
+    { label: "Are all furnishings fire retardant?", value: hazards.furnishingsFireRetardant },
+    { label: "Does the person smoke? (Refer to smoking Risk assessment)", value: hazards.doesPersonSmoke }
+  ];
+
   return `
     <!DOCTYPE html>
     <html>
@@ -33,330 +45,203 @@ function generatePeepHTML(data: any): string {
       <title>Personal Emergency Evacuation Plan (PEEP)</title>
       <style>
         body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+          font-family: Arial, sans-serif;
           line-height: 1.5;
-          color: #111827;
+          color: #333;
           max-width: 800px;
           margin: 0 auto;
-          padding: 20px;
+          padding: 40px;
           background: white;
+          font-size: 11pt;
         }
         .header {
-          border-bottom: 2px solid #e5e7eb;
-          padding-bottom: 24px;
-          margin-bottom: 32px;
           text-align: center;
+          margin-bottom: 30px;
+          border-bottom: 2px solid #eee;
+          padding-bottom: 20px;
         }
         h1 {
-          font-size: 1.875rem;
-          font-weight: bold;
-          margin-bottom: 8px;
-          color: #111827;
+          font-size: 20pt;
+          margin-bottom: 5px;
+          color: #000;
         }
-        h2 {
-          font-size: 1.25rem;
-          font-weight: 600;
-          margin-bottom: 16px;
-          color: #111827;
-          border-bottom: 1px solid #e5e7eb;
-          padding-bottom: 8px;
-        }
-        h3 {
-          font-weight: 500;
-          margin-bottom: 8px;
-          color: #111827;
-          font-size: 1.1rem;
-        }
-        .grid {
+        .info-grid {
           display: grid;
-          gap: 16px;
-        }
-        .grid-cols-2 {
           grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          margin-bottom: 30px;
+        }
+        .info-item {
+          margin-bottom: 10px;
+        }
+        .label {
+          font-weight: bold;
+          color: #666;
+          font-size: 9pt;
+          text-transform: uppercase;
+          display: block;
+        }
+        .value {
+          font-size: 11pt;
+          color: #000;
+          border-bottom: 1px solid #eee;
+          display: block;
+          padding: 4px 0;
         }
         .section {
-          margin-bottom: 32px;
-          page-break-inside: avoid;
+          margin-bottom: 30px;
         }
-        .info-box {
-          background-color: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 6px;
-          padding: 16px;
-          margin-bottom: 16px;
-        }
-        .understanding-box {
-          background-color: ${data.understands ? "#f0fdf4" : "#fef2f2"};
-          border: 2px solid ${data.understands ? "#16a34a" : "#dc2626"};
-          border-radius: 8px;
-          padding: 20px;
-          margin-bottom: 24px;
-          text-align: center;
-        }
-        .understanding-text {
-          font-size: 1.25rem;
+        .section-title {
+          font-size: 14pt;
           font-weight: bold;
-          color: ${data.understands ? "#166534" : "#991b1b"};
-          margin-bottom: 8px;
+          border-bottom: 1px solid #000;
+          margin-bottom: 15px;
+          padding-bottom: 5px;
+          text-transform: uppercase;
         }
-        .step-item {
-          background-color: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 6px;
-          padding: 16px;
-          margin-bottom: 16px;
+        .checkbox-group {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 15px;
         }
-        .safety-item {
-          background-color: #fef3c7;
-          border: 1px solid #f59e0b;
-          border-radius: 6px;
-          padding: 16px;
-          margin-bottom: 16px;
+        .checkbox-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
         }
-        .checkbox {
-          font-size: 1.2rem;
-          color: #059669;
+        .check-box {
+          width: 16px;
+          height: 16px;
+          border: 1px solid #000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           font-weight: bold;
-          margin-right: 8px;
+          font-size: 10pt;
         }
-        .signature-section {
-          border: 2px solid #e5e7eb;
-          border-radius: 8px;
-          padding: 20px;
-          margin-bottom: 24px;
-          background-color: #fafafa;
+        .text-block {
+          background: #f9f9f9;
+          padding: 15px;
+          border-radius: 4px;
+          min-height: 60px;
+          white-space: pre-wrap;
         }
-        .signature-box {
-          border-bottom: 1px solid #6b7280;
-          min-height: 40px;
-          padding: 8px 0;
-          margin-bottom: 8px;
-          font-style: italic;
-          color: #374151;
+        .step {
+          margin-bottom: 15px;
+          padding-left: 40px;
+          position: relative;
         }
-        .footer {
-          margin-top: 48px;
-          padding-top: 24px;
-          border-top: 1px solid #e5e7eb;
-          font-size: 0.75rem;
-          color: #6b7280;
+        .step-number {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 30px;
+          height: 30px;
+          background: #333;
+          color: #fff;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
         }
-        strong {
-          font-weight: 600;
+        .step-name {
+          font-weight: bold;
+          margin-bottom: 5px;
         }
-        .space-y-2 > * + * {
-          margin-top: 8px;
+        .step-desc {
+          color: #666;
+          font-size: 10pt;
         }
-        .space-y-4 > * + * {
-          margin-top: 16px;
+        .hazard-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 10px 0;
+          border-bottom: 1px solid #eee;
         }
-        .info-text {
-          color: #6b7280;
-          font-size: 0.9rem;
-          line-height: 1.4;
-          margin-bottom: 16px;
+        .signature-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 40px;
+          margin-top: 40px;
         }
-        .warning-box {
-          background-color: #fef2f2;
-          border: 1px solid #fca5a5;
-          border-radius: 6px;
-          padding: 16px;
-          margin-bottom: 16px;
-        }
-        @media print {
-          body { max-width: none; margin: 0; padding: 16px; }
-          .section { page-break-inside: avoid; }
+        .sig-box {
+          border-top: 1px solid #000;
+          padding-top: 10px;
         }
       </style>
     </head>
     <body>
-      <!-- Header -->
       <div class="header">
         <h1>Personal Emergency Evacuation Plan (PEEP)</h1>
-        <div style="margin-top: 16px;">
-          <p><strong>Resident:</strong> ${data.residentName}</p>
-          <p><strong>Bedroom Number:</strong> ${data.bedroomNumber}</p>
-          <p><strong>Date of Birth:</strong> ${formatDate(data.residentDateOfBirth)}</p>
-          <p><strong>Form Completed:</strong> ${formatDate(data.date)}</p>
-        </div>
+        <p>Confidential Personal Information</p>
       </div>
 
-      <!-- Assessment Summary -->
-      <div class="section">
-        <h2>Assessment Summary</h2>
-        
-        <div class="understanding-box">
-          <div class="understanding-text">
-            Resident ${data.understands ? "understands" : "does not understand"} evacuation plan
-          </div>
-          <p style="margin: 0; color: #6b7280;">
-            Assessment completed on ${formatDate(data.date)}
-          </p>
-        </div>
-
-        <div class="grid grid-cols-2">
-          <div class="info-box">
-            <h3>Staff Required</h3>
-            <p style="font-size: 1.5rem; font-weight: bold; color: #059669; margin: 0;">
-              ${data.staffNeeded} staff member${data.staffNeeded !== 1 ? "s" : ""}
-            </p>
-          </div>
-          <div class="info-box">
-            <h3>Assessment Status</h3>
-            <p style="margin: 0; color: #6b7280;">
-              <strong>Status:</strong> ${data.status || "Submitted"}
-            </p>
-          </div>
-        </div>
-
-        ${data.equipmentNeeded
-      ? `
-        <div class="info-box">
-          <h3>Equipment Needed</h3>
-          <p style="color: #6b7280; margin: 0;">${data.equipmentNeeded}</p>
-        </div>
-        `
-      : ""
-    }
-
-        ${data.communicationNeeds
-      ? `
-        <div class="info-box">
-          <h3>Communication Needs</h3>
-          <p style="color: #6b7280; margin: 0;">${data.communicationNeeds}</p>
-        </div>
-        `
-      : ""
-    }
+      <div class="info-grid">
+        <div class="info-item"><span class="label">Facility Name</span><span class="value">${facilityName}</span></div>
+        <div class="info-item"><span class="label">Resident Name</span><span class="value">${residentName}</span></div>
+        <div class="info-item"><span class="label">Date of Birth</span><span class="value">${dob}</span></div>
+        <div class="info-item"><span class="label">Room / Unit</span><span class="value">${roomNo} ${unit ? `(${unit})` : ""}</span></div>
       </div>
 
-      <!-- Evacuation Steps -->
-      ${data.steps && data.steps.length > 0
-      ? `
       <div class="section">
-        <h2>Evacuation Procedure</h2>
-        <p class="info-text">
-          Follow these steps in order during an emergency evacuation:
-        </p>
-        
-        ${data.steps
-        .map(
-          (step: any, index: number) => `
-        <div class="step-item">
-          <h3>Step ${index + 1}: ${step.name}</h3>
-          <p style="color: #6b7280; margin: 0;">${step.description}</p>
-        </div>
-        `
-        )
-        .join("")}
-      </div>
-      `
-      : ""
-    }
-
-      <!-- Safety Considerations -->
-      <div class="section">
-        <h2>Safety Considerations</h2>
-        <p class="info-text">
-          Important safety factors to consider during evacuation:
-        </p>
-
-        <div class="safety-item">
-          <h3>
-            <span class="checkbox">${data.oxigenInUse ? "⚠️" : "✓"}</span>
-            Oxygen in Use
-          </h3>
-          <p><strong>Status:</strong> ${data.oxigenInUse ? "Yes - Oxygen equipment in use" : "No oxygen equipment"}</p>
-          ${data.oxigenComments
-      ? `
-          <div style="margin-top: 8px;">
-            <p><strong>Comments:</strong></p>
-            <p style="color: #6b7280; margin-top: 4px;">${data.oxigenComments}</p>
-          </div>
-          `
-      : ""
-    }
-        </div>
-
-        <div class="safety-item">
-          <h3>
-            <span class="checkbox">${data.residentSmokes ? "⚠️" : "✓"}</span>
-            Smoking Risk
-          </h3>
-          <p><strong>Status:</strong> ${data.residentSmokes ? "Resident smokes - Fire risk present" : "Resident does not smoke"}</p>
-          ${data.residentSmokesComments
-      ? `
-          <div style="margin-top: 8px;">
-            <p><strong>Comments:</strong></p>
-            <p style="color: #6b7280; margin-top: 4px;">${data.residentSmokesComments}</p>
-          </div>
-          `
-      : ""
-    }
-        </div>
-
-        <div class="safety-item">
-          <h3>
-            <span class="checkbox">${data.furnitureFireRetardant ? "✓" : "⚠️"}</span>
-            Furniture Fire Safety
-          </h3>
-          <p><strong>Status:</strong> ${data.furnitureFireRetardant ? "Furniture is fire retardant" : "Furniture is NOT fire retardant"}</p>
-          ${data.furnitureFireRetardantComments
-      ? `
-          <div style="margin-top: 8px;">
-            <p><strong>Comments:</strong></p>
-            <p style="color: #6b7280; margin-top: 4px;">${data.furnitureFireRetardantComments}</p>
-          </div>
-          `
-      : ""
-    }
-        </div>
-      </div>
-
-      <!-- Completion Details -->
-      <div class="section">
-        <h2>Form Completion</h2>
-        
-        <div class="signature-section">
-          <h3>Completed By</h3>
-          <p style="margin-bottom: 12px; color: #6b7280;">
-            Staff member responsible for completing this PEEP assessment:
-          </p>
-          <div class="grid grid-cols-2">
-            <div class="space-y-2">
-              <p><strong>Name:</strong> ${data.completedBy}</p>
-              <p><strong>Date:</strong> ${formatDate(data.date)}</p>
+        <div class="section-title">Awareness of Procedure</div>
+        <div class="checkbox-group">
+          ${awarenessSteps.map(step => `
+            <div class="checkbox-item">
+              <div class="check-box">${step.checked ? "X" : ""}</div>
+              <span>${step.label}${step.details ? `: ${step.details}` : ""}</span>
             </div>
-          </div>
-          <div style="margin-top: 16px;">
-            <p><strong>Digital Signature:</strong></p>
-            <div class="signature-box">
-              ${data.completedBySignature}
-            </div>
-          </div>
+          `).join("")}
         </div>
       </div>
 
-      <!-- Important Information -->
       <div class="section">
-        <h2>Important Information</h2>
-        <div class="warning-box">
-          <h3 style="color: #dc2626; margin-bottom: 12px;">Emergency Procedure Notice</h3>
-          <ul style="margin: 0; padding-left: 20px; color: #7f1d1d;">
-            <li>This PEEP should be readily accessible to all staff members.</li>
-            <li>Review and update this plan regularly or when resident's needs change.</li>
-            <li>Ensure all staff are familiar with the evacuation procedure for this resident.</li>
-            <li>Emergency services should be informed of any special requirements.</li>
-            <li>Practice evacuation procedures regularly with the resident when possible.</li>
-          </ul>
+        <div class="section-title">Designated Assistance</div>
+        <div class="text-block">${designatedAssistance || "None specified"}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Equipment Required</div>
+        <div class="text-block">${equipmentRequired || "None specified"}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Evacuation Procedure</div>
+        ${steps.length > 0 ? steps.map((step: any, i: number) => `
+          <div class="step">
+            <div class="step-number">${i + 1}</div>
+            <div class="step-name">${step.name}</div>
+            <div class="step-desc">${step.description}</div>
+          </div>
+        `).join("") : "<p>No specific steps defined.</p>"}
+      </div>
+
+      <div class="section">
+        <div class="section-title">Fire Hazards</div>
+        ${hazardList.map(hazard => `
+          <div class="hazard-row">
+            <span>${hazard.label}</span>
+            <span style="font-weight: bold;">${hazard.value === true ? "YES" : hazard.value === false ? "NO" : "N/A"}</span>
+          </div>
+        `).join("")}
+      </div>
+
+      <div class="signature-grid">
+        <div class="sig-box">
+          <span class="label">Manager Signature</span>
+          <div style="height: 40px; font-family: cursive; font-size: 14pt;">${data.managerSignature || ""}</div>
+          <span class="label">Date: ${formatDate(data.managerSignatureDate)}</span>
+        </div>
+        <div class="sig-box">
+          <span class="label">Resident / Relative Signature</span>
+          <div style="height: 40px; font-family: cursive; font-size: 14pt;">${data.personInCareSignature || ""}</div>
+          <span class="label">Date: ${formatDate(data.personInCareSignatureDate)}</span>
         </div>
       </div>
 
-      <!-- Footer -->
-      <div class="footer">
-        <p>Document generated on ${formatDateTime(Date.now())}</p>
-        <p>Personal Emergency Evacuation Plan - ${data.residentName} (Bedroom ${data.bedroomNumber})</p>
-        ${data._id ? `<p>Form ID: ${data._id}</p>` : ""}
+      <div style="margin-top: 40px; font-size: 8pt; color: #999; text-align: center;">
+        Generated on ${formatDate(Date.now())}
       </div>
     </body>
     </html>
@@ -370,21 +255,9 @@ export async function POST(request: NextRequest) {
     const expectedToken = process.env.PDF_API_TOKEN;
     const isDev = process.env.NODE_ENV === "development";
 
-    // Only enforce authentication in production and if PDF_API_TOKEN is set
     if (!isDev && expectedToken && authHeader !== `Bearer ${expectedToken}`) {
-      console.log("PDF API authentication failed:", {
-        expectedToken: expectedToken ? "***SET***" : "NOT_SET",
-        authHeader: authHeader ? "PROVIDED" : "MISSING",
-        environment: process.env.NODE_ENV
-      });
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    console.log("PEEP PDF API request received:", {
-      environment: process.env.NODE_ENV,
-      hasToken: !!expectedToken,
-      hasAuthHeader: !!authHeader
-    });
 
     // Parse the request body
     const assessmentData = await request.json();
@@ -396,23 +269,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Flatten the data: merge assessment_data into the top level
+    // Flatten the data
     const flattenedData = {
       ...assessmentData,
       ...(assessmentData.assessment_data || {}),
-      // Ensure resident details and common fields are at the top level
       residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
       bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber,
       residentDateOfBirth: assessmentData.residentDateOfBirth || assessmentData.dateOfBirth || assessmentData.assessment_data?.residentDateOfBirth || assessmentData.assessment_data?.dateOfBirth,
-      date: assessmentData.date || assessmentData.assessment_date || assessmentData.created_at || Date.now(),
       steps: assessmentData.steps || assessmentData.assessment_data?.steps || []
     };
-
-    console.log("PEEP PDF API flattening data:", {
-      residentName: flattenedData.residentName,
-      bedroomNumber: flattenedData.bedroomNumber,
-      formId: flattenedData._id || flattenedData.id
-    });
 
     // Generate HTML content
     const htmlContent = generatePeepHTML(flattenedData);
@@ -426,13 +291,11 @@ export async function POST(request: NextRequest) {
     const page = await browser.newPage();
 
     try {
-      // Set the HTML content directly
       await page.setContent(htmlContent, {
         waitUntil: "networkidle",
         timeout: 30000
       });
 
-      // Generate PDF
       const pdfBuffer = await page.pdf({
         format: "A4",
         printBackground: true,
@@ -448,7 +311,6 @@ export async function POST(request: NextRequest) {
 
       await browser.close();
 
-      // Return the PDF as a response
       return new NextResponse(pdfBuffer as any, {
         headers: {
           "Content-Type": "application/pdf",

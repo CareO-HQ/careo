@@ -46,6 +46,7 @@ interface RestraintsConsentDialogProps {
     isEditMode?: boolean;
     isInline?: boolean;
     viewOnly?: boolean;
+    refreshForms?: () => void;
 }
 
 export default function RestraintsConsentDialog({
@@ -59,7 +60,8 @@ export default function RestraintsConsentDialog({
     initialData,
     isEditMode = false,
     isInline = false,
-    viewOnly = false
+    viewOnly = false,
+    refreshForms
 }: RestraintsConsentDialogProps) {
     const [isLoading, startTransition] = useTransition();
     const [loadingState, setLoadingState] = useState<string>("");
@@ -155,6 +157,7 @@ export default function RestraintsConsentDialog({
                 );
 
                 toast.success(isEditMode ? "Restraints consent updated successfully" : "Restraints consent saved successfully");
+                refreshForms?.();
                 onClose?.();
             } catch (error) {
                 console.error("Error submitting form:", error);
@@ -198,7 +201,15 @@ export default function RestraintsConsentDialog({
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel required>Person in Care&apos;s Name</FormLabel>
-                                            <FormControl><Input {...field} /></FormControl>
+                                            <FormControl>
+                                                {viewOnly ? (
+                                                    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                                                        {field.value || " "}
+                                                    </div>
+                                                ) : (
+                                                    <Input {...field} />
+                                                )}
+                                            </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -209,7 +220,15 @@ export default function RestraintsConsentDialog({
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel required>Care Home/Unit</FormLabel>
-                                            <FormControl><Input {...field} /></FormControl>
+                                            <FormControl>
+                                                {viewOnly ? (
+                                                    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                                                        {field.value || " "}
+                                                    </div>
+                                                ) : (
+                                                    <Input {...field} />
+                                                )}
+                                            </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -345,7 +364,15 @@ export default function RestraintsConsentDialog({
                                                     render={({ field }) => (
                                                         <FormItem>
                                                             <FormLabel required>Signature of Person</FormLabel>
-                                                            <FormControl><Input {...field} /></FormControl>
+                                                            <FormControl>
+                                                                {viewOnly ? (
+                                                                    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                                                                        {field.value || " "}
+                                                                    </div>
+                                                                ) : (
+                                                                    <Input {...field} />
+                                                                )}
+                                                            </FormControl>
                                                             <FormMessage />
                                                         </FormItem>
                                                     )}
@@ -366,7 +393,15 @@ export default function RestraintsConsentDialog({
                                                     render={({ field }) => (
                                                         <FormItem>
                                                             <FormLabel>Signature of Member</FormLabel>
-                                                            <FormControl><Input {...field} /></FormControl>
+                                                            <FormControl>
+                                                                {viewOnly ? (
+                                                                    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                                                                        {field.value || " "}
+                                                                    </div>
+                                                                ) : (
+                                                                    <Input {...field} />
+                                                                )}
+                                                            </FormControl>
                                                         </FormItem>
                                                     )}
                                                 />
@@ -486,7 +521,15 @@ export default function RestraintsConsentDialog({
                                                     render={({ field }) => (
                                                         <FormItem>
                                                             <FormLabel required>Signature of Person</FormLabel>
-                                                            <FormControl><Input {...field} /></FormControl>
+                                                            <FormControl>
+                                                                {viewOnly ? (
+                                                                    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                                                                        {field.value || " "}
+                                                                    </div>
+                                                                ) : (
+                                                                    <Input {...field} />
+                                                                )}
+                                                            </FormControl>
                                                             <FormMessage />
                                                         </FormItem>
                                                     )}
@@ -507,7 +550,15 @@ export default function RestraintsConsentDialog({
                                                     render={({ field }) => (
                                                         <FormItem>
                                                             <FormLabel>Signature of Member</FormLabel>
-                                                            <FormControl><Input {...field} /></FormControl>
+                                                            <FormControl>
+                                                                {viewOnly ? (
+                                                                    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                                                                        {field.value || " "}
+                                                                    </div>
+                                                                ) : (
+                                                                    <Input {...field} />
+                                                                )}
+                                                            </FormControl>
                                                         </FormItem>
                                                     )}
                                                 />

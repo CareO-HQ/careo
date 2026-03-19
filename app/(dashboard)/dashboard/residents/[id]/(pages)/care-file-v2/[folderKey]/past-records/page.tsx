@@ -14,10 +14,12 @@ import { ArrowLeft, Eye, Clock, FileText, BookOpen } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
-import RiskAssessmentViewDialog from "@/components/residents/carefile/folders/RiskAssessmentViewDialog";
-import CarePlanViewDialog from "@/components/residents/carefile/folders/CarePlanViewDialog";
 import { supabase } from "@/lib/supabase";
 import { config } from "@/config";
+import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
+import { useProfile } from "@/hooks/use-profile";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Loader2, X } from "lucide-react";
 
 // ─── Table Map (same as folder page) ─────────────────────────────────────────
 
@@ -50,6 +52,9 @@ const TABLE_MAP: Record<string, string> = {
     "v2-restraints-risk": "restraints_consents",
     "fall-risk-assessment": "fall_risk_assessments",
     "smoking-risk-assessment": "smoking_risk_assessments",
+    "v2-specimen-log": "specimen_records",
+    "v2-capacity-consent": "capacity_consents",
+    "v2-night-obs-consent": "night_observation_consents"
 };
 
 type FilterType = "forms" | "care-plans";
@@ -78,6 +83,7 @@ export default function PastRecordsPage() {
     const residentId = params.id as string;
     const folderKey = params.folderKey as string;
     const router = useRouter();
+    const { profile } = useProfile();
 
     const folder = config.careFilesV2.find(f => f.key === folderKey);
     const folderHasCarePlans = !!(folder as any)?.carePlan;
@@ -87,25 +93,13 @@ export default function PastRecordsPage() {
     const [loading, setLoading] = useState(true);
     const [archivedForms, setArchivedForms] = useState<ArchivedRecord[]>([]);
     const [archivedCarePlans, setArchivedCarePlans] = useState<ArchivedCarePlan[]>([]);
-
-    // Viewer state
-    const [viewingAssessment, setViewingAssessment] = useState<{
-        formKey: string;
-        formId: string;
-        name: string;
-        completedAt: number;
-        category: string;
-    } | null>(null);
-    const [isAssessmentDialogOpen, setIsAssessmentDialogOpen] = useState(false);
-
-    const [viewingCarePlan, setViewingCarePlan] = useState<{
-        formKey: string;
-        formId: string;
-        name: string;
-        completedAt: number;
-        isLatest: boolean;
-    } | null>(null);
-    const [isCarePlanDialogOpen, setIsCarePlanDialogOpen] = useState(false);
+    
+    // Form view states
+    const [selectedFormKey, setSelectedFormKey] = useState<string | null>(null);
+    const [selectedFormName, setSelectedFormName] = useState<string | null>(null);
+    const [selectedRecord, setSelectedRecord] = useState<any>(null);
+    const [isViewOpen, setIsViewOpen] = useState(false);
+    const [loadingRecordId, setLoadingRecordId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!residentId || !folder) return;
@@ -187,6 +181,31 @@ export default function PastRecordsPage() {
 
         fetchData();
     }, [residentId, folderKey, folderHasCarePlans]);
+
+    const handleViewRecord = async (formKey: string, id: string, formName?: string) => {
+        setLoadingRecordId(id);
+        try {
+            const tableName = TABLE_MAP[formKey];
+            if (!tableName) return;
+
+            const { data, error } = await supabase
+                .from(tableName)
+                .select("*")
+                .eq("id", id)
+                .single();
+
+            if (error) throw error;
+
+            setSelectedFormKey(formKey);
+            setSelectedFormName(formName ?? formKey);
+            setSelectedRecord(data);
+            setIsViewOpen(true);
+        } catch (err) {
+            console.error("Error fetching record details:", err);
+        } finally {
+            setLoadingRecordId(null);
+        }
+    };
 
     if (!folder) {
         return (
@@ -341,18 +360,14 @@ export default function PastRecordsPage() {
                                                 variant="ghost"
                                                 size="sm"
                                                 className="gap-2"
-                                                onClick={() => {
-                                                    setViewingAssessment({
-                                                        formKey: record.formKey,
-                                                        formId: record._id,
-                                                        name: record.formName,
-                                                        completedAt: record.completedAt,
-                                                        category: folder.value,
-                                                    });
-                                                    setIsAssessmentDialogOpen(true);
-                                                }}
+                                                disabled={loadingRecordId !== null}
+                                                onClick={() => handleViewRecord(record.formKey, record._id, record.formName)}
                                             >
-                                                <Eye className="h-4 w-4" />
+                                                {loadingRecordId === record._id ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <Eye className="h-4 w-4" />
+                                                )}
                                                 View
                                             </Button>
                                         </TableCell>
@@ -424,18 +439,14 @@ export default function PastRecordsPage() {
                                                     variant="ghost"
                                                     size="sm"
                                                     className="gap-2"
-                                                    onClick={() => {
-                                                        setViewingCarePlan({
-                                                            formKey: "care-plan-form",
-                                                            formId: cp._id,
-                                                            name: cp.care_plan_type || "Care Plan",
-                                                            completedAt: cp._creationTime,
-                                                            isLatest: false,
-                                                        });
-                                                        setIsCarePlanDialogOpen(true);
-                                                    }}
+                                                    disabled={loadingRecordId !== null}
+                                                    onClick={() => handleViewRecord("care-plan-form", cp._id, cp.care_plan_type || "Care Plan")}
                                                 >
-                                                    <Eye className="h-4 w-4" />
+                                                    {loadingRecordId === cp._id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Eye className="h-4 w-4" />
+                                                    )}
                                                     View
                                                 </Button>
                                             </TableCell>
@@ -448,21 +459,43 @@ export default function PastRecordsPage() {
                 </div>
             )}
 
-            {/* Dialogs */}
-            {viewingAssessment && (
-                <RiskAssessmentViewDialog
-                    open={isAssessmentDialogOpen}
-                    onOpenChange={setIsAssessmentDialogOpen}
-                    assessment={viewingAssessment}
-                />
-            )}
-            {viewingCarePlan && (
-                <CarePlanViewDialog
-                    open={isCarePlanDialogOpen}
-                    onOpenChange={setIsCarePlanDialogOpen}
-                    carePlan={viewingCarePlan}
-                />
-            )}
+            {/* Actual Form Viewer Overlay */}
+            <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+                <DialogContent className="max-w-5xl h-[92vh] overflow-y-auto p-0 border-none shadow-2xl bg-background">
+                    <DialogHeader className="sr-only">
+                        <DialogTitle>{selectedFormName || selectedFormKey?.replace("-", " ") || "Form"}</DialogTitle>
+                        <DialogDescription>Viewing archived record</DialogDescription>
+                    </DialogHeader>
+                    {/* Visible header with form name */}
+                    <div className="sticky top-0 z-10 flex items-center gap-3 px-6 pt-5 pb-4 bg-background border-b">
+                        <FileText className="w-5 h-5 text-primary shrink-0" />
+                        <div>
+                            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Archived Record</p>
+                            <h2 className="text-base font-semibold leading-tight">{selectedFormName || "Form"}</h2>
+                        </div>
+                    </div>
+                    <div className="relative pl-6 pt-4">
+                        <CareFileDialogRenderer
+                            formKey={selectedFormKey as any}
+                            residentId={residentId}
+                            teamId={profile?.active_team_id ?? ""}
+                            organizationId={profile?.active_organization_id ?? ""}
+                            userId={profile?.id ?? ""}
+                            userName={profile?.name || profile?.email || "User"}
+                            userRole={profile?.role ?? ""}
+                            resident={resident}
+                            careHomeName={profile?.care_home_name ?? ""}
+                            teamName={profile?.active_team_name ?? ""}
+                            folderKey={folderKey}
+                            formDataForEdit={selectedRecord}
+                            isReviewMode={false}
+                            onClose={() => setIsViewOpen(false)}
+                            isInline={true}
+                            viewOnly={true}
+                        />
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

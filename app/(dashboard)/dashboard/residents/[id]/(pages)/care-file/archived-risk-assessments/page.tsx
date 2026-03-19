@@ -61,6 +61,12 @@ export default function ArchivedRiskAssessmentsPage() {
   const [archivedBedrailConsent, setArchivedBedrailConsent] = useState<any[]>([]);
   const [archivedBedRailsRiskAssessment, setArchivedBedRailsRiskAssessment] = useState<any[]>([]);
   const [archivedLongTermFalls, setArchivedLongTermFalls] = useState<any[]>([]);
+  const [archivedRestraints, setArchivedRestraints] = useState<any[]>([]);
+  const [archivedFallRisk, setArchivedFallRisk] = useState<any[]>([]);
+  const [archivedSmokingRisk, setArchivedSmokingRisk] = useState<any[]>([]);
+  const [archivedSpecimenLog, setArchivedSpecimenLog] = useState<any[]>([]);
+  const [archivedCapacityConsent, setArchivedCapacityConsent] = useState<any[]>([]);
+  const [archivedNightObservation, setArchivedNightObservation] = useState<any[]>([]);
 
   const TABLE_MAP: Record<string, string> = {
     "preAdmission-form": "pre_admission_care_files",
@@ -85,7 +91,13 @@ export default function ArchivedRiskAssessmentsPage() {
     "diet-notification-form": "diet_notifications",
     "choking-risk-assessment-form": "choking_risk_assessments",
     "cornell-depression-scale-form": "cornell_depression_scales",
-    "best-interest-decision-form": "best_interest_decisions"
+    "best-interest-decision-form": "best_interest_decisions",
+    "v2-restraints-risk": "restraints_consents",
+    "fall-risk-assessment": "fall_risk_assessments",
+    "smoking-risk-assessment": "smoking_risk_assessments",
+    "v2-specimen-log": "specimen_records",
+    "v2-capacity-consent": "capacity_consents",
+    "v2-night-obs-consent": "night_observation_consents"
   };
 
   useEffect(() => {
@@ -186,6 +198,24 @@ export default function ArchivedRiskAssessmentsPage() {
               break;
             case "long-term-fall-risk-form":
               setArchivedLongTermFalls(mappedData);
+              break;
+            case "v2-restraints-risk":
+              setArchivedRestraints(mappedData);
+              break;
+            case "fall-risk-assessment":
+              setArchivedFallRisk(mappedData);
+              break;
+            case "smoking-risk-assessment":
+              setArchivedSmokingRisk(mappedData);
+              break;
+            case "v2-specimen-log":
+              setArchivedSpecimenLog(mappedData);
+              break;
+            case "v2-capacity-consent":
+              setArchivedCapacityConsent(mappedData);
+              break;
+            case "v2-night-obs-consent":
+              setArchivedNightObservation(mappedData);
               break;
           }
         });
@@ -429,7 +459,55 @@ export default function ArchivedRiskAssessmentsPage() {
       completedAt: form._creationTime,
       folderName: getFolderName("long-term-fall-risk-form", "Mobility & Fall"),
       category: "Fall Risk"
-    })) || [])
+    })) || []),
+    ...(archivedRestraints?.map(form => ({
+      _id: form._id,
+      key: "v2-restraints-risk",
+      name: "Consent and Risk Assessment for Restraints",
+      completedAt: form._creationTime,
+      folderName: getFolderName("v2-restraints-risk", "Safe Environment"),
+      category: "Consent"
+    })) || []),
+    ...(archivedFallRisk?.map(form => ({
+      _id: form._id,
+      key: "fall-risk-assessment",
+      name: "Fall Risk Assessment",
+      completedAt: form._creationTime,
+      folderName: getFolderName("fall-risk-assessment", "Mobility"),
+      category: "Handling"
+    })) || []),
+    ...(archivedSmokingRisk?.map(form => ({
+      _id: form._id,
+      key: "smoking-risk-assessment",
+      name: "Smoking Risk Assessment",
+      completedAt: form._creationTime,
+      folderName: getFolderName("smoking-risk-assessment", "Additional"),
+      category: "Handling"
+    })) || []),
+    ...(archivedSpecimenLog?.map(form => ({
+      _id: form._id,
+      key: "v2-specimen-log",
+      name: "Specimen Record Log",
+      completedAt: form._creationTime,
+      folderName: getFolderName("v2-specimen-log", "Daily Care"),
+      category: "Clinical"
+    })) || []),
+    ...(archivedCapacityConsent?.map(form => ({
+      _id: form._id,
+      key: "v2-capacity-consent",
+      name: "Capacity & Consent Assessment",
+      completedAt: form._creationTime,
+      folderName: getFolderName("v2-capacity-consent", "Admission"),
+      category: "Capacity"
+    })) || []),
+    ...(archivedNightObservation?.map(form => ({
+      _id: form._id,
+      key: "v2-night-obs-consent",
+      name: "Night Observation Consent",
+      completedAt: form._creationTime,
+      folderName: getFolderName("v2-night-obs-consent", "Admission"),
+      category: "Consent"
+    })) || []),
   ];
 
   // Sort by completion date (most recent first)

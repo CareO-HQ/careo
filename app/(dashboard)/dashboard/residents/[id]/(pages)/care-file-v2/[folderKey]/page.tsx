@@ -89,7 +89,9 @@ const TABLE_MAP: Record<string, string> = {
     "braden-risk-assessment-form": "braden_risk_assessments",
     "v2-restraints-risk": "restraints_consents",
     "fall-risk-assessment": "fall_risk_assessments",
-    "smoking-risk-assessment": "smoking_risk_assessments"
+    "smoking-risk-assessment": "smoking_risk_assessments",
+    "v2-capacity-consent": "capacity_consents",
+    "v2-night-obs-consent": "night_observation_consents"
 };
 
 // ─── File Viewer ──────────────────────────────────────────────────────────────
@@ -635,6 +637,7 @@ export default function CareFileV2FolderPage() {
                                                 userRole={profile?.role ?? ""}
                                                 resident={resident}
                                                 careHomeName={profile?.care_home_name ?? ""}
+                                                teamName={profile?.active_team_name ?? ""}
                                                 folderKey={folderKey}
                                                 formDataForEdit={formDataForEdit}
                                                 isReviewMode={isReviewMode}
@@ -653,7 +656,7 @@ export default function CareFileV2FolderPage() {
                                             </DialogPrimitive.Title>
                                             <DialogPrimitive.Content asChild>
                                                 <div className="relative">
-                                                    <CareFileDialogRenderer formKey={activeFormKey} residentId={residentId} teamId={activeTeamId ?? ""} organizationId={profile?.active_organization_id ?? ""} userId={profile?.id ?? ""} userName={profile?.name || profile?.email || "User"} userRole={profile?.role ?? ""} resident={resident} careHomeName={profile?.care_home_name ?? ""} folderKey={folderKey} formDataForEdit={formDataForEdit} isReviewMode={isReviewMode} onClose={handleCloseForm} isInline={true} newCarePlanName={selectedCarePlanName} refreshForms={refreshForms} onSaveSuccess={handleSaveSuccess} orgLogoUrl={activeOrganization?.logo_url} />
+                                                    <CareFileDialogRenderer formKey={activeFormKey} residentId={residentId} teamId={activeTeamId ?? ""} organizationId={profile?.active_organization_id ?? ""} userId={profile?.id ?? ""} userName={profile?.name || profile?.email || "User"} userRole={profile?.role ?? ""} resident={resident} careHomeName={profile?.care_home_name ?? ""} teamName={profile?.active_team_name ?? ""} folderKey={folderKey} formDataForEdit={formDataForEdit} isReviewMode={isReviewMode} onClose={handleCloseForm} isInline={true} newCarePlanName={selectedCarePlanName} refreshForms={refreshForms} onSaveSuccess={handleSaveSuccess} orgLogoUrl={activeOrganization?.logo_url} />
                                                 </div>
                                             </DialogPrimitive.Content>
                                         </Dialog>
@@ -683,14 +686,19 @@ export default function CareFileV2FolderPage() {
                     } overflow-y-auto overflow-x-hidden p-3`}>
                     <div className="flex flex-col gap-6">
                         <div>
-                            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1 mb-2">Forms</p>
+                            <div className="flex items-center justify-between px-1 mb-2">
+                                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Forms</p>
+                                {formsLoading && (
+                                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                )}
+                            </div>
                             <div className="flex flex-col gap-1">
                                 {folder.forms.map((form) => {
                                     const isActive = activeFormKey === form.key;
                                     const formState = formsLoading ? { status: "not-started" as const, hasData: false, isAudited: false } : getFormState(form.key as CareFileFormKey);
                                     const isLink = form.type === "link";
                                     return (
-                                        <button key={form.key} onClick={() => handleFormClick(form.key as CareFileFormKey)} disabled={!canFillForms} className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${isActive ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-muted/60 text-foreground"} ${form.isComingSoon ? 'opacity-50' : ''}`}>
+                                        <button key={form.key} onClick={() => handleFormClick(form.key as CareFileFormKey)} disabled={formsLoading || !canFillForms} className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${isActive ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-muted/60 text-foreground"} ${form.isComingSoon || formsLoading ? 'opacity-50' : ''} disabled:cursor-wait`}>
                                             {!isLink && (
                                                 <FormStatusIndicator status={formState.status} className="h-4 w-4 flex-shrink-0 mt-0.5" />
                                             )}
@@ -701,6 +709,8 @@ export default function CareFileV2FolderPage() {
                                                 <p className="text-xs font-semibold leading-tight mb-0.5">{form.value}</p>
                                                 {form.isComingSoon ? (
                                                     <Badge variant="outline" className="text-[8px] h-3 px-1">SOON</Badge>
+                                                ) : formsLoading ? (
+                                                    <span className="inline-block h-2 w-10 bg-muted rounded animate-pulse" />
                                                 ) : !isLink && (
                                                     <FormStatusBadge status={formState.status} isAudited={formState.isAudited} />
                                                 )}
@@ -1126,6 +1136,6 @@ export default function CareFileV2FolderPage() {
                 orgLogoUrl={activeOrganization?.logo_url}
                 simpleMode={folderKey === "v2-medication" || folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity" || folderKey === "v2-safeguarding"}
             />
-        </div >
+        </div>
     );
 }

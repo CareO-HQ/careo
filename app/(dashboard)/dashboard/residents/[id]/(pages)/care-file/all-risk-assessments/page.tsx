@@ -85,7 +85,13 @@ export default function AllRiskAssessmentsPage() {
     allDietNotificationForms,
     allChokingRiskAssessmentForms,
     allCornellDepressionScaleForms,
-    allBestInterestDecisionForms
+    allBestInterestDecisionForms,
+    allRestraintsRiskForms,
+    allFallRiskAssessmentForms,
+    allSmokingRiskAssessmentForms,
+    allSpecimenLogForms,
+    allCapacityConsentsForms,
+    allNightObservationForms
   } = useFolderForms({
     residentId,
     folderFormKeys: [
@@ -111,7 +117,13 @@ export default function AllRiskAssessmentsPage() {
       "diet-notification-form",
       "choking-risk-assessment-form",
       "cornell-depression-scale-form",
-      "best-interest-decision-form"
+      "best-interest-decision-form",
+      "v2-restraints-risk",
+      "fall-risk-assessment",
+      "smoking-risk-assessment",
+      "v2-specimen-log",
+      "v2-capacity-consent",
+      "v2-night-obs-consent"
     ],
     organizationId: resident?.active_organization_id
   });
@@ -396,6 +408,60 @@ export default function AllRiskAssessmentsPage() {
       completedAt: getLatestForm(allResidentValuablesForms)?._creationTime,
       folderName: getFolderName("resident-valuables-form", "Resident Valuables"),
       category: "Property"
+    }] : []),
+    // Restraints Risk
+    ...(allRestraintsRiskForms && allRestraintsRiskForms.length > 0 ? [{
+      _id: getLatestForm(allRestraintsRiskForms)?._id,
+      key: "v2-restraints-risk",
+      name: "Consent and Risk Assessment for Restraints",
+      completedAt: getLatestForm(allRestraintsRiskForms)?._creationTime,
+      folderName: getFolderName("v2-restraints-risk", "Safe Environment"),
+      category: "Consent"
+    }] : []),
+    // Fall Risk Assessment
+    ...(allFallRiskAssessmentForms && allFallRiskAssessmentForms.length > 0 ? [{
+      _id: getLatestForm(allFallRiskAssessmentForms)?._id,
+      key: "fall-risk-assessment",
+      name: "Fall Risk Assessment",
+      completedAt: getLatestForm(allFallRiskAssessmentForms)?._creationTime,
+      folderName: getFolderName("fall-risk-assessment", "Mobility"),
+      category: "Handling"
+    }] : []),
+    // Smoking Risk Assessment
+    ...(allSmokingRiskAssessmentForms && allSmokingRiskAssessmentForms.length > 0 ? [{
+      _id: getLatestForm(allSmokingRiskAssessmentForms)?._id,
+      key: "smoking-risk-assessment",
+      name: "Smoking Risk Assessment",
+      completedAt: getLatestForm(allSmokingRiskAssessmentForms)?._creationTime,
+      folderName: getFolderName("smoking-risk-assessment", "Additional"),
+      category: "Handling"
+    }] : []),
+    // Specimen Log
+    ...(allSpecimenLogForms && allSpecimenLogForms.length > 0 ? [{
+      _id: getLatestForm(allSpecimenLogForms)?._id,
+      key: "v2-specimen-log",
+      name: "Specimen Record Log",
+      completedAt: getLatestForm(allSpecimenLogForms)?._creationTime,
+      folderName: getFolderName("v2-specimen-log", "Daily Care"),
+      category: "Clinical"
+    }] : []),
+    // Capacity & Consent
+    ...(allCapacityConsentsForms && allCapacityConsentsForms.length > 0 ? [{
+      _id: getLatestForm(allCapacityConsentsForms)?._id,
+      key: "v2-capacity-consent",
+      name: "Capacity & Consent Assessment",
+      completedAt: getLatestForm(allCapacityConsentsForms)?._creationTime,
+      folderName: getFolderName("v2-capacity-consent", "Admission"),
+      category: "Consent"
+    }] : []),
+    // Night Observation Consent
+    ...(allNightObservationForms && allNightObservationForms.length > 0 ? [{
+      _id: getLatestForm(allNightObservationForms)?._id,
+      key: "v2-night-obs-consent",
+      name: "Night Observation Consent",
+      completedAt: getLatestForm(allNightObservationForms)?._creationTime,
+      folderName: getFolderName("v2-night-obs-consent", "Admission"),
+      category: "Consent"
     }] : []),
   ].filter(assessment => assessment._id); // Remove any null entries
   // Remove any null entries

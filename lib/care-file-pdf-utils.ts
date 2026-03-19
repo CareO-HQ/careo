@@ -702,6 +702,137 @@ export const generateCareFilePDF = async ({
         return;
     }
 
+    // --- Best Interest Decision Form ---
+    if (formName === "Best Interest Decision Form") {
+        const val = (v: any) => v === undefined || v === null ? "" : String(v);
+        const drawBIDHeader = async () => {
+             doc.setFontSize(14);
+             doc.setFont("helvetica", "bold");
+             const title = "BEST INTEREST DECISION FORM FOR RESIDENTS WHO ARE UNABLE TO CONSENT TO INVESTIGATION/TREATMENT/PROCEDURE/RESTRAINT";
+             const splitTitle = doc.splitTextToSize(title.toUpperCase(), pageWidth - margin * 2);
+             doc.text(splitTitle, margin, 20, { align: 'left' });
+             return 20 + (splitTitle.length * 7);
+        };
+
+        let currentY = await drawBIDHeader();
+
+        // Resident Details Box
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.5);
+        doc.rect(margin, currentY, pageWidth - margin * 2, 45);
+        
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text("Resident Details", margin + 5, currentY + 8);
+        doc.line(margin + 5, currentY + 9, margin + 35, currentY + 9);
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("Resident's Name:", margin + 5, currentY + 18);
+        doc.setFont("helvetica", "normal");
+        doc.text(val(data.residentName), margin + 40, currentY + 18);
+        doc.line(margin + 40, currentY + 19, margin + 40 + 50, currentY + 19);
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Date of Birth:", margin + 5, currentY + 28);
+        doc.setFont("helvetica", "normal");
+        doc.text(data.dateOfBirth ? format(new Date(data.dateOfBirth), "dd/MM/yyyy") : "N/A", margin + 40, currentY + 28);
+        doc.line(margin + 40, currentY + 29, margin + 40 + 50, currentY + 29);
+
+        doc.setFont("helvetica", "bold");
+        doc.text("GP:", margin + 5, currentY + 38);
+        doc.setFont("helvetica", "normal");
+        doc.text(val(data.gpName), margin + 40, currentY + 38);
+        doc.line(margin + 40, currentY + 39, margin + 40 + 50, currentY + 39);
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Staff member involved in Discussion (PRINT):", margin + 100, currentY + 18);
+        doc.setFont("helvetica", "normal");
+        const staffName = val(data.staffMemberInvolved);
+        doc.text(staffName, margin + 100, currentY + 26);
+        doc.line(margin + 100, currentY + 27, pageWidth - margin - 5, currentY + 27);
+
+        currentY += 55;
+
+        // Declaration Section
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        const decl1 = "I/We have been involved in a discussion with the relevant health professionals over the investigation/treatment/procedure/restraint proposed of";
+        const splitDecl1 = doc.splitTextToSize(decl1, pageWidth - margin * 2);
+        doc.text(splitDecl1, margin, currentY);
+        currentY += splitDecl1.length * 5;
+
+        doc.setFont("helvetica", "bold");
+        const splitProposed = doc.splitTextToSize(val(data.proposedTreatmentOf), pageWidth - margin * 2);
+        doc.text(splitProposed, margin, currentY);
+        currentY += splitProposed.length * 5 + 2;
+
+        doc.setFont("helvetica", "normal");
+        doc.text("for (Explain what treatment is)", margin, currentY);
+        currentY += 5;
+        doc.setFont("helvetica", "bold");
+        const splitTreatment = doc.splitTextToSize(val(data.treatmentDescription), pageWidth - margin * 2);
+        doc.text(splitTreatment, margin, currentY);
+        currentY += splitTreatment.length * 5 + 5;
+
+        doc.setFont("helvetica", "normal");
+        const decl2 = "I/We understand that he/she is unable to give his/her consent. I/We also understand that investigation/treatment/procedure/restraint may lawfully be carried out if it is in his/her best interests to receive it.";
+        const splitDecl2 = doc.splitTextToSize(decl2, pageWidth - margin * 2);
+        doc.text(splitDecl2, margin, currentY);
+        currentY += splitDecl2.length * 5 + 10;
+
+        // Comments Section
+        doc.setFont("helvetica", "bold");
+        doc.text("Any other comments, including concerns about the decision:", margin, currentY);
+        currentY += 7;
+        doc.setLineWidth(0.2);
+        doc.rect(margin, currentY, pageWidth - margin * 2, 40);
+        doc.setFont("helvetica", "normal");
+        const splitComments = doc.splitTextToSize(val(data.otherComments), pageWidth - margin * 2 - 10);
+        doc.text(splitComments, margin + 5, currentY + 7);
+        currentY += 50;
+
+        // Sign-off Section
+        const leftColX = margin;
+        const rightColX = margin + 100;
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Name:", leftColX, currentY);
+        doc.setFont("helvetica", "normal");
+        doc.text(val(data.signerName), leftColX + 15, currentY);
+        doc.line(leftColX + 15, currentY + 1, leftColX + 90, currentY + 1);
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Relationship to Resident:", rightColX, currentY);
+        doc.setFont("helvetica", "normal");
+        doc.text(val(data.signerRelationship), rightColX + 45, currentY);
+        doc.line(rightColX + 45, currentY + 1, pageWidth - margin, currentY + 1);
+
+        currentY += 12;
+        doc.setFont("helvetica", "bold");
+        doc.text("Address:", leftColX, currentY);
+        doc.setFont("helvetica", "normal");
+        const splitAddress = doc.splitTextToSize(val(data.signerAddress), pageWidth - margin - (leftColX + 18));
+        doc.text(splitAddress, leftColX + 18, currentY);
+        currentY += splitAddress.length * 5;
+
+        currentY += 12;
+        doc.setFont("helvetica", "bold");
+        doc.text("Signature:", leftColX, currentY);
+        doc.setFont("helvetica", "italic");
+        doc.text(val(data.signerSignature), leftColX + 22, currentY);
+        doc.line(leftColX + 22, currentY + 1, leftColX + 90, currentY + 1);
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Date:", rightColX, currentY);
+        doc.setFont("helvetica", "normal");
+        doc.text(val(data.signerDate), rightColX + 12, currentY);
+        doc.line(rightColX + 12, currentY + 1, rightColX + 50, currentY + 1);
+
+        doc.save(`Best-Interest-Decision-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
     // --- PDF Layout Helpers ---
     const drawHeader = async () => {
         const headerHeight = 22;

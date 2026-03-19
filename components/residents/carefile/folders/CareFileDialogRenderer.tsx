@@ -29,6 +29,8 @@ import RestraintsConsentDialog from "@/components/residents/carefile/dialogs/Res
 import SmokingRiskAssessmentDialog from "@/components/residents/carefile/dialogs/SmokingRiskAssessmentDialog";
 import FallRiskAssessmentDialog from "@/components/residents/carefile/dialogs/FallRiskAssessmentDialog";
 import SpecimenRecordLogDialog from "@/components/residents/carefile/dialogs/SpecimenRecordLogDialog";
+import CapacityConsentDialog from "@/components/residents/carefile/dialogs/CapacityConsentDialog";
+import NightObservationDialog from "@/components/residents/carefile/dialogs/NightObservationDialog";
 
 
 interface BaseDialogProps {
@@ -58,6 +60,7 @@ interface CareFileDialogRendererProps extends BaseDialogProps {
   onClose: () => void;
   orgLogoUrl?: string;
   woundFolderId?: string;
+  teamName?: string;
 }
 
 /**
@@ -84,6 +87,7 @@ export function CareFileDialogRenderer({
   onClose,
   orgLogoUrl,
   woundFolderId,
+  teamName,
 }: CareFileDialogRendererProps) {
   const editData = (isReviewMode || viewOnly) ? formDataForEdit : null;
   // For care plan new creation, pass the pre-selected name as a synthetic initialData
@@ -199,7 +203,15 @@ export function CareFileDialogRenderer({
         return <DnacprDialog {...commonProps} initialData={editData} />;
 
       case "peep":
-        return <PeepDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
+        return (
+          <PeepDialog 
+            {...commonProps} 
+            userName={userName ?? ""} 
+            careHomeName={careHomeName ?? ""}
+            teamName={teamName ?? ""}
+            initialData={editData} 
+          />
+        );
 
       case "dependency-assessment":
         return <DependencyAssessmentDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
@@ -247,6 +259,7 @@ export function CareFileDialogRenderer({
             {...commonProps}
             userName={userName ?? ""}
             initialData={editData}
+            refreshForms={refreshForms}
           />
         );
 
@@ -321,6 +334,7 @@ export function CareFileDialogRenderer({
             {...commonProps}
             userName={userName ?? ""}
             initialData={editData}
+            refreshForms={refreshForms}
           />
         );
 
@@ -332,10 +346,8 @@ export function CareFileDialogRenderer({
             initialData={editData}
             refreshForms={refreshForms}
             onSaveSuccess={onSaveSuccess}
-            orgLogoUrl={orgLogoUrl}
           />
         );
-
 
       case "v2-specimen-log":
         return (
@@ -345,6 +357,43 @@ export function CareFileDialogRenderer({
             initialData={editData}
             orgLogoUrl={orgLogoUrl}
             careHomeName={careHomeName}
+            refreshForms={refreshForms}
+          />
+        );
+
+      case "v2-capacity-consent":
+        return (
+          <CapacityConsentDialog
+            teamId={teamId ?? ""}
+            residentId={residentId}
+            organizationId={organizationId}
+            userId={userId}
+            userName={userName ?? ""}
+            resident={resident}
+            onClose={onClose}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            isInline={isInline}
+            viewOnly={viewOnly}
+            refreshForms={refreshForms}
+            careHomeName={careHomeName}
+          />
+        );
+      case "v2-night-obs-consent":
+        return (
+          <NightObservationDialog
+            teamId={teamId ?? ""}
+            residentId={residentId}
+            organizationId={organizationId}
+            userId={userId}
+            userName={userName ?? ""}
+            resident={resident}
+            onClose={onClose}
+            initialData={editData}
+            isEditMode={isReviewMode}
+            isInline={isInline}
+            viewOnly={viewOnly}
+            refreshForms={refreshForms}
           />
         );
 
