@@ -15,7 +15,7 @@ export const admissionAssessmentSchema = z.object({
   admittedFrom: z.string().optional(),
   religion: z.string().optional(),
   telephoneNumber: z.string().optional(),
-  gender: z.enum(["MALE", "FEMALE"]).optional(),
+  gender: z.enum(["Male", "Female", "Other"]).optional(),
   NHSNumber: z.string().optional(),
   ethnicity: z.string().optional(),
 
@@ -36,7 +36,7 @@ export const admissionAssessmentSchema = z.object({
   // Care manager
   careManagerName: z.string().optional(),
   careManagerTelephoneNumber: z.string().optional(),
-  careManagerRelationship: z.string().optional(),
+  careManagerEmail: z.string().optional(),
   careManagerPhoneNumber: z.string().optional(),
   careManagerAddress: z.string().optional(),
   careManagerJobRole: z.string().optional(),
@@ -63,15 +63,9 @@ export const admissionAssessmentSchema = z.object({
   skinIntegrityEquipment: z.string().optional(),
   skinIntegrityWounds: z.string().optional(),
 
-  // Sleep
-  bedtimeRoutine: z.string().optional(),
-
   // Infection control
   currentInfection: z.string().optional(),
   antibioticsPrescribed: z.boolean(),
-
-  // Breathing
-  prescribedBreathing: z.string().optional(),
 
   // Mobility
   mobilityIndependent: z.boolean(),
@@ -86,14 +80,40 @@ export const admissionAssessmentSchema = z.object({
   dietType: z.string().optional(),
   nutritionalSupplements: z.string().optional(),
   nutritionalAssistanceRequired: z.string().optional(),
-  chockingRisk: z.boolean(),
+  chokingRisk: z.boolean(),
   additionalComments: z.string().optional(),
 
   // Continence
+  continenceIndependent: z.boolean(),
   continence: z.string().optional(),
 
   // Hygiene
-  hygiene: z.string().optional()
+  hygieneIndependent: z.boolean(),
+  hygiene: z.string().optional(),
+
+  // Sleep & Psychological
+  sleepPsychologicalIndependent: z.boolean(),
+  bedtimeRoutine: z.string().optional(),
+  psychologicalNeeds: z.string().optional(),
+
+  // Breathing
+  breathingIndependent: z.boolean(),
+  prescribedBreathing: z.string().optional(),
+
+  // New Sections from Images
+  alteredConsciousness: z.string().optional(),
+  communicationIndependent: z.boolean(),
+  communication: z.string().optional(),
+  behaviourIndependent: z.boolean(),
+  behaviour: z.string().optional(),
+  cognitionIndependent: z.boolean(),
+  cognition: z.string().optional(),
+
+  // Assessment Completion
+  completedBy: z.string().optional(),
+  jobRole: z.string().optional(),
+  signature: z.string().optional(),
+  assessmentDate: z.number().optional(),
 });
 
 export type AdmissionAssessment = z.infer<typeof admissionAssessmentSchema>;
