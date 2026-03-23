@@ -533,6 +533,16 @@ export const config = {
       forms: [
         { type: "form", key: "v2-assist-report", value: "Monthly Care Assistant Report", isComingSoon: true }
       ]
+    },
+    {
+      type: "folder",
+      key: "v2-progress-note",
+      value: "Progress Note",
+      description: "Daily progress notes and observations.",
+      carePlan: false,
+      forms: [
+        { type: "form", key: "progress-note-form", value: "Progress Notes" }
+      ]
     }
   ]
 };

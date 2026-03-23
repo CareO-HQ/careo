@@ -89,7 +89,8 @@ const TABLE_MAP: Record<string, string> = {
     "braden-risk-assessment-form": "braden_risk_assessments",
     "v2-restraints-risk": "restraints_consents",
     "fall-risk-assessment": "fall_risk_assessments",
-    "smoking-risk-assessment": "smoking_risk_assessments"
+    "smoking-risk-assessment": "smoking_risk_assessments",
+    "progress-note-form": "progress_notes"
 };
 
 // ─── File Viewer ──────────────────────────────────────────────────────────────

@@ -29,6 +29,7 @@ import RestraintsConsentDialog from "@/components/residents/carefile/dialogs/Res
 import SmokingRiskAssessmentDialog from "@/components/residents/carefile/dialogs/SmokingRiskAssessmentDialog";
 import FallRiskAssessmentDialog from "@/components/residents/carefile/dialogs/FallRiskAssessmentDialog";
 import SpecimenRecordLogDialog from "@/components/residents/carefile/dialogs/SpecimenRecordLogDialog";
+import { ProgressNoteForm } from "@/components/residents/carefile/folders/ProgressNoteForm";
 
 
 interface BaseDialogProps {
@@ -348,6 +349,13 @@ export function CareFileDialogRenderer({
           />
         );
 
+      case "progress-note-form":
+        return (
+          <ProgressNoteForm
+            residentId={residentId}
+            resident={resident}
+          />
+        );
 
       default:
         return null;
