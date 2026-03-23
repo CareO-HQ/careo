@@ -33,7 +33,8 @@ export type CareFileFormKey =
   | "fall-risk-assessment"
   | "smoking-risk-assessment"
   | "v2-night-obs-consent"
-  | "v2-capacity-consent";
+  | "v2-capacity-consent"
+  | "v2-general-risk";
 
 
 export type CareFileFormStatus =

@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import {
   Table,
   TableBody,
@@ -10,14 +11,51 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Eye, FileText } from "lucide-react";
+import { ArrowLeft, Eye, FileText, Loader2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useFolderForms } from "@/hooks/use-folder-forms";
 import { useState, useEffect } from "react";
-import RiskAssessmentViewDialog from "@/components/residents/carefile/folders/RiskAssessmentViewDialog";
 import { supabase } from "@/lib/supabase";
 import { config } from "@/config";
+import { useProfile } from "@/hooks/use-profile";
+import { useActiveTeam } from "@/hooks/use-active-team";
+import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
+import { Dialog } from "@/components/ui/dialog";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+
+const TABLE_MAP: Record<string, string> = {
+  "preAdmission-form": "pre_admission_care_files",
+  "infection-prevention": "infection_prevention_assessments",
+  "blader-bowel-form": "bladder_bowel_assessments",
+  "moving-handling-form": "moving_handling_assessments",
+  "bedrail-consent-form": "bedrail_consents",
+  "bed-rails-risk-assessment-form": "bedrails_risk_assessments",
+  "long-term-fall-risk-form": "long_term_falls_risk_assessments",
+  "admission-form": "admission_assessments",
+  "photography-consent": "photography_consents",
+  "dnacpr": "dnacprs",
+  "peep": "peeps",
+  "dependency-assessment": "dependency_assessments",
+  "timl": "timl_assessments",
+  "skin-integrity-form": "skin_integrity_assessments",
+  "resident-valuables-form": "resident_valuables_assessments",
+  "resident-handling-profile-form": "handling_profiles",
+  "pain-assessment-form": "pain_assessments",
+  "nutritional-assessment-form": "nutritional_assessments",
+  "oral-assessment-form": "oral_assessments",
+  "diet-notification-form": "diet_notifications",
+  "choking-risk-assessment-form": "choking_risk_assessments",
+  "cornell-depression-scale-form": "cornell_depression_scales",
+  "best-interest-decision-form": "best_interest_decisions",
+  "v2-restraints-risk": "restraints_consents",
+  "fall-risk-assessment": "fall_risk_assessments",
+  "smoking-risk-assessment": "smoking_risk_assessments",
+  "v2-specimen-log": "specimen_records",
+  "v2-capacity-consent": "capacity_consents",
+  "v2-night-obs-consent": "night_observation_consents",
+  "v2-general-risk": "general_risk_assessments"
+};
 
 export default function AllRiskAssessmentsPage() {
   const router = useRouter();
@@ -28,6 +66,9 @@ export default function AllRiskAssessmentsPage() {
   const searchParams = useSearchParams();
   const version = searchParams.get("v");
 
+  const { profile } = useProfile();
+  const { activeTeamId } = useActiveTeam();
+
   const [viewingAssessment, setViewingAssessment] = useState<{
     formKey: string;
     formId: string;
@@ -36,6 +77,9 @@ export default function AllRiskAssessmentsPage() {
     category: string;
   } | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [viewFormData, setViewFormData] = useState<any>(null);
+  const [isFetchingForm, setIsFetchingForm] = useState(false);
+  const [activeOrganization, setActiveOrganization] = useState<any>(null);
   const [resident, setResident] = useState<any>(undefined);
   const [loading, setLoading] = useState(true);
 
@@ -59,6 +103,13 @@ export default function AllRiskAssessmentsPage() {
 
     fetchData();
   }, [residentId]);
+
+  useEffect(() => {
+    if (profile?.active_organization_id) {
+      supabase.from("organizations").select("*").eq("id", profile.active_organization_id).single()
+        .then(({ data }) => { if (data) setActiveOrganization(data); });
+    }
+  }, [profile?.active_organization_id]);
 
   // Fetch all assessment forms (excluding risk assessments and care plans)
   // Fetch all assessment forms (excluding risk assessments and care plans)
@@ -91,7 +142,8 @@ export default function AllRiskAssessmentsPage() {
     allSmokingRiskAssessmentForms,
     allSpecimenLogForms,
     allCapacityConsentsForms,
-    allNightObservationForms
+    allNightObservationForms,
+    allGeneralRiskForms
   } = useFolderForms({
     residentId,
     folderFormKeys: [
@@ -123,7 +175,8 @@ export default function AllRiskAssessmentsPage() {
       "smoking-risk-assessment",
       "v2-specimen-log",
       "v2-capacity-consent",
-      "v2-night-obs-consent"
+      "v2-night-obs-consent",
+      "v2-general-risk"
     ],
     organizationId: resident?.active_organization_id
   });
@@ -463,6 +516,15 @@ export default function AllRiskAssessmentsPage() {
       folderName: getFolderName("v2-night-obs-consent", "Admission"),
       category: "Consent"
     }] : []),
+    // General Risk Assessment
+    ...(allGeneralRiskForms && allGeneralRiskForms.length > 0 ? [{
+      _id: getLatestForm(allGeneralRiskForms)?._id,
+      key: "v2-general-risk",
+      name: "General Risk Assessment",
+      completedAt: getLatestForm(allGeneralRiskForms)?._creationTime,
+      folderName: getFolderName("v2-general-risk", "Safe Environment"),
+      category: "Handling"
+    }] : []),
   ].filter(assessment => assessment._id); // Remove any null entries
   // Remove any null entries
 
@@ -500,7 +562,7 @@ export default function AllRiskAssessmentsPage() {
     }
   };
 
-  const handleViewAssessment = (assessment: typeof sortedAssessments[0]) => {
+  const handleViewAssessment = async (assessment: typeof sortedAssessments[0]) => {
     setViewingAssessment({
       formKey: assessment.key,
       formId: assessment._id,
@@ -508,7 +570,24 @@ export default function AllRiskAssessmentsPage() {
       completedAt: assessment.completedAt,
       category: assessment.category
     });
+    setViewFormData(null);
     setIsDialogOpen(true);
+    setIsFetchingForm(true);
+    try {
+      const tableName = TABLE_MAP[assessment.key];
+      if (tableName) {
+        const { data, error } = await supabase
+          .from(tableName)
+          .select("*")
+          .eq("id", assessment._id)
+          .single();
+        if (!error && data) setViewFormData(data);
+      }
+    } catch (err) {
+      console.error("Error fetching form data:", err);
+    } finally {
+      setIsFetchingForm(false);
+    }
   };
 
   return (
@@ -594,14 +673,61 @@ export default function AllRiskAssessmentsPage() {
         )}
       </div>
 
-      {/* Risk Assessment View Dialog */}
-      {viewingAssessment && (
-        <RiskAssessmentViewDialog
-          open={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          assessment={viewingAssessment}
-        />
-      )}
+      {/* Form View Overlay */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogPrimitive.Content asChild>
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-background/95 backdrop-blur-sm p-4 sm:p-8">
+            <VisuallyHidden><DialogPrimitive.Title>{viewingAssessment?.name ?? "Form"}</DialogPrimitive.Title></VisuallyHidden>
+            <div className="max-w-4xl mx-auto bg-background rounded-xl border shadow-2xl">
+              <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <FileText className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold leading-none">{viewingAssessment?.name}</h2>
+                    {viewingAssessment && <p className="text-xs text-muted-foreground mt-1">Completed on {format(new Date(viewingAssessment.completedAt), "dd MMM yyyy, HH:mm")}</p>}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsDialogOpen(false)}
+                  className="rounded-full p-2 hover:bg-muted transition-colors"
+                >
+                  <span className="sr-only">Close</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <div className="p-6 sm:p-10">
+                {isFetchingForm ? (
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+                    <p className="text-muted-foreground">Loading form...</p>
+                  </div>
+                ) : viewingAssessment ? (
+                  <CareFileDialogRenderer
+                    formKey={viewingAssessment.formKey as any}
+                    residentId={residentId}
+                    teamId={activeTeamId ?? ""}
+                    organizationId={profile?.active_organization_id ?? ""}
+                    userId={profile?.id ?? ""}
+                    userName={profile?.name || profile?.email || "User"}
+                    userRole={profile?.role ?? ""}
+                    resident={resident}
+                    careHomeName={profile?.care_home_name ?? ""}
+                    folderKey=""
+                    formDataForEdit={viewFormData}
+                    isReviewMode={false}
+                    onClose={() => setIsDialogOpen(false)}
+                    isInline={true}
+                    viewOnly={true}
+                    orgLogoUrl={activeOrganization?.logo_url}
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </DialogPrimitive.Content>
+      </Dialog>
     </div>
   );
 }

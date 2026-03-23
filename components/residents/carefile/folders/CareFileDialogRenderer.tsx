@@ -31,6 +31,7 @@ import FallRiskAssessmentDialog from "@/components/residents/carefile/dialogs/Fa
 import SpecimenRecordLogDialog from "@/components/residents/carefile/dialogs/SpecimenRecordLogDialog";
 import CapacityConsentDialog from "@/components/residents/carefile/dialogs/CapacityConsentDialog";
 import NightObservationDialog from "@/components/residents/carefile/dialogs/NightObservationDialog";
+import GeneralRiskAssessmentDialog from "@/components/residents/carefile/dialogs/GeneralRiskAssessmentDialog";
 
 
 interface BaseDialogProps {
@@ -397,6 +398,16 @@ export function CareFileDialogRenderer({
           />
         );
 
+
+      case "v2-general-risk":
+        return (
+          <GeneralRiskAssessmentDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+            refreshForms={refreshForms}
+          />
+        );
 
       default:
         return null;

@@ -370,7 +370,7 @@ export const config = {
       description: "Risk assessments and safety plans.",
       carePlan: true,
       forms: [
-        { type: "form", key: "v2-general-risk", value: "General Risk Assessment", isComingSoon: true },
+        { type: "form", key: "v2-general-risk", value: "General Risk Assessment" },
         { type: "form", key: "peep", value: "PEEP (Personal Emergency Evacuation Plan) + Evaluation" },
         { type: "form", key: "v2-restraints-risk", value: "Consent and Risk Assessment for Restraints" }
       ]

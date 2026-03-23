@@ -48,6 +48,7 @@ export function useFolderForms({
   const [allSpecimenLogForms, setAllSpecimenLogForms] = useState<any[] | undefined>(undefined);
   const [allCapacityConsentsForms, setAllCapacityConsentsForms] = useState<any[] | undefined>(undefined);
   const [allNightObservationForms, setAllNightObservationForms] = useState<any[] | undefined>(undefined);
+  const [allGeneralRiskForms, setAllGeneralRiskForms] = useState<any[] | undefined>(undefined);
 
   const [activeCarePlanForms, setActiveCarePlanForms] = useState<any[] | undefined>(undefined);
   const [archivedCarePlans, setArchivedCarePlans] = useState<any[] | undefined>(undefined);
@@ -395,6 +396,16 @@ export function useFolderForms({
         .then(({ data }) => setAllNightObservationForms(data || [])));
     }
 
+    // General Risk Assessment
+    if (folderFormKeys?.includes("v2-general-risk")) {
+      promises.push(supabase
+        .from('general_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllGeneralRiskForms(data || [])));
+    }
+
     // Care Plans
     if (includeCarePlans && folderKey) {
       // Fetch is handled in separate fetchAllCarePlans effect
@@ -711,6 +722,16 @@ export function useFolderForms({
         .then(({ data }) => setAllNightObservationForms(data || [])));
     }
 
+    // General Risk Assessment
+    if (folderFormKeys?.includes("v2-general-risk")) {
+      promises.push(supabase
+        .from('general_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllGeneralRiskForms(data || [])));
+    }
+
     Promise.all(promises).finally(() => setIsLoading(false));
   }, [residentId]);
 
@@ -772,6 +793,7 @@ export function useFolderForms({
   const allSpecimenLogFormsMapped = useMemo(() => mapToConvexLike(allSpecimenLogForms), [allSpecimenLogForms]);
   const allCapacityConsentsFormsMapped = useMemo(() => mapToConvexLike(allCapacityConsentsForms), [allCapacityConsentsForms]);
   const allNightObservationFormsMapped = useMemo(() => mapToConvexLike(allNightObservationForms), [allNightObservationForms]);
+  const allGeneralRiskFormsMapped = useMemo(() => mapToConvexLike(allGeneralRiskForms), [allGeneralRiskForms]);
 
   const activeCarePlanFormsMapped = useMemo(() => mapToConvexLike(activeCarePlanForms), [activeCarePlanForms]);
   const archivedCarePlansMapped = useMemo(() => mapToConvexLike(archivedCarePlans), [archivedCarePlans]);
@@ -913,6 +935,7 @@ export function useFolderForms({
     allSpecimenLogFormsMapped,
     allCapacityConsentsFormsMapped,
     allNightObservationFormsMapped,
+    allGeneralRiskFormsMapped,
     filteredActiveCarePlansMapped,
     filteredArchivedCarePlansMapped,
     folderFormKeys
@@ -955,6 +978,7 @@ export function useFolderForms({
     allSpecimenLogForms: allSpecimenLogFormsMapped,
     allCapacityConsentsForms: allCapacityConsentsFormsMapped,
     allNightObservationForms: allNightObservationFormsMapped,
+    allGeneralRiskForms: allGeneralRiskFormsMapped,
     allBedRailsRiskAssessmentForms: allBedRailsRiskAssessmentFormsMapped,
     activeCarePlanForms: filteredActiveCarePlansMapped,
     latestCarePlanForm: filteredActiveCarePlansMapped && filteredActiveCarePlansMapped.length > 0 ? filteredActiveCarePlansMapped[0] : null,

@@ -1229,6 +1229,60 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
       ],
     },
   ],
+  "v2-general-risk": [
+    {
+      title: "Section A — Resident Information",
+      fields: [
+        { label: "Full Name", path: "assessment_data.fullName" },
+        { label: "Date of Birth", path: "assessment_data.dateOfBirth" },
+        { label: "Resident / NHS Number", path: "assessment_data.residentNumber" },
+        { label: "Room Number", path: "assessment_data.roomNumber" },
+        { label: "Date of Assessment", path: "assessment_data.dateOfAssessment" },
+      ],
+    },
+    {
+      title: "Section B — Assessment Details",
+      fields: [
+        { label: "Assessment Completed By", path: "assessment_data.completedBy" },
+        { label: "Role", path: "assessment_data.role" },
+        { label: "Reason for Assessment", path: "assessment_data.reasonForAssessment" },
+        { label: "Other Reason", path: "assessment_data.otherReason" },
+      ],
+    },
+    {
+      title: "Section C — Areas of Risk Identified",
+      fields: [
+        { label: "Falls and mobility", path: "assessment_data.riskAreas.falls", fmt: "bool" },
+        { label: "Skin integrity", path: "assessment_data.riskAreas.skin", fmt: "bool" },
+        { label: "Nutrition and hydration", path: "assessment_data.riskAreas.nutrition", fmt: "bool" },
+        { label: "Medication management", path: "assessment_data.riskAreas.medication", fmt: "bool" },
+        { label: "Behavioural or cognitive", path: "assessment_data.riskAreas.behavioural", fmt: "bool" },
+        { label: "Infection control", path: "assessment_data.riskAreas.infection", fmt: "bool" },
+        { label: "Manual handling needs", path: "assessment_data.riskAreas.manualHandling", fmt: "bool" },
+        { label: "Environmental hazards", path: "assessment_data.riskAreas.environmental", fmt: "bool" },
+        { label: "Wandering or absconding", path: "assessment_data.riskAreas.wandering", fmt: "bool" },
+        { label: "Other", path: "assessment_data.riskAreas.other" },
+        { label: "Other Risk Details", path: "assessment_data.riskAreas.otherText" },
+      ],
+    },
+    {
+      title: "Section D — Detailed Assessment",
+      fields: [
+        { label: "Mental health", path: "assessment_data.detailedAssessment.mentalHealth" },
+        { label: "Communication", path: "assessment_data.detailedAssessment.communication" },
+        { label: "Relationships", path: "assessment_data.detailedAssessment.relationships" },
+        { label: "Physical health", path: "assessment_data.detailedAssessment.physicalHealth" },
+        { label: "Support needs", path: "assessment_data.detailedAssessment.supportNeeds" },
+      ],
+    },
+    {
+      title: "Section E — Risk Level",
+      fields: [
+        { label: "Risk Level", path: "assessment_data.riskLevel" },
+        { label: "Action Plan", path: "assessment_data.actionPlan" },
+      ],
+    },
+  ],
 };
 
 // ─── Compact Schema Renderer ──────────────────────────────────────────────────
@@ -1382,6 +1436,7 @@ const TABLE_MAP: Record<string, string> = {
   "v2-specimen-log": "specimen_records",
   "v2-capacity-consent": "capacity_consents",
   "v2-night-obs-consent": "night_observation_consents",
+  "v2-general-risk": "general_risk_assessments",
 };
 
 export function RiskAssessmentViewer({ assessment }: RiskAssessmentViewerProps) {

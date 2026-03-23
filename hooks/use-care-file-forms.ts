@@ -55,7 +55,8 @@ async function fetchFormsFromDB(residentId: string): Promise<CareFileFormsState>
     "smoking-risk-assessment",
     "v2-night-obs-consent",
     "v2-capacity-consent",
-    "v2-specimen-log"
+    "v2-specimen-log",
+    "v2-general-risk"
   ];
 
   const tableMap: Partial<Record<CareFileFormKey, string>> = {
@@ -89,7 +90,8 @@ async function fetchFormsFromDB(residentId: string): Promise<CareFileFormsState>
     "care-plan-form": "care_plan_assessments",
     "v2-capacity-consent": "capacity_consents",
     "v2-night-obs-consent": "night_observation_consents",
-    "v2-specimen-log": "specimen_records"
+    "v2-specimen-log": "specimen_records",
+    "v2-general-risk": "general_risk_assessments"
   };
 
   const newState: CareFileFormsState = {};
