@@ -43,6 +43,7 @@ export function EmarSheet({
 
   // Resident data
   const [resident, setResident] = useState<any>(null);
+  const [careHomeName, setCareHomeName] = useState<string>("");
 
   const monthYear = format(selectedMonth, "MMMM yyyy");
   const currentMonth = selectedMonth.getMonth() + 1;
@@ -54,15 +55,16 @@ export function EmarSheet({
     setIsLoading(true);
     setError(null);
     try {
-      // Fetch resident data
+      // Fetch resident data with care home name
       const { data: residentData } = await supabase
         .from('residents')
-        .select('*')
+        .select('*, care_home:care_home_id(name)')
         .eq('id', residentId)
         .single();
 
       if (residentData) {
         setResident(residentData);
+        setCareHomeName(residentData.care_home?.name || "");
       }
 
       // Fetch or create medication MAR sheet
@@ -232,17 +234,51 @@ export function EmarSheet({
   // Fetch administration records for the month
   const fetchAdministrations = async (medSheetId: string, prnSheetId: string) => {
     try {
-      // Fetch medication administrations
-      const { data: medAdmins } = await supabase
+      // Fetch medication administrations with proper joins to public.users table
+      const { data: medAdminsRaw, error: medError } = await supabase
         .from('emar_administrations')
-        .select('*, medication:medication_id(*), administered_by:administered_by(name), witness:witness_id(name)')
+        .select('*')
         .eq('emar_sheet_id', medSheetId);
 
+      if (medError) {
+        console.error('Error fetching medication administrations:', medError);
+      }
+
       // Fetch PRN administrations
-      const { data: prnAdmins } = await supabase
+      const { data: prnAdminsRaw, error: prnError } = await supabase
         .from('emar_administrations')
-        .select('*, medication:medication_id(*), administered_by:administered_by(name), witness:witness_id(name)')
+        .select('*')
         .eq('emar_sheet_id', prnSheetId);
+
+      if (prnError) {
+        console.error('Error fetching PRN administrations:', prnError);
+      }
+
+      // Enrich with user data from public.users
+      const enrichWithUserData = async (admins: any[]) => {
+        if (!admins || admins.length === 0) return [];
+
+        const userIds = [...new Set(admins.map(a => a.administered_by).filter(Boolean))];
+        const { data: users } = await supabase
+          .from('users')
+          .select('id, name')
+          .in('id', userIds);
+
+        const userMap = new Map(users?.map(u => [u.id, u]) || []);
+
+        return admins.map(admin => ({
+          ...admin,
+          administered_by: admin.administered_by ? userMap.get(admin.administered_by) : null,
+        }));
+      };
+
+      const medAdmins = await enrichWithUserData(medAdminsRaw || []);
+      const prnAdmins = await enrichWithUserData(prnAdminsRaw || []);
+
+      console.log('Medication Sheet ID:', medSheetId);
+      console.log('Fetched medication administrations:', medAdmins);
+      console.log('PRN Sheet ID:', prnSheetId);
+      console.log('Fetched PRN administrations:', prnAdmins);
 
       setMedicationAdministrations(medAdmins || []);
       setPrnAdministrations(prnAdmins || []);
@@ -384,11 +420,12 @@ export function EmarSheet({
           <p className={`text-sm font-medium ${isFutureMonth() ? 'text-blue-800' : 'text-amber-800'}`}>
             {isFutureMonth()
               ? `Viewing future month: ${monthYear}. No data available yet.`
-              : `Viewing archived month: ${monthYear}. This MAR sheet is read-only.`
+              : `Viewing archived month: ${monthYear}. Historical record only.`
             }
           </p>
         </div>
       )}
+
 
       {/* Tabs for Medication MAR and PRN MAR */}
       {!error && (
@@ -424,6 +461,8 @@ export function EmarSheet({
             daysInMonth={daysInMonth}
             isReadOnly={!isCurrentMonth()}
             onRefresh={fetchOrCreateMarSheets}
+            resident={resident}
+            careHomeName={careHomeName}
           />
         </TabsContent>
 
@@ -439,6 +478,8 @@ export function EmarSheet({
             daysInMonth={daysInMonth}
             isReadOnly={!isCurrentMonth()}
             onRefresh={fetchOrCreateMarSheets}
+            resident={resident}
+            careHomeName={careHomeName}
           />
         </TabsContent>
         </Tabs>

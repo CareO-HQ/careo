@@ -161,3 +161,45 @@
 .form-view-mode .lucide-calendar-days:not(.keep-interactive) {
   display: none !important;
 }
+
+/* eMAR Grid Layout for 31 days */
+.grid-cols-31 {
+  display: grid;
+  grid-template-columns: repeat(31, minmax(40px, 1fr));
+}
+
+@media print {
+  .grid-cols-31 {
+    grid-template-columns: repeat(31, minmax(28px, 1fr));
+  }
+
+  /* Print styles for eMAR */
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Ensure borders print correctly */
+  table {
+    border-collapse: collapse;
+  }
+
+  td, th {
+    page-break-inside: avoid;
+  }
+
+  /* Ensure colors print */
+  .bg-green-100,
+  .bg-orange-100,
+  .bg-gray-100,
+  .bg-blue-100,
+  .bg-gray-700 {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

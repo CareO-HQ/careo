@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { PrnAdministrationModal } from "./PrnAdministrationModal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { format } from "date-fns";
 
 interface PrnMarSheetProps {
   residentId: string;
@@ -16,6 +17,8 @@ interface PrnMarSheetProps {
   daysInMonth: number;
   isReadOnly: boolean;
   onRefresh: () => void;
+  resident?: any;
+  careHomeName?: string;
 }
 
 export function PrnMarSheet({
@@ -29,10 +32,13 @@ export function PrnMarSheet({
   daysInMonth,
   isReadOnly,
   onRefresh,
+  resident,
+  careHomeName,
 }: PrnMarSheetProps) {
   const [selectedCell, setSelectedCell] = useState<{
     medication: any;
     date: number;
+    administrations: any[];
   } | null>(null);
 
   // Generate array of days [1, 2, 3, ..., daysInMonth]
@@ -48,17 +54,46 @@ export function PrnMarSheet({
     );
   };
 
-  // Handle cell click
+  // Handle cell click - show details in read-only modal
   const handleCellClick = (medication: any, day: number) => {
-    if (isReadOnly) return;
-    setSelectedCell({ medication, date: day });
+    const admins = getAdministrationsForCell(medication.id, day);
+    if (admins.length > 0) {
+      setSelectedCell({ medication, date: day, administrations: admins });
+    }
+  };
+
+  // Format time for display
+  const formatTimeDisplay = (timestamp: string | null) => {
+    if (!timestamp) return "Not recorded";
+    try {
+      const date = new Date(timestamp);
+      return format(date, "h:mm a");
+    } catch {
+      return "Invalid time";
+    }
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "—";
+    try {
+      return format(new Date(dateString), "dd/MM/yyyy");
+    } catch {
+      return "—";
+    }
+  };
+
+  // Get allergies list
+  const getAllergies = () => {
+    if (!resident?.allergies || resident.allergies.length === 0) return "None recorded";
+    return resident.allergies.join(", ");
   };
 
   if (medications.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border rounded-lg bg-muted/30">
-        <p className="text-sm font-medium text-muted-foreground">No PRN medications</p>
-        <p className="text-xs text-muted-foreground">
+      <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border-2 border-black rounded bg-white">
+        <p className="text-sm font-medium text-gray-700">No PRN medications</p>
+        <p className="text-xs text-gray-600">
           PRN (as-required) medications will appear here once added to the resident&apos;s medication list.
         </p>
       </div>
@@ -67,124 +102,189 @@ export function PrnMarSheet({
 
   return (
     <>
-      <div className="rounded-lg border bg-white overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-gray-700 hover:bg-gray-700">
-              <TableHead className="text-white font-bold sticky left-0 z-10 bg-gray-700 min-w-[200px]">
-                Medication
-              </TableHead>
-              <TableHead className="text-white font-bold min-w-[150px]">Indication</TableHead>
-              <TableHead className="text-white font-bold min-w-[120px]">Max Daily Dose</TableHead>
+      {/* Resident Information Header */}
+      <div className="bg-white border-2 border-black mb-4 print:mb-2 print:break-inside-avoid">
+        <div className="bg-gray-700 text-white font-bold text-sm p-2 border-b-2 border-black">
+          PRN MEDICATION ADMINISTRATION RECORD (MAR) - {format(new Date(year, month - 1), "MMMM yyyy").toUpperCase()}
+        </div>
+        <div className="grid grid-cols-2 gap-0">
+          {/* Left Column */}
+          <div className="border-r-2 border-black">
+            <div className="border-b border-black p-2">
+              <span className="font-bold text-xs uppercase text-gray-700">Name: </span>
+              <span className="text-sm font-medium">{residentName}</span>
+            </div>
+            <div className="border-b border-black p-2">
+              <span className="font-bold text-xs uppercase text-gray-700">DOB: </span>
+              <span className="text-sm font-medium">{formatDate(resident?.date_of_birth)}</span>
+            </div>
+            <div className="border-b border-black p-2">
+              <span className="font-bold text-xs uppercase text-gray-700">GP: </span>
+              <span className="text-sm font-medium">{resident?.gp_name || "—"}</span>
+            </div>
+            <div className="p-2">
+              <span className="font-bold text-xs uppercase text-gray-700">Allergies: </span>
+              <span className="text-sm font-medium text-red-700">{getAllergies()}</span>
+            </div>
+          </div>
+
+          {/* Right Column */}
+          <div>
+            <div className="border-b border-black p-2">
+              <span className="font-bold text-xs uppercase text-gray-700">Care Home: </span>
+              <span className="text-sm font-medium">{careHomeName || "—"}</span>
+            </div>
+            <div className="border-b border-black p-2">
+              <span className="font-bold text-xs uppercase text-gray-700">Room Number: </span>
+              <span className="text-sm font-medium">{resident?.room_number || "—"}</span>
+            </div>
+            <div className="p-2">
+              <span className="font-bold text-xs uppercase text-gray-700">NHS Number: </span>
+              <span className="text-sm font-medium">{resident?.nhs_number || "Not recorded"}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* PRN MAR Sheet Table */}
+      <div className="bg-white border-2 border-black overflow-x-auto print:border-black print:break-inside-avoid">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="border-2 border-black bg-gray-700 text-white font-bold text-xs p-2 sticky left-0 z-20 min-w-[220px]">
+                MEDICATION / DOSE / INDICATION
+              </th>
               {days.map((day) => (
-                <TableHead
+                <th
                   key={day}
-                  className="text-white text-center font-bold min-w-[60px] p-1"
+                  className="border-2 border-black bg-gray-700 text-white font-bold text-[10px] p-0.5 w-[28px] max-w-[28px] text-center"
                 >
                   {day}
-                </TableHead>
+                </th>
               ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {medications.map((medication, index) => (
-              <TableRow
-                key={medication.id}
-                className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
-              >
-                {/* Medication name and details */}
-                <TableCell className="font-medium sticky left-0 z-10 bg-inherit border-r">
-                  <div className="flex flex-col gap-1">
-                    <p className="font-bold text-sm">{medication.name}</p>
-                    <p className="text-xs text-gray-600">
-                      {medication.strength} {medication.strength_unit} — {medication.dosage_form}
-                    </p>
-                    {medication.route && (
-                      <p className="text-xs text-gray-500">Route: {medication.route}</p>
-                    )}
-                    {medication.is_controlled_drug && (
-                      <Badge variant="destructive" className="w-fit text-[10px]">
-                        ⚠ CD
-                      </Badge>
+            </tr>
+          </thead>
+          <tbody>
+            {medications.map((medication, medIndex) => (
+              <tr key={medication.id} className={medIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                {/* Medication Details Column */}
+                <td className="border-2 border-black p-2 font-medium sticky left-0 z-10 bg-inherit">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-sm">{medication.name}</p>
+                      {medication.is_controlled_drug && (
+                        <span className="px-1.5 py-0.5 text-[9px] font-bold bg-red-100 text-red-800 border border-red-400 rounded">
+                          CD
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-700">
+                      <span className="font-semibold">Dose:</span> {medication.strength} {medication.strength_unit}
+                    </div>
+                    <div className="text-xs text-gray-700">
+                      <span className="font-semibold">Route:</span> {medication.route || "—"}
+                    </div>
+                    {medication.instructions && (
+                      <div className="text-xs text-gray-700">
+                        <span className="font-semibold">Indication:</span> {medication.instructions}
+                      </div>
                     )}
                   </div>
-                </TableCell>
+                </td>
 
-                {/* Indication */}
-                <TableCell className="text-sm text-gray-600">
-                  {medication.instructions || "—"}
-                </TableCell>
-
-                {/* Max Daily Dose */}
-                <TableCell className="text-sm text-gray-600">
-                  {medication.frequency || "As required"}
-                </TableCell>
-
-                {/* Calendar cells for each day */}
+                {/* Day cells */}
                 {days.map((day) => {
                   const admins = getAdministrationsForCell(medication.id, day);
                   const adminCount = admins.length;
 
                   return (
-                    <TableCell
+                    <td
                       key={day}
-                      className={`text-center p-1 cursor-pointer hover:bg-green-50 transition-colors ${
-                        adminCount > 0 ? "bg-green-50 border-green-200" : "bg-blue-50"
+                      className={`border-2 border-black p-0 w-[28px] max-w-[28px] h-[45px] ${
+                        adminCount > 0 ? 'bg-green-100 cursor-pointer hover:bg-green-200' : 'bg-white'
                       }`}
                       onClick={() => handleCellClick(medication, day)}
+                      title={adminCount > 0 ? `View ${adminCount} PRN administration${adminCount > 1 ? 's' : ''} on ${day}/${month}/${year}` : "No PRN administrations"}
                     >
                       {adminCount > 0 ? (
                         <div className="flex flex-col items-center justify-center h-full">
-                          <span className="font-bold text-lg text-green-700">
+                          <span className="font-bold text-base text-green-700 leading-none">
                             {adminCount}
                           </span>
-                          <span className="text-[9px] text-gray-600 leading-none">
-                            {adminCount === 1 ? "dose" : "doses"}
+                          <span className="text-[7px] font-bold text-gray-700 leading-tight mt-0.5">
+                            dose{adminCount > 1 ? 's' : ''}
                           </span>
                         </div>
-                      ) : (
-                        <div className="h-8 flex items-center justify-center text-gray-400 text-xs">
-                          —
-                        </div>
-                      )}
-                    </TableCell>
+                      ) : null}
+                    </td>
                   );
                 })}
-              </TableRow>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
 
-      {/* Information box */}
-      <div className="mt-4 border rounded-lg p-4 bg-blue-50 border-blue-200">
-        <h3 className="font-bold text-sm mb-2 text-blue-900">PRN Administration Guide</h3>
-        <p className="text-sm text-blue-800">
-          Click on any calendar cell to record a PRN medication administration. The number indicates
-          how many times the medication was given on that day. Each administration requires a reason,
-          dose, and outcome to be recorded.
-        </p>
-      </div>
 
-      {/* PRN Administration Modal */}
+      {/* Read-Only Details Modal */}
       {selectedCell && (
-        <PrnAdministrationModal
-          isOpen={!!selectedCell}
-          onClose={() => setSelectedCell(null)}
-          medication={selectedCell.medication}
-          date={selectedCell.date}
-          month={month}
-          year={year}
-          sheetId={sheetId}
-          existingRecords={getAdministrationsForCell(
-            selectedCell.medication.id,
-            selectedCell.date
-          )}
-          onSuccess={() => {
-            onRefresh();
-            setSelectedCell(null);
-          }}
-        />
+        <Dialog open={!!selectedCell} onOpenChange={() => setSelectedCell(null)}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                PRN Administration Details - {selectedCell.medication.name}
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                {format(new Date(year, month - 1, selectedCell.date), "EEEE, MMMM d, yyyy")}
+              </p>
+            </DialogHeader>
+
+            <div className="space-y-4 mt-4">
+              {selectedCell.administrations.map((admin, index) => (
+                <div key={admin.id || index} className="border rounded-lg p-4 bg-gray-50">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 uppercase">Time</p>
+                      <p className="text-sm font-medium">{formatTimeDisplay(admin.administered_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 uppercase">Status</p>
+                      <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
+                        {admin.status || "Given"}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 uppercase">Dose Administered</p>
+                      <p className="text-sm font-medium">{admin.prn_dose_administered || `${admin.quantity || 1}x`}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 uppercase">Administered By</p>
+                      <p className="text-sm font-medium">{admin.administered_by?.name || "Unknown"}</p>
+                    </div>
+                    {admin.prn_reason && (
+                      <div className="col-span-2">
+                        <p className="text-xs font-semibold text-gray-600 uppercase">Reason</p>
+                        <p className="text-sm">{admin.prn_reason}</p>
+                      </div>
+                    )}
+                    {admin.prn_outcome && (
+                      <div className="col-span-2">
+                        <p className="text-xs font-semibold text-gray-600 uppercase">Outcome</p>
+                        <p className="text-sm">{admin.prn_outcome}</p>
+                      </div>
+                    )}
+                    {admin.notes && (
+                      <div className="col-span-2">
+                        <p className="text-xs font-semibold text-gray-600 uppercase">Notes</p>
+                        <p className="text-sm">{admin.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );
