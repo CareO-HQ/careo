@@ -14,6 +14,28 @@ import { Resident } from "@/types";
 
 const UK_TIMEZONE = "Europe/London";
 
+// Map care file numbers to folder names
+const CARE_FILE_NAMES: Record<number, string> = {
+    1: "Pre-Admission",
+    2: "Admission",
+    3: "Maintaining a Safe Environment",
+    4: "Dependency",
+    5: "This Is My Life",
+    6: "Medication",
+    7: "Mobility",
+    8: "Nutrition and Hydration",
+    9: "Incontinence",
+    10: "Personal Hygiene and Dressing",
+    11: "Skin Integrity / Tissue Viability",
+    12: "Additional Care Plans",
+    13: "Psychological & Emotional Needs",
+    14: "Residents' Valuables and Personal Property",
+    15: "Record of Specimens",
+    16: "Confidential Records",
+    17: "Safeguarding & DoLS",
+    18: "Key Worker Diary",
+};
+
 interface ProgressNoteFormProps {
     residentId: string;
     resident: Resident;
@@ -47,6 +69,7 @@ export function ProgressNoteForm({ residentId, resident }: ProgressNoteFormProps
     const [selectedCareFileNumbers, setSelectedCareFileNumbers] = useState<number[]>([]);
     const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
+    const [hoveredCareFile, setHoveredCareFile] = useState<number | null>(null);
 
     const fetchProgressNotes = async () => {
         if (!residentId) return;
@@ -323,20 +346,29 @@ export function ProgressNoteForm({ residentId, resident }: ProgressNoteFormProps
 
                         <div className="space-y-1.5">
                             <label className="text-xs font-medium text-muted-foreground">Care File Numbers (Select multiple)</label>
-                            <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 p-3 border rounded-md bg-background">
-                                {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
-                                    <button
-                                        key={num}
-                                        type="button"
-                                        onClick={() => toggleCareFileNumber(num)}
-                                        className={`h-8 w-8 rounded-md border text-xs font-medium transition-all ${
-                                            selectedCareFileNumbers.includes(num)
-                                                ? "bg-primary text-primary-foreground border-primary"
-                                                : "bg-background hover:bg-muted border-input"
-                                        }`}
-                                    >
-                                        {num}
-                                    </button>
+                            <div className="grid grid-cols-6 sm:grid-cols-9 gap-2 p-3 border rounded-md bg-background relative">
+                                {Array.from({ length: 18 }, (_, i) => i + 1).map((num) => (
+                                    <div key={num} className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleCareFileNumber(num)}
+                                            onMouseEnter={() => setHoveredCareFile(num)}
+                                            onMouseLeave={() => setHoveredCareFile(null)}
+                                            className={`h-8 w-8 rounded-md border text-xs font-medium transition-all ${
+                                                selectedCareFileNumbers.includes(num)
+                                                    ? "bg-primary text-primary-foreground border-primary"
+                                                    : "bg-background hover:bg-muted border-input"
+                                            }`}
+                                        >
+                                            {num}
+                                        </button>
+                                        {hoveredCareFile === num && (
+                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-md shadow-lg text-xs font-medium text-blue-900 whitespace-nowrap z-50 pointer-events-none">
+                                                {CARE_FILE_NAMES[num]}
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 w-2 h-2 bg-blue-50 border-r border-b border-blue-200 transform rotate-45"></div>
+                                            </div>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
                             {selectedCareFileNumbers.length > 0 && (

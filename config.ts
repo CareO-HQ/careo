@@ -543,6 +543,14 @@ export const config = {
       forms: [
         { type: "form", key: "progress-note-form", value: "Progress Notes" }
       ]
+    },
+    {
+      type: "folder",
+      key: "v2-end-of-life",
+      value: "End of Life / Death",
+      description: "End of life care planning and death certification.",
+      carePlan: true,
+      forms: []
     }
   ]
 };

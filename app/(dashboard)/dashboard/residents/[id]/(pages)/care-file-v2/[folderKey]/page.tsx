@@ -596,9 +596,6 @@ export default function CareFileV2FolderPage() {
                                         ) : (
                                             <>
                                                 <Button variant="outline" size="sm" onClick={handleCloseForm} disabled={isSaving}>Cancel</Button>
-                                                <Button size="sm" onClick={handleExternalSubmit} disabled={isSaving} className="gap-2">
-                                                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} Submit
-                                                </Button>
                                             </>
                                         )}
                                         <Button
