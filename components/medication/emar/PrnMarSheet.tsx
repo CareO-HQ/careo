@@ -109,7 +109,22 @@ export function PrnMarSheet({
           <div className="bg-gray-700 text-white font-bold text-sm p-2 border-b-2 border-black">
             PRN MEDICATION ADMINISTRATION RECORD (MAR) - {format(new Date(year, month - 1), "MMMM yyyy").toUpperCase()}
           </div>
-          <div className="grid grid-cols-2 gap-0">
+          <div className="grid grid-cols-[auto_1fr_1fr] gap-0">
+            {/* Resident Photo */}
+            <div className="border-r-2 border-black p-2 flex items-center justify-center">
+              {resident?.image_url ? (
+                <img
+                  src={resident.image_url}
+                  alt={residentName}
+                  className="w-24 h-24 object-cover rounded border-2 border-gray-300"
+                />
+              ) : (
+                <div className="w-24 h-24 bg-gray-200 rounded border-2 border-gray-300 flex items-center justify-center">
+                  <span className="text-gray-400 text-xs text-center">No Photo</span>
+                </div>
+              )}
+            </div>
+
             {/* Left Column */}
             <div className="border-r-2 border-black">
               <div className="border-b border-black p-2">
