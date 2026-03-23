@@ -38,7 +38,7 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -116,12 +116,14 @@ interface EditMedicationDialogProps {
   medication: Medication;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
 export default function EditMedicationDialog({
   medication,
   open,
-  onOpenChange
+  onOpenChange,
+  onSuccess
 }: EditMedicationDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
@@ -129,25 +131,55 @@ export default function EditMedicationDialog({
   const form = useForm<z.infer<typeof UpdateMedicationSchema>>({
     resolver: zodResolver(UpdateMedicationSchema),
     mode: "onBlur",
-    defaultValues: {
-      name: medication.name,
-      strength: medication.strength,
-      strengthUnit: medication.strength_unit as any,
-      totalCount: medication.total_count,
-      dosageForm: medication.dosage_form as any,
-      route: medication.route as any,
-      frequency: medication.frequency as any,
-      scheduleType: medication.schedule_type as any,
-      times: medication.times || [],
-      timeQuantities: medication.time_quantities || {},
-      instructions: medication.instructions || undefined,
-      prescriberName: medication.prescriber_name,
-      startDate: new Date(medication.start_date),
-      status: medication.status as "active" | "completed" | "cancelled"
-    }
   });
 
+  // Reset form when dialog opens - only depend on `open` and medication.id to prevent loops
+  useEffect(() => {
+    if (open && medication) {
+      form.reset({
+        name: medication.name,
+        strength: medication.strength,
+        strengthUnit: medication.strength_unit as any,
+        totalCount: medication.total_count,
+        dosageForm: medication.dosage_form as any,
+        route: medication.route as any,
+        frequency: medication.frequency as any,
+        scheduleType: medication.schedule_type as any,
+        times: medication.times || [],
+        timeQuantities: medication.time_quantities || {},
+        instructions: medication.instructions || undefined,
+        prescriberName: medication.prescriber_name,
+        startDate: medication.start_date ? new Date(medication.start_date) : new Date(),
+        status: medication.status as "active" | "completed" | "cancelled"
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, medication?.id]); // Only re-run when dialog opens or medication ID changes
+
+  const handleOpenChange = (newOpen: boolean) => {
+    // Prevent closing while loading
+    if (!newOpen && isLoading) {
+      return;
+    }
+
+    if (!newOpen) {
+      // Clean up all state when closing
+      setIsLoading(false);
+      setStartDatePopoverOpen(false);
+
+      // Defer form reset to avoid re-render during close animation
+      setTimeout(() => {
+        form.reset();
+      }, 100);
+    }
+
+    onOpenChange(newOpen);
+  };
+
   async function onSubmit(values: z.infer<typeof UpdateMedicationSchema>) {
+    // Prevent double submission
+    if (isLoading) return;
+
     setIsLoading(true);
     try {
       const updates: Record<string, any> = {};
@@ -217,9 +249,15 @@ export default function EditMedicationDialog({
       }
 
       toast.success("Medication updated successfully");
-      onOpenChange(false);
-      // Force a page reload to regenerate intakes with new times
-      window.location.reload();
+      handleOpenChange(false);
+
+      // Call onSuccess callback if provided, otherwise reload the page
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        // Force a page reload to regenerate intakes with new times
+        window.location.reload();
+      }
     } catch (error) {
       console.error("Error updating medication:", error);
       toast.error(
@@ -231,7 +269,7 @@ export default function EditMedicationDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Medication</DialogTitle>
@@ -964,7 +1002,7 @@ export default function EditMedicationDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
                 disabled={isLoading}
               >
                 Cancel

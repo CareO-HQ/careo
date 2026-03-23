@@ -8,6 +8,7 @@ import ShiftTimes from "@/components/medication/daily/ShiftTimes";
 import CreateResidentMedication from "@/components/medication/forms/CreateResidentMedication";
 import KardexModal from "@/components/medication/KardexModal";
 import { EmarSheet } from "@/components/medication/emar/EmarSheet";
+import { ActiveMedicationsTable } from "@/components/medication/management/ActiveMedicationsTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -899,6 +900,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start">
           <TabsTrigger value="today">Today&apos;s Medications</TabsTrigger>
+          <TabsTrigger value="active">Active Medications</TabsTrigger>
           <TabsTrigger value="emar">eMAR</TabsTrigger>
           <TabsTrigger value="discontinued" className="relative">
             Discontinued
@@ -1123,6 +1125,16 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               <DataTable columns={prnTopicalColumns} data={topicalMedications} />
             )}
           </div>
+        </TabsContent>
+
+        {/* ── Active Medications ── */}
+        <TabsContent value="active" className="flex flex-col gap-6 mt-4">
+          <ActiveMedicationsTable
+            medications={allActiveMedications}
+            residentId={id}
+            residentName={fullName}
+            onRefresh={fetchData}
+          />
         </TabsContent>
 
         {/* ── eMAR ── */}
