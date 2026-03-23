@@ -7,6 +7,7 @@ import { MedicationAlertBanner } from "@/components/medication/alerts/Medication
 import ShiftTimes from "@/components/medication/daily/ShiftTimes";
 import CreateResidentMedication from "@/components/medication/forms/CreateResidentMedication";
 import KardexModal from "@/components/medication/KardexModal";
+import { EmarSheet } from "@/components/medication/emar/EmarSheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -898,7 +899,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start">
           <TabsTrigger value="today">Today&apos;s Medications</TabsTrigger>
-          <TabsTrigger value="medications">All Medications</TabsTrigger>
+          <TabsTrigger value="emar">eMAR</TabsTrigger>
           <TabsTrigger value="discontinued" className="relative">
             Discontinued
             {discontinuedMedications.length > 0 && (
@@ -1124,12 +1125,14 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           </div>
         </TabsContent>
 
-        {/* ── All Medications ── */}
-        <TabsContent value="medications" className="flex flex-col gap-6 mt-4">
-          <div className="flex flex-col gap-4">
-            <p className="font-semibold">All Active Medications</p>
-            <DataTable columns={allActiveMedicationColumns} data={allActiveMedications} />
-          </div>
+        {/* ── eMAR ── */}
+        <TabsContent value="emar" className="flex flex-col gap-6 mt-4">
+          <EmarSheet
+            residentId={id}
+            residentName={fullName}
+            organizationId={profile?.active_organization_id || resident.organization_id || ""}
+            careHomeId={profile?.active_care_home_id || resident.care_home_id || ""}
+          />
         </TabsContent>
 
         {/* ── Discontinued ── */}
