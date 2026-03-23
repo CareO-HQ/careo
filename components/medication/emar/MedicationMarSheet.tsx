@@ -147,52 +147,53 @@ export function MedicationMarSheet({
 
   return (
     <>
-      {/* Resident Information Header */}
-      <div className="bg-white border-2 border-black mb-4 print:mb-2 print:break-inside-avoid">
-        <div className="bg-gray-700 text-white font-bold text-sm p-2 border-b-2 border-black">
-          MEDICATION ADMINISTRATION RECORD (MAR) - {format(new Date(year, month - 1), "MMMM yyyy").toUpperCase()}
-        </div>
-        <div className="grid grid-cols-2 gap-0">
-          {/* Left Column */}
-          <div className="border-r-2 border-black">
-            <div className="border-b border-black p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">Name: </span>
-              <span className="text-sm font-medium">{residentName}</span>
-            </div>
-            <div className="border-b border-black p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">DOB: </span>
-              <span className="text-sm font-medium">{formatDate(resident?.date_of_birth)}</span>
-            </div>
-            <div className="border-b border-black p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">GP: </span>
-              <span className="text-sm font-medium">{resident?.gp_name || "—"}</span>
-            </div>
-            <div className="p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">Allergies: </span>
-              <span className="text-sm font-medium text-red-700">{getAllergies()}</span>
-            </div>
-          </div>
-
-          {/* Right Column */}
-          <div>
-            <div className="border-b border-black p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">Care Home: </span>
-              <span className="text-sm font-medium">{careHomeName || "—"}</span>
-            </div>
-            <div className="border-b border-black p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">Room Number: </span>
-              <span className="text-sm font-medium">{resident?.room_number || "—"}</span>
-            </div>
-            <div className="p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">NHS Number: </span>
-              <span className="text-sm font-medium">{resident?.nhs_number || "Not recorded"}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* MAR Sheet Table */}
+      {/* Combined MAR Sheet with Header and Table */}
       <div className="bg-white border-2 border-black overflow-x-auto print:border-black print:break-inside-avoid">
+        {/* Resident Information Header */}
+        <div className="border-b-2 border-black">
+          <div className="bg-gray-700 text-white font-bold text-sm p-2 border-b-2 border-black">
+            MEDICATION ADMINISTRATION RECORD (MAR) - {format(new Date(year, month - 1), "MMMM yyyy").toUpperCase()}
+          </div>
+          <div className="grid grid-cols-2 gap-0">
+            {/* Left Column */}
+            <div className="border-r-2 border-black">
+              <div className="border-b border-black p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">Name: </span>
+                <span className="text-sm font-medium">{residentName}</span>
+              </div>
+              <div className="border-b border-black p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">DOB: </span>
+                <span className="text-sm font-medium">{formatDate(resident?.date_of_birth)}</span>
+              </div>
+              <div className="border-b border-black p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">GP: </span>
+                <span className="text-sm font-medium">{resident?.gp_name || "—"}</span>
+              </div>
+              <div className="p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">Allergies: </span>
+                <span className="text-sm font-medium text-red-700">{getAllergies()}</span>
+              </div>
+            </div>
+
+            {/* Right Column */}
+            <div>
+              <div className="border-b border-black p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">Care Home: </span>
+                <span className="text-sm font-medium">{careHomeName || "—"}</span>
+              </div>
+              <div className="border-b border-black p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">Room Number: </span>
+                <span className="text-sm font-medium">{resident?.room_number || "—"}</span>
+              </div>
+              <div className="p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">NHS Number: </span>
+                <span className="text-sm font-medium">{resident?.nhs_number || "Not recorded"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* MAR Table */}
         <table className="w-full border-collapse">
           <thead>
             <tr>

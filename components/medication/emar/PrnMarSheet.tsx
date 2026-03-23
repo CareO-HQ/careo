@@ -102,52 +102,53 @@ export function PrnMarSheet({
 
   return (
     <>
-      {/* Resident Information Header */}
-      <div className="bg-white border-2 border-black mb-4 print:mb-2 print:break-inside-avoid">
-        <div className="bg-gray-700 text-white font-bold text-sm p-2 border-b-2 border-black">
-          PRN MEDICATION ADMINISTRATION RECORD (MAR) - {format(new Date(year, month - 1), "MMMM yyyy").toUpperCase()}
-        </div>
-        <div className="grid grid-cols-2 gap-0">
-          {/* Left Column */}
-          <div className="border-r-2 border-black">
-            <div className="border-b border-black p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">Name: </span>
-              <span className="text-sm font-medium">{residentName}</span>
-            </div>
-            <div className="border-b border-black p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">DOB: </span>
-              <span className="text-sm font-medium">{formatDate(resident?.date_of_birth)}</span>
-            </div>
-            <div className="border-b border-black p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">GP: </span>
-              <span className="text-sm font-medium">{resident?.gp_name || "—"}</span>
-            </div>
-            <div className="p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">Allergies: </span>
-              <span className="text-sm font-medium text-red-700">{getAllergies()}</span>
-            </div>
-          </div>
-
-          {/* Right Column */}
-          <div>
-            <div className="border-b border-black p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">Care Home: </span>
-              <span className="text-sm font-medium">{careHomeName || "—"}</span>
-            </div>
-            <div className="border-b border-black p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">Room Number: </span>
-              <span className="text-sm font-medium">{resident?.room_number || "—"}</span>
-            </div>
-            <div className="p-2">
-              <span className="font-bold text-xs uppercase text-gray-700">NHS Number: </span>
-              <span className="text-sm font-medium">{resident?.nhs_number || "Not recorded"}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* PRN MAR Sheet Table */}
+      {/* Combined PRN MAR Sheet with Header and Table */}
       <div className="bg-white border-2 border-black overflow-x-auto print:border-black print:break-inside-avoid">
+        {/* Resident Information Header */}
+        <div className="border-b-2 border-black">
+          <div className="bg-gray-700 text-white font-bold text-sm p-2 border-b-2 border-black">
+            PRN MEDICATION ADMINISTRATION RECORD (MAR) - {format(new Date(year, month - 1), "MMMM yyyy").toUpperCase()}
+          </div>
+          <div className="grid grid-cols-2 gap-0">
+            {/* Left Column */}
+            <div className="border-r-2 border-black">
+              <div className="border-b border-black p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">Name: </span>
+                <span className="text-sm font-medium">{residentName}</span>
+              </div>
+              <div className="border-b border-black p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">DOB: </span>
+                <span className="text-sm font-medium">{formatDate(resident?.date_of_birth)}</span>
+              </div>
+              <div className="border-b border-black p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">GP: </span>
+                <span className="text-sm font-medium">{resident?.gp_name || "—"}</span>
+              </div>
+              <div className="p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">Allergies: </span>
+                <span className="text-sm font-medium text-red-700">{getAllergies()}</span>
+              </div>
+            </div>
+
+            {/* Right Column */}
+            <div>
+              <div className="border-b border-black p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">Care Home: </span>
+                <span className="text-sm font-medium">{careHomeName || "—"}</span>
+              </div>
+              <div className="border-b border-black p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">Room Number: </span>
+                <span className="text-sm font-medium">{resident?.room_number || "—"}</span>
+              </div>
+              <div className="p-2">
+                <span className="font-bold text-xs uppercase text-gray-700">NHS Number: </span>
+                <span className="text-sm font-medium">{resident?.nhs_number || "Not recorded"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* PRN MAR Table */}
         <table className="w-full border-collapse">
           <thead>
             <tr>
@@ -197,23 +198,58 @@ export function PrnMarSheet({
                   const admins = getAdministrationsForCell(medication.id, day);
                   const adminCount = admins.length;
 
+                  // Build detailed tooltip
+                  const buildTooltip = () => {
+                    if (adminCount === 0) return "No PRN administrations";
+
+                    return admins.map((admin, idx) => {
+                      const parts = [
+                        `Dose ${idx + 1}:`,
+                        `Time: ${formatTimeDisplay(admin.administered_at)}`,
+                        `Staff: ${admin.administered_by?.name || "Unknown"}`,
+                        admin.prn_reason ? `Reason: ${admin.prn_reason}` : null,
+                        admin.prn_dose_administered ? `Dose Given: ${admin.prn_dose_administered}` : null,
+                        admin.prn_outcome ? `Outcome: ${admin.prn_outcome}` : null,
+                        admin.notes ? `Notes: ${admin.notes}` : null,
+                      ].filter(Boolean).join('\n');
+                      return parts;
+                    }).join('\n\n');
+                  };
+
                   return (
                     <td
                       key={day}
-                      className={`border-2 border-black p-0 w-[28px] max-w-[28px] h-[45px] ${
+                      className={`border-2 border-black p-1 w-[28px] max-w-[28px] min-h-[45px] ${
                         adminCount > 0 ? 'bg-green-100 cursor-pointer hover:bg-green-200' : 'bg-white'
                       }`}
                       onClick={() => handleCellClick(medication, day)}
-                      title={adminCount > 0 ? `View ${adminCount} PRN administration${adminCount > 1 ? 's' : ''} on ${day}/${month}/${year}` : "No PRN administrations"}
+                      title={buildTooltip()}
                     >
                       {adminCount > 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full">
-                          <span className="font-bold text-base text-green-700 leading-none">
-                            {adminCount}
-                          </span>
-                          <span className="text-[7px] font-bold text-gray-700 leading-tight mt-0.5">
-                            dose{adminCount > 1 ? 's' : ''}
-                          </span>
+                        <div className="flex flex-col items-center justify-start gap-1 h-full">
+                          {admins.map((admin, index) => (
+                            <div
+                              key={admin.id || index}
+                              className="flex flex-col items-center w-full group relative"
+                            >
+                              {index > 0 && (
+                                <div className="w-full border-t border-gray-400 my-1"></div>
+                              )}
+                              <div className="flex flex-col items-center gap-0.5 py-0.5">
+                                <span className="font-bold text-sm text-green-700 leading-none">
+                                  ✓
+                                </span>
+                                {admin.administered_by && (
+                                  <span className="text-[7px] font-bold text-gray-800 leading-none">
+                                    {admin.administered_by.name?.split(" ").map((n: string) => n[0]).join("")}
+                                  </span>
+                                )}
+                                <span className="text-[6px] text-gray-600 leading-none">
+                                  {formatTimeDisplay(admin.administered_at).replace(' ', '')}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       ) : null}
                     </td>
