@@ -58,12 +58,12 @@ export default function CareFileFolder({
   if (version === 'v2') {
     // Color palette from the provided image
     const colors = [
-      { bg: "bg-[#FFF9F2]", border: "border-[#FFE9D1]", text: "text-[#D97706]", num: "text-[#D97706]/40" }, // Orange/Peach
-      { bg: "bg-[#FFF4F9]", border: "border-[#FFE4F1]", text: "text-[#B91C1C]", num: "text-[#B91C1C]/40" }, // Red/Pink
-      { bg: "bg-[#F5F8FF]", border: "border-[#E0E7FF]", text: "text-[#1E40AF]", num: "text-[#1E40AF]/40" }, // Blue
-      { bg: "bg-[#F2FDF5]", border: "border-[#DCFCE7]", text: "text-[#15803D]", num: "text-[#15803D]/40" }, // Green
-      { bg: "bg-[#FCF5FF]", border: "border-[#F3E8FF]", text: "text-[#7E22CE]", num: "text-[#7E22CE]/40" }, // Purple
-      { bg: "bg-[#FDF2F2]", border: "border-[#FEE2E2]", text: "text-[#991B1B]", num: "text-[#991B1B]/40" }, // Dark Red
+      { bg: "bg-[#FFF9F2]", border: "border-[#FFE9D1]", text: "text-[#D97706]", num: "text-[#D97706]/80" }, // Orange/Peach
+      { bg: "bg-[#FFF4F9]", border: "border-[#FFE4F1]", text: "text-[#B91C1C]", num: "text-[#B91C1C]/80" }, // Red/Pink
+      { bg: "bg-[#F5F8FF]", border: "border-[#E0E7FF]", text: "text-[#1E40AF]", num: "text-[#1E40AF]/80" }, // Blue
+      { bg: "bg-[#F2FDF5]", border: "border-[#DCFCE7]", text: "text-[#15803D]", num: "text-[#15803D]/80" }, // Green
+      { bg: "bg-[#FCF5FF]", border: "border-[#F3E8FF]", text: "text-[#7E22CE]", num: "text-[#7E22CE]/80" }, // Purple
+      { bg: "bg-[#FDF2F2]", border: "border-[#FEE2E2]", text: "text-[#991B1B]", num: "text-[#991B1B]/80" }, // Dark Red
     ];
 
     const theme = colors[index % colors.length];
