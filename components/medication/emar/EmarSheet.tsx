@@ -27,6 +27,7 @@ export function EmarSheet({
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [activeTab, setActiveTab] = useState<"medication" | "prn">("medication");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // MAR sheet data
   const [medicationSheet, setMedicationSheet] = useState<any>(null);
@@ -51,6 +52,7 @@ export function EmarSheet({
   // Fetch or create MAR sheets for the selected month
   const fetchOrCreateMarSheets = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       // Fetch resident data
       const { data: residentData } = await supabase
@@ -64,26 +66,100 @@ export function EmarSheet({
       }
 
       // Fetch or create medication MAR sheet
-      const { data: medSheetData, error: medSheetError } = await supabase
-        .rpc('get_or_create_emar_sheet', {
-          p_resident_id: residentId,
-          p_type: 'medication',
-          p_organization_id: organizationId,
-          p_care_home_id: careHomeId,
-        });
+      let medSheetData = null;
+      let prnSheetData = null;
 
-      if (medSheetError) throw medSheetError;
+      // Try to use RPC function if available, otherwise handle manually
+      try {
+        const { data: medData, error: medError } = await supabase
+          .rpc('get_or_create_emar_sheet', {
+            p_resident_id: residentId,
+            p_type: 'medication',
+            p_organization_id: organizationId,
+            p_care_home_id: careHomeId,
+          });
 
-      // Fetch or create PRN MAR sheet
-      const { data: prnSheetData, error: prnSheetError } = await supabase
-        .rpc('get_or_create_emar_sheet', {
-          p_resident_id: residentId,
-          p_type: 'prn',
-          p_organization_id: organizationId,
-          p_care_home_id: careHomeId,
-        });
+        if (medError) throw medError;
+        medSheetData = medData;
 
-      if (prnSheetError) throw prnSheetError;
+        const { data: prnData, error: prnError } = await supabase
+          .rpc('get_or_create_emar_sheet', {
+            p_resident_id: residentId,
+            p_type: 'prn',
+            p_organization_id: organizationId,
+            p_care_home_id: careHomeId,
+          });
+
+        if (prnError) throw prnError;
+        prnSheetData = prnData;
+      } catch (rpcError: any) {
+        // RPC function doesn't exist yet - handle manually
+        console.log('RPC function not available, creating sheets manually');
+
+        // Create/fetch medication sheet manually
+        const { data: existingMedSheet } = await supabase
+          .from('emar_sheets')
+          .select('id')
+          .eq('resident_id', residentId)
+          .eq('type', 'medication')
+          .eq('month', currentMonth)
+          .eq('year', currentYear)
+          .eq('status', 'active')
+          .single();
+
+        if (existingMedSheet) {
+          medSheetData = existingMedSheet.id;
+        } else {
+          const { data: newMedSheet, error: createError } = await supabase
+            .from('emar_sheets')
+            .insert({
+              resident_id: residentId,
+              type: 'medication',
+              month: currentMonth,
+              year: currentYear,
+              status: 'active',
+              organization_id: organizationId,
+              care_home_id: careHomeId,
+            })
+            .select('id')
+            .single();
+
+          if (createError) throw createError;
+          medSheetData = newMedSheet?.id;
+        }
+
+        // Create/fetch PRN sheet manually
+        const { data: existingPrnSheet } = await supabase
+          .from('emar_sheets')
+          .select('id')
+          .eq('resident_id', residentId)
+          .eq('type', 'prn')
+          .eq('month', currentMonth)
+          .eq('year', currentYear)
+          .eq('status', 'active')
+          .single();
+
+        if (existingPrnSheet) {
+          prnSheetData = existingPrnSheet.id;
+        } else {
+          const { data: newPrnSheet, error: createError } = await supabase
+            .from('emar_sheets')
+            .insert({
+              resident_id: residentId,
+              type: 'prn',
+              month: currentMonth,
+              year: currentYear,
+              status: 'active',
+              organization_id: organizationId,
+              care_home_id: careHomeId,
+            })
+            .select('id')
+            .single();
+
+          if (createError) throw createError;
+          prnSheetData = newPrnSheet?.id;
+        }
+      }
 
       // Fetch sheet details
       const { data: medSheet } = await supabase
@@ -107,9 +183,19 @@ export function EmarSheet({
       // Fetch administration records
       await fetchAdministrations(medSheetData, prnSheetData);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching/creating MAR sheets:', error);
-      toast.error('Failed to load MAR sheets');
+
+      // Check if it's a table not found error
+      if (error?.message?.includes('emar_sheets') || error?.code === '42P01') {
+        const errorMsg = 'eMAR database tables not found. Please apply the database migration first.';
+        setError(errorMsg);
+        toast.error(errorMsg);
+      } else {
+        const errorMsg = error?.message || 'Failed to load eMAR sheets';
+        setError(errorMsg);
+        toast.error(errorMsg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -268,8 +354,32 @@ export function EmarSheet({
         </div>
       </div>
 
+      {/* Error message */}
+      {error && (
+        <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-100 flex items-center justify-center">
+              <span className="text-red-600 font-bold text-sm">!</span>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-900 mb-1">Unable to Load eMAR</h3>
+              <p className="text-sm text-red-800 mb-3">{error}</p>
+              <div className="bg-red-100 rounded p-3 text-xs text-red-900">
+                <p className="font-semibold mb-2">To fix this issue:</p>
+                <ol className="list-decimal list-inside space-y-1 ml-2">
+                  <li>Apply the database migration: <code className="bg-red-200 px-1 py-0.5 rounded">supabase/migrations/20260323000000_create_emar_system.sql</code></li>
+                  <li>Run: <code className="bg-red-200 px-1 py-0.5 rounded">supabase migration up</code></li>
+                  <li>Or manually execute the SQL file in your Supabase dashboard</li>
+                  <li>Refresh this page after applying the migration</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Status message for archived/future months */}
-      {!isCurrentMonth() && (
+      {!isCurrentMonth() && !error && (
         <div className={`p-3 rounded-lg ${isFutureMonth() ? 'bg-blue-50 border border-blue-200' : 'bg-amber-50 border border-amber-200'}`}>
           <p className={`text-sm font-medium ${isFutureMonth() ? 'text-blue-800' : 'text-amber-800'}`}>
             {isFutureMonth()
@@ -281,8 +391,9 @@ export function EmarSheet({
       )}
 
       {/* Tabs for Medication MAR and PRN MAR */}
-      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "medication" | "prn")}>
-        <TabsList className="w-full justify-start">
+      {!error && (
+        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "medication" | "prn")}>
+          <TabsList className="w-full justify-start">
           <TabsTrigger value="medication">
             Medication MAR
             {scheduledMedications.length > 0 && (
@@ -330,7 +441,8 @@ export function EmarSheet({
             onRefresh={fetchOrCreateMarSheets}
           />
         </TabsContent>
-      </Tabs>
+        </Tabs>
+      )}
     </div>
   );
 }
