@@ -31,7 +31,10 @@ export type CareFileFormKey =
   | "v2-body-map-skin"
   | "v2-safe-body-map"
   | "fall-risk-assessment"
-  | "smoking-risk-assessment";
+  | "smoking-risk-assessment"
+  | "v2-night-obs-consent"
+  | "v2-capacity-consent"
+  | "v2-general-risk";
 
 
 export type CareFileFormStatus =

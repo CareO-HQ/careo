@@ -215,6 +215,8 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
         { label: "Care Manager", path: "assessment_data.careManagerName" },
         { label: "Care Manager Role", path: "assessment_data.careManagerJobRole" },
         { label: "Care Manager Phone", path: "assessment_data.careManagerTelephoneNumber" },
+        { label: "Care Manager Alt. Phone", path: "assessment_data.careManagerPhoneNumber" },
+        { label: "Care Manager Email", path: "assessment_data.careManagerEmail" },
         { label: "Care Manager Addr", path: "assessment_data.careManagerAddress" },
         { label: "GP Name", path: "assessment_data.GPName" },
         { label: "GP Phone", path: "assessment_data.GPPhoneNumber" },
@@ -233,14 +235,39 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
     {
       title: "Care Assessments",
       fields: [
-        { label: "Skin Integrity & Wounds", path: "assessment_data.skinIntegrityWounds" },
-        { label: "Sleep & Bedtime Routine", path: "assessment_data.bedtimeRoutine" },
+        { label: "Existing Wounds", path: "assessment_data.skinIntegrityWounds" },
+        { label: "Skin Integrity Equipment", path: "assessment_data.skinIntegrityEquipment" },
         { label: "Current Infection", path: "assessment_data.currentInfection" },
         { label: "Antibiotics Prescribed", path: "assessment_data.antibioticsPrescribed", fmt: "bool" },
-        { label: "Respiratory Support", path: "assessment_data.prescribedBreathing" },
         { label: "Independent Mobility", path: "assessment_data.mobilityIndependent", fmt: "bool" },
         { label: "Assistance Required", path: "assessment_data.assistanceRequired" },
         { label: "Mobility Equipment", path: "assessment_data.equipmentRequired" },
+        { label: "Altered Consciousness", path: "assessment_data.alteredConsciousness" },
+      ],
+    },
+    {
+      title: "Core Needs Toggles",
+      fields: [
+        { label: "Continence Independent", path: "assessment_data.continenceIndependent", fmt: "bool" },
+        { label: "Hygiene Independent", path: "assessment_data.hygieneIndependent", fmt: "bool" },
+        { label: "Breathing Independent", path: "assessment_data.breathingIndependent", fmt: "bool" },
+        { label: "Sleep/Psych Independent", path: "assessment_data.sleepPsychologicalIndependent", fmt: "bool" },
+        { label: "Communication Independent", path: "assessment_data.communicationIndependent", fmt: "bool" },
+        { label: "Behaviour Independent", path: "assessment_data.behaviourIndependent", fmt: "bool" },
+        { label: "Cognition Independent", path: "assessment_data.cognitionIndependent", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Detailed Needs",
+      fields: [
+        { label: "Continence Needs", path: "assessment_data.continence" },
+        { label: "Personal Hygiene", path: "assessment_data.hygiene" },
+        { label: "Respiratory Support", path: "assessment_data.prescribedBreathing" },
+        { label: "Bedtime Routine", path: "assessment_data.bedtimeRoutine" },
+        { label: "Psychological Needs", path: "assessment_data.psychologicalNeeds" },
+        { label: "Communication Needs", path: "assessment_data.communication" },
+        { label: "Behaviour Needs", path: "assessment_data.behaviour" },
+        { label: "Cognition Needs", path: "assessment_data.cognition" },
       ],
     },
     {
@@ -252,15 +279,18 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
         { label: "IDDSI Fluid Level", path: "assessment_data.iddsiFluid" },
         { label: "Diet Type / Preferences", path: "assessment_data.dietType" },
         { label: "Nutritional Supplements", path: "assessment_data.nutritionalSupplements" },
-        { label: "Choking Risk", path: "assessment_data.chockingRisk", fmt: "bool" },
+        { label: "Nutritional Assistance", path: "assessment_data.nutritionalAssistanceRequired" },
+        { label: "Choking Risk", path: "assessment_data.chokingRisk", fmt: "bool" },
+        { label: "Additional Comments", path: "assessment_data.additionalComments" },
       ],
     },
     {
-      title: "Continence & Personal Hygiene",
+      title: "Assessment Completion",
       fields: [
-        { label: "Continence Needs", path: "assessment_data.continence" },
-        { label: "Personal Hygiene", path: "assessment_data.hygiene" },
-        { label: "Additional Comments", path: "assessment_data.additionalComments" },
+        { label: "Completed By", path: "assessment_data.completedBy" },
+        { label: "Job Role", path: "assessment_data.jobRole" },
+        { label: "Date of Completion", path: "assessment_data.assessmentDate", fmt: "date" },
+        { label: "Signature", path: "assessment_data.signature" },
       ],
     },
   ],
@@ -557,6 +587,9 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
         { label: "Assessment Type", path: "assessment_type" },
         { label: "Info Provided By", path: "symptoms.details.informationProvidedBy" },
         { label: "Consultant / GP", path: "symptoms.details.consultantGP" },
+        { label: "Admitted From", path: "exposure_history.admittedFrom" },
+        { label: "Admission Date", path: "exposure_history.dateOfAdmission", fmt: "date" },
+        { label: "Reason for Admission", path: "exposure_history.reasonForAdmission" },
       ],
     },
     {
@@ -575,9 +608,6 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
     {
       title: "Exposure & Isolation",
       fields: [
-        { label: "Admitted From", path: "exposure_history.admittedFrom" },
-        { label: "Admission Date", path: "exposure_history.dateOfAdmission", fmt: "date" },
-        { label: "Reason for Admission", path: "exposure_history.reasonForAdmission" },
         { label: "COVID+ Patient Exposure", path: "exposure_history.exposureToPatientsCovid", fmt: "bool" },
         { label: "COVID+ Staff Exposure", path: "exposure_history.exposureToStaffCovid", fmt: "bool" },
         { label: "Isolation Required", path: "isolation_required", fmt: "bool" },
@@ -588,9 +618,9 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
     {
       title: "Diarrhoea & Vomiting",
       fields: [
-        { label: "Current Symptoms", path: "symptoms.diarrheaVomiting.currentSymptoms", fmt: "bool" },
-        { label: "Contact With Others", path: "symptoms.diarrheaVomiting.contactWithOthers", fmt: "bool" },
-        { label: "Family History (72h)", path: "symptoms.diarrheaVomiting.familyHistory72h", fmt: "bool" },
+        { label: "Does have d/v where infection not confirmed?", path: "symptoms.diarrheaVomiting.currentSymptoms", fmt: "bool" },
+        { label: "Contact with others with d/v (72h)?", path: "symptoms.diarrheaVomiting.contactWithOthers", fmt: "bool" },
+        { label: "Family with d/v (72h)?", path: "symptoms.diarrheaVomiting.familyHistory72h", fmt: "bool" },
       ],
     },
     {
@@ -604,6 +634,7 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
         { label: "Treatment Received", path: "symptoms.clostridium.treatmentReceived" },
         { label: "Treatment Complete", path: "symptoms.clostridium.treatmentComplete", fmt: "bool" },
         { label: "Ongoing Antibiotic", path: "symptoms.clostridium.ongoingDetails" },
+        { label: "Ongoing Follow-up", path: "symptoms.clostridium.ongoingFollowUpRequired" },
       ],
     },
     {
@@ -615,6 +646,7 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
         { label: "Sites Positive", path: "symptoms.mrsa.sitesPositive" },
         { label: "Treatment Received", path: "symptoms.mrsa.treatmentReceived" },
         { label: "Decolonisation Details", path: "symptoms.mrsa.mrsaMssaDetails" },
+        { label: "Decolonisation Follow-up", path: "symptoms.mrsa.mrsaMssaFollowUpRequired" },
       ],
     },
     {
@@ -971,6 +1003,286 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
     },
   ],
 
+  // ── Restraints Consent ────────────────────────────────────────────────────
+  "v2-restraints-risk": [
+    {
+      title: "General Information",
+      fields: [
+        { label: "Person in Care", path: "assessment_data.residentName" },
+        { label: "Care Home/Unit", path: "assessment_data.careHomeUnit" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+      ],
+    },
+    {
+      title: "Consent Details",
+      fields: [
+        { label: "Restraints Considered", path: "assessment_data.selectedRestraints" },
+        { label: "Consent Status", path: "assessment_data.consentType" },
+        { label: "Consent Given", path: "consent_given", fmt: "bool" },
+        { label: "Completed By", path: "completed_by" },
+      ],
+    },
+    {
+      title: "Consent - Able to Consent",
+      fields: [
+        { label: "Risk Of", path: "assessment_data.ableToConsent.riskOf" },
+        { label: "Preference", path: "assessment_data.ableToConsent.preference" },
+        { label: "Signature", path: "assessment_data.ableToConsent.personSignature" },
+        { label: "Staff Signature", path: "assessment_data.ableToConsent.memberSignature" },
+      ],
+    },
+    {
+      title: "Consent - Unable to Consent (NOK Discussion)",
+      fields: [
+        { label: "Representative", path: "representative_name" },
+        { label: "Issue", path: "assessment_data.discussionWithRelative.issueOf" },
+        { label: "Preference", path: "assessment_data.discussionWithRelative.preference" },
+        { label: "Signature", path: "assessment_data.discussionWithRelative.personSignature" },
+        { label: "Staff Signature", path: "assessment_data.discussionWithRelative.memberSignature" },
+      ],
+    },
+  ],
+
+  // ── Fall Risk Assessment ──────────────────────────────────────────────────
+  "fall-risk-assessment": [
+    {
+      title: "Summary",
+      fields: [
+        { label: "Total Score", path: "total_score", fmt: "pts" },
+        { label: "Risk Level", path: "risk_level" },
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Completed By", path: "completed_by" },
+      ],
+    },
+    {
+      title: "Risk Factors",
+      fields: [
+        { label: "Age", path: "assessment_details.age" },
+        { label: "Gender", path: "assessment_details.gender" },
+        { label: "History of Falls", path: "assessment_details.historyOfFalls" },
+        { label: "Mobility", path: "assessment_details.mobilityLevel" },
+        { label: "Balance", path: "assessment_details.balance" },
+        { label: "Vision", path: "assessment_details.visionProblems" },
+        { label: "Cognition/Mental State", path: "assessment_details.mentalState" },
+      ],
+    },
+  ],
+
+  // ── Smoking Risk Assessment ───────────────────────────────────────────────
+  "smoking-risk-assessment": [
+    {
+      title: "Summary",
+      fields: [
+        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Completed By", path: "completed_by" },
+        { label: "Role", path: "completed_by_role" },
+      ],
+    },
+    {
+      title: "Hazards & Controls",
+      fields: [
+        { label: "Materials Controlled", path: "materials_controlled", fmt: "bool" },
+        { label: "Assistance Lighting", path: "assistance_lighting", fmt: "bool" },
+        { label: "Supervision Required", path: "supervision_required", fmt: "bool" },
+        { label: "Extinguished Correctly", path: "extinguished_correctly", fmt: "bool" },
+        { label: "Oxygen in use", path: "oxygen_in_use_in_bedroom", fmt: "bool" },
+      ],
+    },
+    {
+      title: "Review Schedule",
+      fields: [
+        { label: "Monthly Review", path: "risk_review_monthly", fmt: "bool" },
+        { label: "Review on Condition Change", path: "risk_review_on_condition_change", fmt: "bool" },
+        { label: "Review on Incident", path: "risk_review_on_incident", fmt: "bool" },
+      ],
+    },
+  ],
+  "v2-capacity-consent": [
+    {
+      title: "Section A — Resident Details",
+      fields: [
+        { label: "Resident Name", path: "assessment_data.residentName" },
+        { label: "NHS Number", path: "assessment_data.nhsNumber" },
+        { label: "Date of Birth", path: "assessment_data.dateOfBirth", fmt: "date" },
+        { label: "Date of Admission", path: "assessment_data.dateOfAdmission", fmt: "date" },
+      ],
+    },
+    {
+      title: "Section B — Details of Decision",
+      fields: [
+        { label: "Admission to care home", path: "assessment_data.admissionToCareHome", fmt: "bool" },
+        { label: "Consent to care planning", path: "assessment_data.consentToCarePlanning", fmt: "bool" },
+        { label: "Consent to medication", path: "assessment_data.consentToMedication", fmt: "bool" },
+        { label: "Consent to sharing info", path: "assessment_data.consentToSharingInfo", fmt: "bool" },
+        { label: "Other Decision", path: "assessment_data.otherDecision", fmt: "bool" },
+        { label: "Other Details", path: "assessment_data.otherDecisionDetails" },
+      ],
+    },
+    {
+      title: "Section C — Stage 1 (Diagnostic Test)",
+      fields: [
+        { label: "Has Impairment", path: "assessment_data.hasImpairment" },
+        { label: "Impairment Details", path: "assessment_data.impairmentDetails" },
+      ],
+    },
+    {
+      title: "Section D — Stage 2 (Functional Test)",
+      fields: [
+        { label: "Understand Info", path: "assessment_data.understandInformation" },
+        { label: "Understand Notes", path: "assessment_data.understandNotes" },
+        { label: "Retain Info", path: "assessment_data.retainInformation" },
+        { label: "Retain Notes", path: "assessment_data.retainNotes" },
+        { label: "Use/Weigh Info", path: "assessment_data.useWeighInformation" },
+        { label: "Use/Weigh Notes", path: "assessment_data.useWeighNotes" },
+        { label: "Communicate Decision", path: "assessment_data.communicateDecision" },
+        { label: "Communicate Notes", path: "assessment_data.communicateNotes" },
+      ],
+    },
+    {
+      title: "Section E — Outcome",
+      fields: [
+        { label: "Has Capacity", path: "assessment_data.hasCapacity" },
+      ],
+    },
+    {
+      title: "Section G — Assessor Details",
+      fields: [
+        { label: "Name", path: "assessment_data.assessorName" },
+        { label: "Role", path: "assessment_data.assessorRole" },
+        { label: "Date", path: "assessment_data.assessmentDate", fmt: "date" },
+      ],
+    },
+    {
+      title: "Section H — Legal Representative",
+      fields: [
+        { label: "Type", path: "assessment_data.legalRepresentativeType" },
+        { label: "Name", path: "assessment_data.representativeName" },
+        { label: "Relationship", path: "assessment_data.relationshipToResident" },
+        { label: "Contact Details", path: "assessment_data.contactDetails" },
+      ],
+    },
+    {
+      title: "Section I — Review",
+      fields: [
+        { label: "Next Review Date", path: "assessment_data.nextReviewDate", fmt: "date" },
+        { label: "Reason for reassessment", path: "assessment_data.reasonForReassessment" },
+      ],
+    },
+  ],
+  "v2-night-obs-consent": [
+    {
+      title: "Section A — Resident Information",
+      fields: [
+        { label: "Full Name", path: "assessment_data.residentName" },
+        { label: "Date of Birth", path: "assessment_data.dateOfBirth", fmt: "date" },
+        { label: "NHS Number", path: "assessment_data.nhsNumber" },
+        { label: "Room Number", path: "assessment_data.roomNumber" },
+        { label: "Date of Admission", path: "assessment_data.dateOfAdmission", fmt: "date" },
+      ],
+    },
+    {
+      title: "Section C — Type of Observation Required",
+      fields: [
+        { label: "Observations Agreed", path: "assessment_data.observationTypes" },
+        { label: "Other Details", path: "assessment_data.otherObservationType" },
+      ],
+    },
+    {
+      title: "Section D — Frequency of Observations",
+      fields: [
+        { label: "Frequency", path: "assessment_data.frequency" },
+        { label: "Other Details", path: "assessment_data.otherFrequency" },
+      ],
+    },
+    {
+      title: "Section E & F — Consent & Capacity",
+      fields: [
+        { label: "Resident Consented", path: "assessment_data.residentConsented", fmt: "bool" },
+        { label: "Resident Signature", path: "assessment_data.residentSignature" },
+        { label: "Consent Date", path: "assessment_data.consentDate", fmt: "date" },
+        { label: "Has Capacity", path: "assessment_data.hasCapacity" },
+      ],
+    },
+    {
+      title: "Section G — Legal Rep / Family Involvement",
+      fields: [
+        { label: "Consulted", path: "assessment_data.representativeConsulted" },
+        { label: "Representative Name", path: "assessment_data.representativeName" },
+        { label: "Relationship", path: "assessment_data.relationshipToResident" },
+        { label: "Contact Details", path: "assessment_data.contactDetails" },
+      ],
+    },
+    {
+      title: "Section H — Risks Explained",
+      fields: [
+        { label: "Risks Explained", path: "assessment_data.risksExplained" },
+        { label: "Other Risks", path: "assessment_data.otherRisk" },
+      ],
+    },
+    {
+      title: "Section I — Staff Declaration",
+      fields: [
+        { label: "Staff Name", path: "assessment_data.staffName" },
+        { label: "Role / Designation", path: "assessment_data.staffRole" },
+        { label: "Staff Signature", path: "assessment_data.staffSignature" },
+        { label: "Declaration Date", path: "assessment_data.declarationDate", fmt: "date" },
+      ],
+    },
+  ],
+  "v2-general-risk": [
+    {
+      title: "Section A — Resident Information",
+      fields: [
+        { label: "Full Name", path: "assessment_data.fullName" },
+        { label: "Date of Birth", path: "assessment_data.dateOfBirth" },
+        { label: "Resident / NHS Number", path: "assessment_data.residentNumber" },
+        { label: "Room Number", path: "assessment_data.roomNumber" },
+        { label: "Date of Assessment", path: "assessment_data.dateOfAssessment" },
+      ],
+    },
+    {
+      title: "Section B — Assessment Details",
+      fields: [
+        { label: "Assessment Completed By", path: "assessment_data.completedBy" },
+        { label: "Role", path: "assessment_data.role" },
+        { label: "Reason for Assessment", path: "assessment_data.reasonForAssessment" },
+        { label: "Other Reason", path: "assessment_data.otherReason" },
+      ],
+    },
+    {
+      title: "Section C — Areas of Risk Identified",
+      fields: [
+        { label: "Falls and mobility", path: "assessment_data.riskAreas.falls", fmt: "bool" },
+        { label: "Skin integrity", path: "assessment_data.riskAreas.skin", fmt: "bool" },
+        { label: "Nutrition and hydration", path: "assessment_data.riskAreas.nutrition", fmt: "bool" },
+        { label: "Medication management", path: "assessment_data.riskAreas.medication", fmt: "bool" },
+        { label: "Behavioural or cognitive", path: "assessment_data.riskAreas.behavioural", fmt: "bool" },
+        { label: "Infection control", path: "assessment_data.riskAreas.infection", fmt: "bool" },
+        { label: "Manual handling needs", path: "assessment_data.riskAreas.manualHandling", fmt: "bool" },
+        { label: "Environmental hazards", path: "assessment_data.riskAreas.environmental", fmt: "bool" },
+        { label: "Wandering or absconding", path: "assessment_data.riskAreas.wandering", fmt: "bool" },
+        { label: "Other", path: "assessment_data.riskAreas.other" },
+        { label: "Other Risk Details", path: "assessment_data.riskAreas.otherText" },
+      ],
+    },
+    {
+      title: "Section D — Detailed Assessment",
+      fields: [
+        { label: "Mental health", path: "assessment_data.detailedAssessment.mentalHealth" },
+        { label: "Communication", path: "assessment_data.detailedAssessment.communication" },
+        { label: "Relationships", path: "assessment_data.detailedAssessment.relationships" },
+        { label: "Physical health", path: "assessment_data.detailedAssessment.physicalHealth" },
+        { label: "Support needs", path: "assessment_data.detailedAssessment.supportNeeds" },
+      ],
+    },
+    {
+      title: "Section E — Risk Level",
+      fields: [
+        { label: "Risk Level", path: "assessment_data.riskLevel" },
+        { label: "Action Plan", path: "assessment_data.actionPlan" },
+      ],
+    },
+  ],
 };
 
 // ─── Compact Schema Renderer ──────────────────────────────────────────────────
@@ -997,7 +1309,7 @@ function SchemaViewer({ data, schema }: { data: any; schema: SectionDef[] }) {
                   <span className="text-[11px] text-muted-foreground min-w-[160px] shrink-0 leading-relaxed">
                     {f.label}
                   </span>
-                  <span className={`text-[12px] leading-relaxed break-words ${display === "—" ? "text-muted-foreground/50 italic" : "text-foreground"}`}>
+                  <span className={`text-[12px] leading-relaxed break-words whitespace-pre-wrap ${display === "—" ? "text-muted-foreground/50 italic" : "text-foreground"}`}>
                     {display}
                   </span>
                 </div>
@@ -1059,7 +1371,7 @@ function GenericViewer({ data }: { data: any }) {
                   return (
                     <div key={k} className="flex items-baseline gap-2 py-0.5">
                       <span className="text-[11px] text-muted-foreground min-w-[160px] shrink-0">{lbl}</span>
-                      <span className="text-[12px] text-foreground break-words">{disp}</span>
+                      <span className="text-[12px] text-foreground break-words whitespace-pre-wrap">{disp}</span>
                     </div>
                   );
                 })}
@@ -1072,7 +1384,7 @@ function GenericViewer({ data }: { data: any }) {
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b pb-1 mb-2">
               {label}
             </div>
-            <div className="text-[12px] text-foreground break-words pl-1 mt-1">{display}</div>
+            <div className="text-[12px] text-foreground break-words whitespace-pre-wrap pl-1 mt-1">{display}</div>
           </div>
         );
       })}
@@ -1118,6 +1430,13 @@ const TABLE_MAP: Record<string, string> = {
   "best-interest-decision-form": "best_interest_decisions",
   "care-plan-form": "care_plan_assessments",
   "braden-risk-assessment-form": "braden_risk_assessments",
+  "v2-restraints-risk": "restraints_consents",
+  "fall-risk-assessment": "fall_risk_assessments",
+  "smoking-risk-assessment": "smoking_risk_assessments",
+  "v2-specimen-log": "specimen_records",
+  "v2-capacity-consent": "capacity_consents",
+  "v2-night-obs-consent": "night_observation_consents",
+  "v2-general-risk": "general_risk_assessments",
 };
 
 export function RiskAssessmentViewer({ assessment }: RiskAssessmentViewerProps) {

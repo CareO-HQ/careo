@@ -79,6 +79,12 @@ export const preAdmissionSchema = z.object({
 
   // Financial
   attendFinances: z.boolean(),
+  financesName: z.string().optional(),
+  financesAddress: z.string().optional(),
+  financesContactNumber: z.string().optional(),
+
+  // Administrative
+  signature: z.string().optional(),
 
   // Additional considerations
   additionalConsiderations: z.string(),

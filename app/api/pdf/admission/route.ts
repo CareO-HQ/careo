@@ -194,6 +194,7 @@ function generateAdmissionHTML(data: any): string {
             <div class="space-y-2">
               <p><strong>Phone:</strong> ${data.careManagerTelephoneNumber || "N/A"}</p>
               <p><strong>Alt Phone:</strong> ${data.careManagerPhoneNumber || "N/A"}</p>
+              <p><strong>Email:</strong> ${data.careManagerEmail || "N/A"}</p>
             </div>
           </div>
           ${data.careManagerAddress ? `<p><strong>Address:</strong> ${data.careManagerAddress}</p>` : ""}
@@ -291,37 +292,74 @@ function generateAdmissionHTML(data: any): string {
           `
       : ""
     }
-          ${data.bedtimeRoutine
+          
+          <!-- Continence -->
+          <div>
+            <h3>Continence</h3>
+            <p><span class="checkbox">${data.continenceIndependent ? "✓" : "✗"}</span> No impact on health/wellbeing (Care plan not required)</p>
+            ${data.continence ? `<div class="info-box">${data.continence}</div>` : ""}
+          </div>
+
+          <!-- Personal Hygiene & Dressing -->
+          <div>
+            <h3>Personal Hygiene & Dressing</h3>
+            <p><span class="checkbox">${data.hygieneIndependent ? "✓" : "✗"}</span> No impact on health/wellbeing (Care plan not required)</p>
+            ${data.hygiene ? `<div class="info-box">${data.hygiene}</div>` : ""}
+          </div>
+
+          <!-- Sleep, Psychological & Emotional Needs -->
+          <div>
+            <h3>Sleep, Psychological & Emotional Needs</h3>
+            <p><span class="checkbox">${data.sleepPsychologicalIndependent ? "✓" : "✗"}</span> No impact on health/wellbeing (Care plan not required)</p>
+            ${data.bedtimeRoutine ? `<div class="subsection"><h4>Bedtime Routine</h4><div class="info-box">${data.bedtimeRoutine}</div></div>` : ""}
+            ${data.psychologicalNeeds ? `<div class="subsection"><h4>Psychological Needs</h4><div class="info-box">${data.psychologicalNeeds}</div></div>` : ""}
+          </div>
+
+          <!-- Infection Control -->
+          <div>
+            <h3>Infection Control</h3>
+            ${data.currentInfection ? `<div><h4>Current Infection</h4><div class="info-box">${data.currentInfection}</div></div>` : ""}
+            <p><strong>Antibiotics Prescribed:</strong> <span class="checkbox">${data.antibioticsPrescribed ? "✓" : "✗"}</span> ${data.antibioticsPrescribed ? "Yes" : "No"}</p>
+          </div>
+
+          <!-- Breathing -->
+          <div>
+            <h3>Breathing</h3>
+            <p><span class="checkbox">${data.breathingIndependent ? "✓" : "✗"}</span> No impact on health/wellbeing (Care plan not required)</p>
+            ${data.prescribedBreathing ? `<div class="info-box">${data.prescribedBreathing}</div>` : ""}
+          </div>
+
+          <!-- Altered state of Consciousness -->
+          ${data.alteredConsciousness
       ? `
           <div>
-            <h3>Bedtime Routine</h3>
-            <div class="info-box">${data.bedtimeRoutine}</div>
+            <h3>Altered state of Consciousness</h3>
+            <div class="info-box">${data.alteredConsciousness}</div>
           </div>
           `
       : ""
     }
-          ${data.currentInfection
-      ? `
+
+          <!-- Communication -->
           <div>
-            <h3>Current Infection</h3>
-            <div class="info-box">${data.currentInfection}</div>
+            <h3>Communication</h3>
+            <p><span class="checkbox">${data.communicationIndependent ? "✓" : "✗"}</span> No impact on health/wellbeing (Care plan not required)</p>
+            ${data.communication ? `<div class="info-box">${data.communication}</div>` : ""}
           </div>
-          `
-      : ""
-    }
+
+          <!-- Behaviour -->
           <div>
-            <h3>Antibiotics Prescribed</h3>
-            <p><span class="checkbox">${data.antibioticsPrescribed ? "✓" : "✗"}</span> ${data.antibioticsPrescribed ? "Yes" : "No"}</p>
+            <h3>Behaviour</h3>
+            <p><span class="checkbox">${data.behaviourIndependent ? "✓" : "✗"}</span> No impact on health/wellbeing (Care plan not required)</p>
+            ${data.behaviour ? `<div class="info-box">${data.behaviour}</div>` : ""}
           </div>
-          ${data.prescribedBreathing
-      ? `
+
+          <!-- Cognition -->
           <div>
-            <h3>Prescribed Breathing Equipment</h3>
-            <div class="info-box">${data.prescribedBreathing}</div>
+            <h3>Cognition</h3>
+            <p><span class="checkbox">${data.cognitionIndependent ? "✓" : "✗"}</span> No impact on health/wellbeing (Care plan not required)</p>
+            ${data.cognition ? `<div class="info-box">${data.cognition}</div>` : ""}
           </div>
-          `
-      : ""
-    }
         </div>
       </div>
 
@@ -359,14 +397,14 @@ function generateAdmissionHTML(data: any): string {
         <h2>Nutrition Information</h2>
         <div class="grid grid-cols-2">
           <div class="space-y-2">
-            <p><strong>Weight:</strong> ${data.weight}</p>
-            <p><strong>Height:</strong> ${data.height}</p>
-            <p><strong>IDDSI Food Level:</strong> ${data.iddsiFood}</p>
+            <p><strong>Weight:</strong> ${data.weight || "N/A"}</p>
+            <p><strong>Height:</strong> ${data.height || "N/A"}</p>
+            <p><strong>IDDSI Food Level:</strong> ${data.iddsiFood || "N/A"}</p>
           </div>
           <div class="space-y-2">
-            <p><strong>IDDSI Fluid Level:</strong> ${data.iddsiFluid}</p>
-            <p><strong>Diet Type:</strong> ${data.dietType}</p>
-            <p><strong>Choking Risk:</strong> <span class="checkbox">${data.chockingRisk ? "✓" : "✗"}</span> ${data.chockingRisk ? "Yes" : "No"}</p>
+            <p><strong>IDDSI Fluid Level:</strong> ${data.iddsiFluid || "N/A"}</p>
+            <p><strong>Diet Type:</strong> ${data.dietType || "N/A"}</p>
+            <p><strong>Choking Risk:</strong> <span class="checkbox">${data.chokingRisk ? "✓" : "✗"}</span> ${data.chokingRisk ? "Yes" : "No"}</p>
           </div>
         </div>
         <div class="space-y-4 subsection">
@@ -400,28 +438,18 @@ function generateAdmissionHTML(data: any): string {
         </div>
       </div>
 
-      <!-- Personal Care -->
-      <div class="section">
-        <h2>Personal Care</h2>
-        <div class="space-y-4">
-          ${data.continence
-      ? `
-          <div>
-            <h3>Continence</h3>
-            <div class="info-box">${data.continence}</div>
+      <!-- Assessment Completion Section -->
+      <div class="section pt-6 border-t mt-8">
+        <h2 class="text-xl font-bold mb-4">Assessment Completion</h2>
+        <div class="grid grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <p><strong>Completed By:</strong> ${data.completedBy || "N/A"}</p>
+            <p><strong>Job Role:</strong> ${data.jobRole || "N/A"}</p>
           </div>
-          `
-      : ""
-    }
-          ${data.hygiene
-      ? `
-          <div>
-            <h3>Hygiene</h3>
-            <div class="info-box">${data.hygiene}</div>
+          <div class="space-y-2">
+            <p><strong>Date of Completion:</strong> ${data.assessmentDate ? formatDateTime(data.assessmentDate) : "N/A"}</p>
+            <p><strong>Signature:</strong> ${data.signature || "N/A"}</p>
           </div>
-          `
-      : ""
-    }
         </div>
       </div>
 

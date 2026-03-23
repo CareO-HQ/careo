@@ -154,7 +154,7 @@ export default function UploadFileModal({
             organization_id: activeOrgId,
             folder_name: folderName,
             team_id: activeTeamId,
-            created_by: userEmail,
+            created_by: profile?.id || userEmail,
             created_at: new Date().toISOString()
           }
         ]);
@@ -224,7 +224,7 @@ export default function UploadFileModal({
           )}
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md w-full overflow-hidden">
         <DialogHeader>
           <DialogTitle>Upload PDF</DialogTitle>
           <DialogDescription>
@@ -233,7 +233,7 @@ export default function UploadFileModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 w-full min-w-0 overflow-hidden">
           {/* File Selection */}
           <div className="space-y-2">
             <Label htmlFor="file-upload">Select PDF File</Label>
@@ -261,12 +261,12 @@ export default function UploadFileModal({
 
           {/* Selected File Preview */}
           {selectedFile && (
-            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md">
+            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md w-full overflow-hidden">
               <div className="bg-red-50 rounded-md">
                 <FileIcon className="w-4 h-4 text-red-500 m-1.5" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
+                <p className="text-sm font-medium truncate" title={selectedFile.name}>
                   {selectedFile.name}
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -305,7 +305,7 @@ export default function UploadFileModal({
                 disabled={isUploading}
                 className={!fileName.trim() ? "border-red-300" : ""}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground break-all max-w-full">
                 The file will be saved as &ldquo;{fileName.trim() || "Untitled"}
                 .pdf&rdquo;
               </p>

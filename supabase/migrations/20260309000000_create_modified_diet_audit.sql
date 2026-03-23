@@ -32,12 +32,12 @@ CREATE TABLE public.manager_audits (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_manager_audits_org ON public.manager_audits(organization_id);
-CREATE INDEX idx_manager_audits_care_home ON public.manager_audits(care_home_id);
-CREATE INDEX idx_manager_audits_team ON public.manager_audits(team_id);
-CREATE INDEX idx_manager_audits_type ON public.manager_audits(audit_type_id);
-CREATE INDEX idx_manager_audits_auditor ON public.manager_audits(auditor_id);
-CREATE INDEX idx_manager_audits_status ON public.manager_audits(status);
+CREATE INDEX IF NOT EXISTS idx_manager_audits_org ON public.manager_audits(organization_id);
+CREATE INDEX IF NOT EXISTS idx_manager_audits_care_home ON public.manager_audits(care_home_id);
+CREATE INDEX IF NOT EXISTS idx_manager_audits_team ON public.manager_audits(team_id);
+CREATE INDEX IF NOT EXISTS idx_manager_audits_type ON public.manager_audits(audit_type_id);
+CREATE INDEX IF NOT EXISTS idx_manager_audits_auditor ON public.manager_audits(auditor_id);
+CREATE INDEX IF NOT EXISTS idx_manager_audits_status ON public.manager_audits(status);
 
 -- Modified Diet Audit Entries (child table for specific audit data)
 CREATE TABLE IF NOT EXISTS public.modified_diet_audit_entries (
@@ -82,10 +82,10 @@ CREATE TABLE IF NOT EXISTS public.modified_diet_audit_entries (
   UNIQUE(audit_id, resident_id)
 );
 
-CREATE INDEX idx_modified_diet_entries_audit ON public.modified_diet_audit_entries(audit_id);
-CREATE INDEX idx_modified_diet_entries_resident ON public.modified_diet_audit_entries(resident_id);
-CREATE INDEX idx_modified_diet_entries_org ON public.modified_diet_audit_entries(organization_id);
-CREATE INDEX idx_modified_diet_entries_compliant ON public.modified_diet_audit_entries(is_compliant);
+CREATE INDEX IF NOT EXISTS idx_modified_diet_entries_audit ON public.modified_diet_audit_entries(audit_id);
+CREATE INDEX IF NOT EXISTS idx_modified_diet_entries_resident ON public.modified_diet_audit_entries(resident_id);
+CREATE INDEX IF NOT EXISTS idx_modified_diet_entries_org ON public.modified_diet_audit_entries(organization_id);
+CREATE INDEX IF NOT EXISTS idx_modified_diet_entries_compliant ON public.modified_diet_audit_entries(is_compliant);
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -114,10 +114,12 @@ ALTER TABLE public.manager_audits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.modified_diet_audit_entries ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for manager_audits
+DROP POLICY IF EXISTS "Users can view audits in their organization" ON public.manager_audits;
 CREATE POLICY "Users can view audits in their organization"
   ON public.manager_audits FOR SELECT
   USING ( public.can_access_organization(organization_id) );
 
+DROP POLICY IF EXISTS "Managers can create audits" ON public.manager_audits;
 CREATE POLICY "Managers can create audits"
   ON public.manager_audits FOR INSERT
   WITH CHECK (
@@ -125,6 +127,7 @@ CREATE POLICY "Managers can create audits"
     AND public.get_user_role(auth.uid()) IN ('manager', 'owner', 'saas_admin')
   );
 
+DROP POLICY IF EXISTS "Managers can update audits" ON public.manager_audits;
 CREATE POLICY "Managers can update audits"
   ON public.manager_audits FOR UPDATE
   USING (
@@ -133,10 +136,12 @@ CREATE POLICY "Managers can update audits"
   );
 
 -- RLS Policies for modified_diet_audit_entries
+DROP POLICY IF EXISTS "Users can view audit entries in their organization" ON public.modified_diet_audit_entries;
 CREATE POLICY "Users can view audit entries in their organization"
   ON public.modified_diet_audit_entries FOR SELECT
   USING ( public.can_access_organization(organization_id) );
 
+DROP POLICY IF EXISTS "Managers can create audit entries" ON public.modified_diet_audit_entries;
 CREATE POLICY "Managers can create audit entries"
   ON public.modified_diet_audit_entries FOR INSERT
   WITH CHECK (
@@ -144,6 +149,7 @@ CREATE POLICY "Managers can create audit entries"
     AND public.get_user_role(auth.uid()) IN ('manager', 'owner', 'saas_admin')
   );
 
+DROP POLICY IF EXISTS "Managers can update audit entries" ON public.modified_diet_audit_entries;
 CREATE POLICY "Managers can update audit entries"
   ON public.modified_diet_audit_entries FOR UPDATE
   USING (
@@ -151,6 +157,7 @@ CREATE POLICY "Managers can update audit entries"
     AND public.get_user_role(auth.uid()) IN ('manager', 'owner', 'saas_admin')
   );
 
+DROP POLICY IF EXISTS "Managers can delete audit entries" ON public.modified_diet_audit_entries;
 CREATE POLICY "Managers can delete audit entries"
   ON public.modified_diet_audit_entries FOR DELETE
   USING (

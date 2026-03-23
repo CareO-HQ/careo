@@ -61,6 +61,12 @@ export const config = {
           key: "photography-consent",
           value: "Photography Consent Form",
           description: "Photography Consent Form"
+        },
+        {
+          type: "form",
+          key: "best-interest-decision-form",
+          value: "Best Interest Decision Form",
+          description: "Best Interest Decision Form"
         }
       ]
     },
@@ -351,10 +357,10 @@ export const config = {
       description: "Forms for the admission process.",
       forms: [
         { type: "form", key: "admission-form", value: "Admission Assessment" },
-        { type: "form", key: "v2-capacity-consent", value: "Capacity and Consent", isComingSoon: true },
+        { type: "form", key: "v2-capacity-consent", value: "Capacity and Consent" },
         { type: "form", key: "photography-consent", value: "Photographic Consent Form" },
-        { type: "form", key: "best-interest-decision-form", value: "Best Interest Decision Form (within Capacity & Consent)" },
-        { type: "form", key: "v2-night-obs-consent", value: "Night Observation Consent", isComingSoon: true }
+        { type: "form", key: "best-interest-decision-form", value: "Best Interest Decision Form" },
+        { type: "form", key: "v2-night-obs-consent", value: "Night Observation Consent" }
       ]
     },
     {
@@ -364,7 +370,7 @@ export const config = {
       description: "Risk assessments and safety plans.",
       carePlan: true,
       forms: [
-        { type: "form", key: "v2-general-risk", value: "General Risk Assessment", isComingSoon: true },
+        { type: "form", key: "v2-general-risk", value: "General Risk Assessment" },
         { type: "form", key: "peep", value: "PEEP (Personal Emergency Evacuation Plan) + Evaluation" },
         { type: "form", key: "v2-restraints-risk", value: "Consent and Risk Assessment for Restraints" }
       ]

@@ -1,0 +1,7 @@
+A	app/(dashboard)/dashboard/residents/[id]/(pages)/incidents/[folderId]/components/fall-progress-tracker.tsx
+M	app/(dashboard)/dashboard/residents/[id]/(pages)/incidents/[folderId]/components/post-fall-guidelines.tsx
+M	app/(dashboard)/dashboard/residents/[id]/(pages)/incidents/[folderId]/page.tsx
+M	app/(dashboard)/dashboard/residents/[id]/(pages)/wounds/[folderId]/page.tsx
+A	components/shared/CollaboratorsDialog.tsx
+A	supabase/migrations/20260316000000_add_selected_pathway_to_incident_folders.sql
+A	supabase/migrations/20260316000001_create_folder_collaborators_tables.sql

@@ -1,42 +1,47 @@
 import { z } from "zod";
 
 export const peepSchema = z.object({
-  // Resident information
+  // Header Information
+  facilityName: z.string().optional(),
   residentName: z.string().optional(),
   residentDateOfBirth: z.number().optional(),
   bedroomNumber: z.string().optional(),
+  unit: z.string().optional(),
 
-  // Questions
-  understands: z.boolean(),
-  staffNeeded: z.number().min(0, "Required"),
-  equipmentNeeded: z.string().optional(),
-  communicationNeeds: z.string().optional(),
+  // Awareness of Procedure
+  informedBy: z.object({
+    alarmSystem: z.boolean(),
+    visualAlarm: z.boolean(),
+    pagerDevice: z.boolean(),
+    other: z.boolean(),
+    otherDetails: z.string().optional(),
+  }).optional(),
 
-  // Steps
-  steps: z
-    .array(
-      z.object({
-        name: z.string().min(1, "Step name is required"),
-        description: z.string().min(1, "Step description is required")
-      })
-    )
-    .optional(),
+  // Assistance & Equipment
+  designatedAssistance: z.string().optional(),
+  equipmentRequired: z.string().optional(),
 
-  // Safety Questions
-  oxigenInUse: z.boolean(),
-  oxigenComments: z.string().optional(),
-  residentSmokes: z.boolean(),
-  residentSmokesComments: z.string().optional(),
-  furnitureFireRetardant: z.boolean(),
-  furnitureFireRetardantComments: z.string().optional(),
+  // Personalised Evacuation Procedure (Dynamic steps)
+  steps: z.array(z.object({
+    name: z.string(),
+    description: z.string()
+  })).optional(),
 
-  // Completion details
-  completedBy: z.string().optional(),
-  completedBySignature: z.string().optional(),
-  assessmentDate: z.number().optional(),
+  // Fire Hazards in Area Room
+  hazards: z.object({
+    oxygenCylinders: z.boolean().optional(),
+    furnishingsFireRetardant: z.boolean().optional(),
+    doesPersonSmoke: z.boolean().optional(),
+  }).optional(),
 
-  // Optional metadata fields for drafts
-  status: z.enum(["draft", "submitted", "reviewed"]).optional()
+  // Monitoring and Review / Signatures
+  managerSignature: z.string().optional(),
+  managerSignatureDate: z.number().optional(),
+  personInCareSignature: z.string().optional(),
+  personInCareSignatureDate: z.number().optional(),
+
+  // Optional metadata fields for drafts/backwards compatibility
+  status: z.enum(["draft", "submitted", "reviewed"]).optional(),
 });
 
 export type PeepFormData = z.infer<typeof peepSchema>;

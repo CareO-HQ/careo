@@ -1,13 +1,28 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowDown, AlertCircle, CheckCircle, AlertTriangle, FileText } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 type Pathway = "green" | "amber" | "red";
 
-export function PostFallGuidelines() {
-    const [selectedPathway, setSelectedPathway] = useState<Pathway | null>(null);
+interface PostFallGuidelinesProps {
+    folderId: string;
+    savedPathway?: Pathway | null;
+}
+
+export function PostFallGuidelines({ folderId, savedPathway }: PostFallGuidelinesProps) {
+    const [selectedPathway, setSelectedPathway] = useState<Pathway | null>(savedPathway || null);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Load saved pathway when component mounts or savedPathway changes
+    useEffect(() => {
+        if (savedPathway) {
+            setSelectedPathway(savedPathway);
+        }
+    }, [savedPathway]);
 
     const pathways = [
         {
@@ -88,8 +103,29 @@ export function PostFallGuidelines() {
         },
     ];
 
-    const handlePathwayClick = (id: Pathway) => {
-        setSelectedPathway(selectedPathway === id ? null : id);
+    const handlePathwayClick = async (id: Pathway) => {
+        const newPathway = selectedPathway === id ? null : id;
+        setSelectedPathway(newPathway);
+
+        // Save to database
+        setIsSaving(true);
+        try {
+            const { error } = await supabase
+                .from("incident_folders")
+                .update({ selected_pathway: newPathway })
+                .eq("id", folderId);
+
+            if (error) throw error;
+
+            toast.success(newPathway ? `${id.charAt(0).toUpperCase() + id.slice(1)} pathway selected` : "Pathway deselected");
+        } catch (error) {
+            console.error("Error saving pathway:", error);
+            toast.error("Failed to save pathway selection");
+            // Revert the selection on error
+            setSelectedPathway(selectedPathway);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -126,8 +162,8 @@ export function PostFallGuidelines() {
                                     {/* Stage 1: Assessment */}
                                     <motion.div
                                         whileHover={{ y: -5 }}
-                                        onClick={() => handlePathwayClick(path.id)}
-                                        className={`cursor-pointer rounded-2xl border-2 p-6 h-full shadow-sm transition-colors duration-300 ${isSelected ? path.activeColor : path.color}`}
+                                        onClick={() => !isSaving && handlePathwayClick(path.id)}
+                                        className={`cursor-pointer rounded-2xl border-2 p-6 h-full shadow-sm transition-colors duration-300 ${isSelected ? path.activeColor : path.color} ${isSaving ? "opacity-50 cursor-not-allowed" : ""}`}
                                     >
                                         <div className="flex items-center gap-2 mb-4">
                                             {path.icon}
@@ -156,8 +192,8 @@ export function PostFallGuidelines() {
                                     {/* Stage 2: Actions */}
                                     <motion.div
                                         whileHover={{ y: -5 }}
-                                        onClick={() => handlePathwayClick(path.id)}
-                                        className={`cursor-pointer rounded-2xl border-2 p-6 shadow-sm transition-colors duration-300 ${isSelected ? path.activeColor : path.color}`}
+                                        onClick={() => !isSaving && handlePathwayClick(path.id)}
+                                        className={`cursor-pointer rounded-2xl border-2 p-6 shadow-sm transition-colors duration-300 ${isSelected ? path.activeColor : path.color} ${isSaving ? "opacity-50 cursor-not-allowed" : ""}`}
                                     >
                                         <h3 className="font-bold text-sm mb-4 uppercase tracking-wider opacity-80">{path.actionsTitle}</h3>
                                         <ul className="space-y-3">

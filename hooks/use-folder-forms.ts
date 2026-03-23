@@ -42,6 +42,13 @@ export function useFolderForms({
   const [allCornellDepressionScaleForms, setAllCornellDepressionScaleForms] = useState<any[] | undefined>(undefined);
   const [allBestInterestDecisionForms, setAllBestInterestDecisionForms] = useState<any[] | undefined>(undefined);
   const [allBradenRiskAssessmentForms, setAllBradenRiskAssessmentForms] = useState<any[] | undefined>(undefined);
+  const [allRestraintsRiskForms, setAllRestraintsRiskForms] = useState<any[] | undefined>(undefined);
+  const [allFallRiskAssessmentForms, setAllFallRiskAssessmentForms] = useState<any[] | undefined>(undefined);
+  const [allSmokingRiskAssessmentForms, setAllSmokingRiskAssessmentForms] = useState<any[] | undefined>(undefined);
+  const [allSpecimenLogForms, setAllSpecimenLogForms] = useState<any[] | undefined>(undefined);
+  const [allCapacityConsentsForms, setAllCapacityConsentsForms] = useState<any[] | undefined>(undefined);
+  const [allNightObservationForms, setAllNightObservationForms] = useState<any[] | undefined>(undefined);
+  const [allGeneralRiskForms, setAllGeneralRiskForms] = useState<any[] | undefined>(undefined);
 
   const [activeCarePlanForms, setActiveCarePlanForms] = useState<any[] | undefined>(undefined);
   const [archivedCarePlans, setArchivedCarePlans] = useState<any[] | undefined>(undefined);
@@ -329,6 +336,76 @@ export function useFolderForms({
         .then(({ data }) => setAllBradenRiskAssessmentForms(data || [])));
     }
 
+    // Restraints Risk
+    if (folderFormKeys?.includes("v2-restraints-risk")) {
+      promises.push(supabase
+        .from('restraints_consents')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllRestraintsRiskForms(data || [])));
+    }
+
+    // Fall Risk Assessment
+    if (folderFormKeys?.includes("fall-risk-assessment")) {
+      promises.push(supabase
+        .from('fall_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllFallRiskAssessmentForms(data || [])));
+    }
+
+    // Smoking Risk Assessment
+    if (folderFormKeys?.includes("smoking-risk-assessment")) {
+      promises.push(supabase
+        .from('smoking_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllSmokingRiskAssessmentForms(data || [])));
+    }
+
+    // Specimen Log
+    if (folderFormKeys?.includes("v2-specimen-log")) {
+      promises.push(supabase
+        .from('specimen_records')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllSpecimenLogForms(data || [])));
+    }
+
+    // Capacity & Consent
+    if (folderFormKeys?.includes("v2-capacity-consent")) {
+      promises.push(supabase
+        .from('capacity_consents')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllCapacityConsentsForms(data || [])));
+    }
+
+    // Night Observation Consent
+    if (folderFormKeys?.includes("v2-night-obs-consent")) {
+      promises.push(supabase
+        .from('night_observation_consents')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllNightObservationForms(data || [])));
+    }
+
+    // General Risk Assessment
+    if (folderFormKeys?.includes("v2-general-risk")) {
+      promises.push(supabase
+        .from('general_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllGeneralRiskForms(data || [])));
+    }
+
     // Care Plans
     if (includeCarePlans && folderKey) {
       // Fetch is handled in separate fetchAllCarePlans effect
@@ -585,6 +662,76 @@ export function useFolderForms({
         .then(({ data }) => setAllBradenRiskAssessmentForms(data || [])));
     }
 
+    // Restraints Risk
+    if (folderFormKeys?.includes("v2-restraints-risk")) {
+      promises.push(supabase
+        .from('restraints_consents')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllRestraintsRiskForms(data || [])));
+    }
+
+    // Fall Risk Assessment
+    if (folderFormKeys?.includes("fall-risk-assessment")) {
+      promises.push(supabase
+        .from('fall_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllFallRiskAssessmentForms(data || [])));
+    }
+
+    // Smoking Risk Assessment
+    if (folderFormKeys?.includes("smoking-risk-assessment")) {
+      promises.push(supabase
+        .from('smoking_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllSmokingRiskAssessmentForms(data || [])));
+    }
+
+    // Specimen Log
+    if (folderFormKeys?.includes("v2-specimen-log")) {
+      promises.push(supabase
+        .from('specimen_records')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllSpecimenLogForms(data || [])));
+    }
+
+    // Capacity & Consent
+    if (folderFormKeys?.includes("v2-capacity-consent")) {
+      promises.push(supabase
+        .from('capacity_consents')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllCapacityConsentsForms(data || [])));
+    }
+
+    // Night Observation Consent
+    if (folderFormKeys?.includes("v2-night-obs-consent")) {
+      promises.push(supabase
+        .from('night_observation_consents')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllNightObservationForms(data || [])));
+    }
+
+    // General Risk Assessment
+    if (folderFormKeys?.includes("v2-general-risk")) {
+      promises.push(supabase
+        .from('general_risk_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllGeneralRiskForms(data || [])));
+    }
+
     Promise.all(promises).finally(() => setIsLoading(false));
   }, [residentId]);
 
@@ -640,6 +787,13 @@ export function useFolderForms({
   const allCornellDepressionScaleFormsMapped = useMemo(() => mapToConvexLike(allCornellDepressionScaleForms), [allCornellDepressionScaleForms]);
   const allBestInterestDecisionFormsMapped = useMemo(() => mapToConvexLike(allBestInterestDecisionForms), [allBestInterestDecisionForms]);
   const allBradenRiskAssessmentFormsMapped = useMemo(() => mapToConvexLike(allBradenRiskAssessmentForms), [allBradenRiskAssessmentForms]);
+  const allRestraintsRiskFormsMapped = useMemo(() => mapToConvexLike(allRestraintsRiskForms), [allRestraintsRiskForms]);
+  const allFallRiskAssessmentFormsMapped = useMemo(() => mapToConvexLike(allFallRiskAssessmentForms), [allFallRiskAssessmentForms]);
+  const allSmokingRiskAssessmentFormsMapped = useMemo(() => mapToConvexLike(allSmokingRiskAssessmentForms), [allSmokingRiskAssessmentForms]);
+  const allSpecimenLogFormsMapped = useMemo(() => mapToConvexLike(allSpecimenLogForms), [allSpecimenLogForms]);
+  const allCapacityConsentsFormsMapped = useMemo(() => mapToConvexLike(allCapacityConsentsForms), [allCapacityConsentsForms]);
+  const allNightObservationFormsMapped = useMemo(() => mapToConvexLike(allNightObservationForms), [allNightObservationForms]);
+  const allGeneralRiskFormsMapped = useMemo(() => mapToConvexLike(allGeneralRiskForms), [allGeneralRiskForms]);
 
   const activeCarePlanFormsMapped = useMemo(() => mapToConvexLike(activeCarePlanForms), [activeCarePlanForms]);
   const archivedCarePlansMapped = useMemo(() => mapToConvexLike(archivedCarePlans), [archivedCarePlans]);
@@ -726,6 +880,12 @@ export function useFolderForms({
     processForms(allCornellDepressionScaleFormsMapped, "cornell-depression-scale-form", "Cornell Scale for Depression in Dementia");
     processForms(allBestInterestDecisionFormsMapped, "best-interest-decision-form", "Best Interest Decision");
     processForms(allBradenRiskAssessmentFormsMapped, "braden-risk-assessment-form", "Braden Risk Assessment");
+    processForms(allRestraintsRiskFormsMapped, "v2-restraints-risk", "Consent and Risk Assessment for Restraints");
+    processForms(allFallRiskAssessmentFormsMapped, "fall-risk-assessment", "Fall Risk Assessment");
+    processForms(allSmokingRiskAssessmentFormsMapped, "smoking-risk-assessment", "Smoking Risk Assessment");
+    processForms(allSpecimenLogFormsMapped, "v2-specimen-log", "Specimen Record Log");
+    processForms(allCapacityConsentsFormsMapped, "v2-capacity-consent", "Capacity & Consent Assessment");
+    processForms(allNightObservationFormsMapped, "v2-night-obs-consent", "Night Observation Consent");
 
     // Process Care Plans
     if (includeCarePlans) {
@@ -769,6 +929,13 @@ export function useFolderForms({
     allCornellDepressionScaleFormsMapped,
     allBestInterestDecisionFormsMapped,
     allBradenRiskAssessmentFormsMapped,
+    allRestraintsRiskFormsMapped,
+    allFallRiskAssessmentFormsMapped,
+    allSmokingRiskAssessmentFormsMapped,
+    allSpecimenLogFormsMapped,
+    allCapacityConsentsFormsMapped,
+    allNightObservationFormsMapped,
+    allGeneralRiskFormsMapped,
     filteredActiveCarePlansMapped,
     filteredArchivedCarePlansMapped,
     folderFormKeys
@@ -805,6 +972,13 @@ export function useFolderForms({
     allCornellDepressionScaleForms: allCornellDepressionScaleFormsMapped,
     allBestInterestDecisionForms: allBestInterestDecisionFormsMapped,
     allBradenRiskAssessmentForms: allBradenRiskAssessmentFormsMapped,
+    allRestraintsRiskForms: allRestraintsRiskFormsMapped,
+    allFallRiskAssessmentForms: allFallRiskAssessmentFormsMapped,
+    allSmokingRiskAssessmentForms: allSmokingRiskAssessmentFormsMapped,
+    allSpecimenLogForms: allSpecimenLogFormsMapped,
+    allCapacityConsentsForms: allCapacityConsentsFormsMapped,
+    allNightObservationForms: allNightObservationFormsMapped,
+    allGeneralRiskForms: allGeneralRiskFormsMapped,
     allBedRailsRiskAssessmentForms: allBedRailsRiskAssessmentFormsMapped,
     activeCarePlanForms: filteredActiveCarePlansMapped,
     latestCarePlanForm: filteredActiveCarePlansMapped && filteredActiveCarePlansMapped.length > 0 ? filteredActiveCarePlansMapped[0] : null,
