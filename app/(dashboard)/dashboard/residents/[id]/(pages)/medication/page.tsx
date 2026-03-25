@@ -703,7 +703,19 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       createAndAdministerMedicationIntake,
       true,
       availableMembers,
-      profile ? { name: profile.name || "", userId: profile.id } : undefined
+      profile ? { name: profile.name || "", userId: profile.id } : undefined,
+      true  // Use simplified dialog for PRN medications in Today's tab
+    ),
+    [availableMembers, profile]
+  );
+
+  const topicalMedicationColumns = useMemo(
+    () => createMedicationColumns(
+      createAndAdministerMedicationIntake,
+      true,
+      availableMembers,
+      profile ? { name: profile.name || "", userId: profile.id } : undefined,
+      false  // Use full form for Topical medications section
     ),
     [availableMembers, profile]
   );
@@ -713,7 +725,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       createAndAdministerMedicationIntake,
       false,
       availableMembers,
-      profile ? { name: profile.name || "", userId: profile.id } : undefined
+      profile ? { name: profile.name || "", userId: profile.id } : undefined,
+      true  // Default to simplified
     ),
     [availableMembers, profile]
   );
@@ -1122,7 +1135,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
                 <p className="text-xs text-muted-foreground">Topical medications will appear here.</p>
               </div>
             ) : (
-              <DataTable columns={prnTopicalColumns} data={topicalMedications} />
+              <DataTable columns={topicalMedicationColumns} data={topicalMedications} />
             )}
           </div>
         </TabsContent>

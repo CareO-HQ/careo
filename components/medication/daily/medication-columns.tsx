@@ -57,7 +57,8 @@ export const createMedicationColumns = (
   createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string) => Promise<any>,
   showAdministrateButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
-  currentUser?: { name: string; userId: string }
+  currentUser?: { name: string; userId: string },
+  useSimplifiedTopicalDialog: boolean = true
 ): ColumnDef<Medication>[] => [
     {
       id: "medication",
@@ -176,57 +177,80 @@ export const createMedicationColumns = (
       id: "instructions",
       header: "Instructions",
       cell: ({ row }) => {
-        const instructions = row.original.instructions;
+        const medication = row.original;
+        const instructions = medication.instructions;
+        const isPRNOrTopical = medication.schedule_type === "PRN (As Needed)" || medication.schedule_type === "Topical";
+
+        if (!instructions) {
+          return <p className="text-sm text-muted-foreground">No instructions</p>;
+        }
+
+        // For PRN and Topical medications, truncate if lengthy
+        if (isPRNOrTopical && instructions.length > 30) {
+          const truncated = instructions.substring(0, 30) + "...";
+          return (
+            <p
+              className="text-sm text-muted-foreground cursor-help"
+              title={instructions}
+            >
+              {truncated}
+            </p>
+          );
+        }
+
         return (
           <p className="text-sm text-muted-foreground">
-            {instructions || "No instructions"}
+            {instructions}
           </p>
         );
       }
     },
-    {
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => {
-        const medication = row.original;
+    // Only show Actions column for non-PRN medications when Administrate button is shown
+    ...(showAdministrateButton ? [] : [
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }: { row: any }) => {
+          const medication = row.original;
 
-        const ActionsCell = () => {
-          const [editDialogOpen, setEditDialogOpen] = useState(false);
-          const [dropdownOpen, setDropdownOpen] = useState(false);
+          const ActionsCell = () => {
+            const [editDialogOpen, setEditDialogOpen] = useState(false);
+            const [dropdownOpen, setDropdownOpen] = useState(false);
 
-          return (
-            <>
-              <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => {
-                    setEditDialogOpen(true);
-                    setDropdownOpen(false);
-                  }}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit Medication
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            return (
+              <>
+                <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => {
+                      setEditDialogOpen(true);
+                      setDropdownOpen(false);
+                    }}>
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit Medication
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-              {editDialogOpen && (
-                <EditMedicationDialog
-                  medication={medication}
-                  open={editDialogOpen}
-                  onOpenChange={setEditDialogOpen}
-                />
-              )}
-            </>
-          );
-        };
+                {editDialogOpen && (
+                  <EditMedicationDialog
+                    medication={medication}
+                    open={editDialogOpen}
+                    onOpenChange={setEditDialogOpen}
+                  />
+                )}
+              </>
+            );
+          };
 
-        return <ActionsCell />;
-      }
-    },
+          return <ActionsCell />;
+        }
+      } as ColumnDef<Medication>
+    ]),
     ...(showAdministrateButton
       ? [
         {
@@ -240,7 +264,11 @@ export const createMedicationColumns = (
               const [notes, setNotes] = useState("");
               const [witnessedBy, setWitnessedBy] = useState("");
               const [time, setTime] = useState<Date>(new Date());
-              const [units, setUnits] = useState(1);
+              const [units, setUnits] = useState<number | "">(1);
+              const [applicationStatus, setApplicationStatus] = useState<"applied" | "refused" | "missed">("applied");
+
+              const isTopical = medication.schedule_type === "Topical";
+              const useSimplifiedTopical = isTopical && useSimplifiedTopicalDialog;
 
               // Determine unit label and type based on frequency field (for PRN/Supplements) or dosage form
               const getUnitInfo = () => {
@@ -293,31 +321,47 @@ export const createMedicationColumns = (
                 }
 
                 // Validate required fields
-                if (!witnessedBy) {
+                // Witness is required for non-topical medications in full form
+                // For topical in full form, witness is optional
+                if (!useSimplifiedTopical && !isTopical && !witnessedBy) {
                   toast.error("Please select a witness");
                   return;
                 }
 
-                if (units < 0.1) {
-                  toast.error(`${unitInfo.label} must be at least 0.1`);
-                  return;
+                // For topical medications (both simplified and full), use status instead of units
+                // For other medications, validate units
+                if (!isTopical) {
+                  if (units === "" || units < 0) {
+                    toast.error(`Please enter a valid ${unitInfo.label.toLowerCase()} amount`);
+                    return;
+                  }
                 }
 
                 try {
+                  // For topical medications (both simplified and full), use 1 as quantity and add status to notes
+                  const quantity = isTopical ? 1 : (typeof units === "number" ? units : parseFloat(units));
+                  const administrationNotes = isTopical
+                    ? `Status: ${applicationStatus.charAt(0).toUpperCase() + applicationStatus.slice(1)}${notes ? `\n${notes}` : ''}`
+                    : notes;
+
                   await createAndAdministerMedicationIntake(
                     medication.id,
                     medication.resident_id,
                     format(time, "HH:mm"),
-                    units,
-                    notes
+                    quantity,
+                    administrationNotes
                   );
 
-                  toast.success("Medication administered successfully");
+                  toast.success(isTopical
+                    ? `Topical medication marked as ${applicationStatus}`
+                    : "Medication administered successfully"
+                  );
                   setIsOpen(false);
                   setNotes("");
                   setWitnessedBy("");
                   setTime(new Date());
                   setUnits(1);
+                  setApplicationStatus("applied");
                 } catch (error) {
                   console.error("Error administering medication:", error);
                   toast.error(
@@ -334,125 +378,220 @@ export const createMedicationColumns = (
                       Administrate
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className={useSimplifiedTopical ? "max-w-md" : ""}>
                     <DialogHeader>
-                      <DialogTitle>Administrate Medication</DialogTitle>
+                      <DialogTitle>
+                        {useSimplifiedTopical ? "Apply Topical Medication" : "Administrate Medication"}
+                      </DialogTitle>
                       <DialogDescription>
-                        Confirm administration of this medication
+                        {useSimplifiedTopical
+                          ? `Record application of ${medication.name}`
+                          : "Confirm administration of this medication"
+                        }
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">
-                          Medication Details
-                        </p>
-                        <div className="rounded-md border p-3 space-y-1">
-                          <p className="font-semibold">{medication.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {medication.strength} {medication.strength_unit} -{" "}
-                            {medication.dosage_form}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Route: {medication.route}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Frequency: {medication.frequency}
-                          </p>
-                        </div>
-                      </div>
+                      {!useSimplifiedTopical && (
+                        <>
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium">
+                              Medication Details
+                            </p>
+                            <div className="rounded-md border p-3 space-y-1">
+                              <p className="font-semibold">{medication.name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {medication.strength} {medication.strength_unit} -{" "}
+                                {medication.dosage_form}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                Route: {medication.route}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                Frequency: {medication.frequency}
+                              </p>
+                            </div>
+                          </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="dispensedBy">Dispensed by</Label>
-                        <Select disabled value={currentUser?.userId || ""}>
-                          <SelectTrigger id="dispensedBy">
-                            <SelectValue
-                              placeholder={currentUser?.name || "N/A"}
+                          <div className="space-y-2">
+                            <Label htmlFor="dispensedBy">Dispensed by</Label>
+                            <Select disabled value={currentUser?.userId || ""}>
+                              <SelectTrigger id="dispensedBy">
+                                <SelectValue
+                                  placeholder={currentUser?.name || "N/A"}
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {currentUser && (
+                                  <SelectItem value={currentUser.userId}>
+                                    {currentUser.name}
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="witnessedBy">
+                              Witnessed by {isTopical ? "(Optional)" : <span className="text-red-500">*</span>}
+                            </Label>
+                            <Select
+                              value={witnessedBy}
+                              onValueChange={setWitnessedBy}
+                            >
+                              <SelectTrigger id="witnessedBy">
+                                <SelectValue placeholder="Select witness" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {teamMembers?.map((member) => (
+                                  <SelectItem
+                                    key={member.userId}
+                                    value={member.userId}
+                                  >
+                                    {member.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </>
+                      )}
+
+                      {useSimplifiedTopical ? (
+                        <>
+                          {/* Topical Medication: Only show Staff, Time, and Status */}
+                          <div className="space-y-2">
+                            <Label htmlFor="staffName">Staff Name</Label>
+                            <div className="rounded-md border p-3">
+                              <p className="text-sm">{currentUser?.name || "N/A"}</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="time">
+                              Time <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                              type="time"
+                              id="time"
+                              value={format(time, "HH:mm")}
+                              onChange={(e) => {
+                                const [hours, minutes] = e.target.value
+                                  .split(":")
+                                  .map(Number);
+                                const newTime = new Date();
+                                newTime.setHours(hours || 0);
+                                newTime.setMinutes(minutes || 0);
+                                newTime.setSeconds(0);
+                                newTime.setMilliseconds(0);
+                                setTime(newTime);
+                              }}
+                              className="bg-background"
                             />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {currentUser && (
-                              <SelectItem value={currentUser.userId}>
-                                {currentUser.name}
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="witnessedBy">
-                          Witnessed by <span className="text-red-500">*</span>
-                        </Label>
-                        <Select
-                          value={witnessedBy}
-                          onValueChange={setWitnessedBy}
-                        >
-                          <SelectTrigger id="witnessedBy">
-                            <SelectValue placeholder="Select witness" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {teamMembers?.map((member) => (
-                              <SelectItem
-                                key={member.userId}
-                                value={member.userId}
+                          <div className="space-y-2">
+                            <Label htmlFor="applicationStatus">
+                              Application Status <span className="text-red-500">*</span>
+                            </Label>
+                            <Select
+                              value={applicationStatus}
+                              onValueChange={(value: "applied" | "refused" | "missed") => setApplicationStatus(value)}
+                            >
+                              <SelectTrigger id="applicationStatus">
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="applied">Applied</SelectItem>
+                                <SelectItem value="refused">Refused</SelectItem>
+                                <SelectItem value="missed">Missed</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Regular Medication: Show all fields */}
+                          <div className="space-y-2">
+                            <Label htmlFor="time">
+                              Time <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                              type="time"
+                              id="time"
+                              value={format(time, "HH:mm")}
+                              onChange={(e) => {
+                                const [hours, minutes] = e.target.value
+                                  .split(":")
+                                  .map(Number);
+                                const newTime = new Date();
+                                newTime.setHours(hours || 0);
+                                newTime.setMinutes(minutes || 0);
+                                newTime.setSeconds(0);
+                                newTime.setMilliseconds(0);
+                                setTime(newTime);
+                              }}
+                              className="bg-background"
+                            />
+                          </div>
+
+                          {isTopical ? (
+                            <div className="space-y-2">
+                              <Label htmlFor="applicationStatus">
+                                Application Status <span className="text-red-500">*</span>
+                              </Label>
+                              <Select
+                                value={applicationStatus}
+                                onValueChange={(value: "applied" | "refused" | "missed") => setApplicationStatus(value)}
                               >
-                                {member.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                                <SelectTrigger id="applicationStatus">
+                                  <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="applied">Applied</SelectItem>
+                                  <SelectItem value="refused">Refused</SelectItem>
+                                  <SelectItem value="missed">Missed</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <Label htmlFor="units">
+                                {unitInfo.label} <span className="text-red-500">*</span>
+                              </Label>
+                              <Input
+                                id="units"
+                                type="number"
+                                min="0"
+                                step={unitInfo.step}
+                                value={units}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  if (value === '' || value === null) {
+                                    setUnits("");
+                                  } else {
+                                    const parsed = parseFloat(value);
+                                    if (!isNaN(parsed) && parsed >= 0) {
+                                      setUnits(parsed);
+                                    }
+                                  }
+                                }}
+                                placeholder={`Enter ${unitInfo.label.toLowerCase()}`}
+                              />
+                            </div>
+                          )}
 
-                      <div className="space-y-2">
-                        <Label htmlFor="time">
-                          Time <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          type="time"
-                          id="time"
-                          value={format(time, "HH:mm")}
-                          onChange={(e) => {
-                            const [hours, minutes] = e.target.value
-                              .split(":")
-                              .map(Number);
-                            const newTime = new Date();
-                            newTime.setHours(hours || 0);
-                            newTime.setMinutes(minutes || 0);
-                            newTime.setSeconds(0);
-                            newTime.setMilliseconds(0);
-                            setTime(newTime);
-                          }}
-                          className="bg-background"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="units">
-                          {unitInfo.label} <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="units"
-                          type={unitInfo.type}
-                          min="0.1"
-                          step={unitInfo.step}
-                          value={units}
-                          onChange={(e) =>
-                            setUnits(parseFloat(e.target.value) || 1)
-                          }
-                          placeholder={`Enter ${unitInfo.label.toLowerCase()}`}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="notes">Notes (Optional)</Label>
-                        <Textarea
-                          id="notes"
-                          placeholder="Add any notes about this administration"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          rows={3}
-                        />
-                      </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="notes">Notes (Optional)</Label>
+                            <Textarea
+                              id="notes"
+                              placeholder="Add any notes about this administration"
+                              value={notes}
+                              onChange={(e) => setNotes(e.target.value)}
+                              rows={3}
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
                     <div className="flex justify-end gap-2">
                       <Button
@@ -463,6 +602,7 @@ export const createMedicationColumns = (
                           setWitnessedBy("");
                           setTime(new Date());
                           setUnits(1);
+                          setApplicationStatus("applied");
                         }}
                       >
                         Cancel

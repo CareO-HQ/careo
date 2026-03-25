@@ -225,7 +225,6 @@ export function PrnMarSheet({
                         admin.prn_reason ? `Reason: ${admin.prn_reason}` : null,
                         admin.prn_dose_administered ? `Dose Given: ${admin.prn_dose_administered}` : null,
                         admin.prn_outcome ? `Outcome: ${admin.prn_outcome}` : null,
-                        admin.notes ? `Notes: ${admin.notes}` : null,
                       ].filter(Boolean).join('\n');
                       return parts;
                     }).join('\n\n');
@@ -322,12 +321,6 @@ export function PrnMarSheet({
                       <div className="col-span-2">
                         <p className="text-xs font-semibold text-gray-600 uppercase">Outcome</p>
                         <p className="text-sm">{admin.prn_outcome}</p>
-                      </div>
-                    )}
-                    {admin.notes && (
-                      <div className="col-span-2">
-                        <p className="text-xs font-semibold text-gray-600 uppercase">Notes</p>
-                        <p className="text-sm">{admin.notes}</p>
                       </div>
                     )}
                   </div>
