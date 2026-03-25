@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -62,7 +62,7 @@ interface DiscontinueMedicationDialogProps {
     dosage_form: string;
     route: string;
     schedule_type: string;
-  };
+  } | null;
   residentName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -103,13 +103,23 @@ export function DiscontinueMedicationDialog({
     },
   });
 
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!open) {
+      form.reset();
+      setIsSubmitting(false);
+      setShowConfirmation(false);
+      setFormData(null);
+    }
+  }, [open, form]);
+
   const onSubmit = (data: DiscontinueFormData) => {
     setFormData(data);
     setShowConfirmation(true);
   };
 
   const handleConfirmDiscontinue = async () => {
-    if (!profile || !formData) {
+    if (!profile || !formData || !medication) {
       toast.error("Unable to discontinue medication");
       return;
     }
@@ -159,6 +169,9 @@ export function DiscontinueMedicationDialog({
     }
     onOpenChange(newOpen);
   };
+
+  // Guard: Don't render if no medication
+  if (!medication) return null;
 
   return (
     <>

@@ -113,7 +113,7 @@ interface Medication {
 }
 
 interface EditMedicationDialogProps {
-  medication: Medication;
+  medication: Medication | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
@@ -133,9 +133,10 @@ export default function EditMedicationDialog({
     mode: "onBlur",
   });
 
-  // Reset form when dialog opens - only depend on `open` and medication.id to prevent loops
+  // Reset form when dialog opens or closes
   useEffect(() => {
     if (open && medication) {
+      // Dialog opening - populate form with medication data
       form.reset({
         name: medication.name,
         strength: medication.strength,
@@ -152,9 +153,14 @@ export default function EditMedicationDialog({
         startDate: medication.start_date ? new Date(medication.start_date) : new Date(),
         status: medication.status as "active" | "completed" | "cancelled"
       });
+    } else if (!open) {
+      // Dialog closing - reset form to default empty state
+      form.reset();
+      setIsLoading(false);
+      setStartDatePopoverOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, medication?.id]); // Only re-run when dialog opens or medication ID changes
+  }, [open, medication?.id]);
 
   const handleOpenChange = (newOpen: boolean) => {
     // Prevent closing while loading
@@ -162,23 +168,12 @@ export default function EditMedicationDialog({
       return;
     }
 
-    if (!newOpen) {
-      // Clean up all state when closing
-      setIsLoading(false);
-      setStartDatePopoverOpen(false);
-
-      // Defer form reset to avoid re-render during close animation
-      setTimeout(() => {
-        form.reset();
-      }, 100);
-    }
-
     onOpenChange(newOpen);
   };
 
   async function onSubmit(values: z.infer<typeof UpdateMedicationSchema>) {
-    // Prevent double submission
-    if (isLoading) return;
+    // Prevent double submission or null medication
+    if (isLoading || !medication) return;
 
     setIsLoading(true);
     try {
@@ -268,6 +263,9 @@ export default function EditMedicationDialog({
     }
   }
 
+  // Guard: Don't render if no medication
+  if (!medication) return null;
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -330,6 +328,10 @@ export default function EditMedicationDialog({
                       placeholder = "e.g., 10";
                       unitLabel = "patches";
                       description = "Total patches in the box";
+                    } else if (frequencyValue.includes('Sachets')) {
+                      placeholder = "e.g., 30";
+                      unitLabel = "sachets";
+                      description = "Total sachets in the box";
                     } else if (frequencyValue.includes('Injections')) {
                       allowDecimals = true;
                       step = "0.1";
@@ -659,6 +661,7 @@ export default function EditMedicationDialog({
                         <SelectItem value="Applications (Topical)">Applications (Topical)</SelectItem>
                         <SelectItem value="Sprays">Sprays</SelectItem>
                         <SelectItem value="Patches">Patches</SelectItem>
+                        <SelectItem value="Sachets">Sachets</SelectItem>
                         <SelectItem value="Injections">Injections</SelectItem>
                       </SelectContent>
                     </Select>
@@ -797,6 +800,9 @@ export default function EditMedicationDialog({
                                             } else if (frequencyValue.includes('Patches')) {
                                               placeholder = "e.g., 1";
                                               unitLabel = "patches";
+                                            } else if (frequencyValue.includes('Sachets')) {
+                                              placeholder = "e.g., 1";
+                                              unitLabel = "sachets";
                                             } else if (frequencyValue.includes('Injections')) {
                                               allowDecimals = true;
                                               step = "0.1";
@@ -898,10 +904,13 @@ export default function EditMedicationDialog({
               name="prescriberName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Prescriber Name</FormLabel>
+                  <FormLabel>Prescriber Name (Optional)</FormLabel>
                   <FormControl>
                     <Input placeholder="Dr. Smith" {...field} />
                   </FormControl>
+                  <FormDescription className="text-xs">
+                    Defaults to resident&apos;s GP if available
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

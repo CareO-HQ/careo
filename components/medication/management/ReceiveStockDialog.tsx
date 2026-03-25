@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -50,7 +50,7 @@ interface ReceiveStockDialogProps {
     total_count: number | null;
     organization_id: string;
     care_home_id: string | null;
-  };
+  } | null;
   residentId: string;
   residentName: string;
   open: boolean;
@@ -81,8 +81,16 @@ export function ReceiveStockDialog({
     },
   });
 
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!open) {
+      form.reset();
+      setIsSubmitting(false);
+    }
+  }, [open, form]);
+
   const onSubmit = async (data: ReceiveStockFormData) => {
-    if (!profile) {
+    if (!profile || !medication) {
       toast.error("You must be logged in to receive stock");
       return;
     }
@@ -166,6 +174,9 @@ export function ReceiveStockDialog({
     }
     onOpenChange(newOpen);
   };
+
+  // Guard: Don't render if no medication
+  if (!medication) return null;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

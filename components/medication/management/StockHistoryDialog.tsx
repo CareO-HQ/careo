@@ -28,7 +28,7 @@ interface StockHistoryDialogProps {
     name: string;
     strength: string;
     strength_unit: string;
-  };
+  } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -56,12 +56,15 @@ export function StockHistoryDialog({
   const [performerNames, setPerformerNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (open) {
+    if (open && medication) {
       fetchStockHistory();
     }
-  }, [open, medication.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, medication?.id]);
 
   const fetchStockHistory = async () => {
+    if (!medication) return;
+
     setIsLoading(true);
     try {
       // Fetch stock receipts
@@ -182,6 +185,9 @@ export function StockHistoryDialog({
       </Badge>
     );
   };
+
+  // Guard: Don't render if no medication
+  if (!medication) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

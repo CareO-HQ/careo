@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -64,7 +64,7 @@ interface AdjustStockDialogProps {
     total_count: number | null;
     organization_id: string;
     care_home_id: string | null;
-  };
+  } | null;
   residentId: string;
   residentName: string;
   open: boolean;
@@ -103,14 +103,22 @@ export function AdjustStockDialog({
     },
   });
 
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!open) {
+      form.reset();
+      setIsSubmitting(false);
+    }
+  }, [open, form]);
+
   const direction = form.watch("direction");
   const quantity = form.watch("quantity");
-  const currentStock = medication.total_count ?? 0;
+  const currentStock = medication?.total_count ?? 0;
   const quantityChange = direction === "increase" ? quantity : -quantity;
   const newStock = Math.max(0, currentStock + quantityChange);
 
   const onSubmit = async (data: AdjustStockFormData) => {
-    if (!profile) {
+    if (!profile || !medication) {
       toast.error("You must be logged in to adjust stock");
       return;
     }
@@ -190,6 +198,9 @@ export function AdjustStockDialog({
     }
     onOpenChange(newOpen);
   };
+
+  // Guard: Don't render if no medication
+  if (!medication) return null;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

@@ -44,12 +44,14 @@ export default function CreateMedicationForm({
   residentId,
   teamId,
   organizationId,
+  gpName,
   initialType,
   onSuccess
 }: {
   residentId: string;
   teamId?: string;
   organizationId?: string;
+  gpName?: string;
   initialType?: "Scheduled" | "PRN (As Needed)" | "Topical" | "Supplement";
   onSuccess: () => void;
 }) {
@@ -74,7 +76,7 @@ export default function CreateMedicationForm({
       times: [],
       timeQuantities: {},
       instructions: undefined,
-      prescriberName: "",
+      prescriberName: gpName || "",
       startDate: toZonedTime(new Date(), "Europe/London"),
       status: "active",
       isControlledDrug: false,
@@ -234,7 +236,7 @@ export default function CreateMedicationForm({
   };
 
   const handleThirdStepValidation = async () => {
-    const fieldsToValidate = ["prescriberName", "startDate"] as const;
+    const fieldsToValidate = ["startDate"] as const;
 
     const isValid = await form.trigger(fieldsToValidate);
 
@@ -510,6 +512,10 @@ export default function CreateMedicationForm({
                         placeholder = "e.g., 10";
                         unitLabel = "patches";
                         description = "Total patches in the box";
+                      } else if (frequencyValue.includes('Sachets')) {
+                        placeholder = "e.g., 30";
+                        unitLabel = "sachets";
+                        description = "Total sachets in the box";
                       } else if (frequencyValue.includes('Injections')) {
                         allowDecimals = true;
                         step = "0.1";
@@ -690,6 +696,7 @@ export default function CreateMedicationForm({
                           <SelectItem value="Applications (Topical)">Applications (Topical)</SelectItem>
                           <SelectItem value="Sprays">Sprays</SelectItem>
                           <SelectItem value="Patches">Patches</SelectItem>
+                          <SelectItem value="Sachets">Sachets</SelectItem>
                           <SelectItem value="Injections">Injections</SelectItem>
                         </SelectContent>
                       </Select>
@@ -853,6 +860,9 @@ export default function CreateMedicationForm({
                                                 } else if (frequencyValue.includes('Patches')) {
                                                   placeholder = "e.g., 1";
                                                   unitLabel = "patches";
+                                                } else if (frequencyValue.includes('Sachets')) {
+                                                  placeholder = "e.g., 1";
+                                                  unitLabel = "sachets";
                                                 } else if (frequencyValue.includes('Injections')) {
                                                   allowDecimals = true;
                                                   step = "0.1";
@@ -977,10 +987,13 @@ export default function CreateMedicationForm({
                 name="prescriberName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel required>Prescriber Name</FormLabel>
+                    <FormLabel>Prescriber Name (Optional)</FormLabel>
                     <FormControl>
                       <Input placeholder="Dr. John Doe" {...field} />
                     </FormControl>
+                    <FormDescription className="text-xs">
+                      Defaults to resident's GP if available
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

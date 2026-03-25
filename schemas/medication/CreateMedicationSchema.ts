@@ -63,6 +63,7 @@ export const CreateMedicationSchema = z
       z.literal("Applications (Topical)"),
       z.literal("Sprays"),
       z.literal("Patches"),
+      z.literal("Sachets"),
       z.literal("Injections")
     ]).optional(),
     scheduleType: z.union([
@@ -73,9 +74,7 @@ export const CreateMedicationSchema = z
     ]),
     times: z.array(z.string()).optional(),
     timeQuantities: z.record(z.string(), z.number().min(1)).optional(),
-    prescriberName: z.string().min(1, {
-      message: "Prescriber name is required"
-    }),
+    prescriberName: z.string().optional(),
     instructions: z.string().optional(),
     startDate: z.date(),
     status: z.union([

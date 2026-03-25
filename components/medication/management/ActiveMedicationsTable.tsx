@@ -46,6 +46,7 @@ import { StockHistoryDialog } from "./StockHistoryDialog";
 
 export type MedicationData = {
   id: string;
+  created_at: string;
   name: string;
   strength: string;
   strength_unit: string;
@@ -55,14 +56,14 @@ export type MedicationData = {
   schedule_type: string;
   times: string[];
   time_quantities: Record<string, number> | null;
-  total_count: number | null;
+  total_count: number;
   is_controlled_drug: boolean;
   controlled_drug_schedule: string | null;
   status: string;
-  prescriber_name: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  instructions: string | null;
+  prescriber_name: string;
+  start_date: string;
+  end_date?: string;
+  instructions?: string;
   resident_id: string;
   organization_id: string;
   care_home_id: string | null;
@@ -85,11 +86,9 @@ export function ActiveMedicationsTable({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [selectedMedication, setSelectedMedication] = useState<MedicationData | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [receiveStockOpen, setReceiveStockOpen] = useState(false);
-  const [adjustStockOpen, setAdjustStockOpen] = useState(false);
-  const [discontinueOpen, setDiscontinueOpen] = useState(false);
-  const [stockHistoryOpen, setStockHistoryOpen] = useState(false);
+  const [activeDialog, setActiveDialog] = useState<
+    "edit" | "receive" | "adjust" | "history" | "discontinue" | null
+  >(null);
 
   const getStockStatus = (count: number | null) => {
     if (count === null || count === undefined) return "unknown";
@@ -136,63 +135,34 @@ export function ActiveMedicationsTable({
   // Handlers for opening dialogs - useCallback to prevent re-renders
   const handleEditClick = useCallback((med: MedicationData) => {
     setSelectedMedication(med);
-    setEditDialogOpen(true);
+    setActiveDialog("edit");
   }, []);
 
   const handleReceiveStockClick = useCallback((med: MedicationData) => {
     setSelectedMedication(med);
-    setReceiveStockOpen(true);
+    setActiveDialog("receive");
   }, []);
 
   const handleAdjustStockClick = useCallback((med: MedicationData) => {
     setSelectedMedication(med);
-    setAdjustStockOpen(true);
+    setActiveDialog("adjust");
   }, []);
 
   const handleStockHistoryClick = useCallback((med: MedicationData) => {
     setSelectedMedication(med);
-    setStockHistoryOpen(true);
+    setActiveDialog("history");
   }, []);
 
   const handleDiscontinueClick = useCallback((med: MedicationData) => {
     setSelectedMedication(med);
-    setDiscontinueOpen(true);
+    setActiveDialog("discontinue");
   }, []);
 
-  // Handlers for closing dialogs - useCallback to prevent re-renders
-  const handleEditClose = useCallback((open: boolean) => {
-    setEditDialogOpen(open);
+  // Handler for closing any dialog - useCallback to prevent re-renders
+  const handleDialogClose = useCallback((open: boolean) => {
     if (!open) {
-      // Use setTimeout to defer state clearing to avoid re-render during close animation
-      setTimeout(() => setSelectedMedication(null), 0);
-    }
-  }, []);
-
-  const handleReceiveStockClose = useCallback((open: boolean) => {
-    setReceiveStockOpen(open);
-    if (!open) {
-      setTimeout(() => setSelectedMedication(null), 0);
-    }
-  }, []);
-
-  const handleAdjustStockClose = useCallback((open: boolean) => {
-    setAdjustStockOpen(open);
-    if (!open) {
-      setTimeout(() => setSelectedMedication(null), 0);
-    }
-  }, []);
-
-  const handleStockHistoryClose = useCallback((open: boolean) => {
-    setStockHistoryOpen(open);
-    if (!open) {
-      setTimeout(() => setSelectedMedication(null), 0);
-    }
-  }, []);
-
-  const handleDiscontinueClose = useCallback((open: boolean) => {
-    setDiscontinueOpen(open);
-    if (!open) {
-      setTimeout(() => setSelectedMedication(null), 0);
+      setActiveDialog(null);
+      setSelectedMedication(null);
     }
   }, []);
 
@@ -286,10 +256,7 @@ export function ActiveMedicationsTable({
                 <DropdownMenuLabel>Medication Actions</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleEditClick(med);
-                  }}
+                  onSelect={() => handleEditClick(med)}
                 >
                   <Edit className="mr-2 h-4 w-4" />
                   Edit Details
@@ -299,38 +266,26 @@ export function ActiveMedicationsTable({
                   Stock Management
                 </DropdownMenuLabel>
                 <DropdownMenuItem
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleReceiveStockClick(med);
-                  }}
+                  onSelect={() => handleReceiveStockClick(med)}
                 >
                   <Package className="mr-2 h-4 w-4" />
                   Receive Stock
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleAdjustStockClick(med);
-                  }}
+                  onSelect={() => handleAdjustStockClick(med)}
                 >
                   <TrendingUp className="mr-2 h-4 w-4" />
                   Adjust Stock
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleStockHistoryClick(med);
-                  }}
+                  onSelect={() => handleStockHistoryClick(med)}
                 >
                   <Package className="mr-2 h-4 w-4" />
                   View Stock History
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleDiscontinueClick(med);
-                  }}
+                  onSelect={() => handleDiscontinueClick(med)}
                   className="text-red-600 focus:text-red-600"
                 >
                   <StopCircle className="mr-2 h-4 w-4" />
@@ -342,11 +297,24 @@ export function ActiveMedicationsTable({
         },
       },
     ],
-    []
+
+    [handleEditClick, handleReceiveStockClick, handleAdjustStockClick, handleStockHistoryClick, handleDiscontinueClick]
   );
 
+  // Sort medications: non-PRN first, then PRN at the bottom
+  const sortedMedications = useMemo(() => {
+    return [...medications].sort((a, b) => {
+      const aIsPRN = a.schedule_type === "PRN (As Needed)";
+      const bIsPRN = b.schedule_type === "PRN (As Needed)";
+
+      if (aIsPRN && !bIsPRN) return 1;  // a goes to bottom
+      if (!aIsPRN && bIsPRN) return -1; // b goes to bottom
+      return 0; // maintain original order for same type
+    });
+  }, [medications]);
+
   const table = useReactTable({
-    data: medications,
+    data: sortedMedications,
     columns,
     state: {
       sorting,
@@ -441,55 +409,45 @@ export function ActiveMedicationsTable({
         </Table>
       </div>
 
-      {/* Dialogs - Only render when open to avoid premature data fetching */}
-      {selectedMedication && editDialogOpen && (
-        <EditMedicationDialog
-          medication={selectedMedication}
-          open={editDialogOpen}
-          onOpenChange={handleEditClose}
-          onSuccess={onRefresh}
-        />
-      )}
+      {/* Dialogs - Always mounted to prevent abrupt mounting/unmounting during close */}
+      <EditMedicationDialog
+        medication={selectedMedication}
+        open={activeDialog === "edit"}
+        onOpenChange={handleDialogClose}
+        onSuccess={onRefresh}
+      />
 
-      {selectedMedication && receiveStockOpen && (
-        <ReceiveStockDialog
-          medication={selectedMedication}
-          residentId={residentId}
-          residentName={residentName}
-          open={receiveStockOpen}
-          onOpenChange={handleReceiveStockClose}
-          onSuccess={onRefresh}
-        />
-      )}
+      <ReceiveStockDialog
+        medication={selectedMedication}
+        residentId={residentId}
+        residentName={residentName}
+        open={activeDialog === "receive"}
+        onOpenChange={handleDialogClose}
+        onSuccess={onRefresh}
+      />
 
-      {selectedMedication && adjustStockOpen && (
-        <AdjustStockDialog
-          medication={selectedMedication}
-          residentId={residentId}
-          residentName={residentName}
-          open={adjustStockOpen}
-          onOpenChange={handleAdjustStockClose}
-          onSuccess={onRefresh}
-        />
-      )}
+      <AdjustStockDialog
+        medication={selectedMedication}
+        residentId={residentId}
+        residentName={residentName}
+        open={activeDialog === "adjust"}
+        onOpenChange={handleDialogClose}
+        onSuccess={onRefresh}
+      />
 
-      {selectedMedication && discontinueOpen && (
-        <DiscontinueMedicationDialog
-          medication={selectedMedication}
-          residentName={residentName}
-          open={discontinueOpen}
-          onOpenChange={handleDiscontinueClose}
-          onSuccess={onRefresh}
-        />
-      )}
+      <DiscontinueMedicationDialog
+        medication={selectedMedication}
+        residentName={residentName}
+        open={activeDialog === "discontinue"}
+        onOpenChange={handleDialogClose}
+        onSuccess={onRefresh}
+      />
 
-      {selectedMedication && stockHistoryOpen && (
-        <StockHistoryDialog
-          medication={selectedMedication}
-          open={stockHistoryOpen}
-          onOpenChange={handleStockHistoryClose}
-        />
-      )}
+      <StockHistoryDialog
+        medication={selectedMedication}
+        open={activeDialog === "history"}
+        onOpenChange={handleDialogClose}
+      />
     </div>
   );
 }

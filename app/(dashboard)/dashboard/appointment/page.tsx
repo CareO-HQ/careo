@@ -13,8 +13,7 @@ import { format } from "date-fns";
 import {
   Select,
   SelectContent,
-  SelectItem,ℹ
-  This eMAR is automatically populated when medications are administered in the 'Today's Medications' tab. All medication rounds are recorded there and appear here in real-time.
+  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
