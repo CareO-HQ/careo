@@ -71,8 +71,8 @@ export default function ResidentHandlingProfile({
       jobRole: initialData.job_role || "",
       date: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
       residentName: initialData.residentName || `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
-      bedroomNumber: initialData.bedroomNumber || initialData.bedroom_number || resident.room_number || "",
-      weight: initialData.weight || 0,
+      bedroomNumber: initialData.bedroomNumber ?? initialData.bedroom_number ?? resident.room_number ?? "",
+      weight: initialData.weight ?? undefined,
       weightBearing: initialData.weight_bearing || "",
       transferBed: {
         nStaff: initialData.activities?.transferBed?.nStaff ?? 0,
@@ -120,8 +120,8 @@ export default function ResidentHandlingProfile({
       residentId, teamId, organizationId,
       completedBy: userName || "", jobRole: "", date: Date.now(),
       residentName: `${resident.first_name} ${resident.last_name}`,
-      bedroomNumber: resident.room_number || "",
-      weight: 0, weightBearing: "",
+      bedroomNumber: resident.room_number ?? "",
+      weight: undefined, weightBearing: "",
       transferBed: getDefaultActivityValues(),
       transferChair: getDefaultActivityValues(),
       walking: getDefaultActivityValues(),
@@ -210,7 +210,15 @@ export default function ResidentHandlingProfile({
         <FormField control={form.control} name={`${activityName}.handlingPlan` as any}
           render={({ field }) => (
             <FormItem><FormLabel required>Handling Plan</FormLabel>
-              <FormControl><Textarea placeholder="Describe the handling plan..." {...field} /></FormControl>
+              <FormControl>
+                {viewOnly ? (
+                  <div className="min-h-[80px] w-full rounded-md border border-input bg-muted px-3 py-2 text-sm whitespace-pre-wrap overflow-hidden">
+                    {field.value || "Not provided"}
+                  </div>
+                ) : (
+                  <Textarea placeholder="Describe the handling plan..." {...field} />
+                )}
+              </FormControl>
               <FormMessage />
             </FormItem>
           )} />
@@ -275,6 +283,51 @@ export default function ResidentHandlingProfile({
               })}
             />
             <div className="space-y-8 px-1">
+              {/* Resident Information */}
+              <div className="space-y-4">
+                <div className="space-y-1 pb-2 border-b">
+                  <h4 className="text-sm font-medium">Resident Information</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="residentName"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Resident Name</FormLabel>
+                        <FormControl><Input {...field} /></FormControl><FormMessage />
+                      </FormItem>
+                    )} />
+                  <FormField control={form.control} name="bedroomNumber"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Bedroom</FormLabel>
+                        <FormControl><Input {...field} /></FormControl><FormMessage />
+                      </FormItem>
+                    )} />
+                  <FormField control={form.control} name="weight"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Weight (kg)</FormLabel>
+                        <FormControl><Input type="number" min="0" step="0.1" {...field}
+                          value={field.value ?? ""}
+                          onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  <FormField control={form.control} name="weightBearing"
+                    render={({ field }) => (
+                      <FormItem><FormLabel required>Weight Bearing</FormLabel>
+                        <FormControl><Input placeholder="Full weight bearing" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                </div>
+              </div>
+
+              {renderActivityFields("transferBed", "Transfer to or from Bed")}
+              {renderActivityFields("transferChair", "Transfer to or from Chair")}
+              {renderActivityFields("walking", "Walking")}
+              {renderActivityFields("toileting", "Toileting")}
+              {renderActivityFields("movementInBed", "Movement in Bed")}
+              {renderActivityFields("bath", "Bathing")}
+              {renderActivityFields("outdoorMobility", "Outdoor Mobility")}
+
               {/* Completed By */}
               <div className="space-y-4">
                 <div className="space-y-1 pb-2 border-b">
@@ -322,48 +375,7 @@ export default function ResidentHandlingProfile({
                       </FormItem>
                     )} />
                 </div>
-
-                <div className="space-y-1 pb-2 border-b mt-4">
-                  <h4 className="text-sm font-medium">Resident Information</h4>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="residentName"
-                    render={({ field }) => (
-                      <FormItem><FormLabel required>Resident Name</FormLabel>
-                        <FormControl><Input {...field} /></FormControl><FormMessage />
-                      </FormItem>
-                    )} />
-                  <FormField control={form.control} name="bedroomNumber"
-                    render={({ field }) => (
-                      <FormItem><FormLabel required>Bedroom</FormLabel>
-                        <FormControl><Input {...field} /></FormControl><FormMessage />
-                      </FormItem>
-                    )} />
-                  <FormField control={form.control} name="weight"
-                    render={({ field }) => (
-                      <FormItem><FormLabel required>Weight (kg)</FormLabel>
-                        <FormControl><Input type="number" min="0" step="0.1" {...field}
-                          onChange={e => field.onChange(Number(e.target.value))} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                  <FormField control={form.control} name="weightBearing"
-                    render={({ field }) => (
-                      <FormItem><FormLabel required>Weight Bearing</FormLabel>
-                        <FormControl><Input placeholder="Full weight bearing" {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                </div>
               </div>
-
-              {renderActivityFields("transferBed", "Transfer to or from Bed")}
-              {renderActivityFields("transferChair", "Transfer to or from Chair")}
-              {renderActivityFields("walking", "Walking")}
-              {renderActivityFields("toileting", "Toileting")}
-              {renderActivityFields("movementInBed", "Movement in Bed")}
-              {renderActivityFields("bath", "Bathing")}
-              {renderActivityFields("outdoorMobility", "Outdoor Mobility")}
             </div>
 
             {!isInline && !viewOnly && (

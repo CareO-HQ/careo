@@ -16,6 +16,15 @@ import {
   FormLabel,
   FormMessage
 } from "@/components/ui/form";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from "@/components/ui/popover";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -64,6 +73,7 @@ export default function MovingHandlingDialog({
   viewOnly = false,
 }: MovingHandlingDialogProps) {
   const [isLoading, startTransition] = useTransition();
+  const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
 
   const form = useForm<z.infer<typeof movingHandlingAssessmentSchema>>({
     resolver: zodResolver(movingHandlingAssessmentSchema),
@@ -188,6 +198,9 @@ export default function MovingHandlingDialog({
           limbUpperLeft: values.limbUpperLeft,
           limbLowerRight: values.limbLowerRight,
           limbLowerLeft: values.limbLowerLeft,
+          dateOfBirth: values.dateOfBirth,
+          bedroomNumber: values.bedroomNumber,
+          residentName: values.residentName,
         };
 
         const riskFactors = {
@@ -280,7 +293,15 @@ export default function MovingHandlingDialog({
         <FormField control={form.control} name={commentsName} render={({ field }) => (
           <FormItem>
             <FormLabel className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Comments</FormLabel>
-            <FormControl><Input placeholder="Add details..." {...field} /></FormControl>
+            <FormControl>
+              {viewOnly ? (
+                <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                  {field.value || " "}
+                </div>
+              ) : (
+                <Input placeholder="Add details..." {...field} />
+              )}
+            </FormControl>
           </FormItem>
         )} />
       </div>
@@ -318,10 +339,109 @@ export default function MovingHandlingDialog({
                   <h3 className="text-lg font-semibold">Resident Information</h3>
                 </div>
                 <div className="grid gap-6">
-                  <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                  <FormField control={form.control} name="residentName" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Resident Name</FormLabel>
+                      <FormControl>
+                        {viewOnly ? (
+                          <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                            {field.value || " "}
+                          </div>
+                        ) : (
+                          <Input {...field} />
+                        )}
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                   <div className="grid grid-cols-2 gap-6">
-                    <FormField control={form.control} name="weight" render={({ field }) => <FormItem><FormLabel>Weight (kg)</FormLabel><FormControl><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl></FormItem>} />
-                    <FormField control={form.control} name="height" render={({ field }) => <FormItem><FormLabel>Height (cm)</FormLabel><FormControl><Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl></FormItem>} />
+                    <FormField control={form.control} name="dateOfBirth" render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Date of Birth</FormLabel>
+                        <Popover open={dobPopoverOpen} onOpenChange={setDobPopoverOpen} modal>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(new Date(field.value), "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={field.value ? new Date(field.value) : undefined}
+                              onSelect={(date) => {
+                                if (date) {
+                                  field.onChange(date.getTime());
+                                  setDobPopoverOpen(false);
+                                }
+                              }}
+                              disabled={(date) =>
+                                date > new Date() || date < new Date("1900-01-01")
+                              }
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="bedroomNumber" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Bedroom Number</FormLabel>
+                        <FormControl>
+                          {viewOnly ? (
+                            <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                              {field.value || " "}
+                            </div>
+                          ) : (
+                            <Input {...field} />
+                          )}
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <FormField control={form.control} name="weight" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Weight (kg)</FormLabel>
+                        <FormControl>
+                          {viewOnly ? (
+                            <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                              {field.value || " "}
+                            </div>
+                          ) : (
+                            <Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
+                          )}
+                        </FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="height" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Height (cm)</FormLabel>
+                        <FormControl>
+                          {viewOnly ? (
+                            <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                              {field.value || " "}
+                            </div>
+                          ) : (
+                            <Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
+                          )}
+                        </FormControl>
+                      </FormItem>
+                    )} />
                   </div>
                   <FormField control={form.control} name="historyOfFalls" render={({ field }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-card/50">
@@ -420,8 +540,34 @@ export default function MovingHandlingDialog({
                   <h3 className="text-lg font-semibold">Requirements & Equipment</h3>
                 </div>
                 <div className="grid gap-6">
-                  <FormField control={form.control} name="needsRiskStaff" render={({ field }) => (<FormItem><FormLabel>Specific Risk Staff Requirements</FormLabel><FormControl><Textarea placeholder="Details..." className="min-h-[100px]" {...field} /></FormControl></FormItem>)} />
-                  <FormField control={form.control} name="equipmentUsed" render={({ field }) => (<FormItem><FormLabel>Equipment Required</FormLabel><FormControl><Input placeholder="Hoist, Slide sheets, etc." {...field} /></FormControl></FormItem>)} />
+                  <FormField control={form.control} name="needsRiskStaff" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Details of support/staff required</FormLabel>
+                    <FormControl>
+                      {viewOnly ? (
+                        <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[100px]">
+                          {field.value || " "}
+                        </div>
+                      ) : (
+                        <Textarea placeholder="Add details..." className="min-h-[100px]" {...field} />
+                      )}
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="equipmentUsed" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Equipment needed</FormLabel>
+                    <FormControl>
+                      {viewOnly ? (
+                        <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                          {field.value || " "}
+                        </div>
+                      ) : (
+                        <Input placeholder="Add details..." {...field} />
+                      )}
+                    </FormControl>
+                  </FormItem>
+                )} />
                 </div>
               </div>
 
@@ -431,10 +577,53 @@ export default function MovingHandlingDialog({
                   <div className="h-6 w-1 bg-primary rounded-full" />
                   <h3 className="text-lg font-semibold">Completion & Signature</h3>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted" /></FormControl></FormItem>} />
-                  <FormField control={form.control} name="jobRole" render={({ field }) => <FormItem><FormLabel>Job Role</FormLabel><FormControl><Input placeholder="e.g. Care Manager" {...field} /></FormControl><FormMessage /></FormItem>} />
-                  <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel>Digital Signature (Name)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                <div className="grid gap-6">
+                <div className="grid grid-cols-2 gap-6">
+                  <FormField control={form.control} name="completedBy" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Completed By</FormLabel>
+                      <FormControl>
+                        {viewOnly ? (
+                          <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                            {field.value || " "}
+                          </div>
+                        ) : (
+                          <Input {...field} />
+                        )}
+                      </FormControl>
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="jobRole" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Job Role</FormLabel>
+                      <FormControl>
+                        {viewOnly ? (
+                          <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                            {field.value || " "}
+                          </div>
+                        ) : (
+                          <Input placeholder="e.g. Care Manager" {...field} />
+                        )}
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+                <FormField control={form.control} name="signature" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Digital Signature (Name)</FormLabel>
+                    <FormControl>
+                      {viewOnly ? (
+                        <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-10">
+                          {field.value || " "}
+                        </div>
+                      ) : (
+                        <Input {...field} />
+                      )}
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
                   <FormField control={form.control} name="assessmentDate" render={({ field }) => <FormItem><FormLabel>Completion Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} />
                 </div>
               </div>

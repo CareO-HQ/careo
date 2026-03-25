@@ -193,22 +193,23 @@ function generateBedRailsRiskHTML(data: any): string {
         <div class="info-box">
           <p><span class="label">Gap Lower Bar/Mattress:</span> ${safety.gapBetweenRailAndMattress || "N/A"}</p>
           <p><span class="label">Mattress Compresses Easily:</span> ${safety.mattressCompressesEasily || "N/A"}</p>
-          <p><span class="label">Gap > 60mm Headboard:</span> ${safety.gapMoreThan60mm || "N/A"}</p>
+          <p><span class="label">Gap > 60mm Headboard/Wall:</span> ${safety.gapMoreThan60mm || "N/A"}</p>
           <p><span class="label">Insecure Rail:</span> ${safety.bedRailInsecure || "N/A"}</p>
+          <p><span class="label">Bed Against Wall:</span> ${safety.bedAgainstWall || "N/A"}</p>
         </div>
       </div>
 
-      ${decision.hasExtendedHeightRails ? `
       <div class="section">
-        <h2>Extended Height Special Checks</h2>
-        <div class="info-box grid grid-cols-2">
-          <div><span class="label">Positioned correctly:</span> ${extended.positionedCorrectly || "NO"}</div>
-          <div><span class="label">Securely fastened:</span> ${extended.securelyFastened || "NO"}</div>
-          <div><span class="label">Correct bumpers:</span> ${extended.correctBumpersInstalled || "NO"}</div>
-          <div><span class="label">Below plimsoll:</span> ${extended.mattressBelowPlimsollLine || "NO"}</div>
+        <h2>EXTENDED HEIGHT BED RAILS</h2>
+        <div class="info-box">
+          <p><span class="label">Is the extended bed rail positioned correctly with a gap of less than 60mm?</span> ${extended.positionedCorrectly || "NO"}</p>
+          <p><span class="label">Is the extended height rail securely fastened?</span> ${extended.securelyFastened || "NO"}</p>
+          <p><span class="label">Are correct bumpers installed?</span> ${extended.correctBumpersInstalled || "NO"}</p>
+          <p><span class="label">Does the mattress come below the plimsoll line on the bumper?</span> ${extended.mattressBelowPlimsollLine || "NO"}</p>
+          <p><span class="label">Have staff been trained how to attach and remove the extended bed rail?</span> ${extended.staffTrained || "NO"}</p>
+          <p><span class="label">Has the bed and bed rails been checked for any signs of damage or wear and tear?</span> ${extended.checkedForDamage || "NO"}</p>
         </div>
       </div>
-      ` : ""}
 
       <div class="section" style="margin-top: 40px;">
         <div class="grid grid-cols-2">

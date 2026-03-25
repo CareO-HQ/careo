@@ -50,7 +50,9 @@ export const dietNotificationSchema = z.object({
   // Kitchen Review
   reviewedByCookChef: z.string().optional(),
   reviewerPrintName: z.string().optional(),
-  reviewerJobTitle: z.string().optional()
+  reviewerJobTitle: z.string().optional(),
+  reviewerSignature: z.string().optional(),
+  reviewerDate: z.number().optional()
 });
 
 export type DietNotificationFormData = z.infer<typeof dietNotificationSchema>;

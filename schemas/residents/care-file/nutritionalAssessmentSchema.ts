@@ -18,6 +18,30 @@ export const iddsiFluidConsistencySchema = z.object({
   level0Thin: z.boolean().optional()
 });
 
+export const monthlyEvaluationSchema = z.object({
+  id: z.string(),
+  date: z.number(),
+  mustScoreChange: z.enum(["yes", "no", ""]).optional(),
+  mustScoreChangeNotes: z.string().optional(),
+  saltReferralRequired: z.enum(["yes", "no", ""]).optional(),
+  saltReferralRequiredNotes: z.string().optional(),
+  saltInputReceived: z.enum(["yes", "no", ""]).optional(),
+  saltInputReceivedNotes: z.string().optional(),
+  specialisedDietChange: z.enum(["yes", "no", ""]).optional(),
+  specialisedDietChangeNotes: z.string().optional(),
+  foodConsistencyChange: z.enum(["yes", "no", ""]).optional(),
+  foodConsistencyChangeNotes: z.string().optional(),
+  fluidConsistencyChange: z.enum(["yes", "no", ""]).optional(),
+  fluidConsistencyChangeNotes: z.string().optional(),
+  foodFortificationRequired: z.enum(["yes", "no", ""]).optional(),
+  foodFortificationRequiredNotes: z.string().optional(),
+  supplementsPrescribed: z.enum(["yes", "no", ""]).optional(),
+  supplementsPrescribedNotes: z.string().optional(),
+  assistanceRequired: z.enum(["yes", "no", ""]).optional(),
+  assistanceRequiredNotes: z.string().optional(),
+  completedBy: z.string().optional()
+});
+
 export const nutritionalAssessmentSchema = z.object({
   // Metadata
   residentId: z.string(),
@@ -57,9 +81,13 @@ export const nutritionalAssessmentSchema = z.object({
   assessmentDate: z.number().optional(),
 
   // Optional metadata fields for form state management
-  savedAsDraft: z.boolean().optional()
+  savedAsDraft: z.boolean().optional(),
+  
+  // Array of monthly evaluations
+  monthlyEvaluations: z.array(monthlyEvaluationSchema).optional()
 });
 
 export type IddsiFoodConsistency = z.infer<typeof iddsiFoodConsistencySchema>;
 export type IddsiFluidConsistency = z.infer<typeof iddsiFluidConsistencySchema>;
+export type MonthlyEvaluation = z.infer<typeof monthlyEvaluationSchema>;
 export type NutritionalAssessment = z.infer<typeof nutritionalAssessmentSchema>;

@@ -344,7 +344,7 @@ function generateCarePlanHTML(assessment: any): string {
           <thead>
             <tr>
               <th style="width: 30%">Date</th>
-              <th>Progress Notes / Comments</th>
+              <th>Evaluation Notes / Comments</th>
             </tr>
           </thead>
           <tbody>

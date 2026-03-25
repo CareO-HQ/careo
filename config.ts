@@ -392,8 +392,7 @@ export const config = {
       description: "Social and life story information.",
       carePlan: true,
       forms: [
-        { type: "form", key: "v2-social-assessment", value: "Social Assessment", isComingSoon: true },
-        { type: "form", key: "v2-life-story", value: "Life Story Workbook", isComingSoon: true }
+        { type: "form", key: "v2-personal-profile", value: "Personal Profile" }
       ]
     },
     {
@@ -403,7 +402,7 @@ export const config = {
       description: "Medication assessments and plans.",
       carePlan: true,
       forms: [
-        { type: "form", key: "v2-abbey-pain", value: "Abbey Pain Tool", isComingSoon: true },
+        { type: "form", key: "v2-abbey-pain", value: "Abbey Pain Tool" },
         { type: "form", key: "pain-assessment-form", value: "Pain Assessment" }
       ]
     },

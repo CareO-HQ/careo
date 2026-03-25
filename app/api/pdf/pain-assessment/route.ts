@@ -21,7 +21,9 @@ function formatDateTime(dateString?: string | number): string {
 }
 
 function generatePainAssessmentHTML(data: any): string {
+  const isV2 = data.version === "v2";
   const entries = data.assessment_entries || [];
+  const bodyMapMarkers = data.body_map_markers || [];
 
   return `
     <!DOCTYPE html>
@@ -39,178 +41,185 @@ function generatePainAssessmentHTML(data: any): string {
           padding: 20px;
           background: white;
         }
-        .header {
-          border-bottom: 2px solid #ef4444;
-          padding-bottom: 24px;
-          margin-bottom: 32px;
-          text-align: center;
+        .header-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 24px;
         }
-        h1 {
-          font-size: 2rem;
-          font-weight: bold;
-          margin-bottom: 8px;
-          color: #991b1b;
-        }
-        h2 {
-          font-size: 1.25rem;
-          font-weight: 600;
-          margin-bottom: 16px;
-          color: #111827;
-          border-bottom: 1px solid #e5e7eb;
-          padding-bottom: 8px;
-        }
-        h3 {
-          font-size: 1rem;
-          font-weight: 600;
-          margin-bottom: 8px;
-          color: #991b1b;
-        }
-        .grid {
-          display: grid;
-          gap: 16px;
-        }
-        .grid-cols-2 {
-          grid-template-columns: 1fr 1fr;
-        }
-        .section {
-          margin-bottom: 32px;
-          page-break-inside: avoid;
-        }
-        .info-box {
-          background-color: #f9fafb;
+        .header-table td {
           border: 1px solid #e5e7eb;
-          border-radius: 6px;
-          padding: 16px;
-          margin-bottom: 16px;
-        }
-        .entry-box {
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          padding: 16px;
-          margin-bottom: 20px;
-          background-color: #ffffff;
-        }
-        .entry-header {
-          display: flex;
-          justify-content: space-between;
-          border-bottom: 1px solid #f3f4f6;
-          padding-bottom: 8px;
-          margin-bottom: 12px;
-          background-color: #fef2f2;
-          margin: -16px -16px 12px -16px;
-          padding: 12px 16px;
-          border-radius: 8px 8px 0 0;
-        }
-        .field-label {
-          font-weight: 600;
-          color: #374151;
+          padding: 8px;
           font-size: 0.875rem;
         }
-        .field-value {
-          color: #111827;
-          font-size: 1rem;
-        }
-        .intervention-section {
-          margin-top: 12px;
-          padding-top: 12px;
-          border-top: 1px dashed #e5e7eb;
-        }
-        .footer {
-          margin-top: 48px;
-          padding-top: 24px;
-          border-top: 1px solid #e5e7eb;
+        .header-label {
+          font-weight: bold;
+          text-transform: uppercase;
           font-size: 0.75rem;
-          color: #6b7280;
+          color: #374151;
+          background-color: #f9fafb;
+        }
+        h1 {
+          font-size: 1.5rem;
+          font-weight: bold;
           text-align: center;
+          margin-bottom: 24px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .section {
+          margin-bottom: 24px;
+          border: 1px solid #e5e7eb;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .section-header {
+          background-color: #f9fafb;
+          padding: 8px 12px;
+          font-weight: bold;
+          font-size: 0.875rem;
+          border-bottom: 1px solid #e5e7eb;
+        }
+        .section-content {
+          padding: 12px;
+          font-size: 0.95rem;
+          min-height: 50px;
+        }
+        .v2-field {
+          display: grid;
+          grid-template-columns: 200px 1fr;
+          border-bottom: 1px solid #e5e7eb;
+        }
+        .v2-field:last-child {
+          border-bottom: none;
+        }
+        .v2-label {
+          background-color: #f9fafb;
+          padding: 12px;
+          font-weight: bold;
+          font-size: 0.875rem;
+          border-right: 1px solid #e5e7eb;
+          display: flex;
+          align-items: center;
+        }
+        .v2-value {
+          padding: 12px;
+          font-size: 0.95rem;
+          white-space: pre-wrap;
+        }
+        .footer-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          margin-top: 24px;
+        }
+        .footer-box {
+          border: 1px solid #e5e7eb;
+          padding: 12px;
+          border-radius: 4px;
+          font-size: 0.875rem;
+        }
+        .footer-field {
+          margin-bottom: 8px;
+        }
+        .footer-label {
+          font-weight: bold;
+          text-transform: uppercase;
+          font-size: 0.7rem;
+          display: block;
+          margin-bottom: 2px;
+        }
+        .signature {
+          font-family: 'cursive', serif;
+          font-size: 1.1rem;
+          margin-top: 4px;
         }
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>Pain Assessment Log</h1>
-      </div>
+      <h1>Pain Assessment Record</h1>
 
-      <div class="section">
-        <h2>Resident Details</h2>
-        <div class="grid grid-cols-2 info-box">
-          <div>
-            <div class="field-label">Resident Name</div>
-            <div class="field-value">${data.residentName || "Not specified"}</div>
-          </div>
-          <div>
-            <div class="field-label">Date of Birth</div>
-            <div class="field-value">${data.dateOfBirth || "Not specified"}</div>
-          </div>
-          <div>
-            <div class="field-label">Room Number</div>
-            <div class="field-value">${data.roomNumber || "Not specified"}</div>
-          </div>
-          <div>
-            <div class="field-label">Assessment Date</div>
-            <div class="field-value">${formatDate(data.assessment_date)}</div>
+      <table class="header-table">
+        <tr>
+          <td class="header-label">Residents name</td>
+          <td class="header-label">Bedroom number</td>
+          <td class="header-label">Date of birth</td>
+        </tr>
+        <tr>
+          <td>${data.residentName || "N/A"}</td>
+          <td>${data.roomNumber || "N/A"}</td>
+          <td>${data.dateOfBirth || "N/A"}</td>
+        </tr>
+      </table>
+
+      ${isV2 ? `
+        <div class="section">
+          <div class="section-header">BODY MAP INDICATIONS</div>
+          <div class="section-content">
+            ${bodyMapMarkers.length > 0 ? `
+              <ul style="margin: 0; padding-left: 20px;">
+                ${bodyMapMarkers.map((m: any) => `<li><strong>(${m.label})</strong> ${m.region_name}${m.notes ? `: ${m.notes}` : ""}</li>`).join('')}
+              </ul>
+            ` : "No markers indicated on body map."}
           </div>
         </div>
-      </div>
 
-      <div class="section">
-        <h2>Assessment Entries</h2>
-        ${entries.length > 0 ? entries.map((entry: any, index: number) => `
-          <div class="entry-box">
-            <div class="entry-header">
-              <span class="field-label">Entry #${index + 1}</span>
-              <span class="field-value">${entry.dateTime || "Not specified"}</span>
-            </div>
-            
-            <div class="grid grid-cols-2" style="margin-bottom: 12px;">
-              <div>
-                <div class="field-label">Pain Location</div>
-                <div class="field-value">${entry.painLocation || "Not specified"}</div>
-              </div>
-              <div>
-                <div class="field-label">Resident Behaviour</div>
-                <div class="field-value">${entry.residentBehaviour || "Not specified"}</div>
-              </div>
-            </div>
+        <div class="section">
+          <div class="v2-field">
+            <div class="v2-label">Residents description of their pain</div>
+            <div class="v2-value">${data.description_of_pain || "N/A"}</div>
+          </div>
+          <div class="v2-field">
+            <div class="v2-label">What will relieve the pain?</div>
+            <div class="v2-value">${data.relieve_pain || "N/A"}</div>
+          </div>
+          <div class="v2-field">
+            <div class="v2-label">What will make the pain worse?</div>
+            <div class="v2-value">${data.worse_pain || "N/A"}</div>
+          </div>
+        </div>
 
-            <div style="margin-bottom: 12px;">
-              <div class="field-label">Description of Pain</div>
-              <div class="field-value">${entry.descriptionOfPain || "No description provided"}</div>
+        <div class="footer-grid">
+          <div class="footer-box">
+            <div class="footer-field">
+              <span class="footer-label">Name of person completing assessment</span>
+              <span>${data.completed_by || "N/A"}</span>
             </div>
-
-            <div class="intervention-section">
-              <h3>Intervention & Outcome</h3>
-              <div class="grid grid-cols-2" style="margin-bottom: 12px;">
-                <div>
-                  <div class="field-label">Intervention Type</div>
-                  <div class="field-value">${entry.interventionType || "None"}</div>
-                </div>
-                <div>
-                  <div class="field-label">Intervention Time</div>
-                  <div class="field-value">${entry.interventionTime || "N/A"}</div>
-                </div>
-              </div>
-              <div style="margin-bottom: 12px;">
-                <div class="field-label">Status After Intervention</div>
-                <div class="field-value">${entry.painAfterIntervention || "N/A"}</div>
-              </div>
-            </div>
-
-            ${entry.comments ? `
-            <div style="margin-top: 12px;">
-              <div class="field-label">Comments</div>
-              <div class="field-value" style="font-size: 0.9rem;">${entry.comments}</div>
-            </div>
-            ` : ""}
-
-            <div style="margin-top: 12px; text-align: right;">
-              <span class="field-label">Signature: </span>
-              <span class="field-value" style="font-style: italic;">${entry.signature || "Not signed"}</span>
+            <div class="footer-field">
+              <span class="footer-label">Signature</span>
+              <div class="signature">${data.signature || "Electronic Signature"}</div>
             </div>
           </div>
-        `).join('') : '<p style="text-align: center; color: #6b7280;">No assessment entries recorded.</p>'}
-      </div>
+          <div class="footer-box">
+            <div class="footer-field">
+              <span class="footer-label">Job role</span>
+              <span>${data.role || "N/A"}</span>
+            </div>
+            <div style="display: flex; gap: 20px;">
+              <div class="footer-field">
+                <span class="footer-label">Date</span>
+                <span>${formatDate(data.assessment_date)}</span>
+              </div>
+              <div class="footer-field">
+                <span class="footer-label">Time</span>
+                <span>${data.time || "N/A"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ` : `
+        <div class="section">
+          <div class="section-header">Assessment Entries (Legacy)</div>
+          ${entries.length > 0 ? entries.map((entry: any, index: number) => `
+            <div style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+              <div><strong>Entry #${index + 1}</strong> - ${entry.dateTime || "N/A"}</div>
+              <div><strong>Location:</strong> ${entry.painLocation || "N/A"}</div>
+              <div><strong>Description:</strong> ${entry.descriptionOfPain || "N/A"}</div>
+            </div>
+          `).join('') : '<p style="padding: 12px;">No assessment entries recorded.</p>'}
+        </div>
+      `}
 
-      <div class="footer">
+      <div style="margin-top: 32px; font-size: 0.75rem; color: #6b7280; text-align: center;">
         <p>Generated on ${formatDateTime(Date.now())}</p>
         <p>Pain Assessment Report - ${data.residentName}</p>
       </div>
@@ -227,14 +236,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Assessment data is required" }, { status: 400 });
     }
 
-    // Flatten the data: merge assessment_data into the top level
+    // Flatten the data: merge assessment_data or assessment_entries into the top level
     const flattenedData = {
       ...assessmentData,
       ...(assessmentData.assessment_data || {}),
+      ...(assessmentData.assessment_entries && !Array.isArray(assessmentData.assessment_entries) ? assessmentData.assessment_entries : {}),
       // Ensure resident details and entries are at the top level
-      residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
-      dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth,
-      roomNumber: assessmentData.roomNumber || assessmentData.bedroomNumber || assessmentData.assessment_data?.roomNumber || assessmentData.assessment_data?.bedroomNumber,
+      residentName: assessmentData.residentName || assessmentData.assessment_entries?.residentName || assessmentData.assessment_data?.residentName || "Resident",
+      dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_entries?.dateOfBirth || assessmentData.assessment_data?.dateOfBirth,
+      roomNumber: assessmentData.roomNumber || assessmentData.bedroomNumber || assessmentData.assessment_entries?.roomNumber || assessmentData.assessment_data?.roomNumber || assessmentData.assessment_data?.bedroomNumber,
       assessment_date: assessmentData.assessment_date || assessmentData.created_at || Date.now(),
       assessment_entries: assessmentData.assessment_entries || assessmentData.assessment_data?.assessment_entries || []
     };

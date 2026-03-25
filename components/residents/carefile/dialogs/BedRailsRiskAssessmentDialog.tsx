@@ -112,8 +112,15 @@ export default function BedRailsRiskAssessmentDialog({
         bedAgainstWall: "NO",
       },
       anySafetyCheckFailed: initialData.decision?.anySafetyCheckFailed ?? initialData.anySafetyCheckFailed ?? false,
-      hasExtendedHeightRails: initialData.decision?.hasExtendedHeightRails ?? initialData.hasExtendedHeightRails ?? false,
-      extendedHeightChecks: initialData.decision?.extendedHeightChecks || initialData.extendedHeightChecks,
+      hasExtendedHeightRails: initialData.decision?.hasExtendedHeightRails ?? initialData.hasExtendedHeightRails ?? true,
+      extendedHeightChecks: initialData.decision?.extendedHeightChecks || initialData.extendedHeightChecks || {
+        positionedCorrectly: "NO",
+        securelyFastened: "NO",
+        correctBumpersInstalled: "NO",
+        mattressBelowPlimsollLine: "NO",
+        staffTrained: "NO",
+        checkedForDamage: "NO",
+      },
       consentObtained: initialData.decision?.consentObtained || initialData.consentObtained || "NO",
       carePlanCompleted: initialData.decision?.carePlanCompleted || initialData.carePlanCompleted || "NO",
       signatureOfAssessor: initialData.signatureOfAssessor || userName || "",
@@ -161,8 +168,15 @@ export default function BedRailsRiskAssessmentDialog({
         bedAgainstWall: "NO",
       },
       anySafetyCheckFailed: false,
-      hasExtendedHeightRails: false,
-      extendedHeightChecks: undefined,
+      hasExtendedHeightRails: true,
+      extendedHeightChecks: {
+        positionedCorrectly: "NO",
+        securelyFastened: "NO",
+        correctBumpersInstalled: "NO",
+        mattressBelowPlimsollLine: "NO",
+        staffTrained: "NO",
+        checkedForDamage: "NO",
+      },
       consentObtained: "NO",
       carePlanCompleted: "NO",
       signatureOfAssessor: userName || "",
@@ -273,6 +287,18 @@ export default function BedRailsRiskAssessmentDialog({
   const exclusionAlert = watchExclusionCriteria && Object.values(watchExclusionCriteria).some(v => v === true);
   const safetyAlert = watchSafetyChecklist && Object.values(watchSafetyChecklist).some(v => v === "YES");
 
+  const renderInput = (field: any, props: any = {}) => viewOnly ? (
+    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[40px]">
+      {field.value || " "}
+    </div>
+  ) : <Input {...field} {...props} />;
+
+  const renderTextarea = (field: any, props: any = {}) => viewOnly ? (
+    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[80px]">
+      {field.value || " "}
+    </div>
+  ) : <Textarea {...field} {...props} />;
+
   return (
     <div className="flex flex-col space-y-8">
       {!isInline && (
@@ -306,19 +332,19 @@ export default function BedRailsRiskAssessmentDialog({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField control={form.control} name="residentName" render={({ field }) => (
-                    <FormItem><FormLabel>Resident Name</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly /></FormControl></FormItem>
+                    <FormItem><FormLabel>Resident Name</FormLabel><FormControl>{renderInput(field, { className: "bg-muted", readOnly: true })}</FormControl></FormItem>
                   )} />
                   <FormField control={form.control} name="bedroomNumber" render={({ field }) => (
-                    <FormItem><FormLabel>Bedroom Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                    <FormItem><FormLabel>Bedroom Number</FormLabel><FormControl>{renderInput(field)}</FormControl></FormItem>
                   )} />
                   <FormField control={form.control} name="assessmentCompletedBy" render={({ field }) => (
-                    <FormItem><FormLabel>Completed By</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly /></FormControl></FormItem>
+                    <FormItem><FormLabel>Completed By</FormLabel><FormControl>{renderInput(field, { className: "bg-muted", readOnly: true })}</FormControl></FormItem>
                   )} />
                   <FormField control={form.control} name="jobRole" render={({ field }) => (
-                    <FormItem><FormLabel required>Job Role</FormLabel><FormControl><Input {...field} placeholder="e.g. Registered Nurse" /></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel required>Job Role</FormLabel><FormControl>{renderInput(field, { placeholder: "e.g. Registered Nurse" })}</FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="assessmentDate" render={({ field }) => (
-                    <FormItem><FormLabel required>Date of Assessment</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel required>Date of Assessment</FormLabel><FormControl>{renderInput(field, { type: "date" })}</FormControl><FormMessage /></FormItem>
                   )} />
                 </div>
               </div>
@@ -331,10 +357,10 @@ export default function BedRailsRiskAssessmentDialog({
                 </div>
                 <div className="space-y-6">
                   <FormField control={form.control} name="alternativeEquipmentConsidered" render={({ field }) => (
-                    <FormItem><FormLabel required>Alternative Equipment Considered/Trialled</FormLabel><FormControl><Textarea {...field} placeholder="e.g., low bed, fall out mats, alert mats" rows={3} /></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel required>Alternative Equipment Considered/Trialled</FormLabel><FormControl>{renderTextarea(field, { placeholder: "e.g., low bed, fall out mats, alert mats", rows: 3 })}</FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="reasonsAlternativesNotSuccessful" render={({ field }) => (
-                    <FormItem><FormLabel required>Reasons Why Alternatives Have Not Been Successful</FormLabel><FormControl><Textarea {...field} placeholder="e.g., trip hazard, resident preference" rows={3} /></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel required>Reasons Why Alternatives Have Not Been Successful</FormLabel><FormControl>{renderTextarea(field, { placeholder: "e.g., trip hazard, resident preference", rows: 3 })}</FormControl><FormMessage /></FormItem>
                   )} />
                 </div>
               </div>
@@ -457,37 +483,35 @@ export default function BedRailsRiskAssessmentDialog({
                 )}
               </div>
 
-              {/* Section 7: Extended Height Checks (Conditional) */}
-              {(watchTypeOfBedrails?.includes("EXTENDED")) && (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-2 border-b pb-2">
-                    <div className="h-6 w-1 bg-primary rounded-full" />
-                    <h3 className="text-lg font-semibold">Extended Height Checklist</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[
-                      { name: "positionedCorrectly", label: "Positioned with gap <60mm to head?" },
-                      { name: "securelyFastened", label: "Securely fastened to integral rail?" },
-                      { name: "correctBumpersInstalled", label: "Correct bumpers installed?" },
-                      { name: "mattressBelowPlimsollLine", label: "Below plimsoll line on bumper?" },
-                      { name: "staffTrained", label: "Staff trained on removal/attachment?" },
-                      { name: "checkedForDamage", label: "Checked for damage/wear?" }
-                    ].map((item) => (
-                      <FormField key={item.name} control={form.control} name={`extendedHeightChecks.${item.name}` as any} render={({ field }) => (
-                        <FormItem className="flex items-center justify-between p-3 border rounded-lg bg-blue-50/20">
-                          <FormLabel className="max-w-[70%] text-sm">{item.label}</FormLabel>
-                          <FormControl>
-                            <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-3">
-                              <FormItem className="flex items-center space-x-1 space-y-0"><FormControl><RadioGroupItem value="YES" /></FormControl><FormLabel className="font-normal">Yes</FormLabel></FormItem>
-                              <FormItem className="flex items-center space-x-1 space-y-0"><FormControl><RadioGroupItem value="NO" /></FormControl><FormLabel className="font-normal">No</FormLabel></FormItem>
-                            </RadioGroup>
-                          </FormControl>
-                        </FormItem>
-                      )} />
-                    ))}
-                  </div>
+              {/* Section 7: Extended Height Bed Rails */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <div className="h-6 w-1 bg-primary rounded-full" />
+                  <h3 className="text-lg font-semibold uppercase">Extended Height Bed Rails</h3>
                 </div>
-              )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { name: "positionedCorrectly", label: "Is the extended bed rail positioned as far to the head of the bed as possible with a gap of less than 60mm?" },
+                    { name: "securelyFastened", label: "Is the extended height bed rail securely fastened to the integrated bed rail?" },
+                    { name: "correctBumpersInstalled", label: "Are the correct bumpers installed?" },
+                    { name: "mattressBelowPlimsollLine", label: "Does the mattress come below the plimsoll line on the bumper?" },
+                    { name: "staffTrained", label: "Have staff been trained how to attach and remove the extended bed rail?" },
+                    { name: "checkedForDamage", label: "Has the bed and bed rails been checked for any signs of damage or wear and tear?" }
+                  ].map((item) => (
+                    <FormField key={item.name} control={form.control} name={`extendedHeightChecks.${item.name}` as any} render={({ field }) => (
+                      <FormItem className="flex items-center justify-between p-3 border rounded-lg bg-blue-50/20">
+                        <FormLabel className="max-w-[70%] text-sm">{item.label}</FormLabel>
+                        <FormControl>
+                          <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-3">
+                            <FormItem className="flex items-center space-x-1 space-y-0"><FormControl><RadioGroupItem value="YES" /></FormControl><FormLabel className="font-normal">Yes</FormLabel></FormItem>
+                            <FormItem className="flex items-center space-x-1 space-y-0"><FormControl><RadioGroupItem value="NO" /></FormControl><FormLabel className="font-normal">No</FormLabel></FormItem>
+                          </RadioGroup>
+                        </FormControl>
+                      </FormItem>
+                    )} />
+                  ))}
+                </div>
+              </div>
 
               {/* Section 8: Finalization */}
               <div className="space-y-6">
@@ -519,10 +543,10 @@ export default function BedRailsRiskAssessmentDialog({
                     </FormItem>
                   )} />
                   <FormField control={form.control} name="signatureOfAssessor" render={({ field }) => (
-                    <FormItem><FormLabel>Digital Signature (Assessor)</FormLabel><FormControl><Input {...field} className="bg-muted" readOnly /></FormControl></FormItem>
+                    <FormItem><FormLabel>Digital Signature (Assessor)</FormLabel><FormControl>{renderInput(field, { className: "bg-muted", readOnly: true })}</FormControl></FormItem>
                   )} />
                   <FormField control={form.control} name="signatureDate" render={({ field }) => (
-                    <FormItem><FormLabel required>Signature Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel required>Signature Date</FormLabel><FormControl>{renderInput(field, { type: "date" })}</FormControl><FormMessage /></FormItem>
                   )} />
                 </div>
               </div>

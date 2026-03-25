@@ -113,6 +113,8 @@ function generateHandlingProfileHTML(data: any): string {
           color: #111827;
           font-size: 1rem;
           margin-bottom: 4px;
+          white-space: pre-wrap;
+          word-wrap: break-word;
         }
         .footer {
           margin-top: 48px;
@@ -131,7 +133,7 @@ function generateHandlingProfileHTML(data: any): string {
       </div>
 
       <div class="section">
-        <h2>Resident & Administrative Info</h2>
+        <h2>Resident Information</h2>
         <div class="grid grid-cols-2 info-box">
           <div>
             <div class="field-label">Resident Name</div>
@@ -142,29 +144,13 @@ function generateHandlingProfileHTML(data: any): string {
             <div class="field-value">${data.bedroomNumber || "Not specified"}</div>
           </div>
           <div>
-            <div class="field-label">Assessment Date</div>
-            <div class="field-value">${formatDate(data.assessment_date)}</div>
-          </div>
-          <div>
-            <div class="field-label">Completed By</div>
-            <div class="field-value">${data.completed_by || "Not specified"}</div>
-          </div>
-          <div>
-            <div class="field-label">Job Role</div>
-            <div class="field-value">${data.job_role || "Not specified"}</div>
-          </div>
-          <div>
             <div class="field-label">Resident Weight</div>
             <div class="field-value">${data.weight || 0} kg</div>
           </div>
-        </div>
-      </div>
-
-      <div class="section">
-        <h2>Physical Status</h2>
-        <div class="info-box">
-          <div class="field-label">Weight Bearing Status</div>
-          <div class="field-value">${data.weight_bearing || "Not specified"}</div>
+          <div>
+            <div class="field-label">Weight Bearing Status</div>
+            <div class="field-value">${data.weight_bearing || "Not specified"}</div>
+          </div>
         </div>
       </div>
 
@@ -203,12 +189,20 @@ function generateHandlingProfileHTML(data: any): string {
         <div class="info-box grid grid-cols-2">
           <div>
             <div class="field-label">Completed By</div>
-            <div class="field-value">${data.completed_by}</div>
+            <div class="field-value">${data.completed_by || "Not specified"}</div>
+          </div>
+          <div>
+            <div class="field-label">Job Role</div>
+            <div class="field-value">${data.job_role || "Not specified"}</div>
+          </div>
+          <div>
+            <div class="field-label">Assessment Date</div>
+            <div class="field-value">${formatDate(data.assessment_date)}</div>
           </div>
           <div>
             <div class="field-label">Signature</div>
             <div class="field-value" style="font-style: italic; border-bottom: 1px solid #ccc; padding-top: 10px;">
-              ${data.completed_by}
+              ${data.completed_by || "Not specified"}
             </div>
           </div>
         </div>

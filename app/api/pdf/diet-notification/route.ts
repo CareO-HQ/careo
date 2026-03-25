@@ -225,6 +225,8 @@ function generateDietNotificationHTML(data: any): string {
           <p><strong>Reviewed by Cook/Chef:</strong> ${kitchenReview.reviewedByCookChef || "Pending review"}</p>
           ${kitchenReview.reviewerPrintName ? `<p><strong>Print Name:</strong> ${kitchenReview.reviewerPrintName}</p>` : ""}
           ${kitchenReview.reviewerJobTitle ? `<p><strong>Job Title:</strong> ${kitchenReview.reviewerJobTitle}</p>` : ""}
+          ${kitchenReview.reviewerSignature ? `<p><strong>Signature:</strong> ${kitchenReview.reviewerSignature}</p>` : ""}
+          ${kitchenReview.reviewerDate ? `<p><strong>Date:</strong> ${formatDate(kitchenReview.reviewerDate)}</p>` : ""}
         </div>
       </div>
 

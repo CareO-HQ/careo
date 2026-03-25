@@ -92,7 +92,8 @@ const TABLE_MAP: Record<string, string> = {
     "smoking-risk-assessment": "smoking_risk_assessments",
     "v2-capacity-consent": "capacity_consents",
     "v2-night-obs-consent": "night_observation_consents",
-    "v2-general-risk": "general_risk_assessments"
+    "v2-general-risk": "general_risk_assessments",
+    "v2-personal-profile": "personal_profiles"
 };
 
 // ─── File Viewer ──────────────────────────────────────────────────────────────
@@ -263,7 +264,7 @@ export default function CareFileV2FolderPage() {
     useEffect(() => { fetchUploadedFiles(); }, [fetchUploadedFiles]);
 
     useEffect(() => {
-        if (folderKey === "v2-medication" || folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity" || folderKey === "v2-safeguarding") {
+        if (folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity" || folderKey === "v2-safeguarding") {
             fetchFolderBodyMap();
         }
     }, [fetchFolderBodyMap, folderKey]);
@@ -755,7 +756,7 @@ export default function CareFileV2FolderPage() {
                             </div>
                         )}
 
-                        {(folderKey === "v2-medication" || folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity" || folderKey === "v2-safeguarding") && (
+                        {(folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity" || folderKey === "v2-safeguarding") && (
                             <div>
                                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1 mb-2">
                                     Body Map

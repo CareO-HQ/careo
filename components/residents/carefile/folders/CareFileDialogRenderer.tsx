@@ -10,13 +10,14 @@ import DnacprDialog from "@/components/residents/carefile/dialogs/DnarcpDialog";
 import InfectionPreventionDialog from "@/components/residents/carefile/dialogs/InfectionPreventionDialog";
 import LongTermFallRiskDialog from "@/components/residents/carefile/dialogs/LongTermFallRiskDialog";
 import MovingHandlingDialog from "@/components/residents/carefile/dialogs/MovingHandlingDialog";
-import PainAssessmentDialog from "@/components/residents/carefile/dialogs/PainAssessmentDialog";
+import PainAssessmentV2Dialog from "@/components/residents/carefile/dialogs/PainAssessmentV2Dialog";
 import PeepDialog from "@/components/residents/carefile/dialogs/PeepDialog";
 import PhotographyConsentDialog from "@/components/residents/carefile/dialogs/PhotographyConsentDialog";
 import PreAdmissionDialog from "@/components/residents/carefile/dialogs/PreAdmissionDialog";
 import ResidentValuablesDialog from "@/components/residents/carefile/dialogs/ResidentValuables";
 import SkinIntegrityDialog from "@/components/residents/carefile/dialogs/SkinIntegrityDialog";
 import TimlDialog from "@/components/residents/carefile/dialogs/TimlDialog";
+import PersonalProfileDialog from "@/components/residents/carefile/dialogs/PersonalProfileDialog";
 import ResidentHandlingProfileDialog from "@/components/residents/carefile/dialogs/ResidentHandlingProfileDialog";
 import NutritionalAssessmentDialog from "@/components/residents/carefile/dialogs/NutritionalAssessmentDialog";
 import OralAssessmentDialog from "@/components/residents/carefile/dialogs/OralAssessmentDialog";
@@ -32,6 +33,7 @@ import SpecimenRecordLogDialog from "@/components/residents/carefile/dialogs/Spe
 import CapacityConsentDialog from "@/components/residents/carefile/dialogs/CapacityConsentDialog";
 import NightObservationDialog from "@/components/residents/carefile/dialogs/NightObservationDialog";
 import GeneralRiskAssessmentDialog from "@/components/residents/carefile/dialogs/GeneralRiskAssessmentDialog";
+import AbbeyPainDialog from "@/components/residents/carefile/dialogs/AbbeyPainDialog";
 
 
 interface BaseDialogProps {
@@ -114,7 +116,7 @@ export function CareFileDialogRenderer({
     organizationId,
     userId,
     userName,
-    userRole,
+    userRole: userRole ?? "",
     isEditMode: isReviewMode,
     isInline,
     viewOnly,
@@ -223,6 +225,9 @@ export function CareFileDialogRenderer({
       case "timl":
         return <TimlDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
+      case "v2-personal-profile":
+        return <PersonalProfileDialog {...commonProps} resident={resident} userName={userName ?? ""} initialData={editData} />;
+
       case "skin-integrity-form":
         return <SkinIntegrityDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
 
@@ -266,7 +271,7 @@ export function CareFileDialogRenderer({
 
       case "pain-assessment-form":
         return (
-          <PainAssessmentDialog
+          <PainAssessmentV2Dialog
             {...commonProps}
             userName={userName ?? ""}
             careHomeName={careHomeName ?? ""}
@@ -402,6 +407,16 @@ export function CareFileDialogRenderer({
       case "v2-general-risk":
         return (
           <GeneralRiskAssessmentDialog
+            {...commonProps}
+            userName={userName ?? ""}
+            initialData={editData}
+            refreshForms={refreshForms}
+          />
+        );
+
+      case "v2-abbey-pain":
+        return (
+          <AbbeyPainDialog
             {...commonProps}
             userName={userName ?? ""}
             initialData={editData}

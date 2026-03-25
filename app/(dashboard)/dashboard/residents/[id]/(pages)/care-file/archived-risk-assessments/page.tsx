@@ -79,6 +79,7 @@ export default function ArchivedRiskAssessmentsPage() {
   const [archivedCapacityConsent, setArchivedCapacityConsent] = useState<any[]>([]);
   const [archivedNightObservation, setArchivedNightObservation] = useState<any[]>([]);
   const [archivedGeneralRisk, setArchivedGeneralRisk] = useState<any[]>([]);
+  const [archivedPersonalProfile, setArchivedPersonalProfile] = useState<any[]>([]);
 
   const TABLE_MAP: Record<string, string> = {
     "preAdmission-form": "pre_admission_care_files",
@@ -110,7 +111,8 @@ export default function ArchivedRiskAssessmentsPage() {
     "v2-specimen-log": "specimen_records",
     "v2-capacity-consent": "capacity_consents",
     "v2-night-obs-consent": "night_observation_consents",
-    "v2-general-risk": "general_risk_assessments"
+    "v2-general-risk": "general_risk_assessments",
+    "v2-personal-profile": "personal_profiles"
   };
 
   useEffect(() => {
@@ -232,6 +234,9 @@ export default function ArchivedRiskAssessmentsPage() {
               break;
             case "v2-general-risk":
               setArchivedGeneralRisk(mappedData);
+              break;
+            case "v2-personal-profile":
+              setArchivedPersonalProfile(mappedData);
               break;
           }
         });
@@ -538,6 +543,14 @@ export default function ArchivedRiskAssessmentsPage() {
       completedAt: form._creationTime,
       folderName: getFolderName("v2-general-risk", "Safe Environment"),
       category: "Handling"
+    })) || []),
+    ...(archivedPersonalProfile?.map(form => ({
+      _id: form._id,
+      key: "v2-personal-profile",
+      name: "Personal Profile",
+      completedAt: form._creationTime,
+      folderName: getFolderName("v2-personal-profile", "My Life"),
+      category: "Personal"
     })) || []),
   ];
 

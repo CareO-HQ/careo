@@ -54,7 +54,8 @@ const TABLE_MAP: Record<string, string> = {
   "v2-specimen-log": "specimen_records",
   "v2-capacity-consent": "capacity_consents",
   "v2-night-obs-consent": "night_observation_consents",
-  "v2-general-risk": "general_risk_assessments"
+  "v2-general-risk": "general_risk_assessments",
+  "v2-personal-profile": "personal_profiles"
 };
 
 export default function AllRiskAssessmentsPage() {
@@ -143,7 +144,8 @@ export default function AllRiskAssessmentsPage() {
     allSpecimenLogForms,
     allCapacityConsentsForms,
     allNightObservationForms,
-    allGeneralRiskForms
+    allGeneralRiskForms,
+    allPersonalProfileForms
   } = useFolderForms({
     residentId,
     folderFormKeys: [
@@ -176,7 +178,8 @@ export default function AllRiskAssessmentsPage() {
       "v2-specimen-log",
       "v2-capacity-consent",
       "v2-night-obs-consent",
-      "v2-general-risk"
+      "v2-general-risk",
+      "v2-personal-profile"
     ],
     organizationId: resident?.active_organization_id
   });
@@ -524,6 +527,15 @@ export default function AllRiskAssessmentsPage() {
       completedAt: getLatestForm(allGeneralRiskForms)?._creationTime,
       folderName: getFolderName("v2-general-risk", "Safe Environment"),
       category: "Handling"
+    }] : []),
+    // Personal Profile
+    ...(allPersonalProfileForms && allPersonalProfileForms.length > 0 ? [{
+      _id: getLatestForm(allPersonalProfileForms)?._id,
+      key: "v2-personal-profile",
+      name: "Personal Profile",
+      completedAt: getLatestForm(allPersonalProfileForms)?._creationTime,
+      folderName: getFolderName("v2-personal-profile", "My Life"),
+      category: "Personal"
     }] : []),
   ].filter(assessment => assessment._id); // Remove any null entries
   // Remove any null entries

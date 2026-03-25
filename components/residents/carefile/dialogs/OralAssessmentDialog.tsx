@@ -243,6 +243,18 @@ export default function OralAssessmentDialog({
     toast.error("Please fill in all required fields.");
   };
 
+  const renderInput = (field: any, props: any = {}) => viewOnly ? (
+    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[40px]">
+      {field.value || " "}
+    </div>
+  ) : <Input {...field} {...props} />;
+
+  const renderTextarea = (field: any, props: any = {}) => viewOnly ? (
+    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[80px]">
+      {field.value || " "}
+    </div>
+  ) : <Textarea {...field} {...props} />;
+
   const YesNoField = ({ fieldName, careField, label }: { fieldName: string; careField: string; label: string }) => {
     const show = form.watch(fieldName as any);
     return (
@@ -255,7 +267,7 @@ export default function OralAssessmentDialog({
             </RadioGroup>
           </FormControl></FormItem>
         )} />
-        {show && <FormField control={form.control} name={careField as any} render={({ field }) => (<FormItem><FormLabel>Care</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem>)} />}
+        {show && <FormField control={form.control} name={careField as any} render={({ field }) => (<FormItem><FormLabel>Care</FormLabel><FormControl>{renderTextarea(field, { rows: 2 })}</FormControl></FormItem>)} />}
       </div>
     );
   };
@@ -278,13 +290,13 @@ export default function OralAssessmentDialog({
               <div className="p-4 bg-muted/30 rounded-lg space-y-4">
                 <h3 className="font-semibold">Resident Info</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Resident Name</FormLabel><Input {...field} disabled /></FormItem>} />
-                  <FormField control={form.control} name="dateOfBirth" render={({ field }) => <FormItem><FormLabel>Date of Birth</FormLabel><Input {...field} disabled /></FormItem>} />
-                  <FormField control={form.control} name="weight" render={({ field }) => <FormItem><FormLabel>Weight</FormLabel><Input {...field} placeholder="e.g. 70kg" /></FormItem>} />
-                  <FormField control={form.control} name="height" render={({ field }) => <FormItem><FormLabel>Height</FormLabel><Input {...field} placeholder="e.g. 175cm" /></FormItem>} />
+                  <FormField control={form.control} name="residentName" render={({ field }) => <FormItem><FormLabel>Resident Name</FormLabel><FormControl>{renderInput(field, { disabled: true })}</FormControl></FormItem>} />
+                  <FormField control={form.control} name="dateOfBirth" render={({ field }) => <FormItem><FormLabel>Date of Birth</FormLabel><FormControl>{renderInput(field, { disabled: true })}</FormControl></FormItem>} />
+                  <FormField control={form.control} name="weight" render={({ field }) => <FormItem><FormLabel>Weight</FormLabel><FormControl>{renderInput(field, { placeholder: "e.g. 70kg" })}</FormControl></FormItem>} />
+                  <FormField control={form.control} name="height" render={({ field }) => <FormItem><FormLabel>Height</FormLabel><FormControl>{renderInput(field, { placeholder: "e.g. 175cm" })}</FormControl></FormItem>} />
 
-                  <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Name of Person Completing Assessment</FormLabel><Input {...field} /></FormItem>} />
-                  <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel>Signature</FormLabel><Input {...field} /></FormItem>} />
+                  <FormField control={form.control} name="completedBy" render={({ field }) => <FormItem><FormLabel>Name of Person Completing Assessment</FormLabel><FormControl>{renderInput(field)}</FormControl></FormItem>} />
+                  <FormField control={form.control} name="signature" render={({ field }) => <FormItem><FormLabel>Signature</FormLabel><FormControl>{renderInput(field)}</FormControl></FormItem>} />
                 </div>
 
                 <FormField control={form.control} name="assessmentDate" render={({ field }) => (
@@ -294,7 +306,7 @@ export default function OralAssessmentDialog({
 
               <div className="p-4 bg-muted/30 rounded-lg space-y-4">
                 <h3 className="font-semibold">Dental Info</h3>
-                <FormField control={form.control} name="normalOralHygieneRoutine" render={({ field }) => <FormItem><FormLabel>What is the normal oral hygiene routine at home?</FormLabel><Textarea {...field} rows={2} /></FormItem>} />
+                <FormField control={form.control} name="normalOralHygieneRoutine" render={({ field }) => <FormItem><FormLabel>What is the normal oral hygiene routine at home?</FormLabel><FormControl>{renderTextarea(field, { rows: 2 })}</FormControl></FormItem>} />
 
                 <div className="space-y-4 border p-4 rounded-md">
                   <FormField control={form.control} name="isRegisteredWithDentist" render={({ field }) => (
@@ -308,10 +320,42 @@ export default function OralAssessmentDialog({
 
                   {form.watch("isRegisteredWithDentist") && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t">
-                      <FormField control={form.control} name="lastSeenByDentist" render={({ field }) => <FormItem><FormLabel>When was the resident last seen by a Dentist?</FormLabel><Input {...field} placeholder="e.g. Oct 2025" /></FormItem>} />
-                      <FormField control={form.control} name="dentistName" render={({ field }) => <FormItem><FormLabel>Dentist&apos;s Name</FormLabel><Input {...field} /></FormItem>} />
-                      <FormField control={form.control} name="dentalPracticeAddress" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Dental Practice Address</FormLabel><Textarea {...field} rows={2} /></FormItem>} />
-                      <FormField control={form.control} name="contactTelephone" render={({ field }) => <FormItem><FormLabel>Contact Telephone</FormLabel><Input {...field} /></FormItem>} />
+                      <FormField control={form.control} name="lastSeenByDentist" render={({ field }) => (
+                        <FormItem className="flex flex-col pt-2 md:col-span-1">
+                          <FormLabel>When was the resident last seen by a Dentist?</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  {field.value ? (
+                                    isNaN(new Date(field.value).getTime()) ? field.value : format(new Date(field.value), "PPP")
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value && !isNaN(new Date(field.value).getTime()) ? new Date(field.value) : undefined}
+                                onSelect={d => d ? field.onChange(d.toISOString()) : field.onChange("")}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="dentistName" render={({ field }) => <FormItem><FormLabel>Dentist&apos;s Name</FormLabel><FormControl>{renderInput(field)}</FormControl></FormItem>} />
+                      <FormField control={form.control} name="dentalPracticeAddress" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Dental Practice Address</FormLabel><FormControl>{renderTextarea(field, { rows: 2 })}</FormControl></FormItem>} />
+                      <FormField control={form.control} name="contactTelephone" render={({ field }) => <FormItem><FormLabel>Contact Telephone</FormLabel><FormControl>{renderInput(field)}</FormControl></FormItem>} />
                     </div>
                   )}
                 </div>
