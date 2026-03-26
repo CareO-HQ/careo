@@ -1,9 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
 
-interface MedicationMarSheetProps {
+interface TopicalMarSheetProps {
   residentId: string;
   residentName: string;
   sheetId: string;
@@ -18,7 +20,7 @@ interface MedicationMarSheetProps {
   careHomeName?: string;
 }
 
-export function MedicationMarSheet({
+export function TopicalMarSheet({
   residentId,
   residentName,
   sheetId,
@@ -31,7 +33,12 @@ export function MedicationMarSheet({
   onRefresh,
   resident,
   careHomeName,
-}: MedicationMarSheetProps) {
+}: TopicalMarSheetProps) {
+  const [selectedCell, setSelectedCell] = useState<{
+    medication: any;
+    date: number;
+    administrations: any[];
+  } | null>(null);
 
   // Generate array of days [1, 2, 3, ..., daysInMonth]
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
@@ -51,67 +58,31 @@ export function MedicationMarSheet({
 
     const normalizedSearchTime = normalizeTime(time);
 
-    const result = administrations.find(
+    return administrations.find(
       (admin) => {
-        const match = admin.medication_id === medicationId &&
+        return admin.medication_id === medicationId &&
           admin.administration_date === dateStr &&
           normalizeTime(admin.scheduled_time) === normalizedSearchTime;
-
-        // Debug logging
-        if (day === 23 && time === '08:00') {
-          console.log('Searching for:', { medicationId, dateStr, time, normalizedSearchTime });
-          console.log('Checking admin:', {
-            medication_id: admin.medication_id,
-            administration_date: admin.administration_date,
-            scheduled_time: admin.scheduled_time,
-            normalized: normalizeTime(admin.scheduled_time),
-            match
-          });
-        }
-
-        return match;
       }
     );
-
-    return result;
   };
 
-  // Get status badge style
-  const getStatusBadgeStyle = (status: string) => {
-    switch (status) {
-      case "given":
-        return "bg-green-100 text-green-800 border-green-300";
-      case "refused":
-        return "bg-red-100 text-red-800 border-red-300";
-      case "missed":
-        return "bg-amber-100 text-amber-800 border-amber-300";
-      default:
-        return "bg-gray-50 text-gray-600 border-gray-200";
+  // Handle cell click - show details in read-only modal
+  const handleCellClick = (medication: any, day: number, admin: any) => {
+    if (admin) {
+      setSelectedCell({ medication, date: day, administrations: [admin] });
     }
   };
 
-  // Get status symbol
-  const getStatusSymbol = (status: string) => {
-    switch (status) {
-      case "given":
-        return "✓";
-      case "refused":
-        return "R";
-      case "missed":
-        return "M";
-      default:
-        return "";
+  // Format time for display
+  const formatTimeDisplay = (timestamp: string | null) => {
+    if (!timestamp) return "Not recorded";
+    try {
+      const date = new Date(timestamp);
+      return format(date, "h:mm a");
+    } catch {
+      return "Invalid time";
     }
-  };
-
-  // Format time for display (convert 24h to 12h with AM/PM)
-  const formatTimeDisplay = (time: string) => {
-    if (!time) return "";
-    const [hours, minutes] = time.split(":");
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? "PM" : "AM";
-    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-    return `${displayHour}:${minutes} ${ampm}`;
   };
 
   // Format date for display
@@ -130,12 +101,33 @@ export function MedicationMarSheet({
     return resident.allergies.join(", ");
   };
 
+  // Extract status from notes
+  const getStatusFromNotes = (notes: string | null) => {
+    if (!notes) return "Applied";
+    const statusMatch = notes.match(/Status:\s*(Applied|Refused|Missed)/i);
+    return statusMatch ? statusMatch[1] : "Applied";
+  };
+
+  // Get badge color based on status
+  const getStatusBadgeColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "applied":
+        return "bg-green-100 text-green-800 border-green-300";
+      case "refused":
+        return "bg-red-100 text-red-800 border-red-300";
+      case "missed":
+        return "bg-amber-100 text-amber-800 border-amber-300";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-300";
+    }
+  };
+
   if (medications.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border-2 border-black rounded bg-white">
-        <p className="text-sm font-medium text-gray-700">No scheduled medications</p>
+        <p className="text-sm font-medium text-gray-700">No topical medications</p>
         <p className="text-xs text-gray-600">
-          Scheduled medications will appear here once added to the resident&apos;s medication list.
+          Topical medications will appear here once added to the resident&apos;s medication list.
         </p>
       </div>
     );
@@ -143,12 +135,12 @@ export function MedicationMarSheet({
 
   return (
     <>
-      {/* Combined MAR Sheet with Header and Table */}
+      {/* Topical MAR Sheet with Header and Table */}
       <div className="bg-white border-2 border-black overflow-x-auto print:border-black print:break-inside-avoid">
         {/* Resident Information Header */}
         <div className="border-b-2 border-black">
           <div className="bg-gray-700 text-white font-bold text-sm p-2 border-b-2 border-black">
-            MEDICATION ADMINISTRATION RECORD (MAR) - {format(new Date(year, month - 1), "MMMM yyyy").toUpperCase()}
+            TOPICAL MEDICATION ADMINISTRATION RECORD (MAR) - {format(new Date(year, month - 1), "MMMM yyyy").toUpperCase()}
           </div>
           <div className="grid grid-cols-[auto_1fr_1fr] gap-0">
             {/* Resident Photo */}
@@ -204,12 +196,12 @@ export function MedicationMarSheet({
           </div>
         </div>
 
-        {/* MAR Table */}
+        {/* Topical MAR Table */}
         <table className="w-full border-collapse">
           <thead>
             <tr>
               <th className="border-2 border-black bg-gray-700 text-white font-bold text-xs p-2 sticky left-0 z-20 min-w-[220px]">
-                MEDICATION / DOSE / ROUTE
+                MEDICATION / DOSE / APPLICATION SITE
               </th>
               <th className="border-2 border-black bg-gray-700 text-white font-bold text-xs p-2 min-w-[80px]">
                 TIME
@@ -239,11 +231,6 @@ export function MedicationMarSheet({
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-sm">{medication.name}</p>
-                          {medication.is_controlled_drug && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-red-100 text-red-800 border border-red-400 rounded">
-                              CD
-                            </span>
-                          )}
                         </div>
                         <div className="text-xs text-gray-700">
                           <span className="font-semibold">Dose:</span> {medication.strength} {medication.strength_unit}
@@ -251,6 +238,11 @@ export function MedicationMarSheet({
                         <div className="text-xs text-gray-700">
                           <span className="font-semibold">Route:</span> {medication.route || "—"}
                         </div>
+                        {medication.instructions && (
+                          <div className="text-xs text-gray-700">
+                            <span className="font-semibold">Site:</span> {medication.instructions}
+                          </div>
+                        )}
                       </div>
                     </td>
                   )}
@@ -269,30 +261,31 @@ export function MedicationMarSheet({
                   {days.map((day) => {
                     const admin = getAdministrationForCell(medication.id, day, time);
                     const hasRecord = !!admin;
-                    const status = admin?.status || "scheduled";
+                    const status = admin ? getStatusFromNotes(admin.notes) : "";
 
                     return (
                       <td
                         key={day}
                         className={`border-2 border-black p-0 w-[28px] max-w-[28px] h-[45px] ${
                           hasRecord
-                            ? status === 'given' ? 'bg-green-100' :
-                              status === 'refused' ? 'bg-red-100' :
-                              status === 'missed' ? 'bg-amber-100' :
+                            ? status.toLowerCase() === 'applied' ? 'bg-green-100' :
+                              status.toLowerCase() === 'refused' ? 'bg-red-100' :
+                              status.toLowerCase() === 'missed' ? 'bg-amber-100' :
                               'bg-gray-100'
                             : 'bg-white'
-                        }`}
-                        title={hasRecord ? `${medication.name} - ${formatTimeDisplay(time)} - ${status.toUpperCase()}\nStaff: ${admin.administered_by?.name || "Unknown"}\nDate: ${day}/${month}/${year}` : `Day ${day} - No administration`}
+                        } ${hasRecord ? 'cursor-pointer hover:opacity-80' : ''}`}
+                        onClick={() => hasRecord && handleCellClick(medication, day, admin)}
+                        title={hasRecord ? `${medication.name} - ${time} - ${status.toUpperCase()}\nStaff: ${admin.administered_by?.name || "Unknown"}\nDate: ${day}/${month}/${year}` : `Day ${day} - No application`}
                       >
                         {hasRecord ? (
                           <div className="flex flex-col items-center justify-center h-full">
                             <span className={`font-bold text-base leading-none ${
-                              status === 'given' ? 'text-green-700' :
-                              status === 'refused' ? 'text-red-700' :
-                              status === 'missed' ? 'text-amber-700' :
+                              status.toLowerCase() === 'applied' ? 'text-green-700' :
+                              status.toLowerCase() === 'refused' ? 'text-red-700' :
+                              status.toLowerCase() === 'missed' ? 'text-amber-700' :
                               'text-gray-700'
                             }`}>
-                              {getStatusSymbol(status)}
+                              {status.charAt(0).toUpperCase()}
                             </span>
                             {admin.administered_by && (
                               <span className="text-[7px] font-bold text-gray-800 leading-tight mt-0.5">
@@ -311,41 +304,48 @@ export function MedicationMarSheet({
         </table>
       </div>
 
-      {/* Administration Key */}
-      <div className="mt-6 border-2 border-black p-4 bg-white print:break-inside-avoid">
-        <h3 className="font-bold text-sm mb-3 uppercase text-gray-900 border-b-2 border-black pb-2">
-          Administration Codes
-        </h3>
-        <div className="grid grid-cols-3 gap-4 text-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 border-2 border-green-600 bg-green-50 flex items-center justify-center font-bold text-lg text-green-700">
-              ✓
+
+      {/* Read-Only Details Modal */}
+      {selectedCell && (
+        <Dialog open={!!selectedCell} onOpenChange={() => setSelectedCell(null)}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                Topical Application Details - {selectedCell.medication.name}
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                {format(new Date(year, month - 1, selectedCell.date), "EEEE, MMMM d, yyyy")}
+              </p>
+            </DialogHeader>
+
+            <div className="space-y-4 mt-4">
+              {selectedCell.administrations.map((admin, index) => {
+                const status = getStatusFromNotes(admin.notes);
+                return (
+                  <div key={admin.id || index} className="border rounded-lg p-4 bg-gray-50">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-gray-600 uppercase">Time</p>
+                        <p className="text-sm font-medium">{formatTimeDisplay(admin.administered_at)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-600 uppercase">Status</p>
+                        <Badge className={`mt-1 ${getStatusBadgeColor(status)}`}>
+                          {status}
+                        </Badge>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-xs font-semibold text-gray-600 uppercase">Administered By</p>
+                        <p className="text-sm font-medium">{admin.administered_by?.name || "Unknown"}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div>
-              <div className="font-bold text-gray-900">Given</div>
-              <div className="text-xs text-gray-600">Medication administered</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 border-2 border-red-600 bg-red-50 flex items-center justify-center font-bold text-lg text-red-700">
-              R
-            </div>
-            <div>
-              <div className="font-bold text-gray-900">Refused</div>
-              <div className="text-xs text-gray-600">Patient refused</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 border-2 border-amber-600 bg-amber-50 flex items-center justify-center font-bold text-lg text-amber-700">
-              M
-            </div>
-            <div>
-              <div className="font-bold text-gray-900">Missed</div>
-              <div className="text-xs text-gray-600">Dose missed</div>
-            </div>
-          </div>
-        </div>
-      </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

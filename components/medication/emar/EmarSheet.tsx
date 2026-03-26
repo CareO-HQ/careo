@@ -7,6 +7,7 @@ import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
 import { MedicationMarSheet } from "./MedicationMarSheet";
 import { PrnMarSheet } from "./PrnMarSheet";
+import { TopicalMarSheet } from "./TopicalMarSheet";
 import { EmarPdfExport } from "./EmarPdfExport";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -25,21 +26,24 @@ export function EmarSheet({
   careHomeId,
 }: EmarSheetProps) {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const [activeTab, setActiveTab] = useState<"medication" | "prn">("medication");
+  const [activeTab, setActiveTab] = useState<"medication" | "prn" | "topical">("medication");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // MAR sheet data
   const [medicationSheet, setMedicationSheet] = useState<any>(null);
   const [prnSheet, setPrnSheet] = useState<any>(null);
+  const [topicalSheet, setTopicalSheet] = useState<any>(null);
 
   // Medications
   const [scheduledMedications, setScheduledMedications] = useState<any[]>([]);
   const [prnMedications, setPrnMedications] = useState<any[]>([]);
+  const [topicalMedications, setTopicalMedications] = useState<any[]>([]);
 
   // Administration records
   const [medicationAdministrations, setMedicationAdministrations] = useState<any[]>([]);
   const [prnAdministrations, setPrnAdministrations] = useState<any[]>([]);
+  const [topicalAdministrations, setTopicalAdministrations] = useState<any[]>([]);
 
   // Resident data
   const [resident, setResident] = useState<any>(null);
@@ -70,6 +74,7 @@ export function EmarSheet({
       // Fetch or create medication MAR sheet
       let medSheetData = null;
       let prnSheetData = null;
+      let topicalSheetData = null;
 
       // Try to use RPC function if available, otherwise handle manually
       try {
@@ -94,6 +99,17 @@ export function EmarSheet({
 
         if (prnError) throw prnError;
         prnSheetData = prnData;
+
+        const { data: topicalData, error: topicalError } = await supabase
+          .rpc('get_or_create_emar_sheet', {
+            p_resident_id: residentId,
+            p_type: 'topical',
+            p_organization_id: organizationId,
+            p_care_home_id: careHomeId,
+          });
+
+        if (topicalError) throw topicalError;
+        topicalSheetData = topicalData;
       } catch (rpcError: any) {
         // RPC function doesn't exist yet - handle manually
         console.log('RPC function not available, creating sheets manually');
@@ -176,14 +192,25 @@ export function EmarSheet({
         .eq('id', prnSheetData)
         .single();
 
+      let topicalSheet = null;
+      if (topicalSheetData) {
+        const { data } = await supabase
+          .from('emar_sheets')
+          .select('*')
+          .eq('id', topicalSheetData)
+          .single();
+        topicalSheet = data;
+      }
+
       setMedicationSheet(medSheet);
       setPrnSheet(prnSheet);
+      setTopicalSheet(topicalSheet);
 
       // Fetch medications
       await fetchMedications();
 
       // Fetch administration records
-      await fetchAdministrations(medSheetData, prnSheetData);
+      await fetchAdministrations(medSheetData, prnSheetData, topicalSheetData);
 
     } catch (error: any) {
       console.error('Error fetching/creating MAR sheets:', error);
@@ -213,9 +240,11 @@ export function EmarSheet({
         .eq('status', 'active');
 
       if (medications) {
-        // Filter scheduled medications (exclude PRN)
+        // Filter scheduled medications (exclude PRN and Topical)
         const scheduled = medications.filter(
-          (med: any) => med.schedule_type !== 'PRN (As Needed)' && med.times && med.times.length > 0
+          (med: any) => med.schedule_type !== 'PRN (As Needed)' &&
+                       med.schedule_type !== 'Topical' &&
+                       med.times && med.times.length > 0
         );
 
         // Filter PRN medications
@@ -223,8 +252,14 @@ export function EmarSheet({
           (med: any) => med.schedule_type === 'PRN (As Needed)'
         );
 
+        // Filter Topical medications
+        const topical = medications.filter(
+          (med: any) => med.schedule_type === 'Topical'
+        );
+
         setScheduledMedications(scheduled);
         setPrnMedications(prn);
+        setTopicalMedications(topical);
       }
     } catch (error) {
       console.error('Error fetching medications:', error);
@@ -232,7 +267,7 @@ export function EmarSheet({
   };
 
   // Fetch administration records for the month
-  const fetchAdministrations = async (medSheetId: string, prnSheetId: string) => {
+  const fetchAdministrations = async (medSheetId: string, prnSheetId: string, topicalSheetId?: string) => {
     try {
       // Fetch medication administrations with proper joins to public.users table
       const { data: medAdminsRaw, error: medError } = await supabase
@@ -252,6 +287,21 @@ export function EmarSheet({
 
       if (prnError) {
         console.error('Error fetching PRN administrations:', prnError);
+      }
+
+      // Fetch Topical administrations
+      let topicalAdminsRaw = [];
+      if (topicalSheetId) {
+        const { data, error: topicalError } = await supabase
+          .from('emar_administrations')
+          .select('*')
+          .eq('emar_sheet_id', topicalSheetId);
+
+        if (topicalError) {
+          console.error('Error fetching topical administrations:', topicalError);
+        } else {
+          topicalAdminsRaw = data || [];
+        }
       }
 
       // Enrich with user data from public.users
@@ -274,14 +324,18 @@ export function EmarSheet({
 
       const medAdmins = await enrichWithUserData(medAdminsRaw || []);
       const prnAdmins = await enrichWithUserData(prnAdminsRaw || []);
+      const topicalAdmins = await enrichWithUserData(topicalAdminsRaw || []);
 
       console.log('Medication Sheet ID:', medSheetId);
       console.log('Fetched medication administrations:', medAdmins);
       console.log('PRN Sheet ID:', prnSheetId);
       console.log('Fetched PRN administrations:', prnAdmins);
+      console.log('Topical Sheet ID:', topicalSheetId);
+      console.log('Fetched topical administrations:', topicalAdmins);
 
       setMedicationAdministrations(medAdmins || []);
       setPrnAdministrations(prnAdmins || []);
+      setTopicalAdministrations(topicalAdmins || []);
     } catch (error) {
       console.error('Error fetching administrations:', error);
     }
@@ -429,7 +483,7 @@ export function EmarSheet({
 
       {/* Tabs for Medication MAR and PRN MAR */}
       {!error && (
-        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "medication" | "prn")}>
+        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "medication" | "prn" | "topical")}>
           <TabsList className="w-full justify-start">
           <TabsTrigger value="medication">
             Medication MAR
@@ -444,6 +498,14 @@ export function EmarSheet({
             {prnMedications.length > 0 && (
               <span className="ml-2 px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-full">
                 {prnMedications.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="topical">
+            Topical MAR
+            {topicalMedications.length > 0 && (
+              <span className="ml-2 px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-full">
+                {topicalMedications.length}
               </span>
             )}
           </TabsTrigger>
@@ -473,6 +535,23 @@ export function EmarSheet({
             sheetId={prnSheet?.id}
             medications={prnMedications}
             administrations={prnAdministrations}
+            month={currentMonth}
+            year={currentYear}
+            daysInMonth={daysInMonth}
+            isReadOnly={!isCurrentMonth()}
+            onRefresh={fetchOrCreateMarSheets}
+            resident={resident}
+            careHomeName={careHomeName}
+          />
+        </TabsContent>
+
+        <TabsContent value="topical" className="mt-4">
+          <TopicalMarSheet
+            residentId={residentId}
+            residentName={residentName}
+            sheetId={topicalSheet?.id}
+            medications={topicalMedications}
+            administrations={topicalAdministrations}
             month={currentMonth}
             year={currentYear}
             daysInMonth={daysInMonth}

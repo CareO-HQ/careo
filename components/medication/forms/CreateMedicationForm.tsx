@@ -410,24 +410,36 @@ export default function CreateMedicationForm({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="Tablet">Tablet</SelectItem>
-                          <SelectItem value="Capsule">Capsule</SelectItem>
-                          <SelectItem value="Softgel">Softgel</SelectItem>
-                          <SelectItem value="Chewable Tablet">Chewable Tablet</SelectItem>
-                          <SelectItem value="Gummy">Gummy</SelectItem>
-                          <SelectItem value="Liquid">Liquid</SelectItem>
-                          <SelectItem value="Syrup">Syrup</SelectItem>
-                          <SelectItem value="Drops">Drops</SelectItem>
-                          <SelectItem value="Powder">Powder</SelectItem>
-                          <SelectItem value="Effervescent Tablet">Effervescent Tablet</SelectItem>
-                          <SelectItem value="Spray">Spray</SelectItem>
-                          <SelectItem value="Lozenge">Lozenge</SelectItem>
-                          <SelectItem value="Injection">Injection</SelectItem>
-                          <SelectItem value="Cream">Cream</SelectItem>
-                          <SelectItem value="Ointment">Ointment</SelectItem>
-                          <SelectItem value="Gel">Gel</SelectItem>
-                          <SelectItem value="Patch">Patch</SelectItem>
-                          <SelectItem value="Inhaler">Inhaler</SelectItem>
+                          {medicationType === "Topical" ? (
+                            <>
+                              <SelectItem value="Cream">Cream</SelectItem>
+                              <SelectItem value="Ointment">Ointment</SelectItem>
+                              <SelectItem value="Gel">Gel</SelectItem>
+                              <SelectItem value="Lotion">Lotion</SelectItem>
+                              <SelectItem value="Patch">Patch</SelectItem>
+                            </>
+                          ) : (
+                            <>
+                              <SelectItem value="Tablet">Tablet</SelectItem>
+                              <SelectItem value="Capsule">Capsule</SelectItem>
+                              <SelectItem value="Softgel">Softgel</SelectItem>
+                              <SelectItem value="Chewable Tablet">Chewable Tablet</SelectItem>
+                              <SelectItem value="Gummy">Gummy</SelectItem>
+                              <SelectItem value="Liquid">Liquid</SelectItem>
+                              <SelectItem value="Syrup">Syrup</SelectItem>
+                              <SelectItem value="Drops">Drops</SelectItem>
+                              <SelectItem value="Powder">Powder</SelectItem>
+                              <SelectItem value="Effervescent Tablet">Effervescent Tablet</SelectItem>
+                              <SelectItem value="Spray">Spray</SelectItem>
+                              <SelectItem value="Lozenge">Lozenge</SelectItem>
+                              <SelectItem value="Injection">Injection</SelectItem>
+                              <SelectItem value="Cream">Cream</SelectItem>
+                              <SelectItem value="Ointment">Ointment</SelectItem>
+                              <SelectItem value="Gel">Gel</SelectItem>
+                              <SelectItem value="Patch">Patch</SelectItem>
+                              <SelectItem value="Inhaler">Inhaler</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                       {medicationType === "Supplement" && (
@@ -530,7 +542,13 @@ export default function CreateMedicationForm({
                     }
                     // Check scheduled medication dosage form
                     else {
-                      if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) {
+                      // Check for topical medications (Cream, Ointment, Gel, Lotion)
+                      if (dosageForm.includes('cream') || dosageForm.includes('ointment') ||
+                          dosageForm.includes('gel') || dosageForm.includes('lotion')) {
+                        placeholder = "e.g., 2 or 3";
+                        unitLabel = "packs";
+                        description = "Total packs in the box";
+                      } else if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) {
                         allowDecimals = true;
                         step = "0.1";
                         placeholder = "e.g., 100 or 250";

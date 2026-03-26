@@ -470,23 +470,49 @@ export const createMedicationColumns = (
                             <Label htmlFor="time">
                               Time <span className="text-red-500">*</span>
                             </Label>
-                            <Input
-                              type="time"
-                              id="time"
-                              value={format(time, "HH:mm")}
-                              onChange={(e) => {
-                                const [hours, minutes] = e.target.value
-                                  .split(":")
-                                  .map(Number);
-                                const newTime = new Date();
-                                newTime.setHours(hours || 0);
-                                newTime.setMinutes(minutes || 0);
-                                newTime.setSeconds(0);
-                                newTime.setMilliseconds(0);
-                                setTime(newTime);
-                              }}
-                              className="bg-background"
-                            />
+                            {medication.times && medication.times.length > 0 ? (
+                              <Select
+                                value={format(time, "HH:mm")}
+                                onValueChange={(value) => {
+                                  const [hours, minutes] = value.split(":").map(Number);
+                                  const newTime = new Date();
+                                  newTime.setHours(hours || 0);
+                                  newTime.setMinutes(minutes || 0);
+                                  newTime.setSeconds(0);
+                                  newTime.setMilliseconds(0);
+                                  setTime(newTime);
+                                }}
+                              >
+                                <SelectTrigger id="time">
+                                  <SelectValue placeholder="Select prescribed time" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {medication.times.map((prescribedTime: string) => (
+                                    <SelectItem key={prescribedTime} value={prescribedTime}>
+                                      {prescribedTime}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input
+                                type="time"
+                                id="time"
+                                value={format(time, "HH:mm")}
+                                onChange={(e) => {
+                                  const [hours, minutes] = e.target.value
+                                    .split(":")
+                                    .map(Number);
+                                  const newTime = new Date();
+                                  newTime.setHours(hours || 0);
+                                  newTime.setMinutes(minutes || 0);
+                                  newTime.setSeconds(0);
+                                  newTime.setMilliseconds(0);
+                                  setTime(newTime);
+                                }}
+                                className="bg-background"
+                              />
+                            )}
                           </div>
 
                           <div className="space-y-2">
@@ -515,23 +541,49 @@ export const createMedicationColumns = (
                             <Label htmlFor="time">
                               Time <span className="text-red-500">*</span>
                             </Label>
-                            <Input
-                              type="time"
-                              id="time"
-                              value={format(time, "HH:mm")}
-                              onChange={(e) => {
-                                const [hours, minutes] = e.target.value
-                                  .split(":")
-                                  .map(Number);
-                                const newTime = new Date();
-                                newTime.setHours(hours || 0);
-                                newTime.setMinutes(minutes || 0);
-                                newTime.setSeconds(0);
-                                newTime.setMilliseconds(0);
-                                setTime(newTime);
-                              }}
-                              className="bg-background"
-                            />
+                            {isTopical && medication.times && medication.times.length > 0 ? (
+                              <Select
+                                value={format(time, "HH:mm")}
+                                onValueChange={(value) => {
+                                  const [hours, minutes] = value.split(":").map(Number);
+                                  const newTime = new Date();
+                                  newTime.setHours(hours || 0);
+                                  newTime.setMinutes(minutes || 0);
+                                  newTime.setSeconds(0);
+                                  newTime.setMilliseconds(0);
+                                  setTime(newTime);
+                                }}
+                              >
+                                <SelectTrigger id="time">
+                                  <SelectValue placeholder="Select prescribed time" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {medication.times.map((prescribedTime: string) => (
+                                    <SelectItem key={prescribedTime} value={prescribedTime}>
+                                      {prescribedTime}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input
+                                type="time"
+                                id="time"
+                                value={format(time, "HH:mm")}
+                                onChange={(e) => {
+                                  const [hours, minutes] = e.target.value
+                                    .split(":")
+                                    .map(Number);
+                                  const newTime = new Date();
+                                  newTime.setHours(hours || 0);
+                                  newTime.setMinutes(minutes || 0);
+                                  newTime.setSeconds(0);
+                                  newTime.setMilliseconds(0);
+                                  setTime(newTime);
+                                }}
+                                className="bg-background"
+                              />
+                            )}
                           </div>
 
                           {isTopical ? (

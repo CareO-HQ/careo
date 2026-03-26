@@ -196,6 +196,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           const activeScheduledMeds = meds.filter(m =>
             m.status === 'active' &&
             m.schedule_type !== 'PRN (As Needed)' &&
+            m.schedule_type !== 'Topical' &&
             m.times && m.times.length > 0
           );
 
@@ -464,6 +465,17 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   };
 
   const createAndAdministerMedicationIntake = async (medicationId: string, residentId: string, time: string, quantity: number = 1, notes?: string) => {
+    // First, check if this is a topical medication
+    const { data: medication } = await supabase
+      .from("medications")
+      .select("schedule_type")
+      .eq("id", medicationId)
+      .single();
+
+    const isTopical = medication?.schedule_type === "Topical";
+    const isPRN = medication?.schedule_type === "PRN (As Needed)";
+
+    // Save to medication_intakes table
     const { data, error } = await supabase
       .from("medication_intakes")
       .insert({
@@ -481,6 +493,60 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       .select()
       .single();
     if (error) throw error;
+
+    // For topical and PRN medications, also save to emar_administrations table
+    if (isTopical || isPRN) {
+      try {
+        const now = new Date();
+        const administrationDate = format(now, "yyyy-MM-dd");
+
+        // Get or create the appropriate eMAR sheet
+        const sheetType = isTopical ? 'topical' : 'prn';
+        console.log('Creating eMAR sheet for:', { sheetType, residentId });
+        const { data: emarSheet, error: sheetError } = await supabase
+          .rpc('get_or_create_emar_sheet', {
+            p_resident_id: residentId,
+            p_type: sheetType,
+            p_organization_id: profile?.active_organization_id || "",
+            p_care_home_id: profile?.active_care_home_id || "",
+          });
+
+        if (sheetError) {
+          console.error('Error creating/fetching eMAR sheet:', sheetError);
+          toast.error(`Failed to create eMAR sheet: ${sheetError.message}`);
+        } else if (emarSheet) {
+          console.log('eMAR sheet created/found:', emarSheet);
+          // Save to emar_administrations table
+          const { error: emarError } = await supabase
+            .from("emar_administrations")
+            .insert({
+              emar_sheet_id: emarSheet,
+              medication_id: medicationId,
+              administration_date: administrationDate,
+              scheduled_time: time,
+              administered_at: new Date().toISOString(),
+              administered_by: profile?.id,
+              status: "given",
+              quantity: quantity,
+              notes: notes,
+              organization_id: profile?.active_organization_id,
+              care_home_id: profile?.active_care_home_id,
+            });
+
+          if (emarError) {
+            console.error('Error saving to eMAR administrations:', emarError);
+            toast.error(`Failed to save to eMAR: ${emarError.message}`);
+          } else {
+            console.log('Successfully saved to eMAR administrations');
+            toast.success(`${isTopical ? 'Topical' : 'PRN'} medication recorded in eMAR`);
+          }
+        }
+      } catch (emarIntegrationError) {
+        // Don't fail the whole operation if eMAR save fails
+        console.error('Error integrating with eMAR:', emarIntegrationError);
+      }
+    }
+
     fetchData();
     return data;
   };
@@ -824,6 +890,11 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       const filtered = selectedDateIntakes.filter((intake) => {
         const intakeTime = formatTimestampToUKTime(intake.scheduled_time);
         const match = intakeTime === selectedTime;
+
+        // Exclude topical medications from Today's Medications
+        if (intake.medication?.schedule_type === 'Topical') {
+          return false;
+        }
 
         // Issue 7: Show intakes even if parent medication is completed/cancelled IF:
         // 1. The intake itself has been acted upon (not just scheduled/pending)
