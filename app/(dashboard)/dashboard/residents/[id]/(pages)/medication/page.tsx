@@ -1,7 +1,7 @@
 "use client";
 
 import { createColumns } from "@/components/medication/daily/columns";
-import { createMedicationColumns } from "@/components/medication/daily/medication-columns";
+import { createMedicationColumns, createTopicalMedicationColumns } from "@/components/medication/daily/medication-columns";
 import { DataTable } from "@/components/medication/daily/data-table";
 import { MedicationAlertBanner } from "@/components/medication/alerts/MedicationAlertBanner";
 import ShiftTimes from "@/components/medication/daily/ShiftTimes";
@@ -776,12 +776,11 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   );
 
   const topicalMedicationColumns = useMemo(
-    () => createMedicationColumns(
+    () => createTopicalMedicationColumns(
       createAndAdministerMedicationIntake,
       true,
       availableMembers,
-      profile ? { name: profile.name || "", userId: profile.id } : undefined,
-      false  // Use full form for Topical medications section
+      profile ? { name: profile.name || "", userId: profile.id } : undefined
     ),
     [availableMembers, profile]
   );

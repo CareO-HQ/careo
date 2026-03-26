@@ -29,8 +29,10 @@ import { ColumnDef } from "@tanstack/react-table";
 import { useState } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { MoreVertical, Pencil } from "lucide-react";
+import { MoreVertical, Pencil, Eye } from "lucide-react";
 import EditMedicationDialog from "@/components/medication/forms/EditMedicationDialog";
+import { InteractiveBodyMap } from "@/components/body-map/InteractiveBodyMap";
+import { BODY_REGIONS } from "@/lib/config/body-regions";
 
 interface Medication {
   id: string;
@@ -51,6 +53,7 @@ interface Medication {
   status: string;
   total_count: number;
   resident_id: string;
+  body_regions?: string[];
 }
 
 export const createMedicationColumns = (
@@ -672,3 +675,109 @@ export const createMedicationColumns = (
       ]
       : [])
   ];
+
+export const createTopicalMedicationColumns = (
+  createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string) => Promise<any>,
+  showAdministrateButton: boolean = false,
+  teamMembers?: Array<{ userId: string; name: string }>,
+  currentUser?: { name: string; userId: string }
+): ColumnDef<Medication>[] => {
+  // Get base columns
+  const baseColumns = createMedicationColumns(
+    createAndAdministerMedicationIntake,
+    showAdministrateButton,
+    teamMembers,
+    currentUser,
+    false
+  );
+
+  // Remove prescriber column and extract action columns
+  const columnsWithoutPrescriber = baseColumns.filter(col => col.id !== "prescriber");
+
+  // Extract actions and administrate columns to move them to the end
+  const actionsColumn = columnsWithoutPrescriber.find(col => col.id === "actions");
+  const administrateColumn = columnsWithoutPrescriber.find(col => col.id === "administrate");
+
+  // Remove actions and administrate from the array
+  const columnsWithoutActions = columnsWithoutPrescriber.filter(
+    col => col.id !== "actions" && col.id !== "administrate"
+  );
+
+  // Body map column definition
+  const bodyMapColumn: ColumnDef<Medication> = {
+      id: "bodyMap",
+      header: "Application Sites",
+      cell: ({ row }) => {
+        const medication = row.original;
+        const bodyRegions = medication.body_regions || [];
+
+        if (bodyRegions.length === 0) {
+          return <span className="text-xs text-muted-foreground">No sites selected</span>;
+        }
+
+        return (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2">
+                <Eye className="h-4 w-4" />
+                View ({bodyRegions.length})
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Application Sites - {medication.name}</DialogTitle>
+                <DialogDescription>
+                  Body regions where this topical medication should be applied
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <InteractiveBodyMap
+                  entries={bodyRegions.map((regionId: string) => {
+                    const region = BODY_REGIONS.find(r => r.region_id === regionId);
+                    return {
+                      id: regionId,
+                      region_id: regionId,
+                      region_name: region?.region_name || regionId,
+                      condition_type: "other" as const,
+                      severity: 1,
+                      notes: "Application site",
+                      date_time: new Date().toISOString(),
+                      status: "active" as const
+                    };
+                  })}
+                  onRegionClick={() => {}} // Read-only in view mode
+                  selectedRegionId={null}
+                  viewMode={true}
+                />
+                <div className="p-3 bg-slate-50 rounded-lg border">
+                  <p className="text-sm font-medium mb-2">Selected Application Sites:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {bodyRegions.map((regionId: string) => {
+                      const region = BODY_REGIONS.find(r => r.region_id === regionId);
+                      return (
+                        <span
+                          key={regionId}
+                          className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-md border border-purple-200"
+                        >
+                          {region?.region_name || regionId}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      }
+  };
+
+  // Build the final column array: base columns + body map + action columns at the end
+  const result = [...columnsWithoutActions, bodyMapColumn];
+
+  // Add action columns at the very end
+  if (actionsColumn) result.push(actionsColumn);
+  if (administrateColumn) result.push(administrateColumn);
+
+  return result;
+};

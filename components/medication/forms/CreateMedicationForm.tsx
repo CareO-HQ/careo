@@ -38,6 +38,9 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useProfile } from "@/hooks/use-profile";
+import { InteractiveBodyMap } from "@/components/body-map/InteractiveBodyMap";
+import { BODY_REGIONS } from "@/lib/config/body-regions";
+import type { BodyRegion } from "@/types/body-map";
 
 
 export default function CreateMedicationForm({
@@ -83,7 +86,8 @@ export default function CreateMedicationForm({
       controlledDrugSchedule: undefined,
       minIntervalHours: undefined,
       maxDailyDose: undefined,
-      maxDailyDoseUnit: undefined
+      maxDailyDoseUnit: undefined,
+      bodyRegions: []
     }
   });
 
@@ -126,7 +130,8 @@ export default function CreateMedicationForm({
             controlled_drug_schedule: values.controlledDrugSchedule,
             min_interval_hours: values.minIntervalHours,
             max_daily_dose: values.maxDailyDose,
-            max_daily_dose_unit: values.maxDailyDoseUnit
+            max_daily_dose_unit: values.maxDailyDoseUnit,
+            body_regions: values.bodyRegions
           })
           .select()
           .single();
@@ -998,7 +1003,111 @@ export default function CreateMedicationForm({
               )}
             </>
           )}
-          {step === 3 && (
+          {step === 3 && scheduleType === "Topical" && (
+            <>
+              <FormField
+                control={form.control}
+                name="bodyRegions"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="mb-4">
+                      <FormLabel className="text-base">Application Sites</FormLabel>
+                      <FormDescription>
+                        Select the body regions where this topical medication should be applied
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <div className="space-y-4">
+                        <div className="relative">
+                          <InteractiveBodyMap
+                            entries={(field.value || []).map((regionId: string) => {
+                              const region = BODY_REGIONS.find(r => r.region_id === regionId);
+                              return {
+                                id: regionId,
+                                region_id: regionId,
+                                region_name: region?.region_name || regionId,
+                                condition_type: "other" as const,
+                                severity: 1,
+                                notes: "Application site",
+                                date_time: new Date().toISOString(),
+                                status: "active" as const
+                              };
+                            })}
+                            onRegionClick={(region: BodyRegion) => {
+                              const currentRegions = field.value || [];
+                              const isSelected = currentRegions.includes(region.region_id);
+
+                              if (isSelected) {
+                                // Remove region
+                                field.onChange(currentRegions.filter((id: string) => id !== region.region_id));
+                              } else {
+                                // Add region
+                                field.onChange([...currentRegions, region.region_id]);
+                              }
+                            }}
+                            selectedRegionId={null}
+                            viewMode={false}
+                          />
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-lg border">
+                          <p className="text-sm font-medium mb-2">Selected Application Sites:</p>
+                          {field.value && field.value.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {field.value.map((regionId: string) => {
+                                const region = BODY_REGIONS.find(r => r.region_id === regionId);
+                                return (
+                                  <span
+                                    key={regionId}
+                                    className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-md border border-purple-200"
+                                  >
+                                    {region?.region_name || regionId}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              No sites selected. Click on the body map to select application sites.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep(2)}
+                  disabled={isLoading}
+                >
+                  Back
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    // Validate body regions
+                    const bodyRegions = form.getValues("bodyRegions");
+                    if (!bodyRegions || bodyRegions.length === 0) {
+                      form.setError("bodyRegions", {
+                        type: "manual",
+                        message: "Please select at least one application site"
+                      });
+                      return;
+                    }
+                    setStep(4); // Go to final step
+                  }}
+                  disabled={isLoading}
+                >
+                  Continue
+                </Button>
+              </div>
+            </>
+          )}
+          {((step === 4) || (step === 3 && scheduleType !== "Topical")) && (
             <>
               <FormField
                 control={form.control}
@@ -1085,9 +1194,15 @@ export default function CreateMedicationForm({
                 <Button
                   type="button"
                   onClick={() => {
-                    // If PRN, go back to step 1; otherwise go to step 2
+                    // Go back to appropriate previous step
                     const scheduleType = form.getValues("scheduleType");
-                    setStep(scheduleType === "PRN (As Needed)" ? 1 : 2);
+                    if (scheduleType === "PRN (As Needed)") {
+                      setStep(1);
+                    } else if (scheduleType === "Topical") {
+                      setStep(3); // Go back to body map selection
+                    } else {
+                      setStep(2); // Go back to time selection
+                    }
                   }}
                   variant="outline"
                 >
