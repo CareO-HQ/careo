@@ -19,7 +19,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { NotebookPenIcon } from "lucide-react";
+import { NotebookPenIcon, Check } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useState } from "react";
@@ -208,38 +208,25 @@ export const createColumns = (
 
         if (poppedOutAt) {
           return (
-            <Tooltip>
-              <TooltipTrigger>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                  <p className="font-medium text-green-700 text-sm">
-                    {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
-                  </p>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>
-                  Prepared at{" "}
-                  {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
-                </p>
-              </TooltipContent>
-            </Tooltip>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                <Check className="w-3 h-3 text-white" />
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
+              </span>
+            </div>
           );
         }
 
         return (
-          <Button
-            variant="outline"
-            size="sm"
+          <button
             onClick={markAsOut}
-            className={`${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : 'hover:bg-green-50'}`}
+            className={`flex items-center justify-center ${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
             disabled={isRoundCompleted}
           >
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-gray-300" />
-              <span>Prepare</span>
-            </div>
-          </Button>
+            <div className="w-4 h-4 rounded-full border-2 border-dashed border-gray-300 hover:border-green-400 transition-colors" />
+          </button>
         );
       }
     },
@@ -306,18 +293,9 @@ export const createColumns = (
       header: "Dispensed by",
       cell: () => {
         return (
-          <Select disabled value={currentUser?.userId || ""}>
-            <SelectTrigger className={`w-[180px] ${isRoundCompleted ? 'bg-gray-100 opacity-60' : 'bg-white'}`}>
-              <SelectValue placeholder={currentUser?.name || "N/A"} />
-            </SelectTrigger>
-            <SelectContent>
-              {currentUser && (
-                <SelectItem value={currentUser.userId}>
-                  {currentUser.name}
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
+          <div className="text-sm">
+            {currentUser?.name || "N/A"}
+          </div>
         );
       }
     },
@@ -326,6 +304,7 @@ export const createColumns = (
       header: "Witnessed By",
       cell: ({ row }) => {
         const medicationIntake = row.original;
+        const witnessName = members.find(m => m.userId === medicationIntake.witness_id)?.name;
 
         const setWitness = async (value: string) => {
           if (!setWithnessForMedicationIntake) {
@@ -345,8 +324,10 @@ export const createColumns = (
             value={medicationIntake.witness_id || undefined}
             disabled={isRoundCompleted}
           >
-            <SelectTrigger className={`w-[180px] ${isRoundCompleted ? 'bg-gray-100 opacity-60 cursor-not-allowed' : 'bg-white'}`}>
-              <SelectValue placeholder="Select witness" />
+            <SelectTrigger className={`border-none shadow-none hover:bg-slate-50 ${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : ''}`}>
+              <SelectValue placeholder="Select witness">
+                {witnessName && <span className="text-sm">{witnessName}</span>}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {members.map((member, index) => (
@@ -402,34 +383,34 @@ export const createColumns = (
           }
         };
 
-        // Get color based on state
-        const getStateColor = (state: string) => {
+        // Get badge style based on state
+        const getStateBadge = (state: string) => {
           switch (state) {
             case "given":
-              return "bg-green-100 border-green-300 text-green-800 hover:bg-green-200";
+              return "bg-green-50 text-green-700 border-green-200";
             case "refused":
-              return "bg-orange-100 border-orange-300 text-orange-800 hover:bg-orange-200";
+              return "bg-orange-50 text-orange-700 border-orange-200";
             case "missed":
-              return "bg-red-100 border-red-300 text-red-800 hover:bg-red-200";
+              return "bg-red-50 text-red-700 border-red-200";
             case "scheduled":
-              return "bg-blue-100 border-blue-300 text-blue-800 hover:bg-blue-200";
+              return "bg-blue-50 text-blue-700 border-blue-200";
             default:
-              return "bg-gray-100 border-gray-300 text-gray-800 hover:bg-gray-200";
+              return "bg-slate-50 text-slate-700 border-slate-200";
           }
         };
 
-        const getStateDot = (state: string) => {
+        const getStateText = (state: string) => {
           switch (state) {
             case "given":
-              return "bg-green-500";
+              return "Given";
             case "refused":
-              return "bg-orange-500";
+              return "Refused";
             case "missed":
-              return "bg-red-500";
+              return "Missed";
             case "scheduled":
-              return "bg-blue-500";
+              return "Scheduled";
             default:
-              return "bg-gray-500";
+              return state;
           }
         };
 
@@ -439,30 +420,26 @@ export const createColumns = (
             value={currentState}
             disabled={isRoundCompleted}
           >
-            <SelectTrigger className={`w-[180px] ${getStateColor(currentState)} ${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : ''}`}>
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${getStateDot(currentState)}`} />
-                <SelectValue placeholder="Select state" />
-              </div>
+            <SelectTrigger className={`border-none shadow-none hover:bg-slate-50 h-8 ${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : ''}`}>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${getStateBadge(currentState)}`}>
+                {getStateText(currentState)}
+              </span>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="given">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <span>Given</span>
-                </div>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                  Given
+                </span>
               </SelectItem>
               <SelectItem value="refused">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-orange-500" />
-                  <span>Refused</span>
-                </div>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
+                  Refused
+                </span>
               </SelectItem>
               <SelectItem value="missed">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-red-500" />
-                  <span>Missed</span>
-                </div>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+                  Missed
+                </span>
               </SelectItem>
             </SelectContent>
           </Select>

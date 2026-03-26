@@ -1059,9 +1059,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
                             toast.error("Failed to prepare medications");
                           }
                         }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        size="sm"
+                        className="px-4"
                       >
-                        <CheckCircle className="w-4 h-4 mr-2" />
+                        <CheckCircle className="w-3 h-3 mr-1.5" />
                         Prepare All ({unpreparedMeds.length})
                       </Button>
                     )}
@@ -1069,6 +1070,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
                     {/* Mark All as Given Button */}
                     <Button
                       variant="default"
+                      size="sm"
+                      className="px-4 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200"
                       onClick={async () => {
                         // Check if all regular medications are prepared (supplements don't need to be prepared)
                         const allRegularPrepared = regularMeds.every(intake => intake.popped_out_at);
@@ -1120,9 +1123,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
                           toast.error("Failed to mark medications as given");
                         }
                       }}
-                      className="bg-green-600 hover:bg-green-700"
                     >
-                      <CheckCircle className="w-4 h-4 mr-2" />
+                      <CheckCircle className="w-3 h-3 mr-1.5" />
                       Mark All as Given ({allScheduledMeds.length})
                     </Button>
                   </>
@@ -1162,23 +1164,23 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           {selectedTime && (
             <div className="w-full">
               {medicationRoundStatus?.status === 'completed' ? (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
                     <div>
-                      <p className="font-semibold text-green-800">Medication Round Completed</p>
-                      <p className="text-sm text-green-700">Finished on {formatTimestampToUKDateTime(medicationRoundStatus.completed_at)}</p>
+                      <p className="font-semibold text-sm">Medication Round Completed</p>
+                      <p className="text-xs text-muted-foreground">Finished on {formatTimestampToUKDateTime(medicationRoundStatus.completed_at)}</p>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-blue-800">Complete Medication Round</p>
-                    <p className="text-sm text-blue-700">Ensure all medications are administered before completing.</p>
+                    <p className="font-semibold text-sm">Complete Medication Round</p>
+                    <p className="text-xs text-muted-foreground">Ensure all medications are administered before completing.</p>
                   </div>
-                  <Button onClick={handleCompleteMedicationRound} className="bg-blue-600 hover:bg-blue-700">
-                    <CheckCircle className="w-4 h-4 mr-2" />Complete Round
+                  <Button onClick={handleCompleteMedicationRound} size="sm" className="px-4 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">
+                    <CheckCircle className="w-3 h-3 mr-1.5" />Complete Round
                   </Button>
                 </div>
               )}
@@ -1233,23 +1235,23 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         {/* ── Discontinued ── */}
         <TabsContent value="discontinued" className="flex flex-col gap-4 mt-4">
           {discontinuedMedications.length === 0 && completedCancelledMedications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center border rounded-lg">
+            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center border border-slate-200 rounded-lg bg-slate-50">
               <p className="text-sm font-medium text-muted-foreground">No discontinued medications</p>
               <p className="text-xs text-muted-foreground">Medications that are discontinued or cancelled will appear here.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4">
               {discontinuedMedications.length > 0 && (
-                <div className="flex flex-col gap-4 p-6 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="font-semibold text-red-800">
+                <div className="flex flex-col gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <p className="font-semibold text-sm">
                     Discontinued ({discontinuedMedications.length})
                   </p>
                   <DataTable columns={allActiveMedicationColumns} data={discontinuedMedications} />
                 </div>
               )}
               {completedCancelledMedications.length > 0 && (
-                <div className="flex flex-col gap-4 p-6 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="font-semibold text-amber-800">
+                <div className="flex flex-col gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <p className="font-semibold text-sm">
                     Completed / Cancelled ({completedCancelledMedications.length})
                   </p>
                   <DataTable columns={allActiveMedicationColumns} data={completedCancelledMedications} />
