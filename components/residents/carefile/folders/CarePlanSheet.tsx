@@ -750,12 +750,12 @@ export default function CarePlanSheetContent({
 
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">
-                      Comments
+                      Evaluation Notes
                     </label>
                     <Textarea
                       value={evaluationComments}
                       onChange={(e) => setEvaluationComments(e.target.value)}
-                      placeholder="Enter evaluation comments..."
+                      placeholder="Enter evaluation notes..."
                       className="min-h-[100px]"
                     />
                   </div>
@@ -845,7 +845,7 @@ export default function CarePlanSheetContent({
                       </div>
 
                       <div className="space-y-1 w-full">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 text-center">Comments</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 text-center">Evaluation Notes</p>
                         <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed w-full">
                           {evaluation.progress_notes || evaluation.comments}
                         </p>

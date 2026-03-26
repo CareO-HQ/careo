@@ -125,6 +125,10 @@ export default function FallRiskAssessmentDialog({
 
     const getSectionScore = (field: keyof typeof FALL_RISK_OPTIONS, label?: string) => {
         if (!label) return 0;
+        // Legacy support for grouped medical conditions
+        if (field === 'medicalConditions' && label === "Neurological/Postural/Cardiac/MuscularSkeletal/Fracture") {
+            return 2;
+        }
         const options = FALL_RISK_OPTIONS[field];
         const option = options.find(o => o.label === label);
         return option ? option.value : 0;

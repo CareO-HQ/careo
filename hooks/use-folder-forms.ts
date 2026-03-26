@@ -49,6 +49,7 @@ export function useFolderForms({
   const [allCapacityConsentsForms, setAllCapacityConsentsForms] = useState<any[] | undefined>(undefined);
   const [allNightObservationForms, setAllNightObservationForms] = useState<any[] | undefined>(undefined);
   const [allGeneralRiskForms, setAllGeneralRiskForms] = useState<any[] | undefined>(undefined);
+  const [allPersonalProfileForms, setAllPersonalProfileForms] = useState<any[] | undefined>(undefined);
 
   const [activeCarePlanForms, setActiveCarePlanForms] = useState<any[] | undefined>(undefined);
   const [archivedCarePlans, setArchivedCarePlans] = useState<any[] | undefined>(undefined);
@@ -406,6 +407,16 @@ export function useFolderForms({
         .then(({ data }) => setAllGeneralRiskForms(data || [])));
     }
 
+    // Personal Profile
+    if (folderFormKeys?.includes("v2-personal-profile")) {
+      promises.push(supabase
+        .from('personal_profiles')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllPersonalProfileForms(data || [])));
+    }
+
     // Care Plans
     if (includeCarePlans && folderKey) {
       // Fetch is handled in separate fetchAllCarePlans effect
@@ -732,6 +743,16 @@ export function useFolderForms({
         .then(({ data }) => setAllGeneralRiskForms(data || [])));
     }
 
+    // Personal Profile
+    if (folderFormKeys?.includes("v2-personal-profile")) {
+      promises.push(supabase
+        .from('personal_profiles')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllPersonalProfileForms(data || [])));
+    }
+
     Promise.all(promises).finally(() => setIsLoading(false));
   }, [residentId]);
 
@@ -794,6 +815,13 @@ export function useFolderForms({
   const allCapacityConsentsFormsMapped = useMemo(() => mapToConvexLike(allCapacityConsentsForms), [allCapacityConsentsForms]);
   const allNightObservationFormsMapped = useMemo(() => mapToConvexLike(allNightObservationForms), [allNightObservationForms]);
   const allGeneralRiskFormsMapped = useMemo(() => mapToConvexLike(allGeneralRiskForms), [allGeneralRiskForms]);
+  const allPersonalProfileFormsMapped = useMemo(() => mapToConvexLike(allPersonalProfileForms), [allPersonalProfileForms]);
+
+  const latestPersonalProfileForm = useMemo(() => 
+    allPersonalProfileFormsMapped && allPersonalProfileFormsMapped.length > 0 
+      ? allPersonalProfileFormsMapped[0] 
+      : undefined
+  , [allPersonalProfileFormsMapped]);
 
   const activeCarePlanFormsMapped = useMemo(() => mapToConvexLike(activeCarePlanForms), [activeCarePlanForms]);
   const archivedCarePlansMapped = useMemo(() => mapToConvexLike(archivedCarePlans), [archivedCarePlans]);
@@ -886,6 +914,7 @@ export function useFolderForms({
     processForms(allSpecimenLogFormsMapped, "v2-specimen-log", "Specimen Record Log");
     processForms(allCapacityConsentsFormsMapped, "v2-capacity-consent", "Capacity & Consent Assessment");
     processForms(allNightObservationFormsMapped, "v2-night-obs-consent", "Night Observation Consent");
+    processForms(allPersonalProfileFormsMapped, "v2-personal-profile", "Personal Profile");
 
     // Process Care Plans
     if (includeCarePlans) {
@@ -936,6 +965,7 @@ export function useFolderForms({
     allCapacityConsentsFormsMapped,
     allNightObservationFormsMapped,
     allGeneralRiskFormsMapped,
+    allPersonalProfileFormsMapped,
     filteredActiveCarePlansMapped,
     filteredArchivedCarePlansMapped,
     folderFormKeys
@@ -979,6 +1009,8 @@ export function useFolderForms({
     allCapacityConsentsForms: allCapacityConsentsFormsMapped,
     allNightObservationForms: allNightObservationFormsMapped,
     allGeneralRiskForms: allGeneralRiskFormsMapped,
+    allPersonalProfileForms: allPersonalProfileFormsMapped,
+    latestPersonalProfileForm: latestPersonalProfileForm,
     allBedRailsRiskAssessmentForms: allBedRailsRiskAssessmentFormsMapped,
     activeCarePlanForms: filteredActiveCarePlansMapped,
     latestCarePlanForm: filteredActiveCarePlansMapped && filteredActiveCarePlansMapped.length > 0 ? filteredActiveCarePlansMapped[0] : null,

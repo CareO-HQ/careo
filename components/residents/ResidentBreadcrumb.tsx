@@ -62,6 +62,9 @@ export default function ResidentBreadcrumb({
     case "daily-care":
       pathName = "Daily Care";
       break;
+    case "continence":
+      pathName = "Continence";
+      break;
     case "progress-notes":
       pathName = "Progress Notes";
       break;

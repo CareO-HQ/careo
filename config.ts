@@ -392,8 +392,7 @@ export const config = {
       description: "Social and life story information.",
       carePlan: true,
       forms: [
-        { type: "form", key: "v2-social-assessment", value: "Social Assessment", isComingSoon: true },
-        { type: "form", key: "v2-life-story", value: "Life Story Workbook", isComingSoon: true }
+        { type: "form", key: "v2-personal-profile", value: "Personal Profile" }
       ]
     },
     {
@@ -403,7 +402,7 @@ export const config = {
       description: "Medication assessments and plans.",
       carePlan: true,
       forms: [
-        { type: "form", key: "v2-abbey-pain", value: "Abbey Pain Tool", isComingSoon: true },
+        { type: "form", key: "v2-abbey-pain", value: "Abbey Pain Tool" },
         { type: "form", key: "pain-assessment-form", value: "Pain Assessment" }
       ]
     },
@@ -539,6 +538,24 @@ export const config = {
       forms: [
         { type: "form", key: "v2-assist-report", value: "Monthly Care Assistant Report", isComingSoon: true }
       ]
+    },
+    {
+      type: "folder",
+      key: "v2-progress-note",
+      value: "Progress Note",
+      description: "Daily progress notes and observations.",
+      carePlan: false,
+      forms: [
+        { type: "form", key: "progress-note-form", value: "Progress Notes" }
+      ]
+    },
+    {
+      type: "folder",
+      key: "v2-end-of-life",
+      value: "End of Life / Death",
+      description: "End of life care planning and death certification.",
+      carePlan: true,
+      forms: []
     }
   ]
 };

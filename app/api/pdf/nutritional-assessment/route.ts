@@ -178,30 +178,28 @@ function generateNutritionalAssessmentHTML(data: any): string {
             <div class="field-value">${Object.values(foodConsistency).filter(Boolean).length + Object.values(fluidConsistency).filter(Boolean).length} Selected</div>
           </div>
         </div>
+        
+        <h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 1.1rem; color: #111827;">Clinical Involvement</h3>
+        <div class="grid grid-cols-2">
+          <div class="info-box" style="margin-bottom: 0;">
+            <h3 style="margin-top: 0;">SALT Involvement</h3>
+            <p style="margin: 4px 0;"><strong>Status:</strong> ${details.hasSaltInvolvement ? 'Active' : 'None'}</p>
+            ${details.saltTherapistName ? `<p style="margin: 4px 0;"><strong>Therapist:</strong> ${details.saltTherapistName}</p>` : ""}
+            ${details.saltContactDetails ? `<p style="margin: 4px 0;"><strong>Contact:</strong> ${details.saltContactDetails}</p>` : ""}
+          </div>
+          <div class="info-box" style="margin-bottom: 0;">
+            <h3 style="margin-top: 0;">Dietitian Involvement</h3>
+            <p style="margin: 4px 0;"><strong>Status:</strong> ${details.hasDietitianInvolvement ? 'Active' : 'None'}</p>
+            ${details.dietitianName ? `<p style="margin: 4px 0;"><strong>Dietitian:</strong> ${details.dietitianName}</p>` : ""}
+            ${details.dietitianContactDetails ? `<p style="margin: 4px 0;"><strong>Contact:</strong> ${details.dietitianContactDetails}</p>` : ""}
+          </div>
+        </div>
       </div>
 
       <div class="section">
         <h2>Nutritional Risk (MUST)</h2>
         <div class="must-score">
           MUST Score: ${data.must_score || data.mustScore || "Not specified"}
-        </div>
-      </div>
-
-      <div class="section">
-        <h2>Clinical Involvement</h2>
-        <div class="grid grid-cols-2">
-          <div class="info-box">
-            <h3>SALT Involvement</h3>
-            <p><strong>Status:</strong> ${details.hasSaltInvolvement ? 'Active' : 'None'}</p>
-            ${details.saltTherapistName ? `<p><strong>Therapist:</strong> ${details.saltTherapistName}</p>` : ""}
-            ${details.saltContactDetails ? `<p><strong>Contact:</strong> ${details.saltContactDetails}</p>` : ""}
-          </div>
-          <div class="info-box">
-            <h3>Dietitian Involvement</h3>
-            <p><strong>Status:</strong> ${details.hasDietitianInvolvement ? 'Active' : 'None'}</p>
-            ${details.dietitianName ? `<p><strong>Dietitian:</strong> ${details.dietitianName}</p>` : ""}
-            ${details.dietitianContactDetails ? `<p><strong>Contact:</strong> ${details.dietitianContactDetails}</p>` : ""}
-          </div>
         </div>
       </div>
 

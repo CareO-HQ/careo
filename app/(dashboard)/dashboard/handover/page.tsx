@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { Resident } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getColumns } from "./columns";
-import { DataTable } from "./data-table";
+import { HandoverSheetView } from "./handover-sheet-view";
 import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
 import { getAge } from "@/lib/utils";
@@ -33,7 +32,8 @@ import { CalendarIcon, FileText, MessageSquare, Users } from "lucide-react";
 import { getCurrentShift } from "@/lib/config/shift-config";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
-import { getUKTodayDate } from "@/lib/date-utils";
+import { getUKTodayDate, formatTimestampToUKTime } from "@/lib/date-utils";
+import { fromZonedTime } from "date-fns-tz";
 
 export default function HandoverPage() {
   const router = useRouter();
@@ -47,6 +47,9 @@ export default function HandoverPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isSaving, setIsSaving] = useState(false);
   const [commentsSummary, setCommentsSummary] = useState<{ total: number; withComments: number; withoutComments: number } | null>(null);
+  const [inCharge, setInCharge] = useState("");
+  const [hospital, setHospital] = useState("");
+  const [vacant, setVacant] = useState("");
 
   const fetchResidents = useCallback(async () => {
     try {
@@ -90,7 +93,7 @@ export default function HandoverPage() {
   const loadCommentsSummary = async () => {
     if (!activeTeamId || !residents || !supabase) return;
 
-    const dateString = selectedDate.toISOString().split('T')[0];
+    const dateString = format(selectedDate, 'yyyy-MM-dd');
 
     try {
       const { data: commentsData, error } = await supabase
@@ -134,7 +137,7 @@ export default function HandoverPage() {
 
     setIsSaving(true);
     try {
-      const dateString = selectedDate.toISOString().split('T')[0];
+      const dateString = format(selectedDate, 'yyyy-MM-dd');
 
       // Check if handover already exists for this date/shift
       const { data: existingHandover } = await supabase
@@ -164,17 +167,50 @@ export default function HandoverPage() {
       toast.info("Finalizing comments...");
       await new Promise(resolve => setTimeout(resolve, 2500));
 
+      // Define shift boundaries in UK time and convert to UTC for Supabase queries
+      const getShiftBoundaries = (date: Date, shift: "day" | "night") => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        let startHour, endHour;
+
+        if (shift === "day") {
+          startHour = 8; // 8 AM
+          endHour = 20; // 8 PM
+        } else {
+          startHour = 20; // 8 PM
+          endHour = 8; // 8 AM next day
+        }
+
+        const startDateTimeStr = `${dateStr}T${String(startHour).padStart(2, '0')}:00:00`;
+        let endDateTimeStr = `${dateStr}T${String(endHour).padStart(2, '0')}:00:00`;
+
+        // If night shift, end date is next day
+        if (shift === "night" && endHour < startHour) {
+          const nextDay = new Date(date);
+          nextDay.setDate(nextDay.getDate() + 1);
+          endDateTimeStr = `${format(nextDay, 'yyyy-MM-dd')}T${String(endHour).padStart(2, '0')}:00:00`;
+        }
+
+        // Convert to UTC
+        const shiftStartUTC = fromZonedTime(startDateTimeStr, 'Europe/London');
+        const shiftEndUTC = fromZonedTime(endDateTimeStr, 'Europe/London');
+
+        return { shiftStartUTC, shiftEndUTC };
+      };
+
+      const { shiftStartUTC, shiftEndUTC } = getShiftBoundaries(selectedDate, selectedShift);
+
       // Fetch handover data for each resident
       const residentHandoversPromises = residents.map(async (resident) => {
-        const today = getUKTodayDate();
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
         const fluidTypes = ["Water", "Tea", "Coffee", "Juice", "Milk"];
 
-        // Fetch food/fluid logs for today
+        // Fetch food/fluid logs for selected date
         const { data: logs } = await supabase
           .from("food_fluid_logs")
           .select("*")
           .eq("resident_id", resident.id)
-          .eq("date", today)
+          .gte("timestamp", shiftStartUTC.toISOString())
+          .lt("timestamp", shiftEndUTC.toISOString())
           .eq("is_archived", false)
           .order("timestamp", { ascending: false });
 
@@ -192,31 +228,59 @@ export default function HandoverPage() {
           fluidTypes.includes(log.type_of_food_drink) || (log.fluid_consumed_ml && log.fluid_consumed_ml > 0)
         );
 
-
         const totalFluid = fluidLogs.reduce((sum, log) => sum + (log.fluid_consumed_ml || 0), 0);
 
-        // Fetch incidents for today
+        // Fetch incidents for selected date
         const { data: incidents } = await supabase
           .from("incidents")
           .select("*")
           .eq("resident_id", resident.id)
-          .eq("date", today)
-          .order("time", { ascending: false });
+          .gte("timestamp", shiftStartUTC.toISOString())
+          .lt("timestamp", shiftEndUTC.toISOString())
+          .order("timestamp", { ascending: false });
 
-        // Fetch hospital transfers for today
+        // Fetch hospital transfers for selected date
         const { data: transfers } = await supabase
           .from("hospital_transfer_logs")
           .select("*")
           .eq("resident_id", resident.id)
-          .eq("date", today);
+          .gte("timestamp", shiftStartUTC.toISOString())
+          .lt("timestamp", shiftEndUTC.toISOString());
+
+        // Fetch medication status for the shift
+        const { data: medicationIntakes } = await supabase
+          .from("medication_intakes")
+          .select("status, scheduled_time, medication:medication_id (name)")
+          .eq("resident_id", resident.id)
+          .gte("scheduled_time", shiftStartUTC.toISOString())
+          .lt("scheduled_time", shiftEndUTC.toISOString())
+          .order("scheduled_time", { ascending: true });
+
+        let medStatus: "all_administered" | "missed" | "pending" = "all_administered";
+        let nextMedName: string | undefined = undefined;
+        let nextMedTime: string | undefined = undefined;
+
+        if (medicationIntakes && medicationIntakes.length > 0) {
+          const missedIntakes = medicationIntakes.filter(i => i.status === 'missed' || i.status === 'refused');
+          const pendingIntakes = medicationIntakes.filter(i => i.status === 'scheduled' || i.status === 'pending');
+
+          if (missedIntakes.length > 0) {
+            medStatus = "missed";
+            nextMedTime = formatTimestampToUKTime(missedIntakes[0].scheduled_time);
+            nextMedName = (missedIntakes[0].medication as any)?.name;
+          } else if (pendingIntakes.length > 0) {
+            medStatus = "pending";
+            nextMedTime = formatTimestampToUKTime(pendingIntakes[0].scheduled_time);
+            nextMedName = (pendingIntakes[0].medication as any)?.name;
+          }
+        }
 
         // Get comments from database
         const { data: commentData } = await supabase
           .from("handover_comments")
           .select("*")
-          .eq("team_id", activeTeamId)
           .eq("resident_id", resident.id)
-          .eq("date", dateString)
+          .eq("date", dateStr)
           .eq("shift", selectedShift)
           .maybeSingle();
 
@@ -228,34 +292,12 @@ export default function HandoverPage() {
           roomNumber: resident.room_number,
           age: getAge(resident.date_of_birth),
           foodIntakeCount: foodLogs.length,
-          foodIntakeLogs: foodLogs.map(log => ({
-            id: log.id.toString(),
-            typeOfFoodDrink: log.type_of_food_drink,
-            amountEaten: log.amount_eaten,
-            section: log.section,
-            timestamp: new Date(log.timestamp).getTime(),
-          })),
           totalFluid: totalFluid,
-          fluidLogs: fluidLogs.map(log => ({
-            id: log.id.toString(),
-            typeOfFoodDrink: log.type_of_food_drink,
-            fluidConsumedMl: log.fluid_consumed_ml,
-            section: log.section,
-            timestamp: new Date(log.timestamp).getTime(),
-          })),
           incidentCount: incidents?.length || 0,
-          incidents: (incidents || []).map(inc => ({
-            id: inc.id.toString(),
-            type: inc.incident_types || [],
-            level: inc.incident_level,
-            time: inc.time,
-          })),
           hospitalTransferCount: transfers?.length || 0,
-          hospitalTransfers: (transfers || []).map(transfer => ({
-            id: transfer.id.toString(),
-            hospitalName: transfer.hospital_name,
-            reason: transfer.reason,
-          })),
+          medicationStatus: medStatus,
+          nextMedicationName: nextMedName,
+          nextMedicationTime: nextMedTime,
           comments: comments,
         };
       });
@@ -269,6 +311,9 @@ export default function HandoverPage() {
         residentHandovers: residentHandovers,
         createdByName: currentUser.name || "Unknown",
         updatedByName: currentUser.name || "Unknown",
+        inCharge: inCharge,
+        hospital: hospital,
+        vacant: vacant,
       };
 
       // Insert handover report into Supabase
@@ -313,7 +358,7 @@ export default function HandoverPage() {
   return (
     <div className="flex flex-col min-h-full w-full bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between border-b px-6 py-4">
+      <div className="flex items-center justify-between border-b px-6 py-4 print:hidden">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-semibold">Handover Sheet</h1>
           <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm">
@@ -341,14 +386,7 @@ export default function HandoverPage() {
         </div>
       </div>
 
-      {/* Filters - matching careo-audit style */}
-      <div className="flex items-center gap-2 border-b px-6 py-3">
-        <Badge variant="outline" className="rounded-sm">
-          {isLoadingResidents ? "Loading..." : `${residents.length} Residents`}
-        </Badge>
-      </div>
-
-      {/* Table */}
+      {/* Handover Sheet View */}
       <div className="flex-1 overflow-auto">
         {isLoadingResidents ? (
           <div className="flex items-center justify-center h-full">
@@ -358,15 +396,23 @@ export default function HandoverPage() {
             </div>
           </div>
         ) : (
-          <DataTable<Resident, unknown>
-            columns={getColumns(
-              activeTeamId ?? undefined,
-              currentUser?.id,
-              currentUser?.name || "Unknown",
-              currentUser?.active_organization_id || undefined
-            )}
-            data={residents || []}
-            teamName={activeTeam?.name ?? ""}
+          <HandoverSheetView
+            residents={residents || []}
+            teamId={activeTeamId ?? ""}
+            teamName={activeTeam?.name ?? "CEDAR UNIT"}
+            currentUserId={currentUser?.id}
+            currentUserName={currentUser?.name || "Unknown"}
+            organizationId={currentUser?.active_organization_id || undefined}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            selectedShift={selectedShift}
+            setSelectedShift={setSelectedShift}
+            inCharge={inCharge}
+            setInCharge={setInCharge}
+            hospital={hospital}
+            setHospital={setHospital}
+            vacant={vacant}
+            setVacant={setVacant}
           />
         )}
       </div>

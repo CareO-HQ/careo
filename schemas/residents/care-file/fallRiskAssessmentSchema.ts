@@ -65,7 +65,11 @@ export const FALL_RISK_OPTIONS = {
         { label: "24-hour care", value: 1 },
     ],
     medicalConditions: [
-        { label: "Neurological/Postural/Cardiac/MuscularSkeletal/Fracture", value: 2 },
+        { label: "Neurological", value: 2 },
+        { label: "Postural", value: 2 },
+        { label: "Cardiac", value: 2 },
+        { label: "MuscularSkeletal", value: 2 },
+        { label: "Fracture", value: 2 },
         { label: "Listed conditions", value: 1 },
         { label: "No identified medical conditions", value: 0 },
     ],
@@ -134,6 +138,10 @@ export function calculateFallRiskScore(data: Partial<FallRiskAssessmentFormData>
     // Map function to find score for a given field and label
     const getScore = (field: keyof typeof FALL_RISK_OPTIONS, label?: string) => {
         if (!label) return 0;
+        // Legacy support for grouped medical conditions
+        if (field === 'medicalConditions' && label === "Neurological/Postural/Cardiac/MuscularSkeletal/Fracture") {
+            return 2;
+        }
         const options = FALL_RISK_OPTIONS[field];
         const option = options.find(o => o.label === label);
         return option ? option.value : 0;

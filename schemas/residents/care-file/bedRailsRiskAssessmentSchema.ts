@@ -92,9 +92,9 @@ export const bedRailsRiskAssessmentSchema = z.object({
   safetyChecklist: BedRailsSafetyChecklist,
   anySafetyCheckFailed: z.boolean(),
 
-  // Page 3: Extended Height Bed Rails (conditional)
-  hasExtendedHeightRails: z.boolean(),
-  extendedHeightChecks: ExtendedHeightBedRails.optional(),
+  // Page 3: Extended Height Bed Rails
+  hasExtendedHeightRails: z.boolean().default(true),
+  extendedHeightChecks: ExtendedHeightBedRails,
 
   // Page 3: General
   consentObtained: z.enum(["YES", "NO"]),
@@ -140,18 +140,6 @@ export const bedRailsRiskAssessmentSchema = z.object({
   {
     message: "Safety checklist mismatch",
     path: ["anySafetyCheckFailed"]
-  }
-).refine(
-  (data) => {
-    // If extended height rails are selected, extended checks must be provided
-    if (data.hasExtendedHeightRails) {
-      return data.extendedHeightChecks !== undefined;
-    }
-    return true;
-  },
-  {
-    message: "Extended height rail checks are required when extended rails are used",
-    path: ["extendedHeightChecks"]
   }
 );
 

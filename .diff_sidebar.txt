@@ -1,0 +1,28 @@
+diff --git a/components/navigation/AppSidebar.tsx b/components/navigation/AppSidebar.tsx
+index 7f28833..e2b2279 100644
+--- a/components/navigation/AppSidebar.tsx
++++ b/components/navigation/AppSidebar.tsx
+@@ -42,6 +42,7 @@ import {
+   canViewSidebarResidents,
+   canViewSidebarStaff,
+   canViewSidebarHome,
++  getAuditLabel,
+   canCreateResident
+ } from "@/lib/permissions";
+ 
+@@ -425,6 +426,15 @@ export function AppSidebar() {
+                 </SidebarMenuButton>
+               </SidebarMenuItem>
+ 
++              {/* Audit / CareO Audit */}
++              <SidebarMenuItem className="list-none">
++                <SidebarMenuButton asChild>
++                  <Link href="/dashboard/careo-audit">
++                    <ClipboardListIcon />
++                    <span>{getAuditLabel(effectiveRole) ?? "Audit"}</span>
++                  </Link>
++                </SidebarMenuButton>
++              </SidebarMenuItem>
+ 
+               {/* Manager Audit */}
+               <SidebarMenuItem className="list-none">

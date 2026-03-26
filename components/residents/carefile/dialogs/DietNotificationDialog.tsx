@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { dietNotificationSchema } from "@/schemas/residents/care-file/dietNotificationSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -49,7 +50,7 @@ export default function DietNotificationDialog({
       roomNumber: initialData.assessment_data?.roomNumber || initialData.roomNumber || resident.room_number || "",
       completedBy: initialData.assessment_data?.completedBy || initialData.completed_by || profile?.name || "",
       printName: initialData.assessment_data?.printName || initialData.printName || profile?.name || "",
-      jobRole: initialData.assessment_data?.jobRole || initialData.jobRole || "",
+      jobRole: initialData.assessment_data?.jobRole || initialData.jobRole || profile?.role || "",
       signature: initialData.assessment_data?.signature || initialData.signature || "",
       dateCompleted: initialData.assessment_data?.dateCompleted || initialData.date_completed || initialData.dateCompleted || Date.now(),
       reviewDate: initialData.assessment_data?.reviewDate || initialData.review_date || initialData.reviewDate || Date.now() + 30 * 24 * 60 * 60 * 1000,
@@ -79,13 +80,15 @@ export default function DietNotificationDialog({
       // Kitchen review
       reviewedByCookChef: initialData.assessment_data?.reviewedByCookChef || initialData.kitchen_review?.reviewedByCookChef || "",
       reviewerPrintName: initialData.assessment_data?.reviewerPrintName || initialData.kitchen_review?.reviewerPrintName || "",
-      reviewerJobTitle: initialData.assessment_data?.reviewerJobTitle || initialData.kitchen_review?.reviewerJobTitle || ""
+      reviewerJobTitle: initialData.assessment_data?.reviewerJobTitle || initialData.kitchen_review?.reviewerJobTitle || "",
+      reviewerSignature: initialData.assessment_data?.reviewerSignature || initialData.kitchen_review?.reviewerSignature || "",
+      reviewerDate: initialData.assessment_data?.reviewerDate || initialData.kitchen_review?.reviewerDate || Date.now()
     } : {
       residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
       roomNumber: resident.room_number || "",
       completedBy: profile?.name || "",
       printName: profile?.name || "",
-      jobRole: "",
+      jobRole: profile?.role || "",
       signature: "",
       dateCompleted: Date.now(),
       reviewDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
@@ -111,9 +114,46 @@ export default function DietNotificationDialog({
       fluidConsistencyLevel0Thin: false,
       reviewedByCookChef: "",
       reviewerPrintName: "",
-      reviewerJobTitle: ""
+      reviewerJobTitle: "",
+      reviewerSignature: "",
+      reviewerDate: Date.now()
     }
   });
+
+  // Autofill completion details when profile loads
+  useEffect(() => {
+    if (profile) {
+      if (!form.getValues("completedBy")) {
+        form.setValue("completedBy", profile.name || "");
+      }
+      if (!form.getValues("printName")) {
+        form.setValue("printName", profile.name || "");
+      }
+      if (!form.getValues("jobRole")) {
+        form.setValue("jobRole", profile.role || "");
+      }
+    }
+  }, [profile, form]);
+
+  const renderInput = (field: any, props: any = {}) => viewOnly ? (
+    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[40px]">
+      {field.value || " "}
+    </div>
+  ) : <Input {...field} {...props} />;
+
+  const renderTextarea = (field: any, props: any = {}) => viewOnly ? (
+    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[40px]">
+      {field.value || " "}
+    </div>
+  ) : <Textarea {...field} {...props} />;
+
+  const renderDate = (field: any) => viewOnly ? (
+    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[40px]">
+      {field.value ? new Date(field.value).toLocaleDateString('en-GB') : " "}
+    </div>
+  ) : (
+    <Input type="date" value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''} onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value).getTime() : Date.now())} />
+  );
 
   const onSubmit = async (data: z.infer<typeof dietNotificationSchema>) => {
     try {
@@ -153,11 +193,15 @@ export default function DietNotificationDialog({
         kitchen_review: {
           reviewedByCookChef: data.reviewedByCookChef,
           reviewerPrintName: data.reviewerPrintName,
-          reviewerJobTitle: data.reviewerJobTitle
+          reviewerJobTitle: data.reviewerJobTitle,
+          reviewerSignature: data.reviewerSignature,
+          reviewerDate: data.reviewerDate
         },
         completed_by: data.completedBy,
         print_name: data.printName,
         job_role: data.jobRole,
+        signature: data.signature,
+        team_id: teamId,
         created_by: currentUserId
       };
 
@@ -210,12 +254,12 @@ export default function DietNotificationDialog({
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Administrative Information</h3>
               <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="residentName" render={({ field }) => (<FormItem><FormLabel>Resident Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="roomNumber" render={({ field }) => (<FormItem><FormLabel>Room Number *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="completedBy" render={({ field }) => (<FormItem><FormLabel>Completed By *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="printName" render={({ field }) => (<FormItem><FormLabel>Print Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel>Job Role *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="signature" render={({ field }) => (<FormItem><FormLabel>Signature *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="residentName" render={({ field }) => (<FormItem><FormLabel>Resident Name *</FormLabel><FormControl>{renderInput(field)}</FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="roomNumber" render={({ field }) => (<FormItem><FormLabel>Room Number *</FormLabel><FormControl>{renderInput(field)}</FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="completedBy" render={({ field }) => (<FormItem><FormLabel>Completed By *</FormLabel><FormControl>{renderInput(field)}</FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="printName" render={({ field }) => (<FormItem><FormLabel>Print Name *</FormLabel><FormControl>{renderInput(field)}</FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel>Job Role *</FormLabel><FormControl>{renderInput(field)}</FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="signature" render={({ field }) => (<FormItem><FormLabel>Signature *</FormLabel><FormControl>{renderInput(field)}</FormControl><FormMessage /></FormItem>)} />
               </div>
             </div>
 
@@ -223,8 +267,9 @@ export default function DietNotificationDialog({
 
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Dietary Preferences &amp; Risks</h3>
-              <FormField control={form.control} name="likesFavouriteFoods" render={({ field }) => (<FormItem><FormLabel>Likes / Favourite Foods</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="dislikes" render={({ field }) => (<FormItem><FormLabel>Dislikes</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="likesFavouriteFoods" render={({ field }) => (<FormItem><FormLabel>Likes / Favourite Foods</FormLabel><FormControl>{renderTextarea(field, { rows: 2 })}</FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="dislikes" render={({ field }) => (<FormItem><FormLabel>Dislikes</FormLabel><FormControl>{renderTextarea(field, { rows: 2 })}</FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="foodsToBeAvoided" render={({ field }) => (<FormItem><FormLabel>Foods to be avoided (eg due to medication, alcohol not allowed)</FormLabel><FormControl>{renderTextarea(field, { rows: 2 })}</FormControl><FormMessage /></FormItem>)} />
               <FormField control={form.control} name="chokingRiskAssessment" render={({ field }) => (
                 <FormItem className="space-y-3"><FormLabel>Choking Risk *</FormLabel><FormControl>
                   <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
@@ -249,8 +294,76 @@ export default function DietNotificationDialog({
                   </RadioGroup>
                 </FormControl><FormMessage /></FormItem>
               )} />
-              <FormField control={form.control} name="dietType" render={({ field }) => (<FormItem><FormLabel>Diet Type</FormLabel><FormControl><Input {...field} placeholder="e.g., Diabetic, Fortified" /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="foodAllergyOrIntolerance" render={({ field }) => (<FormItem><FormLabel>Food Allergy or Intolerance</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="dietType" render={({ field }) => (<FormItem><FormLabel>Diet Type</FormLabel><FormControl>{renderInput(field, { placeholder: "e.g., Diabetic, Fortified" })}</FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="foodAllergyOrIntolerance" render={({ field }) => (<FormItem><FormLabel>Food Allergy or Intolerance</FormLabel><FormControl>{renderTextarea(field, { rows: 2 })}</FormControl><FormMessage /></FormItem>)} />
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Food &amp; Fluid Consistency</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm text-muted-foreground border-b pb-1 mb-2">FOOD CONSISTENCY</h4>
+                  <FormField control={form.control} name="foodConsistencyLevel7Regular" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal text-sm">Level 7 Regular</FormLabel></FormItem>
+                  )} />
+                  <FormField control={form.control} name="foodConsistencyLevel7EasyChew" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal text-sm">Level 7 Easy Chew</FormLabel></FormItem>
+                  )} />
+                  <FormField control={form.control} name="foodConsistencyLevel6SoftBiteSized" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal text-sm">Level 6 Soft &amp; BiteSized</FormLabel></FormItem>
+                  )} />
+                  <FormField control={form.control} name="foodConsistencyLevel5MincedMoist" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal text-sm">Level 5 Minced &amp; Moist</FormLabel></FormItem>
+                  )} />
+                  <FormField control={form.control} name="foodConsistencyLevel4Pureed" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal text-sm">Level 4 Pureed</FormLabel></FormItem>
+                  )} />
+                  <FormField control={form.control} name="foodConsistencyLevel3Liquidised" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal text-sm">Level 3 Liquidised</FormLabel></FormItem>
+                  )} />
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm text-muted-foreground border-b pb-1 mb-2">FLUID CONSISTENCY</h4>
+                  <FormField control={form.control} name="fluidConsistencyLevel4ExtremelyThick" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal text-sm">Level 4 Extremely Thick</FormLabel></FormItem>
+                  )} />
+                  <FormField control={form.control} name="fluidConsistencyLevel3ModeratelyThick" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal text-sm">Level 3 Moderately Thick</FormLabel></FormItem>
+                  )} />
+                  <FormField control={form.control} name="fluidConsistencyLevel2MildlyThick" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal text-sm">Level 2 Mildly Thick</FormLabel></FormItem>
+                  )} />
+                  <FormField control={form.control} name="fluidConsistencyLevel1SlightlyThick" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal text-sm">Level 1 Slightly Thick</FormLabel></FormItem>
+                  )} />
+                  <FormField control={form.control} name="fluidConsistencyLevel0Thin" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal text-sm">Level 0 Thin</FormLabel></FormItem>
+                  )} />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Kitchen Review</h3>
+              <p className="text-sm text-muted-foreground">Reviewed by Cook/Chef and copy retained in Residents care file kitchen</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="reviewerPrintName" render={({ field }) => (<FormItem><FormLabel>Print Name</FormLabel><FormControl>{renderInput(field)}</FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="reviewerJobTitle" render={({ field }) => (<FormItem><FormLabel>Job Title</FormLabel><FormControl>{renderInput(field)}</FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="reviewerSignature" render={({ field }) => (<FormItem><FormLabel>Signature (optional)</FormLabel><FormControl>{renderInput(field)}</FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="reviewerDate" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date</FormLabel>
+                    <FormControl>
+                      {renderDate(field)}
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
             </div>
           </form>
         </fieldset>

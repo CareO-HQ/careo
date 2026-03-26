@@ -218,7 +218,7 @@ export function CarePlanEvaluations({ carePlanId, residentId }: CarePlanEvaluati
                     </div>
 
                     <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Progress Notes</label>
+                        <label className="text-xs font-medium text-muted-foreground">Evaluation Notes</label>
                         <Textarea
                             value={comments}
                             onChange={(e) => setComments(e.target.value)}

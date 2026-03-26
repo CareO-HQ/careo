@@ -30,13 +30,15 @@ import { nutritionalAssessmentSchema } from "@/schemas/residents/care-file/nutri
 import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Plus, Trash2, ClipboardList } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
+import { monthlyEvaluationSchema } from "@/schemas/residents/care-file/nutritionalAssessmentSchema";
 import { supabase } from "@/lib/supabase";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface NutritionalAssessmentDialogProps {
   teamId: string;
@@ -69,6 +71,78 @@ export default function NutritionalAssessmentDialog({
 }: NutritionalAssessmentDialogProps) {
   const [isLoading, startTransition] = useTransition();
   const [assessmentDatePopoverOpen, setAssessmentDatePopoverOpen] = useState(false);
+  const [showAddEvaluation, setShowAddEvaluation] = useState(false);
+  const [isSavingEval, setIsSavingEval] = useState(false);
+  const [newEvaluation, setNewEvaluation] = useState<Partial<z.infer<typeof monthlyEvaluationSchema>>>({});
+
+  const handleSaveEvaluation = async () => {
+    if (!initialData?.id) {
+      toast.error("Please save the nutritional assessment first.");
+      return;
+    }
+    
+    setIsSavingEval(true);
+    try {
+      const currentEvals = form.getValues("monthlyEvaluations") || [];
+      const updatedEvals = [...currentEvals, newEvaluation as z.infer<typeof monthlyEvaluationSchema>];
+      
+      const { error } = await supabase
+        .from("nutritional_assessments")
+        .update({ 
+           assessment_details: {
+               ...(initialData.assessment_details || {}),
+               monthlyEvaluations: updatedEvals
+           }
+        })
+        .eq("id", initialData.id);
+
+      if (error) throw error;
+      
+      form.setValue("monthlyEvaluations", updatedEvals, { shouldDirty: true });
+      if (initialData.assessment_details) {
+          initialData.assessment_details.monthlyEvaluations = updatedEvals;
+      } else {
+          initialData.assessment_details = { monthlyEvaluations: updatedEvals };
+      }
+      
+      toast.success("Evaluation added successfully");
+      setShowAddEvaluation(false);
+    } catch (error) {
+      console.error("Error saving evaluation:", error);
+      toast.error("Failed to save evaluation");
+    } finally {
+      setIsSavingEval(false);
+    }
+  };
+
+  const handleDeleteEvaluation = async (index: number) => {
+    if (!initialData?.id) return;
+    try {
+      const currentEvals = [...(form.getValues("monthlyEvaluations") || [])];
+      currentEvals.splice(index, 1);
+      
+      const { error } = await supabase
+        .from("nutritional_assessments")
+        .update({ 
+           assessment_details: {
+               ...(initialData.assessment_details || {}),
+               monthlyEvaluations: currentEvals
+           }
+        })
+        .eq("id", initialData.id);
+
+      if (error) throw error;
+      
+      form.setValue("monthlyEvaluations", currentEvals, { shouldDirty: true });
+      if (initialData.assessment_details) {
+          initialData.assessment_details.monthlyEvaluations = currentEvals;
+      }
+      toast.success("Evaluation deleted");
+    } catch (error) {
+      console.error("Error deleting evaluation:", error);
+      toast.error("Failed to delete evaluation");
+    }
+  };
 
   const form = useForm<z.infer<typeof nutritionalAssessmentSchema>>({
     resolver: zodResolver(nutritionalAssessmentSchema),
@@ -99,7 +173,8 @@ export default function NutritionalAssessmentDialog({
         completedBy: initialData.completed_by || initialData.completedBy || userName,
         jobRole: initialData.assessment_details?.jobRole || initialData.jobRole || "",
         signature: initialData.assessment_details?.signature || initialData.signature || userName,
-        assessmentDate: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now()
+        assessmentDate: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
+        monthlyEvaluations: initialData.assessment_details?.monthlyEvaluations || initialData.monthlyEvaluations || []
       }
       : {
         residentId,
@@ -126,12 +201,25 @@ export default function NutritionalAssessmentDialog({
         completedBy: userName,
         jobRole: "",
         signature: userName,
-        assessmentDate: Date.now()
+        assessmentDate: Date.now(),
+        monthlyEvaluations: []
       }
   });
 
   const hasSaltInvolvement = form.watch("hasSaltInvolvement");
   const hasDietitianInvolvement = form.watch("hasDietitianInvolvement");
+
+  const renderInput = (field: any, props: any = {}) => viewOnly ? (
+    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[40px]">
+      {field.value || " "}
+    </div>
+  ) : <Input {...field} {...props} />;
+
+  const renderTextarea = (field: any, props: any = {}) => viewOnly ? (
+    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[80px]">
+      {field.value || " "}
+    </div>
+  ) : <Textarea {...field} {...props} />;
 
   function onSubmit(values: z.infer<typeof nutritionalAssessmentSchema>) {
     startTransition(async () => {
@@ -151,7 +239,8 @@ export default function NutritionalAssessmentDialog({
           supplementsPrescribed: values.supplementsPrescribed,
           assistanceRequired: values.assistanceRequired,
           jobRole: values.jobRole,
-          signature: values.signature
+          signature: values.signature,
+          monthlyEvaluations: values.monthlyEvaluations || []
         };
 
         const payload = {
@@ -220,46 +309,41 @@ export default function NutritionalAssessmentDialog({
               <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
                 <h3 className="text-sm font-semibold">1. Resident Information</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="residentName" render={({ field }) => (<FormItem><FormLabel required>Resident Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="dateOfBirth" render={({ field }) => (<FormItem><FormLabel required>Date of Birth</FormLabel><FormControl><Input placeholder="DD/MM/YYYY" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="residentName" render={({ field }) => (<FormItem><FormLabel required>Resident Name</FormLabel><FormControl>{renderInput(field, { placeholder: "John Doe" })}</FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="dateOfBirth" render={({ field }) => (<FormItem><FormLabel required>Date of Birth</FormLabel><FormControl>{renderInput(field, { placeholder: "DD/MM/YYYY" })}</FormControl><FormMessage /></FormItem>)} />
                 </div>
                 <div className="grid grid-cols-3 gap-4">
-                  <FormField control={form.control} name="bedroomNumber" render={({ field }) => (<FormItem><FormLabel required>Bedroom Number</FormLabel><FormControl><Input placeholder="Room 101" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="height" render={({ field }) => (<FormItem><FormLabel required>Height</FormLabel><FormControl><Input placeholder="e.g., 170cm" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="weight" render={({ field }) => (<FormItem><FormLabel required>Weight</FormLabel><FormControl><Input placeholder="e.g., 70kg" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="bedroomNumber" render={({ field }) => (<FormItem><FormLabel required>Bedroom Number</FormLabel><FormControl>{renderInput(field, { placeholder: "Room 101" })}</FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="height" render={({ field }) => (<FormItem><FormLabel required>Height</FormLabel><FormControl>{renderInput(field, { placeholder: "e.g., 170cm" })}</FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="weight" render={({ field }) => (<FormItem><FormLabel required>Weight</FormLabel><FormControl>{renderInput(field, { placeholder: "e.g., 70kg" })}</FormControl><FormMessage /></FormItem>)} />
                 </div>
-                <FormField control={form.control} name="mustScore" render={({ field }) => (<FormItem><FormLabel required>Current MUST Score</FormLabel><FormControl><Input placeholder="Malnutrition Universal Screening Tool score" {...field} /></FormControl><FormDescription>Malnutrition Universal Screening Tool</FormDescription><FormMessage /></FormItem>)} />
-              </div>
-
-              {/* Section 2: Clinical Involvement */}
-              <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
-                <h3 className="text-sm font-semibold">2. Clinical Involvement</h3>
-                <FormField control={form.control} name="hasSaltInvolvement" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>Is there SALT (Speech and Language Therapy) involvement?</FormLabel></div></FormItem>)} />
+                <FormField control={form.control} name="mustScore" render={({ field }) => (<FormItem><FormLabel required>Current MUST Score</FormLabel><FormControl>{renderInput(field, { placeholder: "Malnutrition Universal Screening Tool score" })}</FormControl><FormDescription>Malnutrition Universal Screening Tool</FormDescription><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="hasSaltInvolvement" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0 mt-4"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>Is there SALT (Speech and Language Therapy) involvement?</FormLabel></div></FormItem>)} />
                 {hasSaltInvolvement && (
                   <div className="ml-6 space-y-4 border-l-2 border-muted-foreground/20 pl-4">
-                    <FormField control={form.control} name="saltTherapistName" render={({ field }) => (<FormItem><FormLabel>Name of Speech and Language Therapist</FormLabel><FormControl><Input placeholder="Therapist name" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="saltContactDetails" render={({ field }) => (<FormItem><FormLabel>Contact Details</FormLabel><FormControl><Input placeholder="Phone number or email" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="saltTherapistName" render={({ field }) => (<FormItem><FormLabel>Name of Speech and Language Therapist</FormLabel><FormControl>{renderInput(field, { placeholder: "Therapist name" })}</FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="saltContactDetails" render={({ field }) => (<FormItem><FormLabel>Contact Details</FormLabel><FormControl>{renderInput(field, { placeholder: "Phone number or email" })}</FormControl><FormMessage /></FormItem>)} />
                   </div>
                 )}
                 <FormField control={form.control} name="hasDietitianInvolvement" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>Is there Dietitian involvement?</FormLabel></div></FormItem>)} />
                 {hasDietitianInvolvement && (
                   <div className="ml-6 space-y-4 border-l-2 border-muted-foreground/20 pl-4">
-                    <FormField control={form.control} name="dietitianName" render={({ field }) => (<FormItem><FormLabel>Name of Dietitian</FormLabel><FormControl><Input placeholder="Dietitian name" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="dietitianContactDetails" render={({ field }) => (<FormItem><FormLabel>Contact Details</FormLabel><FormControl><Input placeholder="Phone number or email" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="dietitianName" render={({ field }) => (<FormItem><FormLabel>Name of Dietitian</FormLabel><FormControl>{renderInput(field, { placeholder: "Dietitian name" })}</FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="dietitianContactDetails" render={({ field }) => (<FormItem><FormLabel>Contact Details</FormLabel><FormControl>{renderInput(field, { placeholder: "Phone number or email" })}</FormControl><FormMessage /></FormItem>)} />
                   </div>
                 )}
               </div>
 
-              {/* Section 3: Dietary Requirements */}
+              {/* Section 2: Dietary Requirements */}
               <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
-                <h3 className="text-sm font-semibold">3. Dietary Requirements & Supplements</h3>
-                <FormField control={form.control} name="foodFortificationRequired" render={({ field }) => (<FormItem><FormLabel>Does food require fortification?</FormLabel><FormControl><Textarea placeholder="Describe fortification requirements..." {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="supplementsPrescribed" render={({ field }) => (<FormItem><FormLabel>Are supplements prescribed?</FormLabel><FormControl><Textarea placeholder="List all prescribed supplements..." {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
+                <h3 className="text-sm font-semibold">2. Dietary Requirements & Supplements</h3>
+                <FormField control={form.control} name="foodFortificationRequired" render={({ field }) => (<FormItem><FormLabel>Does food require fortification?</FormLabel><FormControl>{renderTextarea(field, { placeholder: "Describe fortification requirements...", rows: 3 })}</FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="supplementsPrescribed" render={({ field }) => (<FormItem><FormLabel>Are supplements prescribed?</FormLabel><FormControl>{renderTextarea(field, { placeholder: "List all prescribed supplements...", rows: 3 })}</FormControl><FormMessage /></FormItem>)} />
               </div>
 
-              {/* Section 4: IDDSI - Simplified checkbox groups */}
+              {/* Section 3: IDDSI - Simplified checkbox groups */}
               <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
-                <h3 className="text-sm font-semibold">4. IDDSI Consistency Levels</h3>
+                <h3 className="text-sm font-semibold">3. IDDSI Consistency Levels</h3>
                 <p className="text-xs text-muted-foreground">Food consistency levels (7: Easy Chew, 6: Soft, 5: Minced, 4: Pureed, 3: Liquidised)</p>
                 <div className="space-y-2 ml-2">
                   {["level7EasyChew", "level6SoftBiteSized", "level5MincedMoist", "level4Pureed", "level3Liquidised"].map((key) => (
@@ -274,15 +358,15 @@ export default function NutritionalAssessmentDialog({
                 </div>
               </div>
 
-              {/* Section 5: Assistance & Administration */}
+              {/* Section 4: Assistance & Administration */}
               <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
-                <h3 className="text-sm font-semibold">5. Assistance & Administration</h3>
-                <FormField control={form.control} name="assistanceRequired" render={({ field }) => (<FormItem><FormLabel required>Detail assistance required</FormLabel><FormControl><Textarea placeholder="Describe the assistance needed..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
+                <h3 className="text-sm font-semibold">4. Assistance & Administration</h3>
+                <FormField control={form.control} name="assistanceRequired" render={({ field }) => (<FormItem><FormLabel required>Detail assistance required</FormLabel><FormControl>{renderTextarea(field, { placeholder: "Describe the assistance needed...", rows: 4 })}</FormControl><FormMessage /></FormItem>)} />
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="completedBy" render={({ field }) => (<FormItem><FormLabel required>Completed By</FormLabel><FormControl><Input placeholder="Staff name" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel required>Job Role</FormLabel><FormControl><Input placeholder="e.g., Senior Care Assistant" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="completedBy" render={({ field }) => (<FormItem><FormLabel required>Completed By</FormLabel><FormControl>{renderInput(field, { placeholder: "Staff name" })}</FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="jobRole" render={({ field }) => (<FormItem><FormLabel required>Job Role</FormLabel><FormControl>{renderInput(field, { placeholder: "e.g., Senior Care Assistant" })}</FormControl><FormMessage /></FormItem>)} />
                 </div>
-                <FormField control={form.control} name="signature" render={({ field }) => (<FormItem><FormLabel required>Signature</FormLabel><FormControl><Input placeholder="Staff signature" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="signature" render={({ field }) => (<FormItem><FormLabel required>Signature</FormLabel><FormControl>{renderInput(field, { placeholder: "Staff signature" })}</FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="assessmentDate" render={({ field }) => (
                   <FormItem>
                     <FormLabel required>Assessment Date</FormLabel>
@@ -306,6 +390,130 @@ export default function NutritionalAssessmentDialog({
             </form>
           </fieldset>
         </Form>
+      </div>
+
+      {/* Monthly Evaluations Tab Section */}
+      <div className="px-4 pb-4 mt-8 border-t pt-6">
+        <Tabs defaultValue="evaluations" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="evaluations" className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4" />
+              Monthly Evaluations
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="evaluations" className="mt-0">
+            <div className="p-5 bg-card rounded-xl border shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-base font-semibold text-primary">Recorded Evaluations</h3>
+                  <p className="text-sm text-muted-foreground">Manage ongoing monthly nutritional reviews</p>
+                </div>
+                {initialData?.id && !showAddEvaluation && (
+                  <Button type="button" variant="default" size="sm" className="keep-interactive" onClick={() => {
+                      setShowAddEvaluation(true);
+                      setNewEvaluation({ date: Date.now(), id: Date.now().toString(), completedBy: userName });
+                  }}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Evaluation
+                  </Button>
+                )}
+                {!initialData?.id && (
+                  <span className="text-xs text-muted-foreground italic bg-muted/50 p-2 rounded">Save assessment first</span>
+                )}
+              </div>
+          
+          {/* List of Previous Evaluations */}
+          <div className="space-y-3">
+            {(form.watch("monthlyEvaluations") || []).map((evaluation: z.infer<typeof monthlyEvaluationSchema>, index: number) => (
+              <div key={evaluation.id} className="p-3 border rounded-md relative bg-background">
+                  <div className="flex justify-between items-center mb-2 border-b pb-2">
+                    <div className="font-semibold text-sm">Evaluation on {format(new Date(evaluation.date), "dd/MM/yyyy")} by {evaluation.completedBy}</div>
+                    <Button type="button" variant="ghost" size="sm" className="keep-interactive" onClick={() => handleDeleteEvaluation(index)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-sm text-muted-foreground mt-2">
+                    <div><span className="font-medium text-foreground">MUST Score Change:</span> <span className="capitalize">{evaluation.mustScoreChange || "N/A"}</span> {evaluation.mustScoreChangeNotes && ` - ${evaluation.mustScoreChangeNotes}`}</div>
+                    <div><span className="font-medium text-foreground">SALT Referral Req:</span> <span className="capitalize">{evaluation.saltReferralRequired || "N/A"}</span> {evaluation.saltReferralRequiredNotes && ` - ${evaluation.saltReferralRequiredNotes}`}</div>
+                    <div><span className="font-medium text-foreground">SALT Input Recv:</span> <span className="capitalize">{evaluation.saltInputReceived || "N/A"}</span> {evaluation.saltInputReceivedNotes && ` - ${evaluation.saltInputReceivedNotes}`}</div>
+                    <div><span className="font-medium text-foreground">Specialised Diet Change:</span> <span className="capitalize">{evaluation.specialisedDietChange || "N/A"}</span> {evaluation.specialisedDietChangeNotes && ` - ${evaluation.specialisedDietChangeNotes}`}</div>
+                    <div><span className="font-medium text-foreground">Food Consistency:</span> <span className="capitalize">{evaluation.foodConsistencyChange || "N/A"}</span> {evaluation.foodConsistencyChangeNotes && ` - ${evaluation.foodConsistencyChangeNotes}`}</div>
+                    <div><span className="font-medium text-foreground">Fluid Consistency:</span> <span className="capitalize">{evaluation.fluidConsistencyChange || "N/A"}</span> {evaluation.fluidConsistencyChangeNotes && ` - ${evaluation.fluidConsistencyChangeNotes}`}</div>
+                    <div><span className="font-medium text-foreground">Food Fortification:</span> <span className="capitalize">{evaluation.foodFortificationRequired || "N/A"}</span> {evaluation.foodFortificationRequiredNotes && ` - ${evaluation.foodFortificationRequiredNotes}`}</div>
+                    <div><span className="font-medium text-foreground">Supplements Prescribed:</span> <span className="capitalize">{evaluation.supplementsPrescribed || "N/A"}</span> {evaluation.supplementsPrescribedNotes && ` - ${evaluation.supplementsPrescribedNotes}`}</div>
+                    <div className="md:col-span-2"><span className="font-medium text-foreground">Assistance Required:</span> <span className="capitalize">{evaluation.assistanceRequired || "N/A"}</span> {evaluation.assistanceRequiredNotes && ` - ${evaluation.assistanceRequiredNotes}`}</div>
+                  </div>
+              </div>
+            ))}
+            {(form.watch("monthlyEvaluations") || []).length === 0 && !showAddEvaluation && (
+              <div className="text-sm text-muted-foreground italic text-center py-4">No monthly evaluations recorded.</div>
+            )}
+          </div>
+
+          {/* Add Evaluation Form inline */}
+          {showAddEvaluation && (
+            <div className="p-4 border rounded-md space-y-4 bg-background mt-4 overflow-x-auto shadow-sm">
+              <h4 className="font-medium text-sm border-b pb-2">New Monthly Evaluation</h4>
+              
+              <div className="space-y-4 min-w-[600px]">
+                <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-muted-foreground pb-2 border-b">
+                  <div className="col-span-5">CHANGE YES / NO Please state</div>
+                  <div className="col-span-1 text-center">Y</div>
+                  <div className="col-span-1 text-center">N</div>
+                  <div className="col-span-5">Please state (Notes)</div>
+                </div>
+
+                {[
+                  { key: "mustScoreChange", label: "1. Any change in MUST Score?" },
+                  { key: "saltReferralRequired", label: "2. SALT/ Dietician Referral Required?" },
+                  { key: "saltInputReceived", label: "3. SALT/ Dietician Input Received?" },
+                  { key: "specialisedDietChange", label: "4. Any change to specialised diet?" },
+                  { key: "foodConsistencyChange", label: "5. Any change in food consistency?" },
+                  { key: "fluidConsistencyChange", label: "6. Any change in fluid consistency?" },
+                  { key: "foodFortificationRequired", label: "7. Does food require fortification?" },
+                  { key: "supplementsPrescribed", label: "8. Have supplements been prescribed?" },
+                  { key: "assistanceRequired", label: "9. Is any assistance required with eating or drinking?" },
+                ].map((item: any) => (
+                  <div key={item.key} className="grid grid-cols-12 gap-2 items-center text-sm border-b pb-2 last:border-0 hover:bg-muted/30 transition-colors">
+                    <div className="col-span-5 pr-2">{item.label}</div>
+                    <div className="col-span-1 text-center flex justify-center">
+                      <Checkbox 
+                        className="keep-interactive"
+                        checked={newEvaluation[item.key as keyof typeof newEvaluation] === "yes"} 
+                        onCheckedChange={(c) => setNewEvaluation({...newEvaluation, [item.key]: c ? "yes" : ""})} 
+                      />
+                    </div>
+                    <div className="col-span-1 text-center flex justify-center">
+                      <Checkbox 
+                        className="keep-interactive"
+                        checked={newEvaluation[item.key as keyof typeof newEvaluation] === "no"} 
+                        onCheckedChange={(c) => setNewEvaluation({...newEvaluation, [item.key]: c ? "no" : ""})} 
+                      />
+                    </div>
+                    <div className="col-span-5">
+                      <Input 
+                        placeholder="Notes..." 
+                        value={(newEvaluation[`${item.key}Notes` as keyof typeof newEvaluation] as string) || ""}
+                        onChange={(e) => setNewEvaluation({...newEvaluation, [`${item.key}Notes`]: e.target.value})}
+                        className="h-8 text-xs bg-background keep-interactive"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button type="button" variant="outline" size="sm" className="keep-interactive" onClick={() => setShowAddEvaluation(false)} disabled={isSavingEval}>Cancel</Button>
+                <Button type="button" size="sm" className="keep-interactive" onClick={handleSaveEvaluation} disabled={isSavingEval}>
+                  {isSavingEval ? "Saving..." : "Save Evaluation"}
+                </Button>
+              </div>
+            </div>
+          )}
+              </div>
+          </TabsContent>
+        </Tabs>
       </div>
       {!isInline && !viewOnly && (
         <DialogFooter>

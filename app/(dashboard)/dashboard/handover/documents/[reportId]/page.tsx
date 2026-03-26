@@ -6,37 +6,8 @@ import { format } from "date-fns";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  ArrowLeft,
-  Sun,
-  Moon,
-  User,
-  Clock,
-  FileText,
-  Droplet,
-  Utensils,
-  AlertTriangle,
-  Hospital,
-  MessageSquare,
-  Printer,
-} from "lucide-react";
-import { handoverService } from "@/lib/handover-service";
-import { toast } from "sonner";
+import { ArrowLeft, Printer, AlertCircle, Building2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function HandoverReportDetailPage() {
   const router = useRouter();
@@ -65,8 +36,8 @@ export default function HandoverReportDetailPage() {
 
         if (data) {
           // Parse handover_data JSONB field
-          const handoverData = typeof data.handover_data === 'string' 
-            ? JSON.parse(data.handover_data) 
+          const handoverData = typeof data.handover_data === 'string'
+            ? JSON.parse(data.handover_data)
             : data.handover_data;
 
           setReport({
@@ -82,6 +53,9 @@ export default function HandoverReportDetailPage() {
             createdAt: new Date(data.created_at).getTime(),
             updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : null,
             updatedByName: handoverData?.updatedByName || null,
+            inCharge: handoverData?.inCharge || "",
+            hospital: handoverData?.hospital || "",
+            vacant: handoverData?.vacant || "",
           });
         } else {
           setReport(null);
@@ -140,314 +114,241 @@ export default function HandoverReportDetailPage() {
   };
 
   return (
-    <>
-      <style jsx global>{`
-        @media print {
-          body {
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-          }
-          @page {
-            margin: 1cm;
-          }
-        }
-      `}</style>
-      <div className="flex flex-col min-h-full w-full bg-background print:h-auto print:w-auto print:m-0">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b px-6 py-4 print:border-none">
+    <div className="flex flex-col h-full bg-white">
+      {/* Header Controls */}
+      <div className="border-b px-6 py-4 print:hidden bg-gray-50">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => router.push("/dashboard/handover/documents")}
-              className="h-8 w-8 print:hidden"
+              className="h-8 w-8"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-semibold">
-                  Handover Report - {format(new Date(report.date), "dd MMMM yyyy")}
-                </h1>
-                <Badge
-                  variant="secondary"
-                  className={
-                    isNightShift
-                      ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
-                      : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                  }
-                >
-                  {isNightShift ? (
-                    <Moon className="w-3 h-3 mr-1" />
-                  ) : (
-                    <Sun className="w-3 h-3 mr-1" />
-                  )}
-                  {isNightShift ? "Night" : "Day"} Shift
-                </Badge>
-              </div>
+              <h1 className="text-xl font-semibold">
+                Handover Report - {format(new Date(report.date), "dd MMMM yyyy")}
+              </h1>
               <p className="text-sm text-muted-foreground">
                 {report.teamName} • Created by {report.createdByName || "Unknown"}
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrint}
-            className="h-8 print:hidden"
-          >
-            <Printer className="h-4 w-4 mr-2" />
+          <Button onClick={handlePrint} size="sm" className="h-8">
+            <Printer className="w-3 h-3 mr-2" />
             Print
           </Button>
         </div>
+      </div>
 
-        {/* Report Info */}
-        <div className="border-b px-6 py-3 bg-muted/30">
-          <div className="flex items-center gap-6 text-sm">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Created:</span>
-              <span>{format(new Date(report.createdAt), "dd/MM/yyyy HH:mm")}</span>
-            </div>
-            {report.updatedAt && (
+      {/* Printable Handover Sheet */}
+      <div className="flex-1 overflow-auto print:overflow-visible">
+        <div className="max-w-[1400px] mx-auto bg-white print:max-w-full">
+          {/* Header Section */}
+          <div className="border-b border-gray-300 p-6 print:p-4">
+            <h1 className="text-2xl font-bold text-center mb-4 print:text-xl uppercase">
+              {report.teamName} HANDOVER SHEET
+            </h1>
+
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm max-w-4xl mx-auto">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Updated:</span>
-                <span>{format(new Date(report.updatedAt), "dd/MM/yyyy HH:mm")}</span>
-                {report.updatedByName && <span>by {report.updatedByName}</span>}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-6 print:overflow-visible">
-          <div className="max-w-6xl mx-auto space-y-6 border border-border/40 rounded-lg p-6 bg-background">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="p-4 bg-muted/30 rounded-lg">
-                <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
-                  <User className="h-4 w-4" />
-                  Residents
-                </div>
-                <div className="text-2xl font-bold">{report.residentHandovers?.length || 0}</div>
+                <span className="font-semibold min-w-[100px]">Date:</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 px-2">
+                  {format(new Date(report.date), "dd/MM/yyyy")}
+                </span>
               </div>
 
-              <div className="p-4 bg-muted/30 rounded-lg">
-                <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Incidents
-                </div>
-                <div className="text-2xl font-bold">
-                  {report.residentHandovers?.reduce((sum: number, r: any) => sum + r.incidentCount, 0) || 0}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold min-w-[100px]">In Charge:</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 px-2">
+                  {report.inCharge || "—"}
+                </span>
               </div>
 
-              <div className="p-4 bg-muted/30 rounded-lg">
-                <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
-                  <Hospital className="h-4 w-4" />
-                  Transfers
-                </div>
-                <div className="text-2xl font-bold">
-                  {report.residentHandovers?.reduce((sum: number, r: any) => sum + r.hospitalTransferCount, 0) || 0}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold min-w-[100px]">Hospital:</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 px-2">
+                  {report.hospital || "—"}
+                </span>
               </div>
 
-              <div className="p-4 bg-muted/30 rounded-lg">
-                <div className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-2">
-                  <Droplet className="h-4 w-4" />
-                  Total Fluids
-                </div>
-                <div className="text-2xl font-bold">
-                  {report.residentHandovers?.reduce((sum: number, r: any) => sum + r.totalFluid, 0) || 0} ml
+              <div className="flex items-center gap-2">
+                <span className="font-semibold min-w-[100px]">Vacant:</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 px-2">
+                  {report.vacant || "—"}
+                </span>
+              </div>
+
+              <div className="col-span-2 flex items-center gap-4 pt-2">
+                <span className="font-semibold">Shift:</span>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={report.shift === "day"}
+                      readOnly
+                      className="w-4 h-4"
+                    />
+                    <span>Day</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={report.shift === "night"}
+                      readOnly
+                      className="w-4 h-4"
+                    />
+                    <span>Night</span>
+                  </label>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Resident Details */}
-            <div>
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold">Resident Details</h2>
-                <p className="text-sm text-muted-foreground">
-                  Detailed handover information for each resident
-                </p>
+          {/* Table */}
+          <div className="border border-gray-300">
+            {/* Table Header */}
+            <div className="grid grid-cols-[10%_50%_40%] border-b border-gray-300 bg-gray-100">
+              <div className="border-r border-gray-300 p-3 font-bold text-center text-sm uppercase">
+                ROOM NO
               </div>
-              <div className="space-y-6">
-                {report.residentHandovers?.map((resident: any) => (
-                  <div key={resident.residentId} className="bg-muted/20 rounded-lg p-4 border border-border/40">
-                    {/* Resident Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h3 className="font-semibold text-lg">{resident.residentName}</h3>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                          {resident.roomNumber && <span>Room {resident.roomNumber}</span>}
-                          <span>Age {resident.age}</span>
-                        </div>
-                      </div>
+              <div className="border-r border-gray-300 p-3 font-bold text-sm uppercase">
+                RESIDENT DETAILS
+              </div>
+              <div className="p-3 font-bold text-sm uppercase">
+                {report.shift.toUpperCase()} COMMENTS
+              </div>
+            </div>
+
+            {/* Table Body */}
+            {report.residentHandovers?.map((resident: any) => {
+              const hasIncident = (resident.incidentCount || 0) > 0;
+              const hasHospitalTransfer = (resident.hospitalTransferCount || 0) > 0;
+              const foodIntakePercentage = Math.round((resident.foodIntakeCount / 3) * 100);
+
+              return (
+                <div key={resident.residentId} className="grid grid-cols-[10%_50%_40%] border-b border-gray-300 print:break-inside-avoid">
+                  {/* Column 1: Room Number */}
+                  <div className="border-r border-gray-300 p-4 flex items-center justify-center bg-gray-50">
+                    <div className="text-lg font-bold text-center">
+                      {resident.roomNumber || "—"}
+                    </div>
+                  </div>
+
+                  {/* Column 2: Resident Details */}
+                  <div className="border-r border-gray-300 p-4 space-y-3">
+                    {/* Resident Name */}
+                    <div className="font-bold text-base">
+                      {resident.residentName}
                     </div>
 
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                      <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
-                        <Utensils className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="text-xs text-muted-foreground">Food Intake</div>
-                          <div className="font-semibold">{resident.foodIntakeCount}</div>
-                        </div>
+                    {/* Auto-populated Data */}
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-600">Food Intake Today:</span>
+                        <span className={cn(
+                          "font-semibold",
+                          foodIntakePercentage >= 75 ? "text-green-600" :
+                          foodIntakePercentage >= 50 ? "text-amber-600" : "text-red-600"
+                        )}>
+                          {Math.min(foodIntakePercentage, 100)}%
+                        </span>
                       </div>
-                      <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
-                        <Droplet className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="text-xs text-muted-foreground">Fluids</div>
-                          <div className="font-semibold">{resident.totalFluid} ml</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-600">Fluid Intake:</span>
+                          <span className={cn(
+                            "font-semibold",
+                            resident.totalFluid >= 1500 ? "text-green-600" :
+                            resident.totalFluid >= 1000 ? "text-amber-600" : "text-red-600"
+                          )}>
+                            {resident.totalFluid} ml
+                          </span>
                         </div>
+                        {resident.medicationStatus && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-600">Medication:</span>
+                            <span className={cn(
+                              "font-semibold",
+                              resident.medicationStatus === "all_administered" ? "text-green-600" : 
+                              resident.medicationStatus === "missed" ? "text-red-600" : "text-amber-600"
+                            )}>
+                              {resident.medicationStatus === "all_administered"
+                                ? "All administered"
+                                : `${resident.medicationStatus === "missed" ? "Missed dose" : "Pending"} ${resident.nextMedicationName ? `- ${resident.nextMedicationName}` : ""} (${resident.nextMedicationTime || "--:--"})`}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
-                        <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="text-xs text-muted-foreground">Incidents</div>
-                          <div className="font-semibold">{resident.incidentCount}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
-                        <Hospital className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="text-xs text-muted-foreground">Transfers</div>
-                          <div className="font-semibold">{resident.hospitalTransferCount}</div>
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* Food Intake Logs */}
-                    {resident.foodIntakeLogs && resident.foodIntakeLogs.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                          <Utensils className="h-3 w-3" />
-                          Food Intake Logs
-                        </h4>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Time</TableHead>
-                              <TableHead>Type</TableHead>
-                              <TableHead>Amount</TableHead>
-                              <TableHead>Section</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {resident.foodIntakeLogs.map((log: any) => (
-                              <TableRow key={log.id}>
-                                <TableCell>{format(new Date(log.timestamp), "HH:mm")}</TableCell>
-                                <TableCell>{log.typeOfFoodDrink || "—"}</TableCell>
-                                <TableCell>{log.amountEaten || "—"}</TableCell>
-                                <TableCell>{log.section || "—"}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-
-                    {/* Fluid Logs */}
-                    {resident.fluidLogs && resident.fluidLogs.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                          <Droplet className="h-3 w-3" />
-                          Fluid Intake Logs
-                        </h4>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Time</TableHead>
-                              <TableHead>Type</TableHead>
-                              <TableHead>Amount (ml)</TableHead>
-                              <TableHead>Section</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {resident.fluidLogs.map((log: any) => (
-                              <TableRow key={log.id}>
-                                <TableCell>{format(new Date(log.timestamp), "HH:mm")}</TableCell>
-                                <TableCell>{log.typeOfFoodDrink || "—"}</TableCell>
-                                <TableCell>{log.fluidConsumedMl || 0} ml</TableCell>
-                                <TableCell>{log.section || "—"}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-
-                    {/* Incidents */}
-                    {resident.incidents && resident.incidents.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                          <AlertTriangle className="h-3 w-3" />
-                          Incidents
-                        </h4>
-                        <div className="space-y-2">
-                          {resident.incidents.map((incident: any) => (
-                            <div key={incident.id} className="rounded-lg p-3 bg-orange-50 dark:bg-orange-900/10">
-                              <div className="flex items-center gap-2 mb-1">
-                                {incident.type.map((type: string) => (
-                                  <Badge key={type} variant="outline" className="text-xs">
-                                    {type}
-                                  </Badge>
-                                ))}
-                              </div>
-                              {incident.level && (
-                                <div className="text-sm text-muted-foreground">Level: {incident.level}</div>
-                              )}
-                              {incident.time && (
-                                <div className="text-sm text-muted-foreground">Time: {incident.time}</div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Hospital Transfers */}
-                    {resident.hospitalTransfers && resident.hospitalTransfers.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                          <Hospital className="h-3 w-3" />
-                          Hospital Transfers
-                        </h4>
-                        <div className="space-y-2">
-                          {resident.hospitalTransfers.map((transfer: any) => (
-                            <div key={transfer.id} className="rounded-lg p-3 bg-blue-50 dark:bg-blue-900/10">
-                              {transfer.hospitalName && (
-                                <div className="font-medium">{transfer.hospitalName}</div>
-                              )}
-                              {transfer.reason && (
-                                <div className="text-sm text-muted-foreground mt-1">{transfer.reason}</div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Comments */}
-                    {resident.comments && (
-                      <div className="mb-2">
-                        <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                          <MessageSquare className="h-3 w-3" />
-                          Comments
-                        </h4>
-                        <div className="rounded-lg p-3 bg-muted/30">
-                          <p className="text-sm whitespace-pre-wrap">{resident.comments}</p>
-                        </div>
+                    {/* Indicators */}
+                    {(hasIncident || hasHospitalTransfer) && (
+                      <div className="flex gap-2 pt-2">
+                        {hasIncident && (
+                          <Badge variant="destructive" className="text-xs">
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            ⚠ Incident recorded
+                          </Badge>
+                        )}
+                        {hasHospitalTransfer && (
+                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
+                            <Building2 className="w-3 h-3 mr-1" />
+                            🏥 Hospital transfer
+                          </Badge>
+                        )}
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-            </div>
+
+                  {/* Column 3: Comments */}
+                  <div className="p-4 bg-white">
+                    <div className="text-sm whitespace-pre-wrap min-h-[100px]">
+                      {resident.comments || "—"}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
-    </>
+
+      {/* Print Styles */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4;
+            margin: 10mm;
+          }
+          body {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
+          .print\\:hidden {
+            display: none !important;
+          }
+          .print\\:overflow-visible {
+            overflow: visible !important;
+          }
+          .print\\:break-inside-avoid {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .print\\:p-4 {
+            padding: 1rem !important;
+          }
+          .print\\:text-xl {
+            font-size: 1.25rem !important;
+          }
+          .print\\:max-w-full {
+            max-width: 100% !important;
+          }
+          .border-gray-300 {
+            border-color: #d1d5db !important;
+          }
+        }
+      `}</style>
+    </div>
   );
 }
