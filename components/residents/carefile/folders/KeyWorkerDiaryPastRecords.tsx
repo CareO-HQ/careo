@@ -216,6 +216,7 @@ export function KeyWorkerDiaryPastRecords({ residentId, resident }: KeyWorkerDia
             // Entries
             filtered.forEach((entry, index) => {
                 const entryHeight = 35;
+                const startY = yPosition;
 
                 // Check if we need a new page
                 if (yPosition + entryHeight > pageHeight - 20) {
@@ -223,10 +224,7 @@ export function KeyWorkerDiaryPastRecords({ residentId, resident }: KeyWorkerDia
                     yPosition = 20;
                 }
 
-                // Entry box
-                doc.setDrawColor(0);
-                doc.setLineWidth(0.3);
-                doc.rect(14, yPosition, pageWidth - 28, entryHeight);
+                const boxStartY = yPosition;
 
                 // Entry number and date
                 doc.setFontSize(10);
@@ -267,7 +265,13 @@ export function KeyWorkerDiaryPastRecords({ residentId, resident }: KeyWorkerDia
                     doc.text("...", 16, yPosition + (maxLines * 4));
                 }
 
-                yPosition += entryHeight + 6;
+                // Entry box drawn after content
+                doc.setDrawColor(0);
+                doc.setLineWidth(0.3);
+                doc.rect(14, boxStartY, pageWidth - 28, entryHeight);
+
+                // Move to next entry position with minimal gap
+                yPosition = boxStartY + entryHeight + 3;
             });
 
             // Footer on last page
