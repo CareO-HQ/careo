@@ -254,18 +254,18 @@ export default function CreateMedicationForm({
   };
 
   return (
-    <div>
+    <div className="[&_label]:text-xs [&_label]:text-muted-foreground [&_input]:h-8 [&_.grid]:gap-3">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
           {step === 0 && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <h3 className="font-semibold text-lg mb-2">Select Medication Type</h3>
-                <p className="text-sm text-muted-foreground mb-4">
+                <h3 className="font-semibold text-base mb-1">Select Medication Type</h3>
+                <p className="text-xs text-muted-foreground mb-3">
                   Choose the type of medication you want to add
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -273,9 +273,9 @@ export default function CreateMedicationForm({
                     form.setValue("scheduleType", "Scheduled");
                     setStep(1);
                   }}
-                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  className="p-3 border rounded-lg hover:border-primary hover:bg-slate-50 transition-colors text-left"
                 >
-                  <div className="font-semibold mb-1">Scheduled</div>
+                  <div className="font-semibold text-sm mb-0.5">Scheduled</div>
                   <div className="text-xs text-muted-foreground">
                     Regular medications with set times
                   </div>
@@ -287,9 +287,9 @@ export default function CreateMedicationForm({
                     form.setValue("scheduleType", "PRN (As Needed)");
                     setStep(1);
                   }}
-                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  className="p-3 border rounded-lg hover:border-primary hover:bg-slate-50 transition-colors text-left"
                 >
-                  <div className="font-semibold mb-1">PRN</div>
+                  <div className="font-semibold text-sm mb-0.5">PRN</div>
                   <div className="text-xs text-muted-foreground">
                     As needed medications
                   </div>
@@ -301,9 +301,9 @@ export default function CreateMedicationForm({
                     form.setValue("scheduleType", "Topical");
                     setStep(1);
                   }}
-                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  className="p-3 border rounded-lg hover:border-primary hover:bg-slate-50 transition-colors text-left"
                 >
-                  <div className="font-semibold mb-1">Topical</div>
+                  <div className="font-semibold text-sm mb-0.5">Topical</div>
                   <div className="text-xs text-muted-foreground">
                     Creams, ointments, patches
                   </div>
@@ -315,9 +315,9 @@ export default function CreateMedicationForm({
                     form.setValue("scheduleType", "Supplement");
                     setStep(1);
                   }}
-                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  className="p-3 border rounded-lg hover:border-primary hover:bg-slate-50 transition-colors text-left"
                 >
-                  <div className="font-semibold mb-1">Supplement</div>
+                  <div className="font-semibold text-sm mb-0.5">Supplement</div>
                   <div className="text-xs text-muted-foreground">
                     Vitamins and supplements
                   </div>
@@ -347,7 +347,7 @@ export default function CreateMedicationForm({
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="strength"
@@ -363,7 +363,7 @@ export default function CreateMedicationForm({
                                 : "100"
                             }
                             {...field}
-                            className="pr-16"
+                            className="pr-20 h-8"
                           />
                           <FormField
                             control={form.control}
@@ -373,7 +373,7 @@ export default function CreateMedicationForm({
                                 onValueChange={unitField.onChange}
                                 defaultValue={unitField.value}
                               >
-                                <SelectTrigger className="absolute right-0 top-0 h-full w-18 border-l border-l-border bg-muted/50 rounded-l-none">
+                                <SelectTrigger className="absolute right-0 top-0 h-8 w-20 border-l border-l-border bg-muted/50 rounded-l-none text-xs">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -457,7 +457,7 @@ export default function CreateMedicationForm({
                   )}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="route"
@@ -734,7 +734,7 @@ export default function CreateMedicationForm({
                 />
               )}
               <div className="flex justify-end">
-                <Button type="button" onClick={handleFirstStep}>
+                <Button type="button" onClick={handleFirstStep} size="sm" className="px-6">
                   Continue
                 </Button>
               </div>
@@ -754,12 +754,13 @@ export default function CreateMedicationForm({
                   <div className="flex justify-between">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setStep(1)}
                     >
                       Back
                     </Button>
-                    <Button type="button" onClick={handleSecondStep}>
+                    <Button type="button" onClick={handleSecondStep} size="sm" className="px-6">
                       Continue
                     </Button>
                   </div>
@@ -799,7 +800,7 @@ export default function CreateMedicationForm({
                             <h4 className="mb-3 text-sm font-medium text-muted-foreground">
                               {timeGroup.name}
                             </h4>
-                            <div className="grid grid-cols-1 gap-3">
+                            <div className="grid grid-cols-2 gap-3">
                               {timeGroup.values.map((time) => (
                                 <FormField
                                   key={time}
@@ -987,7 +988,8 @@ export default function CreateMedicationForm({
                     <Button
                       type="button"
                       onClick={() => setStep(0)}
-                      variant="outline"
+                      variant="ghost"
+                      size="sm"
                     >
                       Back
                     </Button>
@@ -995,6 +997,8 @@ export default function CreateMedicationForm({
                       type="button"
                       onClick={handleSecondStep}
                       disabled={isLoading}
+                      size="sm"
+                      className="px-6"
                     >
                       Continue
                     </Button>
@@ -1080,7 +1084,8 @@ export default function CreateMedicationForm({
               <div className="flex justify-between">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setStep(2)}
                   disabled={isLoading}
                 >
@@ -1204,11 +1209,12 @@ export default function CreateMedicationForm({
                       setStep(2); // Go back to time selection
                     }
                   }}
-                  variant="outline"
+                  variant="ghost"
+                  size="sm"
                 >
                   Back
                 </Button>
-                <Button type="submit" disabled={isLoading}>
+                <Button type="submit" disabled={isLoading} size="sm" className="px-6">
                   {isLoading ? "Creating..." : "Create Medication"}
                 </Button>
               </div>
