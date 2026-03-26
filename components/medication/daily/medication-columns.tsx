@@ -271,7 +271,9 @@ export const createMedicationColumns = (
               const [applicationStatus, setApplicationStatus] = useState<"applied" | "refused" | "missed">("applied");
 
               const isTopical = medication.schedule_type === "Topical";
+              const isPRN = medication.schedule_type === "PRN (As Needed)";
               const useSimplifiedTopical = isTopical && useSimplifiedTopicalDialog;
+              const useSimplifiedDialog = isTopical || isPRN; // Use simplified form for both topical and PRN
 
               // Determine unit label and type based on frequency field (for PRN/Supplements) or dosage form
               const getUnitInfo = () => {
@@ -381,38 +383,31 @@ export const createMedicationColumns = (
                       Administrate
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className={useSimplifiedTopical ? "max-w-md" : ""}>
-                    <DialogHeader>
-                      <DialogTitle>
-                        {useSimplifiedTopical ? "Apply Topical Medication" : "Administrate Medication"}
+                  <DialogContent className={useSimplifiedDialog ? "max-w-md max-h-[90vh] overflow-y-auto" : ""}>
+                    <DialogHeader className={useSimplifiedDialog ? "space-y-1" : ""}>
+                      <DialogTitle className={useSimplifiedDialog ? "text-base" : ""}>
+                        {isTopical
+                          ? "Apply Topical Medication"
+                          : isPRN
+                          ? "Administrate PRN Medication"
+                          : "Administrate Medication"}
                       </DialogTitle>
-                      <DialogDescription>
-                        {useSimplifiedTopical
-                          ? `Record application of ${medication.name}`
+                      <DialogDescription className={useSimplifiedDialog ? "text-xs" : ""}>
+                        {isTopical || isPRN
+                          ? `Record administration of ${medication.name}`
                           : "Confirm administration of this medication"
                         }
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
-                      {!useSimplifiedTopical && (
+                    <div className={useSimplifiedDialog ? "space-y-3" : "space-y-4"}>
+                      {!useSimplifiedTopical && !isTopical && !isPRN && (
                         <>
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium">
-                              Medication Details
+                          {/* Compact medication info for regular medications */}
+                          <div className="rounded-lg bg-slate-50 border border-slate-200 p-2">
+                            <p className="font-semibold text-sm">{medication.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {medication.strength} {medication.strength_unit} · {medication.dosage_form}
                             </p>
-                            <div className="rounded-md border p-3 space-y-1">
-                              <p className="font-semibold">{medication.name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {medication.strength} {medication.strength_unit} -{" "}
-                                {medication.dosage_form}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                Route: {medication.route}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                Frequency: {medication.frequency}
-                              </p>
-                            </div>
                           </div>
 
                           <div className="space-y-2">
@@ -435,7 +430,7 @@ export const createMedicationColumns = (
 
                           <div className="space-y-2">
                             <Label htmlFor="witnessedBy">
-                              Witnessed by {isTopical ? "(Optional)" : <span className="text-red-500">*</span>}
+                              Witnessed by <span className="text-red-500">*</span>
                             </Label>
                             <Select
                               value={witnessedBy}
@@ -455,6 +450,72 @@ export const createMedicationColumns = (
                                 ))}
                               </SelectContent>
                             </Select>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Simplified Attio-style form for topical medications */}
+                      {!useSimplifiedTopical && isTopical && (
+                        <>
+                          {/* Compact medication info */}
+                          <div className="rounded-lg bg-slate-50 border border-slate-200 p-2">
+                            <p className="font-semibold text-sm">{medication.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {medication.strength} {medication.strength_unit} · {medication.dosage_form}
+                            </p>
+                          </div>
+
+                          {/* Two-column layout for topical fields */}
+                          <div className="grid grid-cols-2 gap-3">
+                            {/* Application sites badge */}
+                            {medication.body_regions && medication.body_regions.length > 0 && (
+                              <div className="flex flex-wrap gap-1 col-span-2">
+                                {medication.body_regions.slice(0, 3).map((regionId: string) => {
+                                  const region = BODY_REGIONS.find(r => r.region_id === regionId);
+                                  return (
+                                    <span
+                                      key={regionId}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200"
+                                    >
+                                      {region?.region_name || regionId}
+                                    </span>
+                                  );
+                                })}
+                                {medication.body_regions.length > 3 && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
+                                    +{medication.body_regions.length - 3} more
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Applied by - compact */}
+                            <div className="space-y-1 col-span-2">
+                              <Label className="text-xs text-muted-foreground">Applied by</Label>
+                              <div className="text-sm font-medium">{currentUser?.name || "N/A"}</div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Simplified Attio-style form for PRN medications */}
+                      {!useSimplifiedTopical && isPRN && (
+                        <>
+                          {/* Compact medication info */}
+                          <div className="rounded-lg bg-slate-50 border border-slate-200 p-2">
+                            <p className="font-semibold text-sm">{medication.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {medication.strength} {medication.strength_unit} · {medication.dosage_form}
+                            </p>
+                          </div>
+
+                          {/* Two-column layout for PRN fields */}
+                          <div className="grid grid-cols-2 gap-3">
+                            {/* Administered by - compact */}
+                            <div className="space-y-1 col-span-2">
+                              <Label className="text-xs text-muted-foreground">Administered by</Label>
+                              <div className="text-sm font-medium">{currentUser?.name || "N/A"}</div>
+                            </div>
                           </div>
                         </>
                       )}
@@ -537,38 +598,101 @@ export const createMedicationColumns = (
                             </Select>
                           </div>
                         </>
-                      ) : (
+                      ) : !useSimplifiedTopical && isTopical ? (
                         <>
-                          {/* Regular Medication: Show all fields */}
-                          <div className="space-y-2">
-                            <Label htmlFor="time">
-                              Time <span className="text-red-500">*</span>
-                            </Label>
-                            {isTopical && medication.times && medication.times.length > 0 ? (
+                          {/* Topical Medication: Two-column layout */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor="time" className="text-xs text-muted-foreground">
+                                Time <span className="text-red-500">*</span>
+                              </Label>
+                              {medication.times && medication.times.length > 0 ? (
+                                <Select
+                                  value={format(time, "HH:mm")}
+                                  onValueChange={(value) => {
+                                    const [hours, minutes] = value.split(":").map(Number);
+                                    const newTime = new Date();
+                                    newTime.setHours(hours || 0);
+                                    newTime.setMinutes(minutes || 0);
+                                    newTime.setSeconds(0);
+                                    newTime.setMilliseconds(0);
+                                    setTime(newTime);
+                                  }}
+                                >
+                                  <SelectTrigger id="time" className="h-8">
+                                    <SelectValue placeholder="Select time" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {medication.times.map((prescribedTime: string) => (
+                                      <SelectItem key={prescribedTime} value={prescribedTime}>
+                                        {prescribedTime}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Input
+                                  type="time"
+                                  id="time"
+                                  value={format(time, "HH:mm")}
+                                  onChange={(e) => {
+                                    const [hours, minutes] = e.target.value
+                                      .split(":")
+                                      .map(Number);
+                                    const newTime = new Date();
+                                    newTime.setHours(hours || 0);
+                                    newTime.setMinutes(minutes || 0);
+                                    newTime.setSeconds(0);
+                                    newTime.setMilliseconds(0);
+                                    setTime(newTime);
+                                  }}
+                                  className="bg-background h-8"
+                                />
+                              )}
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label htmlFor="applicationStatus" className="text-xs text-muted-foreground">
+                                Status <span className="text-red-500">*</span>
+                              </Label>
                               <Select
-                                value={format(time, "HH:mm")}
-                                onValueChange={(value) => {
-                                  const [hours, minutes] = value.split(":").map(Number);
-                                  const newTime = new Date();
-                                  newTime.setHours(hours || 0);
-                                  newTime.setMinutes(minutes || 0);
-                                  newTime.setSeconds(0);
-                                  newTime.setMilliseconds(0);
-                                  setTime(newTime);
-                                }}
+                                value={applicationStatus}
+                                onValueChange={(value: "applied" | "refused" | "missed") => setApplicationStatus(value)}
                               >
-                                <SelectTrigger id="time">
-                                  <SelectValue placeholder="Select prescribed time" />
+                                <SelectTrigger id="applicationStatus" className="h-8">
+                                  <SelectValue placeholder="Select status" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {medication.times.map((prescribedTime: string) => (
-                                    <SelectItem key={prescribedTime} value={prescribedTime}>
-                                      {prescribedTime}
-                                    </SelectItem>
-                                  ))}
+                                  <SelectItem value="applied">✓ Applied</SelectItem>
+                                  <SelectItem value="refused">✗ Refused</SelectItem>
+                                  <SelectItem value="missed">⊘ Missed</SelectItem>
                                 </SelectContent>
                               </Select>
-                            ) : (
+                            </div>
+
+                            <div className="space-y-1 col-span-2">
+                              <Label htmlFor="notes" className="text-xs text-muted-foreground">
+                                Notes (Optional)
+                              </Label>
+                              <Textarea
+                                id="notes"
+                                placeholder="Add notes..."
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                rows={2}
+                                className="text-sm"
+                              />
+                            </div>
+                          </div>
+                        </>
+                      ) : isPRN ? (
+                        <>
+                          {/* PRN Medication: Two-column layout */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor="time" className="text-xs text-muted-foreground">
+                                Time <span className="text-red-500">*</span>
+                              </Label>
                               <Input
                                 type="time"
                                 id="time"
@@ -584,33 +708,12 @@ export const createMedicationColumns = (
                                   newTime.setMilliseconds(0);
                                   setTime(newTime);
                                 }}
-                                className="bg-background"
+                                className="bg-background h-8"
                               />
-                            )}
-                          </div>
-
-                          {isTopical ? (
-                            <div className="space-y-2">
-                              <Label htmlFor="applicationStatus">
-                                Application Status <span className="text-red-500">*</span>
-                              </Label>
-                              <Select
-                                value={applicationStatus}
-                                onValueChange={(value: "applied" | "refused" | "missed") => setApplicationStatus(value)}
-                              >
-                                <SelectTrigger id="applicationStatus">
-                                  <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="applied">Applied</SelectItem>
-                                  <SelectItem value="refused">Refused</SelectItem>
-                                  <SelectItem value="missed">Missed</SelectItem>
-                                </SelectContent>
-                              </Select>
                             </div>
-                          ) : (
-                            <div className="space-y-2">
-                              <Label htmlFor="units">
+
+                            <div className="space-y-1">
+                              <Label htmlFor="units" className="text-xs text-muted-foreground">
                                 {unitInfo.label} <span className="text-red-500">*</span>
                               </Label>
                               <Input
@@ -631,26 +734,31 @@ export const createMedicationColumns = (
                                   }
                                 }}
                                 placeholder={`Enter ${unitInfo.label.toLowerCase()}`}
+                                className="h-8"
                               />
                             </div>
-                          )}
 
-                          <div className="space-y-2">
-                            <Label htmlFor="notes">Notes (Optional)</Label>
-                            <Textarea
-                              id="notes"
-                              placeholder="Add any notes about this administration"
-                              value={notes}
-                              onChange={(e) => setNotes(e.target.value)}
-                              rows={3}
-                            />
+                            <div className="space-y-1 col-span-2">
+                              <Label htmlFor="notes" className="text-xs text-muted-foreground">
+                                Notes (Optional)
+                              </Label>
+                              <Textarea
+                                id="notes"
+                                placeholder="Add notes..."
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                rows={2}
+                                className="text-sm"
+                              />
+                            </div>
                           </div>
                         </>
-                      )}
+                      ) : null}
                     </div>
-                    <div className="flex justify-end gap-2">
+                    <div className={`flex ${(isTopical || isPRN) ? 'justify-between' : 'justify-end'} gap-2 ${(isTopical || isPRN) ? 'pt-2' : ''}`}>
                       <Button
-                        variant="outline"
+                        variant={(isTopical || isPRN) ? "ghost" : "outline"}
+                        size={(isTopical || isPRN) ? "sm" : "default"}
                         onClick={() => {
                           setIsOpen(false);
                           setNotes("");
@@ -662,7 +770,13 @@ export const createMedicationColumns = (
                       >
                         Cancel
                       </Button>
-                      <Button onClick={handleAdministrate}>Confirm</Button>
+                      <Button
+                        onClick={handleAdministrate}
+                        size={(isTopical || isPRN) ? "sm" : "default"}
+                        className={(isTopical || isPRN) ? "px-6" : ""}
+                      >
+                        {isTopical ? "Apply" : isPRN ? "Confirm" : "Confirm"}
+                      </Button>
                     </div>
                   </DialogContent>
                 </Dialog>
