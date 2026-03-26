@@ -17,6 +17,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { config } from "@/config";
 import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
+import { KeyWorkerDiaryPastRecords } from "@/components/residents/carefile/folders/KeyWorkerDiaryPastRecords";
 import { useProfile } from "@/hooks/use-profile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2, X } from "lucide-react";
@@ -245,6 +246,11 @@ export default function PastRecordsPage() {
 
     const fullName = `${resident.first_name} ${resident.last_name}`;
     const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
+
+    // Special handling for Key Worker Diary - show custom component
+    if (folderKey === "v2-key-worker") {
+        return <KeyWorkerDiaryPastRecords residentId={residentId} resident={resident} />;
+    }
 
     return (
         <div className="flex flex-col gap-6">

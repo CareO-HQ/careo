@@ -55,7 +55,7 @@
     "date-fns-tz": "^3.2.0",
     "framer-motion": "^12.27.0",
     "input-otp": "^1.4.2",
-    "jspdf": "^4.2.0",
+    "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "jszip": "^3.10.1",
     "lucide": "^0.525.0",

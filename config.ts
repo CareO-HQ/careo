@@ -536,7 +536,7 @@ export const config = {
       value: "Key Worker Diary",
       description: "Monthly reports and worker observations.",
       forms: [
-        { type: "form", key: "v2-assist-report", value: "Monthly Care Assistant Report", isComingSoon: true }
+        { type: "form", key: "key-worker-diary-form", value: "Key Worker Diary" }
       ]
     },
     {
