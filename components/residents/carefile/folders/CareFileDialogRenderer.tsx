@@ -30,6 +30,7 @@ import RestraintsConsentDialog from "@/components/residents/carefile/dialogs/Res
 import SmokingRiskAssessmentDialog from "@/components/residents/carefile/dialogs/SmokingRiskAssessmentDialog";
 import FallRiskAssessmentDialog from "@/components/residents/carefile/dialogs/FallRiskAssessmentDialog";
 import SpecimenRecordLogDialog from "@/components/residents/carefile/dialogs/SpecimenRecordLogDialog";
+import { ProgressNoteForm } from "@/components/residents/carefile/folders/ProgressNoteForm";
 import CapacityConsentDialog from "@/components/residents/carefile/dialogs/CapacityConsentDialog";
 import NightObservationDialog from "@/components/residents/carefile/dialogs/NightObservationDialog";
 import GeneralRiskAssessmentDialog from "@/components/residents/carefile/dialogs/GeneralRiskAssessmentDialog";
@@ -364,6 +365,14 @@ export function CareFileDialogRenderer({
             orgLogoUrl={orgLogoUrl}
             careHomeName={careHomeName}
             refreshForms={refreshForms}
+          />
+        );
+
+      case "progress-note-form":
+        return (
+          <ProgressNoteForm
+            residentId={residentId}
+            resident={resident!}
           />
         );
 

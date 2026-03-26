@@ -538,6 +538,24 @@ export const config = {
       forms: [
         { type: "form", key: "v2-assist-report", value: "Monthly Care Assistant Report", isComingSoon: true }
       ]
+    },
+    {
+      type: "folder",
+      key: "v2-progress-note",
+      value: "Progress Note",
+      description: "Daily progress notes and observations.",
+      carePlan: false,
+      forms: [
+        { type: "form", key: "progress-note-form", value: "Progress Notes" }
+      ]
+    },
+    {
+      type: "folder",
+      key: "v2-end-of-life",
+      value: "End of Life / Death",
+      description: "End of life care planning and death certification.",
+      carePlan: true,
+      forms: []
     }
   ]
 };

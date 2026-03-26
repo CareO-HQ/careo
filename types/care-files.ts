@@ -36,7 +36,8 @@ export type CareFileFormKey =
   | "v2-capacity-consent"
   | "v2-general-risk"
   | "v2-abbey-pain"
-  | "v2-personal-profile";
+  | "v2-personal-profile"
+  | "progress-note-form";
 
 
 export type CareFileFormStatus =
