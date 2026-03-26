@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 import { config } from "@/config";
 import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
 import { KeyWorkerDiaryPastRecords } from "@/components/residents/carefile/folders/KeyWorkerDiaryPastRecords";
+import { ProgressNotePastRecords } from "@/components/residents/carefile/folders/ProgressNotePastRecords";
 import { useProfile } from "@/hooks/use-profile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2, X } from "lucide-react";
@@ -250,6 +251,11 @@ export default function PastRecordsPage() {
     // Special handling for Key Worker Diary - show custom component
     if (folderKey === "v2-key-worker") {
         return <KeyWorkerDiaryPastRecords residentId={residentId} resident={resident} />;
+    }
+
+    // Special handling for Progress Notes - show custom component
+    if (folderKey === "v2-progress-note") {
+        return <ProgressNotePastRecords residentId={residentId} resident={resident} />;
     }
 
     return (

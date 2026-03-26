@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { Plus, Loader2, Edit3, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Loader2, Edit3, ChevronUp, ChevronDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
+import Link from "next/link";
 
 const UK_TIMEZONE = "Europe/London";
 
@@ -78,7 +79,8 @@ export function ProgressNoteForm({ residentId, resident }: ProgressNoteFormProps
                 .from('progress_notes')
                 .select('*')
                 .eq('resident_id', residentId)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .limit(20);
 
             if (error) {
                 console.error("Fetch progress notes error:", error);
@@ -418,7 +420,17 @@ export function ProgressNoteForm({ residentId, resident }: ProgressNoteFormProps
 
             {/* Progress Notes List */}
             {progressNotes.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-muted-foreground">Recent Notes (Latest 20)</h4>
+                        <Link href={`/dashboard/residents/${residentId}/care-file-v2/v2-progress-note/past-records`}>
+                            <Button variant="outline" size="sm" className="gap-2">
+                                <FileText className="h-4 w-4" />
+                                View All Notes
+                            </Button>
+                        </Link>
+                    </div>
+                    <div className="space-y-3">
                     {progressNotes.map((note, index) => (
                         <div
                             key={note.id}
@@ -508,6 +520,7 @@ export function ProgressNoteForm({ residentId, resident }: ProgressNoteFormProps
                             </div>
                         </div>
                     ))}
+                    </div>
                 </div>
             ) : (
                 !showForm && (
