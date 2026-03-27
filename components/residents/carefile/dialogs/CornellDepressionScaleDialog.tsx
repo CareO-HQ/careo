@@ -44,8 +44,6 @@ export default function CornellDepressionScaleDialog({
       dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
       dateOfAssessment: initialData.dateOfAssessment || initialData.assessment_date || new Date().toISOString().split("T")[0],
       assessedBy: initialData.assessedBy || initialData.assessed_by || userName,
-      signature: initialData.signature || "",
-      // Flatten scale_items JSONB
       anxiety: initialData.scale_items?.anxiety || "a",
       sadness: initialData.scale_items?.sadness || "a",
       lackOfReactivity: initialData.scale_items?.lackOfReactivity || "a",
@@ -64,7 +62,8 @@ export default function CornellDepressionScaleDialog({
       suicidalIdeation: initialData.scale_items?.suicidalIdeation || "a",
       lowSelfEsteem: initialData.scale_items?.lowSelfEsteem || "a",
       pessimism: initialData.scale_items?.pessimism || "a",
-      moodCongruentDelusions: initialData.scale_items?.moodCongruentDelusions || "a"
+      moodCongruentDelusions: initialData.scale_items?.moodCongruentDelusions || "a",
+      signature: initialData.scale_items?.signature || initialData.signature || ""
     } : {
       residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
       dateOfBirth: resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : "",
@@ -99,7 +98,8 @@ export default function CornellDepressionScaleDialog({
         agitation: data.agitation, retardation: data.retardation, multiplePhysicalComplaints: data.multiplePhysicalComplaints, lossOfInterest: data.lossOfInterest,
         appetiteLoss: data.appetiteLoss, weightLoss: data.weightLoss, lackOfEnergy: data.lackOfEnergy,
         diurnalVariation: data.diurnalVariation, difficultyFallingAsleep: data.difficultyFallingAsleep, multipleAwakenings: data.multipleAwakenings, earlyMorningAwakening: data.earlyMorningAwakening,
-        suicidalIdeation: data.suicidalIdeation, lowSelfEsteem: data.lowSelfEsteem, pessimism: data.pessimism, moodCongruentDelusions: data.moodCongruentDelusions
+        suicidalIdeation: data.suicidalIdeation, lowSelfEsteem: data.lowSelfEsteem, pessimism: data.pessimism, moodCongruentDelusions: data.moodCongruentDelusions,
+        signature: data.signature
       };
 
       const payload = {
@@ -180,11 +180,21 @@ export default function CornellDepressionScaleDialog({
               toast.error("Please fill in all required fields correctly.");
             })}
           />
-          <div className="space-y-4 p-4 border rounded-lg bg-card">
+          <div className="space-y-4 p-4 border rounded-lg bg-card text-sm">
             <h3 className="font-semibold text-sm border-b pb-2">Administrative Information</h3>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label className="text-sm">Resident Name</Label><Input {...form.register("residentName")} disabled className="text-sm" /></div>
-              <div className="space-y-2"><Label className="text-sm">Date of Assessment</Label><Input type="date" {...form.register("dateOfAssessment")} className="text-sm" /></div>
+              <div className="space-y-2">
+                <Label className="text-sm">Resident Name</Label>
+                <div className="p-2 border rounded bg-muted whitespace-pre-wrap break-words min-h-[38px]">{form.watch("residentName")}</div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Date of Assessment</Label>
+                {viewOnly ? (
+                  <div className="p-2 border rounded bg-muted whitespace-pre-wrap break-words min-h-[38px]">{form.watch("dateOfAssessment")}</div>
+                ) : (
+                  <Input type="date" {...form.register("dateOfAssessment")} className="text-sm" />
+                )}
+              </div>
             </div>
           </div>
 
@@ -221,11 +231,15 @@ export default function CornellDepressionScaleDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-sm">Assessed By</Label>
-                <Input {...form.register("assessedBy")} readOnly className="text-sm bg-muted cursor-not-allowed" />
+                <div className="p-2 border rounded bg-muted whitespace-pre-wrap break-words min-h-[38px]">{form.watch("assessedBy")}</div>
               </div>
               <div className="space-y-2">
                 <Label className="text-sm">Signature</Label>
-                <Input {...form.register("signature")} placeholder="Signature" className="text-sm" />
+                {viewOnly ? (
+                  <div className="p-2 border rounded bg-muted whitespace-pre-wrap break-words min-h-[38px]">{form.watch("signature")}</div>
+                ) : (
+                  <Input {...form.register("signature")} placeholder="Signature" className="text-sm" />
+                )}
               </div>
             </div>
           </div>
