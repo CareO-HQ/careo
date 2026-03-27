@@ -95,6 +95,7 @@ const TABLE_MAP: Record<string, string> = {
     "v2-general-risk": "general_risk_assessments",
     "v2-personal-profile": "personal_profiles",
     "v2-abbey-pain": "abbey_pain_assessments",
+    "v2-specimen-log": "specimen_records",
     "progress-note-form": "progress_notes"
 };
 
@@ -324,7 +325,8 @@ export default function CareFileV2FolderPage() {
             "dependency-assessment",
             "fall-risk-assessment",
             "choking-risk-assessment-form",
-            "v2-abbey-pain"
+            "v2-abbey-pain",
+            "v2-specimen-log"
         ];
         if (alwaysEditForms.includes(key)) {
             setIsViewOnly(false);
