@@ -7,6 +7,7 @@ import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 import { HospitalPassportSchema, HospitalPassportFormData } from "./types";
 import {
   Card,
@@ -57,6 +58,7 @@ import { useRouter } from "next/navigation";
 import { HospitalPassportInlineForm } from "./hospital-passport-inline-form";
 import { ViewPassportInline } from "./view-passport-inline";
 import { TransferLogDialog } from "./transfer-log-dialog";
+import { TransferLogInlineForm } from "./transfer-log-inline-form";
 import { ViewTransferLogDialog } from "./view-transfer-log-dialog";
 import { hospitalTransferService, HospitalPassport, HospitalTransferLog } from "@/lib/hospital-transfer-service";
 import { BodyMapDialog } from "@/components/body-map/BodyMapDialog";
@@ -163,6 +165,31 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   // Multi-step form state
   const [currentStep, setCurrentStep] = React.useState(1);
   const totalSteps = 13;
+
+  // Transfer Log Schema
+  const TransferLogSchema = z.object({
+    date: z.string().min(1, "Date is required"),
+    time: z.string().optional(),
+    hospitalName: z.string().min(1, "Hospital name is required"),
+    reason: z.string().min(1, "Reason for transfer is required"),
+    outcome: z.string().optional(),
+    followUp: z.string().optional(),
+    filesChanged: z.object({
+      carePlan: z.boolean(),
+      riskAssessment: z.boolean(),
+      other: z.string().optional(),
+    }).optional(),
+    medicationChanges: z.object({
+      medicationsAdded: z.boolean(),
+      addedMedications: z.string().optional(),
+      medicationsRemoved: z.boolean(),
+      removedMedications: z.string().optional(),
+      medicationsModified: z.boolean(),
+      modifiedMedications: z.string().optional(),
+    }).optional(),
+  });
+
+  type TransferLogFormData = z.infer<typeof TransferLogSchema>;
 
   // Form setup
   const form = useForm<HospitalPassportFormData>({
@@ -315,6 +342,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const [selectedTransferLog, setSelectedTransferLog] = React.useState<any>(null);
   const [showDeleteTransferLogDialog, setShowDeleteTransferLogDialog] = React.useState(false);
   const [transferLogToDelete, setTransferLogToDelete] = React.useState<any>(null);
+  const [isAddingTransferLog, setIsAddingTransferLog] = React.useState(false);
+  const [isEditingTransferLog, setIsEditingTransferLog] = React.useState(false);
+  const [transferLogFormStep, setTransferLogFormStep] = React.useState(1);
 
   // Loading states
   const [isCreating, setIsCreating] = React.useState(false);
@@ -421,6 +451,31 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   });
 
+  // Transfer Log Form
+  const transferLogForm = useForm<TransferLogFormData>({
+    resolver: zodResolver(TransferLogSchema),
+    defaultValues: {
+      date: today,
+      time: "",
+      hospitalName: "",
+      reason: "",
+      outcome: "",
+      followUp: "",
+      filesChanged: {
+        carePlan: false,
+        riskAssessment: false,
+        other: "",
+      },
+      medicationChanges: {
+        medicationsAdded: false,
+        addedMedications: "",
+        medicationsRemoved: false,
+        removedMedications: "",
+        medicationsModified: false,
+        modifiedMedications: "",
+      },
+    },
+  });
 
   const nextStep = () => {
     if (currentStep < totalSteps) {
@@ -445,6 +500,19 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const editPrevStep = () => {
     if (editCurrentStep > 1) {
       setEditCurrentStep(editCurrentStep - 1);
+    }
+  };
+
+  // Transfer Log step navigation
+  const transferLogNextStep = () => {
+    if (transferLogFormStep < 3) {
+      setTransferLogFormStep(transferLogFormStep + 1);
+    }
+  };
+
+  const transferLogPrevStep = () => {
+    if (transferLogFormStep > 1) {
+      setTransferLogFormStep(transferLogFormStep - 1);
     }
   };
 
@@ -492,59 +560,31 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   };
 
-  const handleTransferLogSubmit = async (data: any) => {
-    if (!data?.date || !data?.hospitalName || !data?.reason) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
-    if (!activeOrganizationId || !profile?.id) {
-      // Typically handled by route guards but good check
-      toast.error("Authentication error: Missing organization or profile");
-      return;
-    }
-
-    try {
-      if (editingTransferLog) {
-        setIsUpdating(true);
-        await hospitalTransferService.updateTransferLog(editingTransferLog._id, {
-          ...data,
-          hospitalName: data.hospitalName.trim(),
-          reason: data.reason.trim(),
-          outcome: data.outcome?.trim(),
-          followUp: data.followUp?.trim(),
-        });
-        toast.success("Transfer log updated");
-        setEditingTransferLog(null);
-        setIsEditTransferLogDialogOpen(false);
-      } else {
-        setIsCreating(true);
-        await hospitalTransferService.createTransferLog({
-          residentId: id,
-          ...data,
-          hospitalName: data.hospitalName.trim(),
-          reason: data.reason.trim(),
-          outcome: data.outcome?.trim(),
-          followUp: data.followUp?.trim(),
-          organizationId: activeOrganizationId,
-          createdBy: profile.id
-        });
-        toast.success("Transfer log added");
-        setIsTransferLogDialogOpen(false);
-      }
-      refreshData();
-    } catch (error) {
-      console.error("Error saving transfer log", error);
-      toast.error("Failed to save transfer log");
-    } finally {
-      setIsCreating(false);
-      setIsUpdating(false);
-    }
-  };
-
   const handleEditTransferLog = (log: any) => {
     setEditingTransferLog(log);
-    setIsEditTransferLogDialogOpen(true);
+    setIsEditingTransferLog(true);
+    setTransferLogFormStep(1);
+    transferLogForm.reset({
+      date: log.date,
+      time: log.time || "",
+      hospitalName: log.hospitalName,
+      reason: log.reason,
+      outcome: log.outcome || "",
+      followUp: log.followUp || "",
+      filesChanged: log.filesChanged || {
+        carePlan: false,
+        riskAssessment: false,
+        other: "",
+      },
+      medicationChanges: log.medicationChanges || {
+        medicationsAdded: false,
+        addedMedications: "",
+        medicationsRemoved: false,
+        removedMedications: "",
+        medicationsModified: false,
+        modifiedMedications: "",
+      },
+    });
   };
 
   const handleDeleteTransferLog = (log: any) => {
@@ -635,6 +675,53 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       console.error("Error creating passport", error);
       toast.error("Failed to create passport", { id: creatingToast });
     }
+  };
+
+  // Transfer Log submit handlers
+  const handleTransferLogSubmit = async (data: TransferLogFormData) => {
+    if (!activeOrganizationId || !profile?.id) {
+      toast.error("Auth error: Missing organization or profile");
+      return;
+    }
+
+    const toastMessage = isEditingTransferLog ? "Updating transfer log..." : "Creating transfer log...";
+    const savingToast = toast.loading(toastMessage);
+
+    try {
+      if (isEditingTransferLog && editingTransferLog) {
+        // Update existing transfer log
+        await hospitalTransferService.updateTransferLog(editingTransferLog._id, data);
+        toast.success("Transfer log updated", { id: savingToast });
+      } else {
+        // Create new transfer log
+        await hospitalTransferService.createTransferLog({
+          ...data,
+          residentId: id,
+          organizationId: activeOrganizationId,
+          createdBy: profile.id,
+        });
+        toast.success("Transfer log created", { id: savingToast });
+      }
+
+      // Reset form and state
+      transferLogForm.reset();
+      setTransferLogFormStep(1);
+      setIsAddingTransferLog(false);
+      setIsEditingTransferLog(false);
+      setEditingTransferLog(null);
+      refreshData();
+    } catch (error) {
+      console.error("Error saving transfer log", error);
+      toast.error("Failed to save transfer log", { id: savingToast });
+    }
+  };
+
+  const handleCancelTransferLog = () => {
+    transferLogForm.reset();
+    setTransferLogFormStep(1);
+    setIsAddingTransferLog(false);
+    setIsEditingTransferLog(false);
+    setEditingTransferLog(null);
   };
 
   // Body Map Handlers
@@ -773,7 +860,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
   // Sidebar state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
-  const [activeView, setActiveView] = React.useState<'passport' | 'bodymap' | 'kardex' | null>(null);
+  const [activeView, setActiveView] = React.useState<'passport' | 'bodymap' | 'kardex' | 'transferlogs' | null>(null);
 
   // Helper for age
   const calculateAge = React.useCallback((dob: string) => {
@@ -827,6 +914,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 {activeView === 'passport' && 'Hospital Passport'}
                 {activeView === 'bodymap' && 'Body Map'}
                 {activeView === 'kardex' && 'Kardex'}
+                {activeView === 'transferlogs' && 'Transfer Logs'}
               </span>
             </>
           )}
@@ -1127,7 +1215,31 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setIsTransferLogDialogOpen(true)}
+                      onClick={() => {
+                        setIsAddingTransferLog(true);
+                        setTransferLogFormStep(1);
+                        transferLogForm.reset({
+                          date: today,
+                          time: "",
+                          hospitalName: "",
+                          reason: "",
+                          outcome: "",
+                          followUp: "",
+                          filesChanged: {
+                            carePlan: false,
+                            riskAssessment: false,
+                            other: "",
+                          },
+                          medicationChanges: {
+                            medicationsAdded: false,
+                            addedMedications: "",
+                            medicationsRemoved: false,
+                            removedMedications: "",
+                            medicationsModified: false,
+                            modifiedMedications: "",
+                          },
+                        });
+                      }}
                       className="gap-2"
                     >
                       <Plus className="w-4 h-4" /> Add Transfer Log
@@ -1138,7 +1250,19 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                   </div>
                 </div>
                 <div className="p-6">
-                  {transferLogs.length > 0 ? (
+                  {isAddingTransferLog || isEditingTransferLog ? (
+                    <TransferLogInlineForm
+                      form={transferLogForm}
+                      onSubmit={handleTransferLogSubmit}
+                      residentName={resident?.firstName + ' ' + resident?.lastName}
+                      currentStep={transferLogFormStep}
+                      setCurrentStep={setTransferLogFormStep}
+                      handleNextStep={transferLogNextStep}
+                      prevStep={transferLogPrevStep}
+                      isEditMode={isEditingTransferLog}
+                      onCancel={handleCancelTransferLog}
+                    />
+                  ) : transferLogs.length > 0 ? (
                     <div className="space-y-4">
                       {transferLogs.map((log: any) => (
                         <div
@@ -1224,7 +1348,11 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                         Add your first transfer log to track hospital visits
                       </p>
                       <Button
-                        onClick={() => setIsTransferLogDialogOpen(true)}
+                        onClick={() => {
+                          setIsAddingTransferLog(true);
+                          setTransferLogFormStep(1);
+                          transferLogForm.reset();
+                        }}
                         className="gap-2"
                       >
                         <Plus className="w-4 h-4" /> Add Transfer Log
@@ -1270,7 +1398,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 >
                   <FileText className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold leading-tight mb-0.5">Generate Passport Form</p>
+                    <p className="text-xs font-semibold leading-tight mb-0.5">Hospital Passport</p>
                     <Badge variant="outline" className="text-[8px] h-3 px-1">
                       {hospitalPassports.length > 0 ? 'COMPLETE' : 'NOT STARTED'}
                     </Badge>
