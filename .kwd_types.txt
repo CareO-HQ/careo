@@ -14,7 +14,7 @@ export type CareFileFormKey =
   | "peep"
   | "dependency-assessment"
   | "timl"
-
+  | "skin-integrity-form"
   | "resident-valuables-form"
   | "resident-handling-profile-form"
   | "pain-assessment-form"
