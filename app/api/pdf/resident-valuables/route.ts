@@ -92,6 +92,7 @@ function generateResidentValuablesHTML(data: any): string {
           text-align: left;
           padding: 10px;
           border-bottom: 1px solid #f3f4f6;
+          word-wrap: break-word;
         }
         th {
           background-color: #f8fafc;
@@ -121,6 +122,19 @@ function generateResidentValuablesHTML(data: any): string {
           font-size: 1.5rem;
           font-weight: 700;
           margin-top: 20px;
+        }
+        .field-label {
+          font-size: 0.75rem;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+          margin-bottom: 2px;
+        }
+        .field-value {
+          font-weight: 500;
+          color: #1e293b;
+          word-wrap: break-word;
+          white-space: pre-wrap;
         }
         .footer {
           margin-top: 48px;
@@ -154,7 +168,7 @@ function generateResidentValuablesHTML(data: any): string {
           </div>
           <div>
             <div class="field-label">Completed By</div>
-            <div class="field-value">${form.completedBy || "Not specified"}</div>
+            <div class="field-value">${form.completedBy || "Not specified"}${form.completedByRole ? ` (${form.completedByRole})` : ""}</div>
           </div>
         </div>
       </div>
@@ -226,14 +240,23 @@ function generateResidentValuablesHTML(data: any): string {
         </table>
       </div>
 
+      ${form.comments ? `
+      <div class="section">
+        <h2>Additional Comments</h2>
+        <div class="info-box field-value">
+          ${form.comments}
+        </div>
+      </div>
+      ` : ''}
+
       <div class="section">
         <h2>Signatures & Witnesses</h2>
         <div class="grid grid-cols-2 info-box">
           <div>
             <div class="field-label">Completed By</div>
-            <div class="field-value">${form.completedBy}</div>
+            <div class="field-value">${form.completedBy}${form.completedByRole ? ` (${form.completedByRole})` : ""}</div>
             <div class="field-label" style="margin-top: 12px;">Witnessed By</div>
-            <div class="field-value">${form.witnessedBy || "Not registered"}</div>
+            <div class="field-value">${form.witnessedBy || "Not registered"}${form.witnessedByRole ? ` (${form.witnessedByRole})` : ""}</div>
           </div>
           <div>
             <div class="field-label">Resident/Family Signature</div>

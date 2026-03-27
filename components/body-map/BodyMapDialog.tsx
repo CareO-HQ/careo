@@ -618,6 +618,11 @@ export function BodyMapDialog({
                                                             {entry.measurements && (
                                                                 <p className="text-[10px] mt-0.5 italic text-slate-500 truncate">{entry.measurements}</p>
                                                             )}
+                                                            {entry.assessed_by && (
+                                                                <p className="text-[10px] mt-0.5 text-slate-500 truncate">
+                                                                    Assessed by: {entry.assessed_by}
+                                                                </p>
+                                                            )}
                                                         </div>
                                                         <div className="flex gap-1.5 shrink-0 ml-auto">
                                                             <Button

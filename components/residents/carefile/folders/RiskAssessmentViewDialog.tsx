@@ -710,36 +710,7 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
     },
   ],
 
-  // ── Skin Integrity (Braden Scale) ─────────────────────────────────────────
-  "skin-integrity-form": [
-    {
-      title: "Basic Information",
-      fields: [
-        { label: "Resident Name", path: "residentName" },
-        { label: "Bedroom Number", path: "bedroomNumber" },
-        { label: "Assessment Date", path: "assessment_date", fmt: "date" },
-        { label: "Completed By", path: "completed_by" },
-      ],
-    },
-    {
-      title: "Braden Scale Scores",
-      fields: [
-        { label: "Sensory Perception", path: "assessment_details.sensoryPerception" },
-        { label: "Moisture", path: "assessment_details.moisture" },
-        { label: "Activity", path: "assessment_details.activity" },
-        { label: "Mobility", path: "assessment_details.mobility" },
-        { label: "Nutrition", path: "assessment_details.nutrition" },
-        { label: "Friction & Shear", path: "assessment_details.frictionShear" },
-      ],
-    },
-    {
-      title: "Risk Summary",
-      fields: [
-        { label: "Total Braden Score", path: "risk_score" },
-        { label: "Risk Level", path: "risk_level" },
-      ],
-    },
-  ],
+
   "braden-risk-assessment-form": [
     {
       title: "Basic Information",
@@ -1433,7 +1404,7 @@ const TABLE_MAP: Record<string, string> = {
   "peep": "peeps",
   "dependency-assessment": "dependency_assessments",
   "timl": "timl_assessments",
-  "skin-integrity-form": "skin_integrity_assessments",
+
   "resident-valuables-form": "resident_valuables_assessments",
   "resident-handling-profile-form": "handling_profiles",
   "pain-assessment-form": "pain_assessments",

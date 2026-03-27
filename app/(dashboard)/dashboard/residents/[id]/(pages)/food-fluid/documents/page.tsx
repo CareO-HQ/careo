@@ -89,6 +89,12 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
   const [selectedReportData, setSelectedReportData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingReport, setIsLoadingReport] = useState(false);
+  const [isBulkDownloadDialogOpen, setIsBulkDownloadDialogOpen] = useState(false);
+  const [fromMonth, setFromMonth] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
+  const [fromYear, setFromYear] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
+  const [toMonth, setToMonth] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
+  const [toYear, setToYear] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
+  const [isGeneratingBulk, setIsGeneratingBulk] = useState(false);
 
   // Fetch resident data
   useEffect(() => {
@@ -425,14 +431,115 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
     try {
       await generateFoodFluidPDF({
         resident,
-        report: reportToDownload,
-        date: report.date,
+        reports: [{
+          date: report.date,
+          report: reportToDownload
+        }],
         orgLogoUrl: profile?.organization_logo_url || undefined
       });
       toast.success(`Food & Fluid report generated for ${formatInTimeZone(new Date(report.date + "T00:00:00"), UK_TIMEZONE, "dd MMM yyyy")}`);
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast.error("Failed to generate PDF report");
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    if (!resident) {
+      toast.error('Resident data not available');
+      return;
+    }
+
+    const startDate = `${fromYear}-${fromMonth.padStart(2, '0')}-01`;
+    const lastDay = new Date(parseInt(toYear), parseInt(toMonth), 0).getDate();
+    const endDate = `${toYear}-${toMonth.padStart(2, '0')}-${lastDay}`;
+
+    if (new Date(startDate) > new Date(endDate)) {
+      toast.error('Start month cannot be after end month');
+      return;
+    }
+
+    setIsGeneratingBulk(true);
+    const loadingToast = toast.loading(`Fetching data for period ${startDate} to ${endDate}...`);
+
+    try {
+      // Fetch all logs for the resident in the given range
+      const { data: logs, error } = await supabase
+        .from("food_fluid_logs")
+        .select("*")
+        .eq("resident_id", id)
+        .gte("date", startDate)
+        .lte("date", endDate)
+        .order("date", { ascending: true })
+        .order("timestamp", { ascending: true });
+
+      if (error) throw error;
+
+      if (!logs || logs.length === 0) {
+        toast.error("No data found for the selected period");
+        toast.dismiss(loadingToast);
+        setIsGeneratingBulk(false);
+        return;
+      }
+
+      // Group logs by date
+      const logsByDate: Record<string, any[]> = {};
+      logs.forEach((log: any) => {
+        if (!logsByDate[log.date]) {
+          logsByDate[log.date] = [];
+        }
+        logsByDate[log.date].push({
+          typeOfFoodDrink: log.type_of_food_drink,
+          amountEaten: log.amount_eaten,
+          portionServed: log.portion_served,
+          fluidConsumedMl: log.fluid_consumed_ml,
+          section: log.section,
+          signature: log.signature,
+          timestamp: new Date(log.timestamp).getTime()
+        });
+      });
+
+      // Prepare reports for each date in the range (even those without logs)
+      const reports: any[] = [];
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        const dailyLogs = logsByDate[dateStr] || [];
+        
+        const foodEntries = dailyLogs.filter((log: any) => !log.fluidConsumedMl).length;
+        const fluidEntries = dailyLogs.filter((log: any) => log.fluidConsumedMl).length;
+        const totalFluidMl = dailyLogs.reduce((sum: number, log: any) => sum + (log.fluidConsumedMl || 0), 0);
+
+        reports.push({
+          date: dateStr,
+          report: {
+            logs: dailyLogs,
+            totalEntries: dailyLogs.length,
+            foodEntries,
+            fluidEntries,
+            totalFluidMl
+          }
+        });
+      }
+
+      toast.loading(`Generating PDF for ${reports.length} days...`, { id: loadingToast });
+
+      await generateFoodFluidPDF({
+        resident,
+        reports,
+        orgLogoUrl: profile?.organization_logo_url || undefined
+      });
+
+      toast.success(`Food & Fluid reports generated successfully`);
+      setIsBulkDownloadDialogOpen(false);
+    } catch (error) {
+      console.error("Error generating bulk PDF:", error);
+      toast.error("Failed to generate bulk PDF report");
+    } finally {
+      toast.dismiss(loadingToast);
+      setIsGeneratingBulk(false);
     }
   };
 
@@ -564,15 +671,25 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
               <Filter className="w-5 h-5" />
               <span>Filter Reports</span>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              disabled={filteredReports.length === 0}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsBulkDownloadDialogOpen(true)}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Download PDF
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={filteredReports.length === 0}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -846,6 +963,116 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
             ) : (
               <p className="text-gray-500 py-8 text-center">No entries logged for this date</p>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Download Dialog */}
+      <Dialog open={isBulkDownloadDialogOpen} onOpenChange={setIsBulkDownloadDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Download Food & Fluid Reports</DialogTitle>
+            <DialogDescription>
+              Select a month range to generate a PDF report for {fullName}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-6 py-6 border-y my-4">
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">From</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">Month</label>
+                  <Select value={fromMonth} onValueChange={setFromMonth}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">January</SelectItem>
+                      <SelectItem value="2">February</SelectItem>
+                      <SelectItem value="3">March</SelectItem>
+                      <SelectItem value="4">April</SelectItem>
+                      <SelectItem value="5">May</SelectItem>
+                      <SelectItem value="6">June</SelectItem>
+                      <SelectItem value="7">July</SelectItem>
+                      <SelectItem value="8">August</SelectItem>
+                      <SelectItem value="9">September</SelectItem>
+                      <SelectItem value="10">October</SelectItem>
+                      <SelectItem value="11">November</SelectItem>
+                      <SelectItem value="12">December</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">Year</label>
+                  <Select value={fromYear} onValueChange={setFromYear}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableYears.map(year => (
+                        <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">To</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">Month</label>
+                  <Select value={toMonth} onValueChange={setToMonth}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">January</SelectItem>
+                      <SelectItem value="2">February</SelectItem>
+                      <SelectItem value="3">March</SelectItem>
+                      <SelectItem value="4">April</SelectItem>
+                      <SelectItem value="5">May</SelectItem>
+                      <SelectItem value="6">June</SelectItem>
+                      <SelectItem value="7">July</SelectItem>
+                      <SelectItem value="8">August</SelectItem>
+                      <SelectItem value="9">September</SelectItem>
+                      <SelectItem value="10">October</SelectItem>
+                      <SelectItem value="11">November</SelectItem>
+                      <SelectItem value="12">December</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">Year</label>
+                  <Select value={toYear} onValueChange={setToYear}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableYears.map(year => (
+                        <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkDownloadDialogOpen(false)}
+              disabled={isGeneratingBulk}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBulkDownload}
+              disabled={isGeneratingBulk}
+            >
+              {isGeneratingBulk ? "Generating..." : "Generate PDF"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

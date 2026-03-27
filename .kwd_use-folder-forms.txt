@@ -31,6 +31,7 @@ export function useFolderForms({
   const [allPeepForms, setAllPeepForms] = useState<any[] | undefined>(undefined);
   const [allDependencyAssessmentForms, setAllDependencyAssessmentForms] = useState<any[] | undefined>(undefined);
   const [allTimlAssessmentForms, setAllTimlAssessmentForms] = useState<any[] | undefined>(undefined);
+  const [allSkinIntegrityForms, setAllSkinIntegrityForms] = useState<any[] | undefined>(undefined);
   const [allResidentValuablesForms, setAllResidentValuablesForms] = useState<any[] | undefined>(undefined);
   const [allHandlingProfileForms, setAllHandlingProfileForms] = useState<any[] | undefined>(undefined);
   const [allPainAssessmentForms, setAllPainAssessmentForms] = useState<any[] | undefined>(undefined);
@@ -49,7 +50,6 @@ export function useFolderForms({
   const [allNightObservationForms, setAllNightObservationForms] = useState<any[] | undefined>(undefined);
   const [allGeneralRiskForms, setAllGeneralRiskForms] = useState<any[] | undefined>(undefined);
   const [allPersonalProfileForms, setAllPersonalProfileForms] = useState<any[] | undefined>(undefined);
-  const [allAbbeyPainForms, setAllAbbeyPainForms] = useState<any[] | undefined>(undefined);
 
   const [activeCarePlanForms, setActiveCarePlanForms] = useState<any[] | undefined>(undefined);
   const [archivedCarePlans, setArchivedCarePlans] = useState<any[] | undefined>(undefined);
@@ -227,6 +227,15 @@ export function useFolderForms({
         .then(({ data }) => setAllTimlAssessmentForms(data || [])));
     }
 
+    // Skin Integrity
+    if (folderFormKeys?.includes("skin-integrity-form")) {
+      promises.push(supabase
+        .from('skin_integrity_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllSkinIntegrityForms(data || [])));
+    }
 
     // Resident Valuables
     if (folderFormKeys?.includes("resident-valuables-form")) {
@@ -406,16 +415,6 @@ export function useFolderForms({
         .eq('resident_id', residentId)
         .order('created_at', { ascending: false })
         .then(({ data }) => setAllPersonalProfileForms(data || [])));
-    }
-
-    // Abbey Pain
-    if (folderFormKeys?.includes("v2-abbey-pain")) {
-      promises.push(supabase
-        .from('abbey_pain_assessments')
-        .select('*')
-        .eq('resident_id', residentId)
-        .order('created_at', { ascending: false })
-        .then(({ data }) => setAllAbbeyPainForms(data || [])));
     }
 
     // Care Plans
@@ -564,6 +563,15 @@ export function useFolderForms({
         .then(({ data }) => setAllTimlAssessmentForms(data || [])));
     }
 
+    // Skin Integrity
+    if (folderFormKeys?.includes("skin-integrity-form")) {
+      promises.push(supabase
+        .from('skin_integrity_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllSkinIntegrityForms(data || [])));
+    }
 
     // Resident Valuables
     if (folderFormKeys?.includes("resident-valuables-form")) {
@@ -745,16 +753,6 @@ export function useFolderForms({
         .then(({ data }) => setAllPersonalProfileForms(data || [])));
     }
 
-    // Abbey Pain
-    if (folderFormKeys?.includes("v2-abbey-pain")) {
-      promises.push(supabase
-        .from('abbey_pain_assessments')
-        .select('*')
-        .eq('resident_id', residentId)
-        .order('created_at', { ascending: false })
-        .then(({ data }) => setAllAbbeyPainForms(data || [])));
-    }
-
     Promise.all(promises).finally(() => setIsLoading(false));
   }, [residentId]);
 
@@ -799,6 +797,7 @@ export function useFolderForms({
   const allPeepFormsMapped = useMemo(() => mapToConvexLike(allPeepForms), [allPeepForms]);
   const allDependencyAssessmentFormsMapped = useMemo(() => mapToConvexLike(allDependencyAssessmentForms), [allDependencyAssessmentForms]);
   const allTimlAssessmentFormsMapped = useMemo(() => mapToConvexLike(allTimlAssessmentForms), [allTimlAssessmentForms]);
+  const allSkinIntegrityFormsMapped = useMemo(() => mapToConvexLike(allSkinIntegrityForms), [allSkinIntegrityForms]);
   const allResidentValuablesFormsMapped = useMemo(() => mapToConvexLike(allResidentValuablesForms), [allResidentValuablesForms]);
   const allHandlingProfileFormsMapped = useMemo(() => mapToConvexLike(allHandlingProfileForms), [allHandlingProfileForms]);
   const allPainAssessmentFormsMapped = useMemo(() => mapToConvexLike(allPainAssessmentForms), [allPainAssessmentForms]);
@@ -817,7 +816,6 @@ export function useFolderForms({
   const allNightObservationFormsMapped = useMemo(() => mapToConvexLike(allNightObservationForms), [allNightObservationForms]);
   const allGeneralRiskFormsMapped = useMemo(() => mapToConvexLike(allGeneralRiskForms), [allGeneralRiskForms]);
   const allPersonalProfileFormsMapped = useMemo(() => mapToConvexLike(allPersonalProfileForms), [allPersonalProfileForms]);
-  const allAbbeyPainFormsMapped = useMemo(() => mapToConvexLike(allAbbeyPainForms), [allAbbeyPainForms]);
 
   const latestPersonalProfileForm = useMemo(() => 
     allPersonalProfileFormsMapped && allPersonalProfileFormsMapped.length > 0 
@@ -836,6 +834,8 @@ export function useFolderForms({
       // Match if the saved folderKey equals the current folderKey, OR
       // if no folderKey was saved at all (legacy data), show in all folders is too broad,
       // so only match if it explicitly matches.
+      // Special case for skin integrity key change
+      if (folderKey === "skin-integrity" && (savedFolderKey === "skin entry" || savedFolderKey === "skin integrity")) return true;
       return savedFolderKey === folderKey;
     });
   }, [activeCarePlanForms, folderKey]);
@@ -897,6 +897,7 @@ export function useFolderForms({
     processForms(allPeepFormsMapped, "peep", "Personal Emergency Evacuation Plan");
     processForms(allDependencyAssessmentFormsMapped, "dependency-assessment", "Dependency Assessment");
     processForms(allTimlAssessmentFormsMapped, "timl", "This Is My Life Assessment");
+    processForms(allSkinIntegrityFormsMapped, "skin-integrity-form", "Skin Integrity Assessment");
     processForms(allResidentValuablesFormsMapped, "resident-valuables-form", "Resident Valuables Assessment");
     processForms(allHandlingProfileFormsMapped, "resident-handling-profile-form", "Resident Handling Profile");
     processForms(allPainAssessmentFormsMapped, "pain-assessment-form", "Pain Assessment and Evaluation");
@@ -914,7 +915,6 @@ export function useFolderForms({
     processForms(allCapacityConsentsFormsMapped, "v2-capacity-consent", "Capacity & Consent Assessment");
     processForms(allNightObservationFormsMapped, "v2-night-obs-consent", "Night Observation Consent");
     processForms(allPersonalProfileFormsMapped, "v2-personal-profile", "Personal Profile");
-    processForms(allAbbeyPainFormsMapped, "v2-abbey-pain", "Abbey Pain Tool");
 
     // Process Care Plans
     if (includeCarePlans) {
@@ -947,6 +947,7 @@ export function useFolderForms({
     allPeepFormsMapped,
     allDependencyAssessmentFormsMapped,
     allTimlAssessmentFormsMapped,
+    allSkinIntegrityFormsMapped,
     allResidentValuablesFormsMapped,
     allHandlingProfileFormsMapped,
     allPainAssessmentFormsMapped,
@@ -965,7 +966,6 @@ export function useFolderForms({
     allNightObservationFormsMapped,
     allGeneralRiskFormsMapped,
     allPersonalProfileFormsMapped,
-    allAbbeyPainFormsMapped,
     filteredActiveCarePlansMapped,
     filteredArchivedCarePlansMapped,
     folderFormKeys
@@ -991,6 +991,7 @@ export function useFolderForms({
     allPeepForms: allPeepFormsMapped,
     allDependencyAssessmentForms: allDependencyAssessmentFormsMapped,
     allTimlAssessmentForms: allTimlAssessmentFormsMapped,
+    allSkinIntegrityForms: allSkinIntegrityFormsMapped,
     allResidentValuablesForms: allResidentValuablesFormsMapped,
     allHandlingProfileForms: allHandlingProfileFormsMapped,
     allPainAssessmentForms: allPainAssessmentFormsMapped,
@@ -1009,7 +1010,6 @@ export function useFolderForms({
     allNightObservationForms: allNightObservationFormsMapped,
     allGeneralRiskForms: allGeneralRiskFormsMapped,
     allPersonalProfileForms: allPersonalProfileFormsMapped,
-    allAbbeyPainForms: allAbbeyPainFormsMapped,
     latestPersonalProfileForm: latestPersonalProfileForm,
     allBedRailsRiskAssessmentForms: allBedRailsRiskAssessmentFormsMapped,
     activeCarePlanForms: filteredActiveCarePlansMapped,

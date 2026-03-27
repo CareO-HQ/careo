@@ -144,7 +144,7 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [residentId, supabase]);
+  }, [residentId, supabase, activeCareHomeId, activeOrganizationId]);
 
   useEffect(() => {
     if (activeCareHomeId && activeOrganizationId) {

@@ -17,13 +17,13 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { config } from "@/config";
 import { CareFileDialogRenderer } from "@/components/residents/carefile/folders/CareFileDialogRenderer";
+import { KeyWorkerDiaryPastRecords } from "@/components/residents/carefile/folders/KeyWorkerDiaryPastRecords";
+import { ProgressNotePastRecords } from "@/components/residents/carefile/folders/ProgressNotePastRecords";
 import { useProfile } from "@/hooks/use-profile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2, X } from "lucide-react";
-import { ProgressNotePastRecords } from "@/components/residents/carefile/folders/ProgressNotePastRecords";
-import { KeyWorkerDiaryPastRecords } from "@/components/residents/carefile/folders/KeyWorkerDiaryPastRecords";
 
-// ─── Table Map (same as folder page) ─────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Table Map (same as folder page) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const TABLE_MAP: Record<string, string> = {
     "preAdmission-form": "pre_admission_care_files",
@@ -39,7 +39,7 @@ const TABLE_MAP: Record<string, string> = {
     "peep": "peeps",
     "dependency-assessment": "dependency_assessments",
     "timl": "timl_assessments",
-
+    "skin-integrity-form": "skin_integrity_assessments",
     "resident-valuables-form": "resident_valuables_assessments",
     "resident-handling-profile-form": "handling_profiles",
     "pain-assessment-form": "pain_assessments",
@@ -58,9 +58,7 @@ const TABLE_MAP: Record<string, string> = {
     "v2-capacity-consent": "capacity_consents",
     "v2-night-obs-consent": "night_observation_consents",
     "v2-general-risk": "general_risk_assessments",
-    "v2-personal-profile": "personal_profiles",
-    "v2-abbey-pain": "abbey_pain_assessments",
-    "key-worker-diary-form": "key_worker_diary"
+    "v2-personal-profile": "personal_profiles"
 };
 
 type FilterType = "forms" | "care-plans";
@@ -121,7 +119,7 @@ export default function PastRecordsPage() {
                     .single();
                 setResident(residentData);
 
-                // ── Forms: only keys in this folder ──────────────────────────
+                // ΓöÇΓöÇ Forms: only keys in this folder ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 const folderFormKeys = (folder!.forms || [])
                     .map(f => f.key)
                     .filter(k => k !== "care-plan-form" && TABLE_MAP[k]);
@@ -161,7 +159,7 @@ export default function PastRecordsPage() {
                 formResults.sort((a, b) => (b.archivedAt ?? b.completedAt) - (a.archivedAt ?? a.completedAt));
                 setArchivedForms(formResults);
 
-                // ── Care Plans ────────────────────────────────────────────────
+                // ΓöÇΓöÇ Care Plans ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (folderHasCarePlans) {
                     const { data: cpData } = await supabase
                         .from("care_plan_assessments")
@@ -228,7 +226,7 @@ export default function PastRecordsPage() {
             <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
-                    <p className="mt-2 text-muted-foreground">Loading past records…</p>
+                    <p className="mt-2 text-muted-foreground">Loading past recordsΓÇª</p>
                 </div>
             </div>
         );
@@ -250,23 +248,14 @@ export default function PastRecordsPage() {
     const fullName = `${resident.first_name} ${resident.last_name}`;
     const initials = `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
-    // Custom Past Records Views
-    if (folderKey === "v2-progress-note") {
-        return (
-            <ProgressNotePastRecords
-                residentId={residentId}
-                resident={resident}
-            />
-        );
+    // Special handling for Key Worker Diary - show custom component
+    if (folderKey === "v2-key-worker") {
+        return <KeyWorkerDiaryPastRecords residentId={residentId} resident={resident} />;
     }
 
-    if (folderKey === "v2-key-worker") {
-        return (
-            <KeyWorkerDiaryPastRecords
-                residentId={residentId}
-                resident={resident}
-            />
-        );
+    // Special handling for Progress Notes - show custom component
+    if (folderKey === "v2-progress-note") {
+        return <ProgressNotePastRecords residentId={residentId} resident={resident} />;
     }
 
     return (
@@ -294,7 +283,7 @@ export default function PastRecordsPage() {
                     <div className="flex items-center gap-2">
                         <Clock className="w-5 h-5 text-primary" />
                         <h1 className="text-xl sm:text-2xl font-bold">
-                            Past Records — {folder.value}
+                            Past Records ΓÇö {folder.value}
                         </h1>
                     </div>
                     <p className="text-muted-foreground text-sm">
@@ -338,7 +327,7 @@ export default function PastRecordsPage() {
                 )}
             </div>
 
-            {/* ── Forms Table ─────────────────────────────────────────────── */}
+            {/* ΓöÇΓöÇ Forms Table ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
             {filter === "forms" && (
                 <div className="rounded-lg border bg-card">
                     {archivedForms.length === 0 ? (
@@ -373,7 +362,7 @@ export default function PastRecordsPage() {
                                         <TableCell>
                                             {record.archivedAt
                                                 ? format(new Date(record.archivedAt), "dd MMM yyyy, HH:mm")
-                                                : "—"}
+                                                : "ΓÇö"}
                                         </TableCell>
                                         <TableCell>
                                             <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-full border border-amber-200">
@@ -404,7 +393,7 @@ export default function PastRecordsPage() {
                 </div>
             )}
 
-            {/* ── Care Plans Table ─────────────────────────────────────────── */}
+            {/* ΓöÇΓöÇ Care Plans Table ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
             {filter === "care-plans" && folderHasCarePlans && (
                 <div className="rounded-lg border bg-card">
                     {archivedCarePlans.length === 0 ? (
@@ -433,7 +422,7 @@ export default function PastRecordsPage() {
                                     const goals = cp.goals || {};
                                     let writtenBy = goals.writtenBy;
                                     if (!writtenBy || writtenBy.toLowerCase() === "user") {
-                                        writtenBy = cp.written_by || "—";
+                                        writtenBy = cp.written_by || "ΓÇö";
                                     }
                                     const dateWritten = goals.dateWritten || cp.date_written;
 
@@ -442,11 +431,11 @@ export default function PastRecordsPage() {
                                             <TableCell className="font-medium">
                                                 {cp.care_plan_type || "Care Plan"}
                                             </TableCell>
-                                            <TableCell>{writtenBy || "—"}</TableCell>
+                                            <TableCell>{writtenBy || "ΓÇö"}</TableCell>
                                             <TableCell>
                                                 {dateWritten
                                                     ? format(new Date(dateWritten), "dd MMM yyyy")
-                                                    : "—"}
+                                                    : "ΓÇö"}
                                             </TableCell>
                                             <TableCell>
                                                 {format(

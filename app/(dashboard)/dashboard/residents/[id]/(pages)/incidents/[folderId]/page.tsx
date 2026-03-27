@@ -845,6 +845,11 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                                       {entry.measurements}
                                     </p>
                                   )}
+                                  {entry.assessed_by && (
+                                    <p className="text-[10px] mt-0.5 text-slate-500 truncate">
+                                      Assessed by: {entry.assessed_by}
+                                    </p>
+                                  )}
                                 </div>
                                 <Button
                                   size="sm"

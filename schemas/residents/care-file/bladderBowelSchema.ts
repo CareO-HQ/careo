@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const ToiletingPattern = z.enum(["TOILET", "COMMODE", "BED-PAN", "URINAL"]);
+const ToiletingPattern = z.enum(["TOILET", "COMMODE", "BED-PAN", "URINAL", "NONE"]);
 
 export const bladderBowelAssessmentSchema = z.object({
   residentId: z.string(),
@@ -12,54 +12,55 @@ export const bladderBowelAssessmentSchema = z.object({
   residentName: z.string(),
   dateOfBirth: z.number(),
   bedroomNumber: z.string(),
-  informationObtainedFrom: z.string().optional(),
+  informationObtainedFrom: z.string().min(1, "Required"),
   assessmentDate: z.number(),
   completedBy: z.string(),
 
   // Section 2 - Infections
-  hepatitisAB: z.boolean().optional(),
-  bloodBorneVirues: z.boolean().optional(),
-  mrsa: z.boolean().optional(),
-  esbl: z.boolean().optional(),
-  other: z.string().optional(),
+  hepatitisAB: z.enum(["Yes", "No"]).optional(),
+  bloodBorneVirus: z.enum(["Yes", "No"]).optional(),
+  mrsa: z.enum(["Yes", "No"]).optional(),
+  esbl: z.enum(["Yes", "No"]).optional(),
+  otherInfection: z.string().optional(),
 
   // Section 3 - Urinalysis on Admission
-  ph: z.boolean().optional(),
-  nitrates: z.boolean().optional(),
-  protein: z.boolean().optional(),
-  leucocytes: z.boolean().optional(),
-  glucose: z.boolean().optional(),
-  bloodResult: z.boolean().optional(),
+  ph: z.enum(["NORMAL", "ABNORMAL", "NOT-TESTED"]).optional(),
+  nitrates: z.enum(["POSITIVE", "NEGATIVE", "NOT-TESTED"]).optional(),
+  protein: z.enum(["POSITIVE", "NEGATIVE", "NOT-TESTED"]).optional(),
+  leucocytes: z.enum(["POSITIVE", "NEGATIVE", "NOT-TESTED"]).optional(),
+  glucose: z.enum(["POSITIVE", "NEGATIVE", "NOT-TESTED"]).optional(),
+  bloodResult: z.enum(["POSITIVE", "NEGATIVE", "NOT-TESTED"]).optional(),
+  urinalysisResult: z.string().optional(),
   mssuDate: z.number().optional(),
 
   // Section 4 - Prescribed medication
-  antiHypertensives: z.boolean().optional(),
-  antiParkinsonDrugs: z.boolean().optional(),
-  ironSupplement: z.boolean().optional(),
-  laxatives: z.boolean().optional(),
-  diuretics: z.boolean().optional(),
-  histamine: z.boolean().optional(),
-  antiDepressants: z.boolean().optional(),
-  cholinergic: z.boolean().optional(),
-  sedativesHypnotic: z.boolean().optional(),
-  antiPsychotic: z.boolean().optional(),
-  antihistamines: z.boolean().optional(),
-  narcoticAnalgesics: z.boolean().optional(),
+  antiHypertensives: z.enum(["Yes", "No"]).optional(),
+  antiParkinsonDrugs: z.enum(["Yes", "No"]).optional(),
+  ironSupplement: z.enum(["Yes", "No"]).optional(),
+  laxatives: z.enum(["Yes", "No"]).optional(),
+  diuretics: z.enum(["Yes", "No"]).optional(),
+  histamine: z.enum(["Yes", "No"]).optional(),
+  antiDepressants: z.enum(["Yes", "No"]).optional(),
+  cholinergic: z.enum(["Yes", "No"]).optional(),
+  sedativesHypnotic: z.enum(["Yes", "No"]).optional(),
+  antiPsychotic: z.enum(["Yes", "No"]).optional(),
+  antihistamines: z.enum(["Yes", "No"]).optional(),
+  narcoticAnalgesics: z.enum(["Yes", "No"]).optional(),
 
-  // Section 5 - Lifestyle
+  // Section 5 - Contributing Risk Factors
   caffeineMls24h: z.number().optional(),
   caffeineFrequency: z.string().optional(),
   caffeineTimeOfDay: z.string().optional(),
-  excersiceType: z.string().optional(),
-  excersiceFrequency: z.string().optional(),
-  excersiceTimeOfDay: z.string().optional(),
+  exerciseType: z.string().optional(),
+  exerciseFrequency: z.string().optional(),
+  exerciseTimeOfDay: z.string().optional(),
+  skinCondition: z.enum(["HEALTHY", "RED", "BROKEN", "EXCORIATED"]),
   alcoholAmount24h: z.number().optional(),
   alcoholFrequency: z.string().optional(),
   alcoholTimeOfDay: z.string().optional(),
-  smoking: z.enum(["SMOKER", "NON-SMOKER", "EX-SMOKER"]),
   weight: z.enum(["NORMAL", "OBESE", "UNDERWEIGHT"]),
-  skinCondition: z.enum(["HEALTHY", "RED", "EXCORIATED", "BROKEN"]),
-  constipationHistory: z.boolean().optional(),
+  smoking: z.enum(["NON-SMOKER", "EX-SMOKER", "SMOKER"]),
+  constipationHistory: z.enum(["Yes", "No"]),
   mentalState: z.enum([
     "ALERT",
     "CONFUSED",
@@ -67,110 +68,96 @@ export const bladderBowelAssessmentSchema = z.object({
     "COGNITIVELY-IMPAIRED"
   ]),
   mobilityIssues: z.enum(["INDEPENDENT", "ASSISTANCE", "HOISTED"]),
-  historyRecurrentUTIs: z.boolean().optional(),
+  historyRecurrentUTIs: z.enum(["Yes", "No"]),
 
-  // Section 6 - Urinary continence
-  incontinence: z.enum([
+  // Section 6 - Urinary Continence History
+  incontinenceFrequency: z.enum([
     "NONE",
-    "ONE",
-    "1-2DAY",
-    "3DAY",
-    "NIGHT",
-    "DAYANDNIGHT"
+    "ONCE-A-DAY",
+    "1-2-DAY",
+    "3-DAY",
+    "NIGHTTIME",
+    "DAY-AND-NIGHT"
   ]),
-  volume: z.enum(["ENTIRE-BLADDER", "SMALL-VOL", "UNABLE-DETERMINE"]),
+  incontinenceVolume: z.enum(["ENTIRE-BLADDER", "SMALL-VOL-LEAKS", "UNABLE-DETERMINE"]),
   onset: z.enum(["SUDDEN", "GRADUAL"]),
   duration: z.enum(["LESS-6M", "6M-1Y", "MORE-1Y"]),
-  symptompsLastSix: z.enum(["STABLE", "WORSENING", "IMPROVING", "FLUCTUATING"]),
-  physicianConsulted: z.boolean().optional(),
+  symptomsPast6Months: z.enum(["STABLE", "WORSENING", "IMPROVING", "FLUCTUATING"]),
+  physicianConsulted: z.enum(["Yes", "No"]),
 
-  // Section 7 - Bowel pattern
-  bowelState: z.enum([
+  // Section 7 - Bowel Pattern
+  bowelPattern: z.enum([
     "NORMAL",
     "CONSTIPATION",
     "DIARRHOEA",
+    "IRRITABLE-BOWEL",
     "STOMA",
-    "FAECAL-INCONTINENCE",
-    "IRRITABLE-BOWEL"
+    "FAECAL-INCONTINENCE"
   ]),
   bowelFrequency: z.string().optional(),
-  usualTimeOfDat: z.string().optional(),
-  amountAndStoolType: z.string().optional(),
-  liquidFeeds: z.string().optional(),
-  otherFactors: z.string().optional(),
-  otherRemedies: z.string().optional(),
-  medicalOfficerConsulted: z.boolean().optional(),
+  bowelUsualTimeOfDay: z.string().optional(),
+  bowelAmountStoolType: z.string().optional(),
+  bowelLiquidFeeds: z.string().optional(),
+  bowelOtherFactors: z.string().optional(),
+  bowelOtherRemedies: z.string().optional(),
+  medicalOfficerConsulted: z.enum(["Yes", "No"]).optional(),
+  medicalOfficerName: z.string().optional(),
 
-  // Section 8 - Current toileting pattern and products in use
+  // Section 8 - Current toileting pattern and products
   dayPattern: ToiletingPattern,
   eveningPattern: ToiletingPattern,
   nightPattern: ToiletingPattern,
   typesOfPads: z.string().optional(),
 
-  // Section 9 - Symptoms
-  // 9.A (9)
-  leakCoughLaugh: z.boolean().optional(),
-  leakStandingUp: z.boolean().optional(),
-  leakUpstairsDownhill: z.boolean().optional(),
-  passesUrineFrequently: z.boolean().optional(),
-  desirePassUrine: z.boolean().optional(),
-  leaksBeforeToilet: z.boolean().optional(),
-  moreThanTwiceAtNight: z.boolean().optional(),
-  anxiety: z.boolean().optional(),
-  // 9.B (10)
-  difficultyStarting: z.boolean().optional(),
-  hesintancy: z.boolean().optional(),
-  dribbles: z.boolean().optional(),
-  feelsFull: z.boolean().optional(),
-  recurrentTractInfections: z.boolean().optional(),
-  // 9.C (11)
-  limitedMobility: z.boolean().optional(),
-  unableOnTime: z.boolean().optional(),
-  notHoldUrinalOrSeat: z.boolean().optional(),
-  notuseCallBell: z.boolean().optional(),
-  poorVision: z.boolean().optional(),
-  assistedTransfer: z.boolean().optional(),
-  pain: z.boolean().optional(),
+  // Section 9 - Symptoms Associated with Urinary Incontinence
+  leakCoughLaugh: z.enum(["Yes", "No"]).optional(),
+  leakStandingUp: z.enum(["Yes", "No"]).optional(),
+  leakUpstairsDownhill: z.enum(["Yes", "No"]).optional(),
+  passesUrineFrequently: z.enum(["Yes", "No"]).optional(),
+  desirePassUrineStrong: z.enum(["Yes", "No"]).optional(),
+  leaksBeforeToilet: z.enum(["Yes", "No"]).optional(),
+  getsUpMoreThanTwiceNight: z.enum(["Yes", "No"]).optional(),
+  anxietyContributesFrequency: z.enum(["Yes", "No"]).optional(),
+  difficultyBeginningUrine: z.enum(["Yes", "No"]).optional(),
+  hesitancyStraining: z.enum(["Yes", "No"]).optional(),
+  dribblesAfterUrine: z.enum(["Yes", "No"]).optional(),
+  feelsBladderFullAfterUrine: z.enum(["Yes", "No"]).optional(),
+  recurrentUTIs: z.enum(["Yes", "No"]).optional(),
+  limitedMobility: z.enum(["Yes", "No"]).optional(),
+  unableToiletOnTime: z.enum(["Yes", "No"]).optional(),
+  cannotHoldUrinalOrSit: z.enum(["Yes", "No"]).optional(),
+  cannotReachCallBell: z.enum(["Yes", "No"]).optional(),
+  poorVision: z.enum(["Yes", "No"]).optional(),
+  needsAssistedTransfer: z.enum(["Yes", "No"]).optional(),
+  pain: z.enum(["Yes", "No"]).optional(),
 
-  // Section 12
-  // Bladder
-  bladderContinent: z.boolean().optional(),
-  bladderIncontinent: z.boolean().optional(),
-  bladderIncontinentType: z.enum(["STRESS", "URGE", "MIXED", "FUNCTIONAL"]).optional(),
-  bladderPlanCommenced: z.boolean().optional(),
+  // Section 10 - Quality of Life
+  qualityOfLife: z.string().optional(),
+
+  // Section 11 - Summary of Continence Status
+  bladderContinent: z.enum(["Yes", "No"]).optional(),
+  bladderIncontinent: z.enum(["Yes", "No"]).optional(),
+  bladderIncontinentType: z.enum(["STRESS", "URGE", "MIXED", "RETENTION-OVERFLOW", "FUNCTIONAL"]).optional(),
+  bladderCarePlanCommenced: z.enum(["Yes", "No"]).optional(),
   bladderReferralRequired: z.enum([
-    "DIETICIAN",
-    "GP",
-    "OT",
-    "PHYSIOTHERAPIST",
-    "CONTINENCE-NURSE",
-    "NONE"
+    "DIETICIAN", "GP", "OT", "PHYSIOTHERAPIST", "CONTINENCE-NURSE", "NONE"
   ]).optional(),
-  bladderPlanFollowed: z.enum([
-    "STRESS",
-    "URGE",
-    "MIXED",
-    "RETENTION-OVERFLOW"
+  bladderTreatmentPlanFollowed: z.enum([
+    "STRESS", "URGE", "MIXED", "RETENTION-OVERFLOW"
   ]).optional(),
-  // Bowel
-  bowelContinent: z.boolean().optional(),
-  bowelIncontinent: z.boolean().optional(),
-  bowelPlanCommenced: z.boolean().optional(),
-  bowelRecordCommenced: z.boolean().optional(),
+  bowelContinent: z.enum(["Yes", "No"]).optional(),
+  bowelIncontinent: z.enum(["Yes", "No"]).optional(),
+  bowelCarePlanCommenced: z.enum(["Yes", "No"]).optional(),
+  bowelRecordCommenced: z.enum(["Yes", "No"]).optional(),
   bowelReferralRequired: z.enum([
-    "DIETICIAN",
-    "GP",
-    "OT",
-    "PHYSIOTHERAPIST",
-    "NONE"
+    "DIETICIAN", "GP", "OT", "PHYSIOTHERAPIST", "NONE"
   ]).optional(),
 
-  // Section 13
+  // Section 12 - Final Sign-off
   sigantureCompletingAssessment: z.string().optional(),
   sigantureResident: z.string().optional(),
   dateNextReview: z.number().optional()
 });
 
-export type BladderBowelAssessment = z.infer<
-  typeof bladderBowelAssessmentSchema
->;
+export type BladderBowelAssessment = z.infer<typeof bladderBowelAssessmentSchema>;
+

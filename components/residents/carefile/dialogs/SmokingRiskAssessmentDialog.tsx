@@ -296,6 +296,18 @@ export default function SmokingRiskAssessmentDialog({
         toast.error("Please ensure all fields are filled correctly.");
     };
 
+    const renderInput = (field: any, props: any = {}) => isViewMode ? (
+        <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[40px]">
+            {field.value || " "}
+        </div>
+    ) : <Input {...field} {...props} />;
+
+    const renderTextarea = (field: any, props: any = {}) => isViewMode ? (
+        <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[80px]">
+            {field.value || " "}
+        </div>
+    ) : <Textarea {...field} {...props} />;
+
     type QuestionConfig = {
         id: keyof SmokingRiskAssessmentFormData;
         label: string;
@@ -459,11 +471,10 @@ export default function SmokingRiskAssessmentDialog({
                                         render={({ field }) => (
                                             <FormItem className="space-y-0">
                                                 <FormControl>
-                                                    <Textarea
-                                                        {...field}
-                                                        className="min-h-[80px] resize-none text-xs"
-                                                        placeholder="Enter details..."
-                                                    />
+                                                    {renderTextarea(field, {
+                                                        className: "min-h-[80px] resize-none text-xs",
+                                                        placeholder: "Enter details..."
+                                                    })}
                                                 </FormControl>
                                             </FormItem>
                                         )}
@@ -669,10 +680,9 @@ export default function SmokingRiskAssessmentDialog({
                                                     <FormItem>
                                                         <FormLabel>Time of meeting</FormLabel>
                                                         <FormControl>
-                                                            <Input
-                                                                {...field}
-                                                                type="time"
-                                                            />
+                                                            {renderInput(field, {
+                                                                type: "time"
+                                                            })}
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -693,7 +703,7 @@ export default function SmokingRiskAssessmentDialog({
                                             <FormItem>
                                                 <FormLabel>Signature of Person Completing Form and Updating Room File</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} />
+                                                    {renderInput(field)}
                                                 </FormControl>
                                             </FormItem>
                                         )}
@@ -705,7 +715,7 @@ export default function SmokingRiskAssessmentDialog({
                                             <FormItem>
                                                 <FormLabel>Print Staff Name</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} />
+                                                    {renderInput(field)}
                                                 </FormControl>
                                             </FormItem>
                                         )}
@@ -755,7 +765,7 @@ export default function SmokingRiskAssessmentDialog({
                                             <FormItem>
                                                 <FormLabel>Role</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} placeholder="e.g. Senior Carer" />
+                                                    {renderInput(field, { placeholder: "e.g. Senior Carer" })}
                                                 </FormControl>
                                             </FormItem>
                                         )}

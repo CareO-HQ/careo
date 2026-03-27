@@ -32,6 +32,7 @@ export interface BodyMapEntry {
     photo_url?: string;
     date_time: string;
     status: "active" | "resolved";
+    assessed_by?: string;
 }
 
 export interface BodyMapSession {

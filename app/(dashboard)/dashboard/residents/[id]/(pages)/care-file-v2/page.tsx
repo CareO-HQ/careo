@@ -115,7 +115,7 @@ export default function CareFileV2Page() {
                         folderName={file.value}
                         folderKey={file.key}
                         carePlan={file.carePlan as boolean}
-                        description={file.description}
+                        description={file.description as any}
                         forms={file.forms as any}
                         preAddissionState={false}
                         residentId={residentId as any}
