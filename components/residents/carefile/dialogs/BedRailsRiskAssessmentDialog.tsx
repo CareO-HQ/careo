@@ -76,10 +76,10 @@ export default function BedRailsRiskAssessmentDialog({
       organizationId: initialData.assessment_data?.organizationId || initialData.organizationId || initialData.organization_id || organizationId,
       userId: initialData.assessment_data?.userId || initialData.userId || initialData.user_id || initialData.created_by || userId,
       residentName: initialData.residentName || (resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : ""),
-      bedroomNumber: initialData.bedroomNumber || resident?.room_number || "",
+      bedroomNumber: initialData.bedroom_number || initialData.bedroomNumber || resident?.room_number || "",
       dateOfBirth: initialData.dateOfBirth || (resident?.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now()),
       assessmentCompletedBy: initialData.assessmentCompletedBy || initialData.completed_by || (userName || ""),
-      jobRole: initialData.jobRole || initialData.job_role || "",
+      jobRole: initialData.job_role || initialData.jobRole || "",
       assessmentDate: initialData.assessmentDate || initialData.date_of_assessment || initialData.assessment_date || format(new Date(), "yyyy-MM-dd"),
       // Map JSONB structures from DB
       alternativeEquipmentConsidered: initialData.alternatives_considered?.considered || initialData.alternativeEquipmentConsidered || "",
@@ -264,6 +264,8 @@ export default function BedRailsRiskAssessmentDialog({
             carePlanCompleted: data.carePlanCompleted
           },
           completed_by: data.assessmentCompletedBy,
+          job_role: data.jobRole,
+          bedroom_number: data.bedroomNumber,
           assessment_date: data.assessmentDate,
           created_by: userId
         };
