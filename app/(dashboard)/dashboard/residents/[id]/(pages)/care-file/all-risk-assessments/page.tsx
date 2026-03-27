@@ -56,6 +56,7 @@ const TABLE_MAP: Record<string, string> = {
   "v2-night-obs-consent": "night_observation_consents",
   "v2-general-risk": "general_risk_assessments",
   "v2-personal-profile": "personal_profiles",
+  "v2-abbey-pain": "abbey_pain_assessments",
   "braden-risk-assessment-form": "braden_risk_assessments"
 };
 
@@ -147,6 +148,7 @@ export default function AllRiskAssessmentsPage() {
     allNightObservationForms,
     allGeneralRiskForms,
     allPersonalProfileForms,
+    allAbbeyPainForms,
     allBradenRiskAssessmentForms
   } = useFolderForms({
     residentId,
@@ -182,6 +184,7 @@ export default function AllRiskAssessmentsPage() {
       "v2-night-obs-consent",
       "v2-general-risk",
       "v2-personal-profile",
+      "v2-abbey-pain",
       "braden-risk-assessment-form"
     ],
     organizationId: resident?.active_organization_id
@@ -539,6 +542,16 @@ export default function AllRiskAssessmentsPage() {
       name: "Braden Risk Assessment",
       completedAt: getLatestForm(allBradenRiskAssessmentForms)?._creationTime,
       folderName: getFolderName("braden-risk-assessment-form", "Skin Integrity"),
+      category: "Clinical"
+    }] : []),
+
+    // Abbey Pain Tool
+    ...(allAbbeyPainForms && allAbbeyPainForms.length > 0 ? [{
+      _id: getLatestForm(allAbbeyPainForms)?._id,
+      key: "v2-abbey-pain",
+      name: "Abbey Pain Tool",
+      completedAt: getLatestForm(allAbbeyPainForms)?._creationTime,
+      folderName: getFolderName("v2-abbey-pain", "Medication"),
       category: "Clinical"
     }] : []),
   ].filter(assessment => assessment._id); // Remove any null entries

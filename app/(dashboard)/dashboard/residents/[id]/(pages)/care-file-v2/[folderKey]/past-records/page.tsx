@@ -59,6 +59,7 @@ const TABLE_MAP: Record<string, string> = {
     "v2-night-obs-consent": "night_observation_consents",
     "v2-general-risk": "general_risk_assessments",
     "v2-personal-profile": "personal_profiles",
+    "v2-abbey-pain": "abbey_pain_assessments",
     "key-worker-diary-form": "key_worker_diary"
 };
 

@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { BodyMapEntry, ConditionType } from "@/types/body-map";
 import { format } from "date-fns";
+import { useProfile } from "@/hooks/use-profile";
 
 import { FormDateTimePicker } from "@/components/ui/date-time-picker";
 
@@ -32,6 +33,7 @@ const BodyMapEntrySchema = z.object({
     condition_type: z.enum(["wound", "rash", "pain", "bruise", "surgical_site", "pressure_ulcer", "other"]),
     measurements: z.string().optional(),
     notes: z.string().optional(),
+    assessed_by: z.string().optional(),
     date_time: z.string(),
 });
 
@@ -52,15 +54,25 @@ export function BodyMapEntryForm({
     onDelete,
     readOnly = false,
 }: BodyMapEntryFormProps) {
+    const { profile } = useProfile();
+
     const form = useForm<z.infer<typeof BodyMapEntrySchema>>({
         resolver: zodResolver(BodyMapEntrySchema),
         defaultValues: {
             condition_type: initialData?.condition_type || "wound",
             measurements: initialData?.measurements || "",
             notes: initialData?.notes || "",
+            assessed_by: initialData?.assessed_by || profile?.name || "",
             date_time: initialData?.date_time || new Date().toISOString(),
         },
     });
+
+    // Update assessed_by if profile loads later
+    React.useEffect(() => {
+        if (profile?.name && !form.getValues("assessed_by") && !initialData?.assessed_by) {
+            form.setValue("assessed_by", profile.name);
+        }
+    }, [profile?.name, form, initialData?.assessed_by]);
 
     return (
         <div className="space-y-6 px-1 pb-6">
@@ -125,6 +137,20 @@ export function BodyMapEntryForm({
                                 <FormLabel>Notes</FormLabel>
                                 <FormControl>
                                     <Textarea placeholder="Additional details..." {...field} disabled={readOnly} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+
+                    <FormField
+                        control={form.control}
+                        name="assessed_by"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Assessed By</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Enter assessor's name" {...field} disabled={readOnly} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>

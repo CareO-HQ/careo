@@ -156,13 +156,14 @@ export const generateBodyMapPDF = async ({
     const tableData = (currentSession?.entries || []).map(entry => [
         entry.region_name,
         entry.condition_type,
+        entry.assessed_by || "N/A",
         `${entry.notes || ""}${entry.measurements ? `\nSize: ${entry.measurements}` : ""}`,
         entry.date_time ? new Date(entry.date_time).toLocaleDateString("en-GB") : "N/A"
     ]);
 
     autoTable(doc, {
         startY: yPos,
-        head: [['Region', 'Observation Type', 'Notes & Measurements', 'Recorded Date']],
+        head: [['Region', 'Observation Type', 'Assessed By', 'Notes & Measurements', 'Date']],
         body: tableData,
         theme: 'grid',
         headStyles: {
@@ -176,10 +177,11 @@ export const generateBodyMapPDF = async ({
             cellPadding: 3
         },
         columnStyles: {
-            0: { cellWidth: 35 },
-            1: { cellWidth: 35 },
-            2: { cellWidth: 'auto' },
-            3: { cellWidth: 30 }
+            0: { cellWidth: 30 },
+            1: { cellWidth: 30 },
+            2: { cellWidth: 35 },
+            3: { cellWidth: 'auto' },
+            4: { cellWidth: 25 }
         }
     });
 

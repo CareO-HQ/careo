@@ -80,6 +80,7 @@ export default function ArchivedRiskAssessmentsPage() {
   const [archivedNightObservation, setArchivedNightObservation] = useState<any[]>([]);
   const [archivedGeneralRisk, setArchivedGeneralRisk] = useState<any[]>([]);
   const [archivedPersonalProfile, setArchivedPersonalProfile] = useState<any[]>([]);
+  const [archivedAbbeyPain, setArchivedAbbeyPain] = useState<any[]>([]);
 
   const TABLE_MAP: Record<string, string> = {
     "preAdmission-form": "pre_admission_care_files",
@@ -112,7 +113,8 @@ export default function ArchivedRiskAssessmentsPage() {
     "v2-capacity-consent": "capacity_consents",
     "v2-night-obs-consent": "night_observation_consents",
     "v2-general-risk": "general_risk_assessments",
-    "v2-personal-profile": "personal_profiles"
+    "v2-personal-profile": "personal_profiles",
+    "v2-abbey-pain": "abbey_pain_assessments"
   };
 
   useEffect(() => {
@@ -235,6 +237,9 @@ export default function ArchivedRiskAssessmentsPage() {
               break;
             case "v2-personal-profile":
               setArchivedPersonalProfile(mappedData);
+              break;
+            case "v2-abbey-pain":
+              setArchivedAbbeyPain(mappedData);
               break;
           }
         });
@@ -542,6 +547,14 @@ export default function ArchivedRiskAssessmentsPage() {
       completedAt: form._creationTime,
       folderName: getFolderName("v2-personal-profile", "My Life"),
       category: "Personal"
+    })) || []),
+    ...(archivedAbbeyPain?.map(form => ({
+      _id: form._id,
+      key: "v2-abbey-pain",
+      name: "Abbey Pain Tool",
+      completedAt: form._creationTime,
+      folderName: getFolderName("v2-abbey-pain", "Medication"),
+      category: "Clinical"
     })) || []),
   ];
 

@@ -49,6 +49,7 @@ export function useFolderForms({
   const [allNightObservationForms, setAllNightObservationForms] = useState<any[] | undefined>(undefined);
   const [allGeneralRiskForms, setAllGeneralRiskForms] = useState<any[] | undefined>(undefined);
   const [allPersonalProfileForms, setAllPersonalProfileForms] = useState<any[] | undefined>(undefined);
+  const [allAbbeyPainForms, setAllAbbeyPainForms] = useState<any[] | undefined>(undefined);
 
   const [activeCarePlanForms, setActiveCarePlanForms] = useState<any[] | undefined>(undefined);
   const [archivedCarePlans, setArchivedCarePlans] = useState<any[] | undefined>(undefined);
@@ -407,6 +408,16 @@ export function useFolderForms({
         .then(({ data }) => setAllPersonalProfileForms(data || [])));
     }
 
+    // Abbey Pain
+    if (folderFormKeys?.includes("v2-abbey-pain")) {
+      promises.push(supabase
+        .from('abbey_pain_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllAbbeyPainForms(data || [])));
+    }
+
     // Care Plans
     if (includeCarePlans && folderKey) {
       // Fetch is handled in separate fetchAllCarePlans effect
@@ -734,6 +745,16 @@ export function useFolderForms({
         .then(({ data }) => setAllPersonalProfileForms(data || [])));
     }
 
+    // Abbey Pain
+    if (folderFormKeys?.includes("v2-abbey-pain")) {
+      promises.push(supabase
+        .from('abbey_pain_assessments')
+        .select('*')
+        .eq('resident_id', residentId)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setAllAbbeyPainForms(data || [])));
+    }
+
     Promise.all(promises).finally(() => setIsLoading(false));
   }, [residentId]);
 
@@ -796,6 +817,7 @@ export function useFolderForms({
   const allNightObservationFormsMapped = useMemo(() => mapToConvexLike(allNightObservationForms), [allNightObservationForms]);
   const allGeneralRiskFormsMapped = useMemo(() => mapToConvexLike(allGeneralRiskForms), [allGeneralRiskForms]);
   const allPersonalProfileFormsMapped = useMemo(() => mapToConvexLike(allPersonalProfileForms), [allPersonalProfileForms]);
+  const allAbbeyPainFormsMapped = useMemo(() => mapToConvexLike(allAbbeyPainForms), [allAbbeyPainForms]);
 
   const latestPersonalProfileForm = useMemo(() => 
     allPersonalProfileFormsMapped && allPersonalProfileFormsMapped.length > 0 
@@ -892,6 +914,7 @@ export function useFolderForms({
     processForms(allCapacityConsentsFormsMapped, "v2-capacity-consent", "Capacity & Consent Assessment");
     processForms(allNightObservationFormsMapped, "v2-night-obs-consent", "Night Observation Consent");
     processForms(allPersonalProfileFormsMapped, "v2-personal-profile", "Personal Profile");
+    processForms(allAbbeyPainFormsMapped, "v2-abbey-pain", "Abbey Pain Tool");
 
     // Process Care Plans
     if (includeCarePlans) {
@@ -942,6 +965,7 @@ export function useFolderForms({
     allNightObservationFormsMapped,
     allGeneralRiskFormsMapped,
     allPersonalProfileFormsMapped,
+    allAbbeyPainFormsMapped,
     filteredActiveCarePlansMapped,
     filteredArchivedCarePlansMapped,
     folderFormKeys
@@ -985,6 +1009,7 @@ export function useFolderForms({
     allNightObservationForms: allNightObservationFormsMapped,
     allGeneralRiskForms: allGeneralRiskFormsMapped,
     allPersonalProfileForms: allPersonalProfileFormsMapped,
+    allAbbeyPainForms: allAbbeyPainFormsMapped,
     latestPersonalProfileForm: latestPersonalProfileForm,
     allBedRailsRiskAssessmentForms: allBedRailsRiskAssessmentFormsMapped,
     activeCarePlanForms: filteredActiveCarePlansMapped,

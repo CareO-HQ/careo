@@ -94,6 +94,7 @@ const TABLE_MAP: Record<string, string> = {
     "v2-night-obs-consent": "night_observation_consents",
     "v2-general-risk": "general_risk_assessments",
     "v2-personal-profile": "personal_profiles",
+    "v2-abbey-pain": "abbey_pain_assessments",
     "progress-note-form": "progress_notes"
 };
 
@@ -317,8 +318,15 @@ export default function CareFileV2FolderPage() {
         }
 
         const formState = getFormState(key);
-        // Braden form, Dependency Assessment, Fall Risk Assessment, and Choking Risk Assessment should always be in edit mode
-        if (key === "braden-risk-assessment-form" || key === "dependency-assessment" || key === "fall-risk-assessment" || key === "choking-risk-assessment-form") {
+        // Certain forms should always open in add (edit) mode without pre-filling
+        const alwaysEditForms = [
+            "braden-risk-assessment-form",
+            "dependency-assessment",
+            "fall-risk-assessment",
+            "choking-risk-assessment-form",
+            "v2-abbey-pain"
+        ];
+        if (alwaysEditForms.includes(key)) {
             setIsViewOnly(false);
             setIsReviewMode(false);
             setFormDataForEdit(null);

@@ -219,12 +219,14 @@ export default function AbbeyPainDialog({
         );
 
         toast.success(isEditMode ? "Abbey Pain Tool updated successfully!" : "Abbey Pain Tool saved successfully");
-        setShowSummary(true);
         refreshForms?.();
         
         if (!isEditMode) {
           form.reset(defaultValues);
+          setShowSummary(false);
           fetchHistory();
+        } else {
+          setShowSummary(true);
         }
 
         if (!isInline && isEditMode) {
