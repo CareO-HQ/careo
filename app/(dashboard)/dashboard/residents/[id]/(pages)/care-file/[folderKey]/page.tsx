@@ -212,7 +212,7 @@ export default function GenericFolderPage() {
         "peep": "peeps",
         "dependency-assessment": "dependency_assessments",
         "timl": "timl_assessments",
-        "skin-integrity-form": "skin_integrity_assessments",
+
         "resident-valuables-form": "resident_valuables_assessments",
         "resident-handling-profile-form": "handling_profiles",
         "pain-assessment-form": "pain_assessments",
@@ -763,17 +763,13 @@ export default function GenericFolderPage() {
                     } overflow-y-auto overflow-x-hidden p-3`}>
                     <div className="flex flex-col gap-6">
                         {/* Forms section */}
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">
-                                    Forms
-                                </p>
-                            </div>
-                            {folderForms.length === 0 ? (
-                                <p className="text-[11px] text-muted-foreground px-2 italic">
-                                    No forms configured
-                                </p>
-                            ) : (
+                        {folderForms.length > 0 && (
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">
+                                        Forms
+                                    </p>
+                                </div>
                                 <div className="flex flex-col gap-1">
                                     {folderForms.map((form) => {
                                         const isActive = activeFormKey === form.key;
@@ -817,8 +813,8 @@ export default function GenericFolderPage() {
                                         );
                                     })}
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
 
                         {/* Care Plan section (if applicable) */}
                         {folderConfig.carePlan && (

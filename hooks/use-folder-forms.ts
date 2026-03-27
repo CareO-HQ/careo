@@ -31,7 +31,6 @@ export function useFolderForms({
   const [allPeepForms, setAllPeepForms] = useState<any[] | undefined>(undefined);
   const [allDependencyAssessmentForms, setAllDependencyAssessmentForms] = useState<any[] | undefined>(undefined);
   const [allTimlAssessmentForms, setAllTimlAssessmentForms] = useState<any[] | undefined>(undefined);
-  const [allSkinIntegrityForms, setAllSkinIntegrityForms] = useState<any[] | undefined>(undefined);
   const [allResidentValuablesForms, setAllResidentValuablesForms] = useState<any[] | undefined>(undefined);
   const [allHandlingProfileForms, setAllHandlingProfileForms] = useState<any[] | undefined>(undefined);
   const [allPainAssessmentForms, setAllPainAssessmentForms] = useState<any[] | undefined>(undefined);
@@ -227,15 +226,6 @@ export function useFolderForms({
         .then(({ data }) => setAllTimlAssessmentForms(data || [])));
     }
 
-    // Skin Integrity
-    if (folderFormKeys?.includes("skin-integrity-form")) {
-      promises.push(supabase
-        .from('skin_integrity_assessments')
-        .select('*')
-        .eq('resident_id', residentId)
-        .order('created_at', { ascending: false })
-        .then(({ data }) => setAllSkinIntegrityForms(data || [])));
-    }
 
     // Resident Valuables
     if (folderFormKeys?.includes("resident-valuables-form")) {
@@ -563,15 +553,6 @@ export function useFolderForms({
         .then(({ data }) => setAllTimlAssessmentForms(data || [])));
     }
 
-    // Skin Integrity
-    if (folderFormKeys?.includes("skin-integrity-form")) {
-      promises.push(supabase
-        .from('skin_integrity_assessments')
-        .select('*')
-        .eq('resident_id', residentId)
-        .order('created_at', { ascending: false })
-        .then(({ data }) => setAllSkinIntegrityForms(data || [])));
-    }
 
     // Resident Valuables
     if (folderFormKeys?.includes("resident-valuables-form")) {
@@ -797,7 +778,6 @@ export function useFolderForms({
   const allPeepFormsMapped = useMemo(() => mapToConvexLike(allPeepForms), [allPeepForms]);
   const allDependencyAssessmentFormsMapped = useMemo(() => mapToConvexLike(allDependencyAssessmentForms), [allDependencyAssessmentForms]);
   const allTimlAssessmentFormsMapped = useMemo(() => mapToConvexLike(allTimlAssessmentForms), [allTimlAssessmentForms]);
-  const allSkinIntegrityFormsMapped = useMemo(() => mapToConvexLike(allSkinIntegrityForms), [allSkinIntegrityForms]);
   const allResidentValuablesFormsMapped = useMemo(() => mapToConvexLike(allResidentValuablesForms), [allResidentValuablesForms]);
   const allHandlingProfileFormsMapped = useMemo(() => mapToConvexLike(allHandlingProfileForms), [allHandlingProfileForms]);
   const allPainAssessmentFormsMapped = useMemo(() => mapToConvexLike(allPainAssessmentForms), [allPainAssessmentForms]);
@@ -834,8 +814,6 @@ export function useFolderForms({
       // Match if the saved folderKey equals the current folderKey, OR
       // if no folderKey was saved at all (legacy data), show in all folders is too broad,
       // so only match if it explicitly matches.
-      // Special case for skin integrity key change
-      if (folderKey === "skin-integrity" && (savedFolderKey === "skin entry" || savedFolderKey === "skin integrity")) return true;
       return savedFolderKey === folderKey;
     });
   }, [activeCarePlanForms, folderKey]);
@@ -897,7 +875,6 @@ export function useFolderForms({
     processForms(allPeepFormsMapped, "peep", "Personal Emergency Evacuation Plan");
     processForms(allDependencyAssessmentFormsMapped, "dependency-assessment", "Dependency Assessment");
     processForms(allTimlAssessmentFormsMapped, "timl", "This Is My Life Assessment");
-    processForms(allSkinIntegrityFormsMapped, "skin-integrity-form", "Skin Integrity Assessment");
     processForms(allResidentValuablesFormsMapped, "resident-valuables-form", "Resident Valuables Assessment");
     processForms(allHandlingProfileFormsMapped, "resident-handling-profile-form", "Resident Handling Profile");
     processForms(allPainAssessmentFormsMapped, "pain-assessment-form", "Pain Assessment and Evaluation");
@@ -947,7 +924,6 @@ export function useFolderForms({
     allPeepFormsMapped,
     allDependencyAssessmentFormsMapped,
     allTimlAssessmentFormsMapped,
-    allSkinIntegrityFormsMapped,
     allResidentValuablesFormsMapped,
     allHandlingProfileFormsMapped,
     allPainAssessmentFormsMapped,
@@ -991,7 +967,6 @@ export function useFolderForms({
     allPeepForms: allPeepFormsMapped,
     allDependencyAssessmentForms: allDependencyAssessmentFormsMapped,
     allTimlAssessmentForms: allTimlAssessmentFormsMapped,
-    allSkinIntegrityForms: allSkinIntegrityFormsMapped,
     allResidentValuablesForms: allResidentValuablesFormsMapped,
     allHandlingProfileForms: allHandlingProfileFormsMapped,
     allPainAssessmentForms: allPainAssessmentFormsMapped,

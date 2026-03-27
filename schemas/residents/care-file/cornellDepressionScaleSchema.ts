@@ -11,7 +11,7 @@ import { z } from "zod";
  *   - 13+: Major depression
  */
 
-const ratingEnum = z.enum(["0", "1", "2"]);
+const ratingEnum = z.enum(["a", "0", "1", "2"]);
 
 export const cornellDepressionScaleSchema = z.object({
   // Administrative Information
@@ -32,13 +32,16 @@ export const cornellDepressionScaleSchema = z.object({
   multiplePhysicalComplaints: ratingEnum,
   lossOfInterest: ratingEnum,
 
-  // C. Physical Signs (2 items)
+  // C. Physical Signs (3 items)
   appetiteLoss: ratingEnum,
   weightLoss: ratingEnum,
+  lackOfEnergy: ratingEnum,
 
-  // D. Cyclic Functions (2 items)
+  // D. Cyclic Functions (4 items)
   diurnalVariation: ratingEnum,
-  sleepDisturbance: ratingEnum,
+  difficultyFallingAsleep: ratingEnum,
+  multipleAwakenings: ratingEnum,
+  earlyMorningAwakening: ratingEnum,
 
   // E. Ideational Disturbance (6 items)
   suicidalIdeation: ratingEnum,
@@ -67,31 +70,39 @@ export type CornellDepressionScaleFormData = z.infer<typeof cornellDepressionSca
 export function calculateCornellScore(data: Partial<CornellDepressionScaleFormData>): number {
   let score = 0;
 
+  const getScore = (val?: string) => {
+    if (val === "a" || !val) return 0;
+    return parseInt(val);
+  };
+
   // A. Mood-Related Signs
-  score += parseInt(data.anxiety || "0");
-  score += parseInt(data.sadness || "0");
-  score += parseInt(data.lackOfReactivity || "0");
-  score += parseInt(data.irritability || "0");
+  score += getScore(data.anxiety);
+  score += getScore(data.sadness);
+  score += getScore(data.lackOfReactivity);
+  score += getScore(data.irritability);
 
   // B. Behavioral Disturbance
-  score += parseInt(data.agitation || "0");
-  score += parseInt(data.retardation || "0");
-  score += parseInt(data.multiplePhysicalComplaints || "0");
-  score += parseInt(data.lossOfInterest || "0");
+  score += getScore(data.agitation);
+  score += getScore(data.retardation);
+  score += getScore(data.multiplePhysicalComplaints);
+  score += getScore(data.lossOfInterest);
 
   // C. Physical Signs
-  score += parseInt(data.appetiteLoss || "0");
-  score += parseInt(data.weightLoss || "0");
+  score += getScore(data.appetiteLoss);
+  score += getScore(data.weightLoss);
+  score += getScore(data.lackOfEnergy);
 
   // D. Cyclic Functions
-  score += parseInt(data.diurnalVariation || "0");
-  score += parseInt(data.sleepDisturbance || "0");
+  score += getScore(data.diurnalVariation);
+  score += getScore(data.difficultyFallingAsleep);
+  score += getScore(data.multipleAwakenings);
+  score += getScore(data.earlyMorningAwakening);
 
   // E. Ideational Disturbance
-  score += parseInt(data.suicidalIdeation || "0");
-  score += parseInt(data.lowSelfEsteem || "0");
-  score += parseInt(data.pessimism || "0");
-  score += parseInt(data.moodCongruentDelusions || "0");
+  score += getScore(data.suicidalIdeation);
+  score += getScore(data.lowSelfEsteem);
+  score += getScore(data.pessimism);
+  score += getScore(data.moodCongruentDelusions);
 
   return score;
 }

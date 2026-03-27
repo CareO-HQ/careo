@@ -271,21 +271,6 @@ export const config = {
     },
     {
       type: "folder",
-      key: "skin-integrity",
-      value: "Skin Integrity / Tissue Viability",
-      description: "Skin Integrity / Tissue Viability Assessment",
-      carePlan: true,
-      forms: [
-        {
-          type: "form",
-          key: "skin-integrity-form",
-          value: "Skin Integrity / Tissue Viability Assessment",
-          description: "Skin Integrity / Tissue Viability Assessment"
-        }
-      ]
-    },
-    {
-      type: "folder",
       key: "psychological-emotional",
       value: "Psychological & Emotional needs",
       description: "Psychological & Emotional needs Assessment",
@@ -453,10 +438,8 @@ export const config = {
       description: "Hygiene and skin integrity assessments.",
       carePlan: true,
       forms: [
-        { type: "form", key: "v2-body-map-hygiene", value: "Body Map (monthly reassessment)" },
         { type: "form", key: "braden-risk-assessment-form", value: "Braden Risk Assessment (score required)" },
-        { type: "form", key: "oral-assessment-form", value: "Oral Assessment + Evaluation Sheet" },
-        { type: "form", key: "v2-skin-dermatology", value: "Skin Integrity / Dermatology Assessment", isComingSoon: true }
+        { type: "form", key: "oral-assessment-form", value: "Oral Assessment + Evaluation Sheet" }
       ]
     },
     {
@@ -466,9 +449,7 @@ export const config = {
       description: "Wound care and skin integrity.",
       carePlan: true,
       forms: [
-        { type: "form", key: "braden-risk-assessment-form", value: "Braden Risk Assessment" },
-        { type: "form", key: "v2-body-map-skin", value: "Body Map" },
-        { type: "form", key: "skin-integrity-form", value: "Skin Integrity / Tissue Viability Assessment" }
+        { type: "form", key: "braden-risk-assessment-form", value: "Braden Risk Assessment" }
       ]
     },
     {
@@ -514,10 +495,7 @@ export const config = {
       type: "folder",
       key: "v2-confidential",
       value: "Confidential Records",
-      description: "Storage for sensitive legal and funeral documents.",
-      forms: [
-        { type: "upload", key: "v2-confidential-upload", value: "Upload confidential documents", isComingSoon: true }
-      ]
+      forms: []
     },
     {
       type: "folder",
@@ -526,7 +504,6 @@ export const config = {
       description: "Safeguarding and Liberty Protection Safeguards.",
       forms: [
         { type: "form", key: "v2-safe-risk", value: "Safeguarding Risk Assessment", isComingSoon: true },
-        { type: "form", key: "v2-safe-body-map", value: "Safeguarding Body Map" },
         { type: "form", key: "v2-dols-app", value: "DoLS Application Form", isComingSoon: true }
       ]
     },

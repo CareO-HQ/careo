@@ -47,7 +47,7 @@ const TABLE_MAP: Record<string, string> = {
   "peep": "peeps",
   "dependency-assessment": "dependency_assessments",
   "timl": "timl_assessments",
-  "skin-integrity-form": "skin_integrity_assessments",
+
   "resident-valuables-form": "resident_valuables_assessments",
   "resident-handling-profile-form": "handling_profiles",
   "pain-assessment-form": "pain_assessments",

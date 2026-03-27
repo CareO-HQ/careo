@@ -15,7 +15,6 @@ import PeepDialog from "@/components/residents/carefile/dialogs/PeepDialog";
 import PhotographyConsentDialog from "@/components/residents/carefile/dialogs/PhotographyConsentDialog";
 import PreAdmissionDialog from "@/components/residents/carefile/dialogs/PreAdmissionDialog";
 import ResidentValuablesDialog from "@/components/residents/carefile/dialogs/ResidentValuables";
-import SkinIntegrityDialog from "@/components/residents/carefile/dialogs/SkinIntegrityDialog";
 import TimlDialog from "@/components/residents/carefile/dialogs/TimlDialog";
 import PersonalProfileDialog from "@/components/residents/carefile/dialogs/PersonalProfileDialog";
 import ResidentHandlingProfileDialog from "@/components/residents/carefile/dialogs/ResidentHandlingProfileDialog";
@@ -229,8 +228,7 @@ export function CareFileDialogRenderer({
       case "v2-personal-profile":
         return <PersonalProfileDialog {...commonProps} resident={resident} userName={userName ?? ""} initialData={editData} />;
 
-      case "skin-integrity-form":
-        return <SkinIntegrityDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
+
 
       case "resident-valuables-form":
         return (

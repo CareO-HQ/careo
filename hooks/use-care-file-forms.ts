@@ -36,7 +36,7 @@ async function fetchFormsFromDB(residentId: string): Promise<CareFileFormsState>
     "peep",
     "dependency-assessment",
     "timl",
-    "skin-integrity-form",
+
     "resident-valuables-form",
     "resident-handling-profile-form",
     "pain-assessment-form",
@@ -74,7 +74,7 @@ async function fetchFormsFromDB(residentId: string): Promise<CareFileFormsState>
     "peep": "peeps",
     "dependency-assessment": "dependency_assessments",
     "timl": "timl_assessments",
-    "skin-integrity-form": "skin_integrity_assessments",
+
     "resident-valuables-form": "resident_valuables_assessments",
     "resident-handling-profile-form": "handling_profiles",
     "pain-assessment-form": "pain_assessments",

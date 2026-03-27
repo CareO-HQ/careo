@@ -73,8 +73,14 @@ export default function ResidentValuables({
         completedBy:
           (initialData.assessment_data?.completedBy ?? initialData.completedBy) ??
           userName,
+        completedByRole:
+          (initialData.assessment_data?.completedByRole ?? initialData.completedByRole) ??
+          "",
         witnessedBy:
           (initialData.assessment_data?.witnessedBy ?? initialData.witnessedBy) ??
+          "",
+        witnessedByRole:
+          (initialData.assessment_data?.witnessedByRole ?? initialData.witnessedByRole) ??
           "",
         valuables: initialData.assessment_data?.valuables ?? initialData.valuables ?? [],
         n50: initialData.assessment_data?.n50 ?? initialData.n50 ?? undefined,
@@ -91,18 +97,23 @@ export default function ResidentValuables({
         p1: initialData.assessment_data?.p1 ?? initialData.p1 ?? undefined,
         total: initialData.assessment_data?.total ?? initialData.total ?? 0,
         clothing: initialData.assessment_data?.clothing ?? initialData.clothing ?? [],
-        other: initialData.assessment_data?.other ?? initialData.other ?? []
+        other: initialData.assessment_data?.other ?? initialData.other ?? [],
+        comments: initialData.assessment_data?.comments ?? initialData.comments ?? ""
       }
       : {
         residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim() || "",
         bedroomNumber: resident.room_number ?? "",
-        date: Date.now(), completedBy: userName, witnessedBy: "",
+        date: Date.now(),
+        completedBy: userName,
+        completedByRole: "",
+        witnessedBy: "",
+        witnessedByRole: "",
         valuables: [],
         n50: undefined, n20: undefined, n10: undefined, n5: undefined,
         n2: undefined, n1: undefined,
         p50: undefined, p20: undefined, p10: undefined, p5: undefined,
         p2: undefined, p1: undefined,
-        total: 0, clothing: [], other: []
+        total: 0, clothing: [], other: [], comments: ""
       }
   });
 
@@ -123,6 +134,20 @@ export default function ResidentValuables({
     form.setValue("total", parseFloat(total.toFixed(2)));
     return total;
   };
+
+  const isViewMode = viewOnly;
+
+  const renderInput = (field: any, props: any = {}) => isViewMode ? (
+    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[40px]">
+      {field.value || " "}
+    </div>
+  ) : <Input {...field} {...props} />;
+
+  const renderTextarea = (field: any, props: any = {}) => isViewMode ? (
+    <div className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-70 whitespace-pre-wrap break-words min-h-[80px]">
+      {field.value || " "}
+    </div>
+  ) : <Textarea {...field} {...props} />;
 
   const handleSubmit = async () => {
     startTransition(async () => {
@@ -155,11 +180,14 @@ export default function ResidentValuables({
         <FormItem>
           <FormLabel>{label}</FormLabel>
           <FormControl>
-            <Input type="number" {...field} value={field.value ?? ""}
-              onChange={(e) => {
+            {renderInput(field, {
+              type: "number",
+              value: field.value ?? "",
+              onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
                 field.onChange(e.target.valueAsNumber || undefined);
                 setTimeout(calculateTotal, 0);
-              }} />
+              }
+            })}
           </FormControl>
           <FormMessage />
         </FormItem>
@@ -205,12 +233,12 @@ export default function ResidentValuables({
                   <FormField control={form.control} name="residentName"
                     render={({ field }) => (
                       <FormItem><FormLabel required>Resident Name</FormLabel>
-                        <FormControl><Input {...field} /></FormControl><FormMessage />
+                        <FormControl>{renderInput(field)}</FormControl><FormMessage />
                       </FormItem>)} />
                   <FormField control={form.control} name="bedroomNumber"
                     render={({ field }) => (
                       <FormItem><FormLabel required>Bedroom Number</FormLabel>
-                        <FormControl><Input {...field} /></FormControl><FormMessage />
+                        <FormControl>{renderInput(field)}</FormControl><FormMessage />
                       </FormItem>)} />
                 </div>
                 <FormField control={form.control} name="date"
@@ -240,12 +268,24 @@ export default function ResidentValuables({
                   <FormField control={form.control} name="completedBy"
                     render={({ field }) => (
                       <FormItem><FormLabel required>Completed By</FormLabel>
-                        <FormControl><Input {...field} /></FormControl><FormMessage />
+                        <FormControl>{renderInput(field)}</FormControl><FormMessage />
                       </FormItem>)} />
+                  <FormField control={form.control} name="completedByRole"
+                    render={({ field }) => (
+                      <FormItem><FormLabel>Job Role</FormLabel>
+                        <FormControl>{renderInput(field, { placeholder: "e.g. Senior Carer" })}</FormControl><FormMessage />
+                      </FormItem>)} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <FormField control={form.control} name="witnessedBy"
                     render={({ field }) => (
                       <FormItem><FormLabel required>Witnessed By</FormLabel>
-                        <FormControl><Input {...field} /></FormControl><FormMessage />
+                        <FormControl>{renderInput(field)}</FormControl><FormMessage />
+                      </FormItem>)} />
+                  <FormField control={form.control} name="witnessedByRole"
+                    render={({ field }) => (
+                      <FormItem><FormLabel>Job Role</FormLabel>
+                        <FormControl>{renderInput(field, { placeholder: "e.g. Registered Nurse" })}</FormControl><FormMessage />
                       </FormItem>)} />
                 </div>
               </div>
@@ -267,7 +307,7 @@ export default function ResidentValuables({
                       render={({ field }) => (
                         <FormItem className="flex-1">
                           <FormControl>
-                            <Input {...field} placeholder="Valuable item description" />
+                            {renderInput(field, { placeholder: "Valuable item description" })}
                           </FormControl><FormMessage />
                         </FormItem>)} />
                     <Button type="button" variant="ghost" size="sm"
@@ -334,7 +374,7 @@ export default function ResidentValuables({
                         render={({ field }) => (
                           <FormItem className="flex-1">
                             <FormControl>
-                              <Input {...field} placeholder="Clothing item description" />
+                              {renderInput(field, { placeholder: "Clothing item description" })}
                             </FormControl><FormMessage />
                           </FormItem>)} />
                       <Button type="button" variant="ghost" size="sm"
@@ -373,19 +413,19 @@ export default function ResidentValuables({
                       <FormField control={form.control} name={`other.${index}.details`}
                         render={({ field }) => (
                           <FormItem><FormLabel>Item Details</FormLabel>
-                            <FormControl><Textarea {...field} placeholder="Describe the item" /></FormControl>
+                            <FormControl>{renderTextarea(field, { placeholder: "Describe the item" })}</FormControl>
                             <FormMessage />
                           </FormItem>)} />
                       <div className="grid grid-cols-2 gap-4">
                         <FormField control={form.control} name={`other.${index}.receivedBy`}
                           render={({ field }) => (
                             <FormItem><FormLabel>Received By</FormLabel>
-                              <FormControl><Input {...field} /></FormControl><FormMessage />
+                              <FormControl>{renderInput(field)}</FormControl><FormMessage />
                             </FormItem>)} />
                         <FormField control={form.control} name={`other.${index}.witnessedBy`}
                           render={({ field }) => (
                             <FormItem><FormLabel>Witnessed By</FormLabel>
-                              <FormControl><Input {...field} /></FormControl><FormMessage />
+                              <FormControl>{renderInput(field)}</FormControl><FormMessage />
                             </FormItem>)} />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -426,6 +466,27 @@ export default function ResidentValuables({
                   {otherFields.length === 0 && (
                     <p className="text-sm text-muted-foreground italic">No other items added</p>
                   )}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1 pb-2 border-b">
+                    <h4 className="text-sm font-medium">Comments</h4>
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="comments"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          {renderTextarea(field, {
+                            placeholder: "Enter any additional comments or observations...",
+                            className: "min-h-[120px]"
+                          })}
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </div>
             </div>

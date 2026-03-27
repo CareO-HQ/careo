@@ -56,7 +56,7 @@ export default function ArchivedRiskAssessmentsPage() {
   const [archivedPeep, setArchivedPeep] = useState<any[]>([]);
   const [archivedDependency, setArchivedDependency] = useState<any[]>([]);
   const [archivedTiml, setArchivedTiml] = useState<any[]>([]);
-  const [archivedSkinIntegrity, setArchivedSkinIntegrity] = useState<any[]>([]);
+
   const [archivedResidentValuables, setArchivedResidentValuables] = useState<any[]>([]);
   const [archivedHandlingProfile, setArchivedHandlingProfile] = useState<any[]>([]);
   const [archivedPainAssessment, setArchivedPainAssessment] = useState<any[]>([]);
@@ -95,7 +95,7 @@ export default function ArchivedRiskAssessmentsPage() {
     "peep": "peeps",
     "dependency-assessment": "dependency_assessments",
     "timl": "timl_assessments",
-    "skin-integrity-form": "skin_integrity_assessments",
+
     "resident-valuables-form": "resident_valuables_assessments",
     "resident-handling-profile-form": "handling_profiles",
     "pain-assessment-form": "pain_assessments",
@@ -166,9 +166,7 @@ export default function ArchivedRiskAssessmentsPage() {
             case "timl":
               setArchivedTiml(mappedData);
               break;
-            case "skin-integrity-form":
-              setArchivedSkinIntegrity(mappedData);
-              break;
+
             case "resident-valuables-form":
               setArchivedResidentValuables(mappedData);
               break;
@@ -360,14 +358,7 @@ export default function ArchivedRiskAssessmentsPage() {
       folderName: getFolderName("timl", "My Life"),
       category: "Personal"
     })) || []),
-    ...(archivedSkinIntegrity?.map(form => ({
-      _id: form._id,
-      key: "skin-integrity-form",
-      name: "Skin Integrity Assessment",
-      completedAt: form._creationTime,
-      folderName: getFolderName("skin-integrity-form", "Skin Integrity"),
-      category: "Clinical"
-    })) || []),
+
     ...(archivedResidentValuables?.map(form => ({
       _id: form._id,
       key: "resident-valuables-form",

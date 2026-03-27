@@ -38,7 +38,7 @@ const TABLE_MAP: Record<string, string> = {
   "peep": "peeps",
   "dependency-assessment": "dependency_assessments",
   "timl": "timl_assessments",
-  "skin-integrity-form": "skin_integrity_assessments",
+
   "resident-valuables-form": "resident_valuables_assessments",
   "resident-handling-profile-form": "handling_profiles",
   "pain-assessment-form": "pain_assessments",
@@ -55,7 +55,8 @@ const TABLE_MAP: Record<string, string> = {
   "v2-capacity-consent": "capacity_consents",
   "v2-night-obs-consent": "night_observation_consents",
   "v2-general-risk": "general_risk_assessments",
-  "v2-personal-profile": "personal_profiles"
+  "v2-personal-profile": "personal_profiles",
+  "braden-risk-assessment-form": "braden_risk_assessments"
 };
 
 export default function AllRiskAssessmentsPage() {
@@ -122,7 +123,7 @@ export default function AllRiskAssessmentsPage() {
     allPeepForms,
     allDependencyAssessmentForms,
     allTimlAssessmentForms,
-    allSkinIntegrityForms,
+
     allResidentValuablesForms,
     allHandlingProfileForms,
     allInfectionPreventionForms,
@@ -145,7 +146,8 @@ export default function AllRiskAssessmentsPage() {
     allCapacityConsentsForms,
     allNightObservationForms,
     allGeneralRiskForms,
-    allPersonalProfileForms
+    allPersonalProfileForms,
+    allBradenRiskAssessmentForms
   } = useFolderForms({
     residentId,
     folderFormKeys: [
@@ -156,7 +158,7 @@ export default function AllRiskAssessmentsPage() {
       "peep",
       "dependency-assessment",
       "timl",
-      "skin-integrity-form",
+
       "resident-valuables-form",
       "resident-handling-profile-form",
       "infection-prevention",
@@ -179,7 +181,8 @@ export default function AllRiskAssessmentsPage() {
       "v2-capacity-consent",
       "v2-night-obs-consent",
       "v2-general-risk",
-      "v2-personal-profile"
+      "v2-personal-profile",
+      "braden-risk-assessment-form"
     ],
     organizationId: resident?.active_organization_id
   });
@@ -436,15 +439,7 @@ export default function AllRiskAssessmentsPage() {
       category: "Clinical"
     }] : []),
 
-    // Skin Integrity
-    ...(allSkinIntegrityForms && allSkinIntegrityForms.length > 0 ? [{
-      _id: getLatestForm(allSkinIntegrityForms)?._id,
-      key: "skin-integrity-form",
-      name: "Skin Integrity Assessment",
-      completedAt: getLatestForm(allSkinIntegrityForms)?._creationTime,
-      folderName: getFolderName("skin-integrity-form", "Skin Integrity"),
-      category: "Clinical"
-    }] : []),
+
 
     // Cornell Depression Scale
     ...(allCornellDepressionScaleForms && allCornellDepressionScaleForms.length > 0 ? [{
@@ -536,6 +531,15 @@ export default function AllRiskAssessmentsPage() {
       completedAt: getLatestForm(allPersonalProfileForms)?._creationTime,
       folderName: getFolderName("v2-personal-profile", "My Life"),
       category: "Personal"
+    }] : []),
+    // Braden Risk Assessment
+    ...(allBradenRiskAssessmentForms && allBradenRiskAssessmentForms.length > 0 ? [{
+      _id: getLatestForm(allBradenRiskAssessmentForms)?._id,
+      key: "braden-risk-assessment-form",
+      name: "Braden Risk Assessment",
+      completedAt: getLatestForm(allBradenRiskAssessmentForms)?._creationTime,
+      folderName: getFolderName("braden-risk-assessment-form", "Skin Integrity"),
+      category: "Clinical"
     }] : []),
   ].filter(assessment => assessment._id); // Remove any null entries
   // Remove any null entries

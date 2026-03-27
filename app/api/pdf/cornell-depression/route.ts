@@ -46,14 +46,17 @@ function generateCornellDepressionHTML(data: any): string {
       title: "C. Physical Signs",
       items: [
         { label: "Appetite Loss", value: items.appetiteLoss },
-        { label: "Weight Loss", value: items.weightLoss }
+        { label: "Weight Loss", value: items.weightLoss },
+        { label: "Lack of Energy", value: items.lackOfEnergy }
       ]
     },
     {
       title: "D. Cyclic Functions",
       items: [
-        { label: "Diurnal Variation of Mood", value: items.diurnalVariation },
-        { label: "Sleep Disturbance", value: items.sleepDisturbance }
+        { label: "Diurnal variation of mood; symptoms worse in the morning", value: items.diurnalVariation },
+        { label: "Difficulty falling asleep; later than usual for this individual", value: items.difficultyFallingAsleep },
+        { label: "Multiple awakenings during sleep", value: items.multipleAwakenings },
+        { label: "Early morning awakening; earlier than usual for this individual", value: items.earlyMorningAwakening }
       ]
     },
     {
@@ -170,6 +173,7 @@ function generateCornellDepressionHTML(data: any): string {
           color: #1e40af;
           width: 40px;
           text-align: center;
+          text-transform: uppercase;
         }
         .footer {
           margin-top: 48px;
@@ -184,7 +188,7 @@ function generateCornellDepressionHTML(data: any): string {
     <body>
       <div class="header">
         <h1>Cornell Scale for Depression in Dementia</h1>
-        <p style="color: #6b7280;">Rating: 0 = Absent, 1 = Mild/Intermittent, 2 = Severe</p>
+        <p style="color: #6b7280;">Rating: a = Unable to evaluate, 0 = Absent, 1 = Mild/Intermittent, 2 = Severe</p>
       </div>
 
       <div class="score-box">

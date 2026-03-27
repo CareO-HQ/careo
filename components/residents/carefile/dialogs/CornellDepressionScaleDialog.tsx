@@ -46,32 +46,36 @@ export default function CornellDepressionScaleDialog({
       assessedBy: initialData.assessedBy || initialData.assessed_by || userName,
       signature: initialData.signature || "",
       // Flatten scale_items JSONB
-      anxiety: initialData.scale_items?.anxiety || "0",
-      sadness: initialData.scale_items?.sadness || "0",
-      lackOfReactivity: initialData.scale_items?.lackOfReactivity || "0",
-      irritability: initialData.scale_items?.irritability || "0",
-      agitation: initialData.scale_items?.agitation || "0",
-      retardation: initialData.scale_items?.retardation || "0",
-      multiplePhysicalComplaints: initialData.scale_items?.multiplePhysicalComplaints || "0",
-      lossOfInterest: initialData.scale_items?.lossOfInterest || "0",
-      appetiteLoss: initialData.scale_items?.appetiteLoss || "0",
-      weightLoss: initialData.scale_items?.weightLoss || "0",
-      diurnalVariation: initialData.scale_items?.diurnalVariation || "0",
-      sleepDisturbance: initialData.scale_items?.sleepDisturbance || "0",
-      suicidalIdeation: initialData.scale_items?.suicidalIdeation || "0",
-      lowSelfEsteem: initialData.scale_items?.lowSelfEsteem || "0",
-      pessimism: initialData.scale_items?.pessimism || "0",
-      moodCongruentDelusions: initialData.scale_items?.moodCongruentDelusions || "0"
+      anxiety: initialData.scale_items?.anxiety || "a",
+      sadness: initialData.scale_items?.sadness || "a",
+      lackOfReactivity: initialData.scale_items?.lackOfReactivity || "a",
+      irritability: initialData.scale_items?.irritability || "a",
+      agitation: initialData.scale_items?.agitation || "a",
+      retardation: initialData.scale_items?.retardation || "a",
+      multiplePhysicalComplaints: initialData.scale_items?.multiplePhysicalComplaints || "a",
+      lossOfInterest: initialData.scale_items?.lossOfInterest || "a",
+      appetiteLoss: initialData.scale_items?.appetiteLoss || "a",
+      weightLoss: initialData.scale_items?.weightLoss || "a",
+      lackOfEnergy: initialData.scale_items?.lackOfEnergy || "a",
+      diurnalVariation: initialData.scale_items?.diurnalVariation || "a",
+      difficultyFallingAsleep: initialData.scale_items?.difficultyFallingAsleep || "a",
+      multipleAwakenings: initialData.scale_items?.multipleAwakenings || "a",
+      earlyMorningAwakening: initialData.scale_items?.earlyMorningAwakening || "a",
+      suicidalIdeation: initialData.scale_items?.suicidalIdeation || "a",
+      lowSelfEsteem: initialData.scale_items?.lowSelfEsteem || "a",
+      pessimism: initialData.scale_items?.pessimism || "a",
+      moodCongruentDelusions: initialData.scale_items?.moodCongruentDelusions || "a"
     } : {
       residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
       dateOfBirth: resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : "",
       dateOfAssessment: new Date().toISOString().split("T")[0],
       assessedBy: userName,
       signature: userName,
-      anxiety: "0", sadness: "0", lackOfReactivity: "0", irritability: "0",
-      agitation: "0", retardation: "0", multiplePhysicalComplaints: "0", lossOfInterest: "0",
-      appetiteLoss: "0", weightLoss: "0", diurnalVariation: "0", sleepDisturbance: "0",
-      suicidalIdeation: "0", lowSelfEsteem: "0", pessimism: "0", moodCongruentDelusions: "0"
+      anxiety: "a", sadness: "a", lackOfReactivity: "a", irritability: "a",
+      agitation: "a", retardation: "a", multiplePhysicalComplaints: "a", lossOfInterest: "a",
+      appetiteLoss: "a", weightLoss: "a", lackOfEnergy: "a",
+      diurnalVariation: "a", difficultyFallingAsleep: "a", multipleAwakenings: "a", earlyMorningAwakening: "a",
+      suicidalIdeation: "a", lowSelfEsteem: "a", pessimism: "a", moodCongruentDelusions: "a"
     }
   });
 
@@ -93,7 +97,8 @@ export default function CornellDepressionScaleDialog({
       const scaleItems = {
         anxiety: data.anxiety, sadness: data.sadness, lackOfReactivity: data.lackOfReactivity, irritability: data.irritability,
         agitation: data.agitation, retardation: data.retardation, multiplePhysicalComplaints: data.multiplePhysicalComplaints, lossOfInterest: data.lossOfInterest,
-        appetiteLoss: data.appetiteLoss, weightLoss: data.weightLoss, diurnalVariation: data.diurnalVariation, sleepDisturbance: data.sleepDisturbance,
+        appetiteLoss: data.appetiteLoss, weightLoss: data.weightLoss, lackOfEnergy: data.lackOfEnergy,
+        diurnalVariation: data.diurnalVariation, difficultyFallingAsleep: data.difficultyFallingAsleep, multipleAwakenings: data.multipleAwakenings, earlyMorningAwakening: data.earlyMorningAwakening,
         suicidalIdeation: data.suicidalIdeation, lowSelfEsteem: data.lowSelfEsteem, pessimism: data.pessimism, moodCongruentDelusions: data.moodCongruentDelusions
       };
 
@@ -139,8 +144,8 @@ export default function CornellDepressionScaleDialog({
       <div className="grid grid-cols-[1fr,auto] gap-4 items-center py-3 px-4 rounded-md hover:bg-muted/30 transition-colors">
         <Label className="text-sm font-normal">{label}</Label>
         <RadioGroup value={value} onValueChange={(v) => form.setValue(name, v as any)} className="flex gap-6">
-          {["0", "1", "2"].map(v => (
-            <div key={v} className="flex items-center space-x-2"><RadioGroupItem value={v} id={`${name}-${v}`} /><Label htmlFor={`${name}-${v}`} className="text-xs font-normal cursor-pointer">{v}</Label></div>
+          {["a", "0", "1", "2"].map(v => (
+            <div key={v} className="flex items-center space-x-2"><RadioGroupItem value={v} id={`${name}-${v}`} /><Label htmlFor={`${name}-${v}`} className="text-xs font-normal cursor-pointer uppercase">{v}</Label></div>
           ))}
         </RadioGroup>
       </div>
@@ -152,7 +157,7 @@ export default function CornellDepressionScaleDialog({
       {!isInline && (
         <DialogHeader>
           <DialogTitle className="text-xl">Cornell Scale for Depression in Dementia</DialogTitle>
-          <DialogDescription>Rate each item: 0 = Absent, 1 = Mild/Intermittent, 2 = Severe</DialogDescription>
+          <DialogDescription>Rate each item: a = Unable to evaluate, 0 = Absent, 1 = Mild/Intermittent, 2 = Severe</DialogDescription>
         </DialogHeader>
       )}
 
@@ -195,12 +200,15 @@ export default function CornellDepressionScaleDialog({
 
           <div className="space-y-2 p-4 border rounded-lg bg-card">
             <h3 className="font-semibold text-sm border-b pb-2 mb-2">C. Physical Signs</h3>
-            <RatingItem name="appetiteLoss" label="Appetite Loss" /><RatingItem name="weightLoss" label="Weight Loss" />
+            <RatingItem name="appetiteLoss" label="Appetite Loss" /><RatingItem name="weightLoss" label="Weight Loss" /><RatingItem name="lackOfEnergy" label="Lack of Energy" />
           </div>
 
           <div className="space-y-2 p-4 border rounded-lg bg-card">
             <h3 className="font-semibold text-sm border-b pb-2 mb-2">D. Cyclic Functions</h3>
-            <RatingItem name="diurnalVariation" label="Diurnal Variation of Mood" /><RatingItem name="sleepDisturbance" label="Sleep Disturbance" />
+            <RatingItem name="diurnalVariation" label="Diurnal variation of mood; symptoms worse in the morning" />
+            <RatingItem name="difficultyFallingAsleep" label="Difficulty falling asleep; later than usual for this individual" />
+            <RatingItem name="multipleAwakenings" label="Multiple awakenings during sleep" />
+            <RatingItem name="earlyMorningAwakening" label="Early morning awakening; earlier than usual for this individual" />
           </div>
 
           <div className="space-y-2 p-4 border rounded-lg bg-card">

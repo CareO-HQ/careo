@@ -75,7 +75,7 @@ const TABLE_MAP: Record<string, string> = {
     "peep": "peeps",
     "dependency-assessment": "dependency_assessments",
     "timl": "timl_assessments",
-    "skin-integrity-form": "skin_integrity_assessments",
+
     "resident-valuables-form": "resident_valuables_assessments",
     "resident-handling-profile-form": "handling_profiles",
     "pain-assessment-form": "pain_assessments",
@@ -271,13 +271,13 @@ export default function CareFileV2FolderPage() {
     }, [fetchFolderBodyMap, folderKey]);
 
     const handleFormClick = async (key: CareFileFormKey) => {
-        if (key === "v2-body-map-hygiene" || key === "v2-body-map-skin" || key === "v2-safe-body-map") {
+        if (key === "v2-body-map-hygiene" || key === "v2-body-map-skin") {
             setIsBodyMapDialogOpen(true);
             return;
         }
 
         const v2Form = folder?.forms.find(f => f.key === key);
-        if (v2Form?.isComingSoon) {
+        if ((v2Form as any)?.isComingSoon) {
             toast.info("Coming Soon", { description: "This form is currently being developed." });
             return;
         }
@@ -688,41 +688,43 @@ export default function CareFileV2FolderPage() {
                 <aside className={`flex-shrink-0 border-l bg-background h-full transition-all duration-300 ease-in-out ${isSidebarCollapsed ? "w-0 opacity-0 invisible" : "w-[200px] opacity-100"
                     } overflow-y-auto overflow-x-hidden p-3`}>
                     <div className="flex flex-col gap-6">
-                        <div>
-                            <div className="flex items-center justify-between px-1 mb-2">
-                                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Forms</p>
-                                {formsLoading && (
-                                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                )}
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                {folder.forms.map((form) => {
-                                    const isActive = activeFormKey === form.key;
-                                    const formState = formsLoading ? { status: "not-started" as const, hasData: false, isAudited: false } : getFormState(form.key as CareFileFormKey);
-                                    const isLink = form.type === "link";
-                                    return (
-                                        <button key={form.key} onClick={() => handleFormClick(form.key as CareFileFormKey)} disabled={formsLoading || !canFillForms} className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${isActive ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-muted/60 text-foreground"} ${form.isComingSoon || formsLoading ? 'opacity-50' : ''} disabled:cursor-wait`}>
-                                            {!isLink && (
-                                                <FormStatusIndicator status={formState.status} className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                                            )}
-                                            {isLink && (
-                                                <ExternalLink className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
-                                            )}
-                                            <div className="min-w-0">
-                                                <p className="text-xs font-semibold leading-tight mb-0.5">{form.value}</p>
-                                                {form.isComingSoon ? (
-                                                    <Badge variant="outline" className="text-[8px] h-3 px-1">SOON</Badge>
-                                                ) : formsLoading ? (
-                                                    <span className="inline-block h-2 w-10 bg-muted rounded animate-pulse" />
-                                                ) : !isLink && (
-                                                    <FormStatusBadge status={formState.status} isAudited={formState.isAudited} />
+                        {folder.forms.length > 0 && (
+                            <div>
+                                <div className="flex items-center justify-between px-1 mb-2">
+                                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Forms</p>
+                                    {formsLoading && (
+                                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                    )}
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    {folder.forms.map((form) => {
+                                        const isActive = activeFormKey === form.key;
+                                        const formState = formsLoading ? { status: "not-started" as const, hasData: false, isAudited: false } : getFormState(form.key as CareFileFormKey);
+                                        const isLink = form.type === "link";
+                                        return (
+                                            <button key={form.key} onClick={() => handleFormClick(form.key as CareFileFormKey)} disabled={formsLoading || !canFillForms} className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${isActive ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-muted/60 text-foreground"} ${(form as any).isComingSoon || formsLoading ? 'opacity-50' : ''} disabled:cursor-wait`}>
+                                                {!isLink && (
+                                                    <FormStatusIndicator status={formState.status} className="h-4 w-4 flex-shrink-0 mt-0.5" />
                                                 )}
-                                            </div>
-                                        </button>
-                                    );
-                                })}
+                                                {isLink && (
+                                                    <ExternalLink className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
+                                                )}
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-semibold leading-tight mb-0.5">{form.value}</p>
+                                                    {(form as any).isComingSoon ? (
+                                                        <Badge variant="outline" className="text-[8px] h-3 px-1">SOON</Badge>
+                                                    ) : formsLoading ? (
+                                                        <span className="inline-block h-2 w-10 bg-muted rounded animate-pulse" />
+                                                    ) : !isLink && (
+                                                        <FormStatusBadge status={formState.status} isAudited={formState.isAudited} />
+                                                    )}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {((folder as any).carePlan || activeCarePlanForms.length > 0) && (
                             <div>
@@ -757,7 +759,7 @@ export default function CareFileV2FolderPage() {
                             </div>
                         )}
 
-                        {(folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity" || folderKey === "v2-safeguarding") && (
+                        {(folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity") && (
                             <div>
                                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1 mb-2">
                                     Body Map

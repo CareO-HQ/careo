@@ -6,7 +6,9 @@ export const residentValuablesSchema = z.object({
   bedroomNumber: z.string().min(1, "Bedroom number is required"),
   date: z.number(),
   completedBy: z.string().min(1, "Completed by is required"),
+  completedByRole: z.string().optional(),
   witnessedBy: z.string().min(1, "Witnessed by is required"),
+  witnessedByRole: z.string().optional(),
 
   // Valuables
   valuables: z.array(z.object({ value: z.string() })),
@@ -38,7 +40,8 @@ export const residentValuablesSchema = z.object({
       date: z.number(),
       time: z.string()
     })
-  )
+  ),
+  comments: z.string().optional()
 });
 
 export type ResidentValuablesFormValues = z.infer<

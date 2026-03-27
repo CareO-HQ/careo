@@ -108,6 +108,7 @@ export default function ResidentValuablesList({
                     </CardTitle>
                     <CardDescription>
                       Completed by: {assessment.completedBy}
+                      {assessment.completedByRole && ` (${assessment.completedByRole})`}
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
@@ -185,6 +186,15 @@ export default function ResidentValuablesList({
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {assessment.comments && (
+                    <div className="pt-2 border-t mt-2">
+                      <h3 className="font-medium text-sm text-muted-foreground mb-1">Comments</h3>
+                      <p className="text-sm italic whitespace-pre-wrap break-words line-clamp-3">
+                        {assessment.comments}
+                      </p>
                     </div>
                   )}
                 </div>
