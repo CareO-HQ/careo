@@ -36,6 +36,9 @@ import {
   ClipboardList,
   Cross,
   Download,
+  PanelRight,
+  PanelRightClose,
+  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +55,7 @@ import {
 import { useRouter } from "next/navigation";
 import { HospitalPassportDialog } from "./hospital-passport-dialog";
 import { ViewPassportDialog } from "./view-passport-dialog";
+import { HospitalPassportInlineForm } from "./hospital-passport-inline-form";
 import { TransferLogDialog } from "./transfer-log-dialog";
 import { ViewTransferLogDialog } from "./view-transfer-log-dialog";
 import { hospitalTransferService, HospitalPassport, HospitalTransferLog } from "@/lib/hospital-transfer-service";
@@ -797,6 +801,10 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   };
 
 
+  // Sidebar state
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+  const [activeView, setActiveView] = React.useState<'passport' | 'bodymap' | 'kardex' | null>(null);
+
   // Helper for age
   const calculateAge = React.useCallback((dob: string) => {
     if (!dob) return 'Unknown';
@@ -831,396 +839,442 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      <div className="flex flex-col gap-6">
-        {/* Header with Back Button */}
-        <div className="flex items-center space-x-4 mb-6">
-          <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <Avatar className="w-10 h-10">
-            <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
-            <AvatarFallback className="text-sm bg-primary/10 text-primary">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold">Hospital Transfer</h1>
-            <p className="text-muted-foreground text-sm">
-              Manage hospital transfers and passports for {resident.firstName} {resident.lastName}.
-            </p>
-          </div>
-          <div className="flex flex-row gap-2">
-            <Button
-              onClick={() => setIsTransferLogDialogOpen(true)}
-              disabled={isCreating || isUpdating || isDeleting || isEditingPassport}
-              className="bg-black text-white hover:bg-gray-800 disabled:bg-gray-400"
-            >
-              <Ambulance className="w-4 h-4 mr-2" />
-              Hospital Transfer Entry
-            </Button>
-            <KardexModal
-              medications={medications}
-              resident={{
-                id: resident.id,
-                first_name: resident.firstName,
-                last_name: resident.lastName,
-                date_of_birth: resident.dateOfBirth,
-                room_number: resident.room_number,
-                nhs_health_number: resident.nhsHealthNumber,
-                image_url: resident.imageUrl,
-                gp_name: resident.gpName,
-                gp_address: resident.gpAddress,
-              }}
-              triggerLabel="Kardex"
-              triggerIcon={Pill}
-            />
-            <Button
-              variant="outline"
-              onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              Transfer History
-            </Button>
-          </div>
+    <div className="flex flex-col gap-6 w-full relative h-[calc(100vh-theme(spacing.24))]">
+      {/* Top Bar */}
+      <div className="flex items-center gap-2 px-4 py-2 bg-background border-b flex-shrink-0">
+        <button
+          onClick={() => router.push(`/dashboard/residents/${id}`)}
+          className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
+          <span>Hospital Transfer</span>
+          {activeView && (
+            <>
+              <span>/</span>
+              <span className="font-medium text-foreground">
+                {activeView === 'passport' && 'Hospital Passport'}
+                {activeView === 'bodymap' && 'Body Map'}
+                {activeView === 'kardex' && 'Kardex'}
+              </span>
+            </>
+          )}
         </div>
 
-        {/* Emergency Information Card - Reusing UI */}
-        <Card className="border-0">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <AlertTriangle className="w-5 h-5 text-orange-600" />
-              <span>Emergency Information</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Phone className="w-4 h-4 text-blue-600" />
-                  <span className="font-medium text-blue-900">GP Contact</span>
-                </div>
-                <p className="text-sm text-blue-800">{resident.gpName || "Not specified"}</p>
-                <p className="text-xs text-blue-600">{resident.gpPhone || "No phone"}</p>
-              </div>
-              {/* Simplified other blocks for brevity, assume similar structure */}
-              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                <div className="flex items-center space-x-2 mb-2">
-                  <User className="w-4 h-4 text-green-600" />
-                  <span className="font-medium text-green-900">Next of Kin</span>
-                </div>
-                <p className="text-sm text-green-800">{resident.emergencyContacts?.[0]?.name || "Not specified"}</p>
-                <p className="text-xs text-green-600">{resident.emergencyContacts?.[0]?.phoneNumber || "No phone"}</p>
-              </div>
-              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <div className="flex items-center space-x-2 mb-2">
-                  <FileText className="w-4 h-4 text-purple-600" />
-                  <span className="font-medium text-purple-900">NHS Number</span>
-                </div>
-                <p className="text-sm text-purple-800 font-mono">{resident.nhsHealthNumber || "Not specified"}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Hospital Passport Card */}
-        <Card className="border-0">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <FileText className="w-5 h-5 text-indigo-600" />
-              <span>CareO Passport</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {hospitalPassports.length > 0 ? (
-              <div className="bg-white border-2 border-gray-200 rounded-lg shadow-sm overflow-hidden max-w-sm mx-auto">
-                <div className="bg-blue-500 text-white p-3 text-center">
-                  <div className="w-12 h-12 mx-auto mb-1 bg-white rounded p-1 flex items-center justify-center">
-                    <Cross className="w-8 h-8 text-blue-600" />
-                  </div>
-                  <h2 className="text-sm font-bold">HOSPITAL PASSPORT</h2>
-                </div>
-                <div className="p-4 text-center">
-                  <Avatar className="w-20 h-20 mx-auto mb-3 border-2 border-gray-300 shadow-md">
-                    <AvatarImage src={resident.imageUrl} />
-                    <AvatarFallback>{initials}</AvatarFallback>
-                  </Avatar>
-                  <h3 className="text-lg font-bold mb-2">{fullName}</h3>
-                  <div className="w-full space-y-2 text-left">
-                    <div className="flex justify-between border-b pb-1">
-                      <span className="text-xs font-medium text-gray-600">NHS:</span>
-                      <span className="text-xs font-mono">{resident.nhsHealthNumber}</span>
-                    </div>
-                    <div className="flex justify-between border-b pb-1">
-                      <span className="text-xs font-medium text-gray-600">DOB:</span>
-                      <span className="text-xs">{formatDate(resident.dateOfBirth)}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-center gap-2 mt-4">
-                    <Button variant="outline" size="sm" onClick={() => {
-                      setSelectedPassport(hospitalPassports[0]);
-                      setIsViewPassportDialogOpen(true);
-                    }}>
-                      <Eye className="w-3 h-3 mr-1" /> View
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleEditPassport(hospitalPassports[0])}>
-                      <Edit className="w-3 h-3 mr-1" /> Edit
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handlePrintPassport(hospitalPassports[0])}>
-                      <Printer className="w-3 h-3 mr-1" /> Print
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleDeletePassport(hospitalPassports[0])}>
-                      <Trash2 className="w-3 h-3 mr-1" /> Delete
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center p-8 bg-gray-50 rounded-xl border-2 border-dashed">
-                <FileText className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Hospital Passport</h3>
-                <p className="text-gray-600 mb-4 text-sm">Generate one for quick access to essential info.</p>
-                <Button onClick={() => setIsTransferDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
-                  <Plus className="w-5 h-5 mr-2" /> Generate Passport
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Transfer Logs */}
-        <Card className="border-0">
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle className="flex items-center gap-3">
-                <div className="p-2 bg-gray-100 rounded-lg">
-                  <Ambulance className="w-5 h-5 text-gray-600" />
-                </div>
-                <span>Recent Transfer Logs</span>
-              </CardTitle>
-              <Badge variant="secondary">{transferLogs.length} Total</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {paginatedTransferLogs.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">No transfer logs recorded</div>
-            ) : (
-              <div className="space-y-3">
-                {paginatedTransferLogs.map((log: any) => (
-                  <div key={log._id} className="flex flex-col md:flex-row justify-between p-4 rounded-lg border">
-                    <div className="flex gap-3">
-                      <div className="p-2 bg-gray-100 rounded-lg h-fit"><Ambulance className="w-4 h-4" /></div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold">{log.hospitalName}</h4>
-                          <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">Transfer</Badge>
-                        </div>
-                        <p className="text-sm text-gray-600">{log.reason}</p>
-                        <div className="text-xs text-gray-400">
-                          {new Date(log.date).toLocaleDateString()} • {log.outcome}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-1 mt-2 md:mt-0">
-                      <Button variant="outline" size="sm" onClick={() => handleViewTransferLog(log)}>
-                        <Eye className="w-3 h-3 mr-1" /> View
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleEditTransferLog(log)}>
-                        <Edit className="w-3 h-3 mr-1" /> Edit
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDeleteTransferLog(log)}>
-                        <Trash2 className="w-3 h-3 mr-1" /> Delete
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Pagination Controls */}
-                {showPagination && (
-                  <div className="flex justify-between items-center pt-4 border-t">
-                    <span className="text-sm text-gray-500">Page {currentPage} of {totalPages}</span>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>Previous</Button>
-                      <Button size="sm" variant="outline" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>Next</Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Body Maps */}
-        <Card className="border-0">
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle className="flex items-center gap-3">
-                <div className="p-2 bg-gray-100 rounded-lg">
-                  <MapIcon className="w-5 h-5 text-gray-600" />
-                </div>
-                <span>Recent Body Maps</span>
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">{residentBodyMaps.length} Total</Badge>
-                <Button size="sm" onClick={handleAddBodyMap} className="bg-blue-600 hover:bg-blue-700 h-8">
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Add body map
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {residentBodyMaps.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">No body maps recorded</div>
-            ) : (
-              <div className="space-y-3">
-                {residentBodyMaps.slice(0, 5).map((bm: any) => (
-                  <div key={bm._id} className="flex flex-col md:flex-row justify-between p-4 rounded-lg border bg-white hover:border-primary/50 transition-colors">
-                    <div className="flex gap-3">
-                      <div className="p-2 bg-purple-50 rounded-lg h-fit">
-                        <MapIcon className="w-4 h-4 text-purple-600" />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold">{bm.label || `Body Map ${formatDate(bm.date)}`}</h4>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Recorded on {formatDate(bm.date)} • {bm.bodyMapData?.sessions?.[0]?.entries?.length || 0} observations
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-1 mt-2 md:mt-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDownloadBodyMap(bm)}
-                        disabled={isDownloading}
-                      >
-                        <Download className="w-3 h-3 mr-1" /> PDF
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleEditBodyMap(bm)}>
-                        <Edit className="w-3 h-3 mr-1" /> View / Edit
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDeleteBodyMap(bm)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                        <Trash2 className="w-3 h-3 mr-1" /> Delete
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Dialogs */}
-        <HospitalPassportDialog
-          open={isTransferDialogOpen}
-          onOpenChange={setIsTransferDialogOpen}
-          form={form}
-          onSubmit={handleSubmit}
-          residentName={fullName}
-          currentStep={currentStep}
-          setCurrentStep={setCurrentStep}
-          handleNextStep={handleNextStep}
-          prevStep={prevStep}
-        />
-
-        <HospitalPassportDialog
-          open={isEditPassportDialogOpen}
-          onOpenChange={setIsEditPassportDialogOpen}
-          form={editForm}
-          onSubmit={handleEditSubmit}
-          residentName={fullName}
-          currentStep={editCurrentStep}
-          setCurrentStep={setEditCurrentStep}
-          handleNextStep={handleEditNextStep}
-          prevStep={editPrevStep}
-          isEditMode={true}
-        />
-
-        <ViewPassportDialog
-          open={isViewPassportDialogOpen}
-          onOpenChange={setIsViewPassportDialogOpen}
-          passport={selectedPassport}
-          resident={resident}
-        />
-
-        <TransferLogDialog
-          open={isTransferLogDialogOpen}
-          onOpenChange={setIsTransferLogDialogOpen}
-          onSubmit={handleTransferLogSubmit}
-          residentName={fullName}
-        />
-
-        <TransferLogDialog
-          open={isEditTransferLogDialogOpen}
-          onOpenChange={setIsEditTransferLogDialogOpen}
-          onSubmit={handleTransferLogSubmit}
-          residentName={fullName}
-          transferLog={editingTransferLog}
-          isEditMode={true}
-        />
-
-        <ViewTransferLogDialog
-          open={isViewTransferLogDialogOpen}
-          onOpenChange={setIsViewTransferLogDialogOpen}
-          transferLog={selectedTransferLog}
-          residentName={fullName}
-          currentUser={profile}
-        />
-
-        {/* Alert Dialogs for Deletion */}
-        <AlertDialog open={showDeletePassportDialog} onOpenChange={setShowDeletePassportDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Passport?</AlertDialogTitle>
-              <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDeletePassport} className="bg-red-600">Delete</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        <AlertDialog open={showDeleteTransferLogDialog} onOpenChange={setShowDeleteTransferLogDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Transfer Log?</AlertDialogTitle>
-              <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDeleteTransferLog} className="bg-red-600">Delete</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        <AlertDialog open={showDeleteBodyMapDialog} onOpenChange={setShowDeleteBodyMapDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Body Map?</AlertDialogTitle>
-              <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDeleteBodyMap} className="bg-red-600">Delete</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        <BodyMapDialog
-          isOpen={isBodyMapDialogOpen}
-          onClose={() => setIsBodyMapDialogOpen(false)}
-          residentName={fullName}
-          initialData={selectedBodyMap?.bodyMapData}
-          onSave={handleBodyMapSave}
-          // We can optionally pass incidentType for PDF header
-          incidentType="Hospital Passport Documentation"
-          incidentDate={selectedBodyMap?.date}
-          orgLogoUrl={orgLogoUrl}
-        />
-
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
+          className="h-8 gap-1.5 text-xs"
+          title="View all past transfer records and documents"
+        >
+          <Eye className="h-3.5 w-3.5" />
+          View All Past Records
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="h-8 w-8 text-muted-foreground hover:text-foreground transition-all duration-200"
+          title={isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"}
+        >
+          {isSidebarCollapsed ? (
+            <PanelRight className="h-4 w-4" />
+          ) : (
+            <PanelRightClose className="h-4 w-4" />
+          )}
+        </Button>
       </div>
+
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <main className="flex-1 min-w-0 flex flex-col overflow-hidden bg-muted/10">
+          {activeView === 'passport' ? (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+              <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
+                <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <FileText className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold leading-none">Hospital Passport</h2>
+                      {hospitalPassports.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Viewing existing passport
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {hospitalPassports.length > 0 && !isEditingPassport && (
+                      <>
+                        <Button variant="outline" size="sm" onClick={() => {
+                          setIsEditingPassport(true);
+                          editForm.reset({
+                            generalDetails: hospitalPassports[0].generalDetails,
+                            medicalCareNeeds: hospitalPassports[0].medicalCareNeeds,
+                            skinMedicationAttachments: hospitalPassports[0].skinMedicationAttachments,
+                            signOff: {
+                              ...hospitalPassports[0].signOff,
+                              printedName: profile?.name || "",
+                              signature: profile?.name || "",
+                              completedDate: new Date().toISOString().split('T')[0],
+                            },
+                          });
+                          setEditCurrentStep(1);
+                        }} className="gap-2">
+                          <Edit className="w-4 h-4" /> Edit
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handlePrintPassport(hospitalPassports[0])} className="gap-2">
+                          <Printer className="w-4 h-4" /> Print
+                        </Button>
+                      </>
+                    )}
+                    <Button variant="ghost" size="icon" onClick={() => {
+                      setActiveView(null);
+                      setIsEditingPassport(false);
+                      setCurrentStep(1);
+                      setEditCurrentStep(1);
+                    }}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-6 sm:p-10">
+                  {hospitalPassports.length > 0 && !isEditingPassport ? (
+                    <ViewPassportDialog
+                      open={false}
+                      onOpenChange={() => {}}
+                      passport={hospitalPassports[0]}
+                      resident={resident}
+                    />
+                  ) : (
+                    <HospitalPassportInlineForm
+                      form={hospitalPassports.length > 0 && isEditingPassport ? editForm : form}
+                      onSubmit={hospitalPassports.length > 0 && isEditingPassport ? handleEditSubmit : handleSubmit}
+                      residentName={fullName}
+                      currentStep={hospitalPassports.length > 0 && isEditingPassport ? editCurrentStep : currentStep}
+                      setCurrentStep={hospitalPassports.length > 0 && isEditingPassport ? setEditCurrentStep : setCurrentStep}
+                      handleNextStep={hospitalPassports.length > 0 && isEditingPassport ? handleEditNextStep : handleNextStep}
+                      prevStep={hospitalPassports.length > 0 && isEditingPassport ? editPrevStep : prevStep}
+                      isEditMode={hospitalPassports.length > 0 && isEditingPassport}
+                      onCancel={() => {
+                        setActiveView(null);
+                        setIsEditingPassport(false);
+                        setCurrentStep(1);
+                        setEditCurrentStep(1);
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : activeView === 'bodymap' ? (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+              <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
+                <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <MapIcon className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold leading-none">Body Map</h2>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => setActiveView(null)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="p-6 sm:p-10">
+                  <p className="text-muted-foreground">Body Map view - managed through dialog</p>
+                </div>
+              </div>
+            </div>
+          ) : activeView ? (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+              <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
+                <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Pill className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold leading-none">Kardex</h2>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => setActiveView(null)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="p-6 sm:p-10">
+                  <p className="text-muted-foreground">Kardex view placeholder</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-8 text-muted-foreground">
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-2">
+                <FileText className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-medium text-foreground">Select a form or document</h3>
+              <p className="max-w-xs text-sm">
+                Choose a form from the right panel to view or create hospital transfer documentation.
+              </p>
+            </div>
+          )}
+        </main>
+
+        {/* Right Sidebar */}
+        <aside className={`flex-shrink-0 border-l bg-background h-full transition-all duration-300 ease-in-out ${
+          isSidebarCollapsed ? "w-0 opacity-0 invisible" : "w-[200px] opacity-100"
+        } overflow-y-auto overflow-x-hidden p-3`}>
+          <div className="flex flex-col gap-6">
+            {/* Forms Section */}
+            <div>
+              <div className="flex items-center justify-between px-1 mb-2">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Forms</p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => {
+                    setActiveView('passport');
+                    if (hospitalPassports.length === 0) {
+                      setIsTransferDialogOpen(true);
+                    }
+                  }}
+                  className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                    activeView === 'passport'
+                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                      : "hover:bg-muted/60 text-foreground"
+                  }`}
+                >
+                  <FileText className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold leading-tight mb-0.5">Generate Passport Form</p>
+                    <Badge variant="outline" className="text-[8px] h-3 px-1">
+                      {hospitalPassports.length > 0 ? 'COMPLETE' : 'NOT STARTED'}
+                    </Badge>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveView('bodymap');
+                    handleAddBodyMap();
+                  }}
+                  className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                    activeView === 'bodymap'
+                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                      : "hover:bg-muted/60 text-foreground"
+                  }`}
+                >
+                  <MapIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold leading-tight mb-0.5">Body Map</p>
+                    <Badge variant="outline" className="text-[8px] h-3 px-1">
+                      {residentBodyMaps.length > 0 ? 'COMPLETE' : 'NOT STARTED'}
+                    </Badge>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveView(null);
+                  }}
+                  className="group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all hover:bg-muted/60 text-foreground"
+                >
+                  <Pill className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold leading-tight mb-0.5">Kardex</p>
+                    <Badge variant="outline" className="text-[8px] h-3 px-1">VIEW</Badge>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Transfer Logs Section */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">Transfer Logs</p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  onClick={() => setIsTransferLogDialogOpen(true)}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+              {transferLogs.length > 0 ? (
+                <div className="flex flex-col gap-1">
+                  {transferLogs.slice(0, 5).map((log: any) => (
+                    <button
+                      key={log._id}
+                      onClick={() => handleViewTransferLog(log)}
+                      className="w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all hover:bg-muted/60 text-foreground"
+                    >
+                      <Ambulance className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-500" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold leading-tight truncate">{log.hospitalName}</p>
+                        <p className="text-[10px] text-muted-foreground">{formatDate(log.date)}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-2 py-3 border border-dashed rounded-lg text-center">
+                  <p className="text-[10px] text-muted-foreground italic">No transfers yet</p>
+                </div>
+              )}
+            </div>
+
+            {/* Body Maps Section */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">Body Maps</p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  onClick={handleAddBodyMap}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+              {residentBodyMaps.length > 0 ? (
+                <div className="flex flex-col gap-1">
+                  {residentBodyMaps.slice(0, 3).map((bm: any) => (
+                    <button
+                      key={bm._id}
+                      onClick={() => handleEditBodyMap(bm)}
+                      className="w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all hover:bg-muted/60 text-foreground"
+                    >
+                      <MapIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-purple-500" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold leading-tight truncate">{bm.label || 'Body Map'}</p>
+                        <p className="text-[10px] text-muted-foreground">{formatDate(bm.date)}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-2 py-3 border border-dashed rounded-lg text-center">
+                  <p className="text-[10px] text-muted-foreground italic">No body maps yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      {/* Dialogs */}
+      <HospitalPassportDialog
+        open={isTransferDialogOpen}
+        onOpenChange={setIsTransferDialogOpen}
+        form={form}
+        onSubmit={handleSubmit}
+        residentName={fullName}
+        currentStep={currentStep}
+        setCurrentStep={setCurrentStep}
+        handleNextStep={handleNextStep}
+        prevStep={prevStep}
+      />
+
+      <HospitalPassportDialog
+        open={isEditPassportDialogOpen}
+        onOpenChange={setIsEditPassportDialogOpen}
+        form={editForm}
+        onSubmit={handleEditSubmit}
+        residentName={fullName}
+        currentStep={editCurrentStep}
+        setCurrentStep={setEditCurrentStep}
+        handleNextStep={handleEditNextStep}
+        prevStep={editPrevStep}
+        isEditMode={true}
+      />
+
+      <ViewPassportDialog
+        open={isViewPassportDialogOpen}
+        onOpenChange={setIsViewPassportDialogOpen}
+        passport={selectedPassport}
+        resident={resident}
+      />
+
+      <TransferLogDialog
+        open={isTransferLogDialogOpen}
+        onOpenChange={setIsTransferLogDialogOpen}
+        onSubmit={handleTransferLogSubmit}
+        residentName={fullName}
+      />
+
+      <TransferLogDialog
+        open={isEditTransferLogDialogOpen}
+        onOpenChange={setIsEditTransferLogDialogOpen}
+        onSubmit={handleTransferLogSubmit}
+        residentName={fullName}
+        transferLog={editingTransferLog}
+        isEditMode={true}
+      />
+
+      <ViewTransferLogDialog
+        open={isViewTransferLogDialogOpen}
+        onOpenChange={setIsViewTransferLogDialogOpen}
+        transferLog={selectedTransferLog}
+        residentName={fullName}
+        currentUser={profile}
+      />
+
+      {/* Alert Dialogs for Deletion */}
+      <AlertDialog open={showDeletePassportDialog} onOpenChange={setShowDeletePassportDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Passport?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeletePassport} className="bg-red-600">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteTransferLogDialog} onOpenChange={setShowDeleteTransferLogDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Transfer Log?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteTransferLog} className="bg-red-600">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteBodyMapDialog} onOpenChange={setShowDeleteBodyMapDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Body Map?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteBodyMap} className="bg-red-600">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <BodyMapDialog
+        isOpen={isBodyMapDialogOpen}
+        onClose={() => setIsBodyMapDialogOpen(false)}
+        residentName={fullName}
+        initialData={selectedBodyMap?.bodyMapData}
+        onSave={handleBodyMapSave}
+        incidentType="Hospital Passport Documentation"
+        incidentDate={selectedBodyMap?.date}
+        orgLogoUrl={orgLogoUrl}
+      />
     </div>
   );
 }
