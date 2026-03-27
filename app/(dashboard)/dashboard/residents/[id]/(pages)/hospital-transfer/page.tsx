@@ -39,6 +39,7 @@ import {
   PanelRight,
   PanelRightClose,
   X,
+  Clock,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -53,9 +54,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useRouter } from "next/navigation";
-import { HospitalPassportDialog } from "./hospital-passport-dialog";
-import { ViewPassportDialog } from "./view-passport-dialog";
 import { HospitalPassportInlineForm } from "./hospital-passport-inline-form";
+import { ViewPassportInline } from "./view-passport-inline";
 import { TransferLogDialog } from "./transfer-log-dialog";
 import { ViewTransferLogDialog } from "./view-transfer-log-dialog";
 import { hospitalTransferService, HospitalPassport, HospitalTransferLog } from "@/lib/hospital-transfer-service";
@@ -304,14 +304,8 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   }, [resident, dietInformation, form, formatAllergies, now, profile]);
 
   // Dialog states
-  const [isTransferDialogOpen, setIsTransferDialogOpen] = React.useState(false);
-  const [isViewPassportDialogOpen, setIsViewPassportDialogOpen] = React.useState(false);
-  const [selectedPassport, setSelectedPassport] = React.useState<any>(null);
   const [showDeletePassportDialog, setShowDeletePassportDialog] = React.useState(false);
   const [passportToDelete, setPassportToDelete] = React.useState<any>(null);
-  const [isEditPassportDialogOpen, setIsEditPassportDialogOpen] = React.useState(false);
-  const [editingPassport, setEditingPassport] = React.useState<any>(null);
-  const [editCurrentStep, setEditCurrentStep] = React.useState(1);
 
   // Transfer Log states
   const [isTransferLogDialogOpen, setIsTransferLogDialogOpen] = React.useState(false);
@@ -427,24 +421,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   });
 
-  // Handler for opening edit passport dialog
-  const handleEditPassport = (passport: any) => {
-    setEditingPassport(passport);
-    editForm.reset({
-      generalDetails: passport.generalDetails,
-      medicalCareNeeds: passport.medicalCareNeeds,
-      skinMedicationAttachments: passport.skinMedicationAttachments,
-      // Update sign-off with the current user (the one editing)
-      signOff: {
-        ...passport.signOff,
-        printedName: profile?.name || "",
-        signature: profile?.name || "",
-        completedDate: new Date().toISOString().split('T')[0],
-      },
-    });
-    setEditCurrentStep(1);
-    setIsEditPassportDialogOpen(true);
-  };
 
   const nextStep = () => {
     if (currentStep < totalSteps) {
@@ -457,6 +433,8 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       setCurrentStep(currentStep - 1);
     }
   };
+
+  const [editCurrentStep, setEditCurrentStep] = React.useState(1);
 
   const editNextStep = () => {
     if (editCurrentStep < totalSteps) {
@@ -597,19 +575,18 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   };
 
   const handleEditSubmit = async (data: HospitalPassportFormData) => {
-    if (!editingPassport) return;
-    setIsEditingPassport(true);
+    if (!hospitalPassports[0]) return;
+    const updatingToast = toast.loading("Updating passport...");
     try {
-      await hospitalTransferService.updatePassport(editingPassport._id, data);
-      toast.success("Passport updated");
-      setIsEditPassportDialogOpen(false);
-      setEditingPassport(null);
+      await hospitalTransferService.updatePassport(hospitalPassports[0]._id, data);
+      toast.success("Passport updated", { id: updatingToast });
+      setIsEditingPassport(false);
+      setCurrentStep(1);
+      setEditCurrentStep(1);
       refreshData();
     } catch (error) {
       console.error("Error updating passport", error);
-      toast.error("Failed to update passport");
-    } finally {
-      setIsEditingPassport(false);
+      toast.error("Failed to update passport", { id: updatingToast });
     }
   };
 
@@ -640,7 +617,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       toast.error("Auth error: Missing organization or profile");
       return;
     }
-    setIsCreating(true);
+    const creatingToast = toast.loading("Creating passport...");
     try {
       console.log("Submitting passport:", { activeOrganizationId, profileId: profile?.id, data });
       await hospitalTransferService.createPassport({
@@ -649,21 +626,14 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         organizationId: activeOrganizationId,
         createdBy: profile.id
       });
-      // Note: Original code updated Resident/Emergency contacts here too.
-      // For now, we focus on the passport creation. 
-      // If those updates are critical, we should add methods to hospitalTransferService 
-      // or use a resident service to update those details as well.
-      // Assuming data consistency for now.
 
-      toast.success("Passport created");
-      setIsTransferDialogOpen(false);
+      toast.success("Passport created successfully", { id: creatingToast });
       form.reset();
+      setCurrentStep(1);
       refreshData();
     } catch (error) {
       console.error("Error creating passport", error);
-      toast.error("Failed to create passport");
-    } finally {
-      setIsCreating(false);
+      toast.error("Failed to create passport", { id: creatingToast });
     }
   };
 
@@ -943,9 +913,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 </div>
                 <div className="p-6 sm:p-10">
                   {hospitalPassports.length > 0 && !isEditingPassport ? (
-                    <ViewPassportDialog
-                      open={false}
-                      onOpenChange={() => {}}
+                    <ViewPassportInline
                       passport={hospitalPassports[0]}
                       resident={resident}
                     />
@@ -972,7 +940,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
             </div>
           ) : activeView === 'bodymap' ? (
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
-              <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
+              <div className="w-full bg-background rounded-xl border shadow-sm mb-8">
                 <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-primary/10 rounded-lg">
@@ -980,18 +948,129 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     </div>
                     <div>
                       <h2 className="text-lg font-bold leading-none">Body Map</h2>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Document body marks and injuries
+                      </p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => setActiveView(null)}>
-                    <X className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedBodyMap(null);
+                        setCurrentBodyMapId(null);
+                        setIsBodyMapDialogOpen(true);
+                      }}
+                      className="gap-2"
+                    >
+                      <Plus className="w-4 h-4" /> Add New
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setActiveView(null)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="p-6 sm:p-10">
-                  <p className="text-muted-foreground">Body Map view - managed through dialog</p>
+                <div className="p-6">
+                  {residentBodyMaps.length > 0 ? (
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold text-muted-foreground">Recent Body Maps</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {residentBodyMaps.map((bm: any) => {
+                          // Extract regions from entries
+                          const entries = bm.bodyMapData?.sessions?.[0]?.entries || [];
+                          const regions = [...new Set(entries.map((entry: any) => entry.region))].filter(Boolean);
+                          const displayName = regions.length > 0
+                            ? regions.length === 1
+                              ? `Region: ${regions[0]}`
+                              : `Regions: ${regions.join(', ')}`
+                            : bm.label || 'Body Map';
+
+                          return (
+                            <div
+                              key={bm._id}
+                              className="border rounded-lg p-4 hover:border-primary/50 transition-colors cursor-pointer"
+                              onClick={() => handleEditBodyMap(bm)}
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <MapIcon className="w-4 h-4 text-primary" />
+                                  <h4 className="font-semibold text-sm">{displayName}</h4>
+                                </div>
+                                <Badge variant="secondary" className="text-xs">
+                                  {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {formatDate(bm.date)}
+                              </p>
+                            <div className="flex gap-2 mt-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 h-8 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditBodyMap(bm);
+                                }}
+                              >
+                                <Edit className="w-3 h-3 mr-1" /> Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownloadBodyMap(bm);
+                                }}
+                                disabled={isDownloading}
+                              >
+                                <Download className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteBodyMap(bm);
+                                }}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                        <MapIcon className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                      <h3 className="text-lg font-medium text-foreground mb-2">No Body Maps Yet</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Create your first body map to document marks and injuries
+                      </p>
+                      <Button
+                        onClick={() => {
+                          setSelectedBodyMap(null);
+                          setCurrentBodyMapId(null);
+                          setIsBodyMapDialogOpen(true);
+                        }}
+                        className="gap-2"
+                      >
+                        <Plus className="w-4 h-4" /> Create Body Map
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          ) : activeView ? (
+          ) : activeView === 'kardex' ? (
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
               <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
                 <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
@@ -1001,6 +1080,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     </div>
                     <div>
                       <h2 className="text-lg font-bold leading-none">Kardex</h2>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Medication Administration Record
+                      </p>
                     </div>
                   </div>
                   <Button variant="ghost" size="icon" onClick={() => setActiveView(null)}>
@@ -1008,7 +1090,147 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                   </Button>
                 </div>
                 <div className="p-6 sm:p-10">
-                  <p className="text-muted-foreground">Kardex view placeholder</p>
+                  <KardexModal
+                    medications={medications}
+                    resident={{
+                      id: resident.id,
+                      first_name: resident.firstName,
+                      last_name: resident.lastName,
+                      date_of_birth: resident.dateOfBirth,
+                      room_number: resident.roomNumber,
+                      nhs_health_number: resident.nhsHealthNumber,
+                      image_url: resident.imageUrl,
+                      gp_name: resident.gpName,
+                      gp_address: resident.gpAddress,
+                    }}
+                    inlineMode={true}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : activeView === 'transferlogs' ? (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+              <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
+                <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Ambulance className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold leading-none">Transfer Logs</h2>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Hospital transfer history and records
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsTransferLogDialogOpen(true)}
+                      className="gap-2"
+                    >
+                      <Plus className="w-4 h-4" /> Add Transfer Log
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setActiveView(null)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-6">
+                  {transferLogs.length > 0 ? (
+                    <div className="space-y-4">
+                      {transferLogs.map((log: any) => (
+                        <div
+                          key={log._id}
+                          className="border rounded-lg p-4 hover:border-primary/50 transition-colors"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-start gap-3 flex-1">
+                              <div className="p-2 bg-blue-50 rounded-lg">
+                                <Ambulance className="w-5 h-5 text-blue-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-semibold text-base mb-1">{log.hospitalName}</h3>
+                                <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3" />
+                                    {formatDate(log.date)}
+                                  </span>
+                                  {log.time && (
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      {log.time}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8"
+                                onClick={() => handleViewTransferLog(log)}
+                              >
+                                <Eye className="w-3 h-3 mr-1" /> View
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8"
+                                onClick={() => handleEditTransferLog(log)}
+                              >
+                                <Edit className="w-3 h-3 mr-1" /> Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleDeleteTransferLog(log)}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div>
+                              <span className="font-medium text-muted-foreground">Reason: </span>
+                              <span>{log.reason}</span>
+                            </div>
+                            {log.outcome && (
+                              <div>
+                                <span className="font-medium text-muted-foreground">Outcome: </span>
+                                <span>{log.outcome}</span>
+                              </div>
+                            )}
+                            {log.followUp && (
+                              <div>
+                                <span className="font-medium text-muted-foreground">Follow-up: </span>
+                                <span>{log.followUp}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                        <Ambulance className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                      <h3 className="text-lg font-medium text-foreground mb-2">No Transfer Logs Yet</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Add your first transfer log to track hospital visits
+                      </p>
+                      <Button
+                        onClick={() => setIsTransferLogDialogOpen(true)}
+                        className="gap-2"
+                      >
+                        <Plus className="w-4 h-4" /> Add Transfer Log
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1039,9 +1261,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 <button
                   onClick={() => {
                     setActiveView('passport');
-                    if (hospitalPassports.length === 0) {
-                      setIsTransferDialogOpen(true);
-                    }
                   }}
                   className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
                     activeView === 'passport'
@@ -1061,7 +1280,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 <button
                   onClick={() => {
                     setActiveView('bodymap');
-                    handleAddBodyMap();
                   }}
                   className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
                     activeView === 'bodymap'
@@ -1080,53 +1298,42 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
                 <button
                   onClick={() => {
-                    setActiveView(null);
+                    setActiveView('kardex');
                   }}
-                  className="group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all hover:bg-muted/60 text-foreground"
+                  className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                    activeView === 'kardex'
+                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                      : "hover:bg-muted/60 text-foreground"
+                  }`}
                 >
                   <Pill className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
                   <div className="min-w-0">
                     <p className="text-xs font-semibold leading-tight mb-0.5">Kardex</p>
-                    <Badge variant="outline" className="text-[8px] h-3 px-1">VIEW</Badge>
+                    <Badge variant="outline" className="text-[8px] h-3 px-1">
+                      {medications.length > 0 ? `${medications.length} MEDS` : 'EMPTY'}
+                    </Badge>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveView('transferlogs');
+                  }}
+                  className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                    activeView === 'transferlogs'
+                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                      : "hover:bg-muted/60 text-foreground"
+                  }`}
+                >
+                  <Ambulance className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold leading-tight mb-0.5">Transfer Logs</p>
+                    <Badge variant="outline" className="text-[8px] h-3 px-1">
+                      {transferLogs.length > 0 ? `${transferLogs.length} LOGS` : 'EMPTY'}
+                    </Badge>
                   </div>
                 </button>
               </div>
-            </div>
-
-            {/* Transfer Logs Section */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">Transfer Logs</p>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => setIsTransferLogDialogOpen(true)}
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </div>
-              {transferLogs.length > 0 ? (
-                <div className="flex flex-col gap-1">
-                  {transferLogs.slice(0, 5).map((log: any) => (
-                    <button
-                      key={log._id}
-                      onClick={() => handleViewTransferLog(log)}
-                      className="w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all hover:bg-muted/60 text-foreground"
-                    >
-                      <Ambulance className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-500" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold leading-tight truncate">{log.hospitalName}</p>
-                        <p className="text-[10px] text-muted-foreground">{formatDate(log.date)}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="px-2 py-3 border border-dashed rounded-lg text-center">
-                  <p className="text-[10px] text-muted-foreground italic">No transfers yet</p>
-                </div>
-              )}
             </div>
 
             {/* Body Maps Section */}
@@ -1169,38 +1376,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       </div>
 
       {/* Dialogs */}
-      <HospitalPassportDialog
-        open={isTransferDialogOpen}
-        onOpenChange={setIsTransferDialogOpen}
-        form={form}
-        onSubmit={handleSubmit}
-        residentName={fullName}
-        currentStep={currentStep}
-        setCurrentStep={setCurrentStep}
-        handleNextStep={handleNextStep}
-        prevStep={prevStep}
-      />
-
-      <HospitalPassportDialog
-        open={isEditPassportDialogOpen}
-        onOpenChange={setIsEditPassportDialogOpen}
-        form={editForm}
-        onSubmit={handleEditSubmit}
-        residentName={fullName}
-        currentStep={editCurrentStep}
-        setCurrentStep={setEditCurrentStep}
-        handleNextStep={handleEditNextStep}
-        prevStep={editPrevStep}
-        isEditMode={true}
-      />
-
-      <ViewPassportDialog
-        open={isViewPassportDialogOpen}
-        onOpenChange={setIsViewPassportDialogOpen}
-        passport={selectedPassport}
-        resident={resident}
-      />
-
       <TransferLogDialog
         open={isTransferLogDialogOpen}
         onOpenChange={setIsTransferLogDialogOpen}
