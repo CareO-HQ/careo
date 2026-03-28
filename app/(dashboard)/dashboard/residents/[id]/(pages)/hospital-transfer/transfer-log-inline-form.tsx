@@ -53,31 +53,31 @@ export function TransferLogInlineForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="bg-white border border-neutral-200/60 rounded-xl shadow-sm p-5 sm:p-6 space-y-6">
         {/* Transfer Details Section */}
-        <div className="space-y-6">
+        <div className="space-y-5">
           <div>
-            <h3 className="text-xl font-semibold mb-4">Transfer Details</h3>
-            <p className="text-sm text-muted-foreground mb-6">
+            <h3 className="text-base font-semibold text-neutral-900">Transfer Details</h3>
+            <p className="text-xs text-neutral-500 mt-1">
               Enter information about the hospital transfer
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Transfer Date *</FormLabel>
+                  <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Transfer Date *</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
                           variant="outline"
                           className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
+                            "w-full pl-3 text-left font-normal h-10 border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 rounded-lg",
+                            !field.value && "text-neutral-400"
                           )}
                         >
                           {field.value ? (
@@ -85,11 +85,11 @@ export function TransferLogInlineForm({
                           ) : (
                             <span>Pick a date</span>
                           )}
-                          <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                          <Calendar className="ml-auto h-4 w-4 text-neutral-400" />
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent className="w-auto p-0 border-neutral-200 rounded-xl shadow-lg" align="start">
                       <CalendarComponent
                         mode="single"
                         selected={field.value ? new Date(field.value) : undefined}
@@ -112,9 +112,9 @@ export function TransferLogInlineForm({
               name="time"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Transfer Time</FormLabel>
+                  <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Transfer Time</FormLabel>
                   <FormControl>
-                    <Input type="time" {...field} />
+                    <Input type="time" {...field} className="h-10 border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -127,9 +127,13 @@ export function TransferLogInlineForm({
             name="hospitalName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Hospital Name *</FormLabel>
+                <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Hospital Name *</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., Royal London Hospital" {...field} />
+                  <Input
+                    placeholder="e.g., Royal London Hospital"
+                    {...field}
+                    className="h-10 border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -141,11 +145,11 @@ export function TransferLogInlineForm({
             name="reason"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Reason for Transfer *</FormLabel>
+                <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Reason for Transfer *</FormLabel>
                 <FormControl>
                   <Textarea
                     placeholder="Describe the reason for hospital transfer..."
-                    className="min-h-[120px]"
+                    className="min-h-[80px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none"
                     {...field}
                   />
                 </FormControl>
@@ -159,11 +163,11 @@ export function TransferLogInlineForm({
             name="outcome"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Outcome</FormLabel>
+                <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Outcome</FormLabel>
                 <FormControl>
                   <Textarea
                     placeholder="Describe the outcome of the transfer..."
-                    className="min-h-[120px]"
+                    className="min-h-[80px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none"
                     {...field}
                   />
                 </FormControl>
@@ -177,11 +181,11 @@ export function TransferLogInlineForm({
             name="followUp"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Follow-up Actions</FormLabel>
+                <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Follow-up Actions</FormLabel>
                 <FormControl>
                   <Textarea
                     placeholder="Any follow-up actions required..."
-                    className="min-h-[120px]"
+                    className="min-h-[80px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none"
                     {...field}
                   />
                 </FormControl>
@@ -191,9 +195,9 @@ export function TransferLogInlineForm({
           />
 
           {/* Files Changed */}
-          <div className="space-y-4 p-4 border rounded-lg">
-            <h4 className="font-medium">Files Changed</h4>
-            <div className="space-y-3">
+          <div className="space-y-3 p-4 bg-neutral-50/50 border border-neutral-200/60 rounded-xl">
+            <h4 className="text-xs font-semibold text-neutral-900">Files Changed</h4>
+            <div className="space-y-2.5">
               <FormField
                 control={form.control}
                 name="filesChanged.carePlan"
@@ -203,9 +207,10 @@ export function TransferLogInlineForm({
                       <Checkbox
                         checked={field.value}
                         onCheckedChange={field.onChange}
+                        className="mt-0.5 data-[state=checked]:bg-neutral-900 data-[state=checked]:border-neutral-900"
                       />
                     </FormControl>
-                    <FormLabel className="font-normal cursor-pointer">
+                    <FormLabel className="text-sm font-normal cursor-pointer text-neutral-700">
                       Care Plan Updated
                     </FormLabel>
                   </FormItem>
@@ -221,9 +226,10 @@ export function TransferLogInlineForm({
                       <Checkbox
                         checked={field.value}
                         onCheckedChange={field.onChange}
+                        className="mt-0.5 data-[state=checked]:bg-neutral-900 data-[state=checked]:border-neutral-900"
                       />
                     </FormControl>
-                    <FormLabel className="font-normal cursor-pointer">
+                    <FormLabel className="text-sm font-normal cursor-pointer text-neutral-700">
                       Risk Assessment Updated
                     </FormLabel>
                   </FormItem>
@@ -235,9 +241,13 @@ export function TransferLogInlineForm({
                 name="filesChanged.other"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Other Files Changed</FormLabel>
+                    <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Other Files Changed</FormLabel>
                     <FormControl>
-                      <Input placeholder="List other files..." {...field} />
+                      <Input
+                        placeholder="List other files..."
+                        {...field}
+                        className="h-10 border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400"
+                      />
                     </FormControl>
                   </FormItem>
                 )}
@@ -246,10 +256,10 @@ export function TransferLogInlineForm({
           </div>
 
           {/* Medication Changes */}
-          <div className="space-y-4 p-4 border rounded-lg">
-            <h4 className="font-medium">Medication Changes</h4>
+          <div className="space-y-3 p-4 bg-neutral-50/50 border border-neutral-200/60 rounded-xl">
+            <h4 className="text-xs font-semibold text-neutral-900">Medication Changes</h4>
 
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <FormField
                 control={form.control}
                 name="medicationChanges.medicationsAdded"
@@ -259,9 +269,10 @@ export function TransferLogInlineForm({
                       <Checkbox
                         checked={field.value}
                         onCheckedChange={field.onChange}
+                        className="mt-0.5 data-[state=checked]:bg-neutral-900 data-[state=checked]:border-neutral-900"
                       />
                     </FormControl>
-                    <FormLabel className="font-normal cursor-pointer">
+                    <FormLabel className="text-sm font-normal cursor-pointer text-neutral-700">
                       Medications Added
                     </FormLabel>
                   </FormItem>
@@ -273,11 +284,11 @@ export function TransferLogInlineForm({
                   control={form.control}
                   name="medicationChanges.addedMedications"
                   render={({ field }) => (
-                    <FormItem className="ml-6">
+                    <FormItem className="ml-7">
                       <FormControl>
                         <Textarea
                           placeholder="List added medications..."
-                          className="min-h-[80px]"
+                          className="min-h-[60px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none text-sm"
                           {...field}
                         />
                       </FormControl>
@@ -295,9 +306,10 @@ export function TransferLogInlineForm({
                       <Checkbox
                         checked={field.value}
                         onCheckedChange={field.onChange}
+                        className="mt-0.5 data-[state=checked]:bg-neutral-900 data-[state=checked]:border-neutral-900"
                       />
                     </FormControl>
-                    <FormLabel className="font-normal cursor-pointer">
+                    <FormLabel className="text-sm font-normal cursor-pointer text-neutral-700">
                       Medications Removed
                     </FormLabel>
                   </FormItem>
@@ -309,11 +321,11 @@ export function TransferLogInlineForm({
                   control={form.control}
                   name="medicationChanges.removedMedications"
                   render={({ field }) => (
-                    <FormItem className="ml-6">
+                    <FormItem className="ml-7">
                       <FormControl>
                         <Textarea
                           placeholder="List removed medications..."
-                          className="min-h-[80px]"
+                          className="min-h-[60px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none text-sm"
                           {...field}
                         />
                       </FormControl>
@@ -331,9 +343,10 @@ export function TransferLogInlineForm({
                       <Checkbox
                         checked={field.value}
                         onCheckedChange={field.onChange}
+                        className="mt-0.5 data-[state=checked]:bg-neutral-900 data-[state=checked]:border-neutral-900"
                       />
                     </FormControl>
-                    <FormLabel className="font-normal cursor-pointer">
+                    <FormLabel className="text-sm font-normal cursor-pointer text-neutral-700">
                       Medications Modified
                     </FormLabel>
                   </FormItem>
@@ -345,11 +358,11 @@ export function TransferLogInlineForm({
                   control={form.control}
                   name="medicationChanges.modifiedMedications"
                   render={({ field }) => (
-                    <FormItem className="ml-6">
+                    <FormItem className="ml-7">
                       <FormControl>
                         <Textarea
                           placeholder="List modified medications..."
-                          className="min-h-[80px]"
+                          className="min-h-[60px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none text-sm"
                           {...field}
                         />
                       </FormControl>
@@ -362,18 +375,21 @@ export function TransferLogInlineForm({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-between pt-6 border-t">
+        <div className="flex items-center justify-end gap-2 pt-5 border-t border-neutral-200">
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             onClick={onCancel}
+            className="text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 font-medium h-9"
           >
-            <X className="w-4 h-4 mr-2" />
             Cancel
           </Button>
 
-          <Button type="submit">
-            <Save className="w-4 h-4 mr-2" />
+          <Button
+            type="submit"
+            className="gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-medium shadow-sm h-9"
+          >
+            <Save className="w-3.5 h-3.5" />
             {isEditMode ? "Update Transfer Log" : "Save Transfer Log"}
           </Button>
         </div>

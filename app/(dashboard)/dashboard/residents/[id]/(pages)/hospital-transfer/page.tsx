@@ -516,9 +516,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   };
 
-  // Pagination for transfer logs
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const itemsPerPage = 5;
 
   // Format helper functions
   const formatDateTime = (dateValue: string | number | Date) => {
@@ -725,12 +722,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   };
 
   // Body Map Handlers
-  const handleAddBodyMap = () => {
-    setSelectedBodyMap(null);
-    setCurrentBodyMapId(null);
-    setIsBodyMapDialogOpen(true);
-  };
-
   const handleEditBodyMap = (bm: any) => {
     setSelectedBodyMap(bm);
     setCurrentBodyMapId(bm._id);
@@ -875,14 +866,6 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const fullName = resident ? `${resident.firstName} ${resident.lastName}` : "";
   const initials = resident ? `${resident.firstName[0]}${resident.lastName[0]}` : "";
 
-  // Pagination logic
-  const totalTransferLogs = transferLogs?.length || 0;
-  const totalPages = Math.ceil(totalTransferLogs / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedTransferLogs = transferLogs.slice(startIndex, endIndex);
-  const showPagination = totalTransferLogs > itemsPerPage;
-
   if (isLoading || isProfileLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -896,21 +879,21 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   }
 
   return (
-    <div className="flex flex-col gap-6 w-full relative h-[calc(100vh-theme(spacing.24))]">
-      {/* Top Bar */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-background border-b flex-shrink-0">
+    <div className="flex flex-col w-full relative h-[calc(100vh-theme(spacing.24))] bg-[#fafafa]">
+      {/* Top Bar - Attio Style */}
+      <div className="flex items-center gap-3 px-6 py-3.5 bg-white border-b border-neutral-200/60 flex-shrink-0">
         <button
           onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-500 hover:text-neutral-900"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
-          <span>Hospital Transfer</span>
+        <div className="flex flex-1 items-center gap-2 text-sm">
+          <span className="text-neutral-600 font-medium">Hospital Transfer</span>
           {activeView && (
             <>
-              <span>/</span>
-              <span className="font-medium text-foreground">
+              <span className="text-neutral-300">/</span>
+              <span className="font-semibold text-neutral-900">
                 {activeView === 'passport' && 'Hospital Passport'}
                 {activeView === 'bodymap' && 'Body Map'}
                 {activeView === 'kardex' && 'Kardex'}
@@ -921,20 +904,20 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         </div>
 
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
-          className="h-8 gap-1.5 text-xs"
+          className="h-8 gap-2 text-xs font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
           title="View all past transfer records and documents"
         >
           <Eye className="h-3.5 w-3.5" />
-          View All Past Records
+          View All Records
         </Button>
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="h-8 w-8 text-muted-foreground hover:text-foreground transition-all duration-200"
+          className="h-8 w-8 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-all duration-200"
           title={isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"}
         >
           {isSidebarCollapsed ? (
@@ -946,19 +929,19 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       </div>
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        <main className="flex-1 min-w-0 flex flex-col overflow-hidden bg-muted/10">
+        <main className="flex-1 min-w-0 flex flex-col overflow-hidden bg-[#fafafa]">
           {activeView === 'passport' ? (
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
-              <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
-                <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
+            <div className="flex-1 overflow-y-auto scrollbar-thin">
+              <div className="max-w-5xl mx-auto p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <FileText className="w-5 h-5 text-primary" />
+                    <div className="p-2 bg-green-50 rounded-lg border border-green-100">
+                      <FileText className="w-4 h-4 text-green-600" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold leading-none">Hospital Passport</h2>
+                      <h2 className="text-lg font-semibold text-neutral-900">Hospital Passport</h2>
                       {hospitalPassports.length > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-neutral-500 mt-0.5">
                           Viewing existing passport
                         </p>
                       )}
@@ -967,7 +950,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                   <div className="flex items-center gap-2">
                     {hospitalPassports.length > 0 && !isEditingPassport && (
                       <>
-                        <Button variant="outline" size="sm" onClick={() => {
+                        <Button variant="ghost" size="sm" onClick={() => {
                           setIsEditingPassport(true);
                           editForm.reset({
                             generalDetails: hospitalPassports[0].generalDetails,
@@ -981,25 +964,30 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                             },
                           });
                           setEditCurrentStep(1);
-                        }} className="gap-2">
-                          <Edit className="w-4 h-4" /> Edit
+                        }} className="gap-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 font-medium">
+                          <Edit className="w-3.5 h-3.5" /> Edit
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => handlePrintPassport(hospitalPassports[0])} className="gap-2">
-                          <Printer className="w-4 h-4" /> Print
+                        <Button variant="ghost" size="sm" onClick={() => handlePrintPassport(hospitalPassports[0])} className="gap-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 font-medium">
+                          <Printer className="w-3.5 h-3.5" /> Print
                         </Button>
                       </>
                     )}
-                    <Button variant="ghost" size="icon" onClick={() => {
-                      setActiveView(null);
-                      setIsEditingPassport(false);
-                      setCurrentStep(1);
-                      setEditCurrentStep(1);
-                    }}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setActiveView(null);
+                        setIsEditingPassport(false);
+                        setCurrentStep(1);
+                        setEditCurrentStep(1);
+                      }}
+                      className="h-8 w-8 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg"
+                    >
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
-                <div className="p-6 sm:p-10">
+                <div className="bg-white border border-neutral-200/60 rounded-xl shadow-sm p-5 sm:p-6">
                   {hospitalPassports.length > 0 && !isEditingPassport ? (
                     <ViewPassportInline
                       passport={hospitalPassports[0]}
@@ -1027,43 +1015,48 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               </div>
             </div>
           ) : activeView === 'bodymap' ? (
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
-              <div className="w-full bg-background rounded-xl border shadow-sm mb-8">
-                <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
+            <div className="flex-1 overflow-y-auto scrollbar-thin">
+              <div className="max-w-5xl mx-auto p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <MapIcon className="w-5 h-5 text-primary" />
+                    <div className="p-2 bg-purple-50 rounded-lg border border-purple-100">
+                      <MapIcon className="w-4 h-4 text-purple-600" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold leading-none">Body Map</h2>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <h2 className="text-lg font-semibold text-neutral-900">Body Map</h2>
+                      <p className="text-xs text-neutral-500 mt-0.5">
                         Document body marks and injuries
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() => {
                         setSelectedBodyMap(null);
                         setCurrentBodyMapId(null);
                         setIsBodyMapDialogOpen(true);
                       }}
-                      className="gap-2"
+                      className="gap-2 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 font-medium"
                     >
-                      <Plus className="w-4 h-4" /> Add New
+                      <Plus className="w-3.5 h-3.5" /> Add New
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setActiveView(null)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setActiveView(null)}
+                      className="h-8 w-8 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg"
+                    >
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
-                <div className="p-6">
+                <div>
                   {residentBodyMaps.length > 0 ? (
                     <div className="space-y-4">
-                      <h3 className="text-sm font-semibold text-muted-foreground">Recent Body Maps</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <h3 className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Recent Body Maps</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {residentBodyMaps.map((bm: any) => {
                           // Extract regions from entries
                           const entries = bm.bodyMapData?.sessions?.[0]?.entries || [];
@@ -1077,56 +1070,56 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                           return (
                             <div
                               key={bm._id}
-                              className="border rounded-lg p-4 hover:border-primary/50 transition-colors cursor-pointer"
+                              className="bg-white border border-neutral-200/60 rounded-xl p-3 hover:shadow-md hover:border-neutral-300/70 transition-all duration-200 cursor-pointer group"
                               onClick={() => handleEditBodyMap(bm)}
                             >
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                  <MapIcon className="w-4 h-4 text-primary" />
-                                  <h4 className="font-semibold text-sm">{displayName}</h4>
+                                  <MapIcon className="w-3.5 h-3.5 text-purple-600" />
+                                  <h4 className="font-semibold text-xs text-neutral-900">{displayName}</h4>
                                 </div>
-                                <Badge variant="secondary" className="text-xs">
+                                <span className="text-[9px] font-medium text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded">
                                   {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
-                                </Badge>
+                                </span>
                               </div>
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
+                              <p className="text-[10px] text-neutral-500 flex items-center gap-1 mb-2">
+                                <Calendar className="w-2.5 h-2.5" />
                                 {formatDate(bm.date)}
                               </p>
-                            <div className="flex gap-2 mt-3">
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
-                                className="flex-1 h-8 text-xs"
+                                className="flex-1 h-6 text-[10px] text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 px-2"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleEditBodyMap(bm);
                                 }}
                               >
-                                <Edit className="w-3 h-3 mr-1" /> Edit
+                                <Edit className="w-2.5 h-2.5 mr-0.5" /> Edit
                               </Button>
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
-                                className="h-8 px-2"
+                                className="h-6 px-1.5 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDownloadBodyMap(bm);
                                 }}
                                 disabled={isDownloading}
                               >
-                                <Download className="w-3 h-3" />
+                                <Download className="w-2.5 h-2.5" />
                               </Button>
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
-                                className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                className="h-6 px-1.5 text-red-500 hover:text-red-700 hover:bg-red-50"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeleteBodyMap(bm);
                                 }}
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <Trash2 className="w-2.5 h-2.5" />
                               </Button>
                             </div>
                           </div>
@@ -1136,11 +1129,11 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     </div>
                   ) : (
                     <div className="text-center py-12">
-                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                        <MapIcon className="w-8 h-8 text-muted-foreground" />
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-50 border border-neutral-200/50 flex items-center justify-center mx-auto mb-3">
+                        <MapIcon className="w-6 h-6 text-neutral-400" />
                       </div>
-                      <h3 className="text-lg font-medium text-foreground mb-2">No Body Maps Yet</h3>
-                      <p className="text-sm text-muted-foreground mb-4">
+                      <h3 className="text-sm font-semibold text-neutral-900 mb-1">No Body Maps Yet</h3>
+                      <p className="text-xs text-neutral-500 mb-4">
                         Create your first body map to document marks and injuries
                       </p>
                       <Button
@@ -1149,9 +1142,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                           setCurrentBodyMapId(null);
                           setIsBodyMapDialogOpen(true);
                         }}
-                        className="gap-2"
+                        className="gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-medium h-9"
                       >
-                        <Plus className="w-4 h-4" /> Create Body Map
+                        <Plus className="w-3.5 h-3.5" /> Create Body Map
                       </Button>
                     </div>
                   )}
@@ -1159,25 +1152,30 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               </div>
             </div>
           ) : activeView === 'kardex' ? (
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
-              <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
-                <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
+            <div className="flex-1 overflow-y-auto scrollbar-thin">
+              <div className="max-w-6xl mx-auto p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Pill className="w-5 h-5 text-primary" />
+                    <div className="p-2 bg-indigo-50 rounded-lg border border-indigo-100">
+                      <Pill className="w-4 h-4 text-indigo-600" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold leading-none">Kardex</h2>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <h2 className="text-lg font-semibold text-neutral-900">Kardex</h2>
+                      <p className="text-xs text-neutral-500 mt-0.5">
                         Medication Administration Record
                       </p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => setActiveView(null)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setActiveView(null)}
+                    className="h-8 w-8 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg"
+                  >
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                <div className="p-6 sm:p-10">
+                <div className="bg-white border border-neutral-200/60 rounded-xl shadow-sm overflow-hidden">
                   <KardexModal
                     medications={medications}
                     resident={{
@@ -1197,92 +1195,102 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
               </div>
             </div>
           ) : activeView === 'transferlogs' ? (
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
-              <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
-                <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
+            <div className="flex-1 overflow-y-auto scrollbar-thin">
+              <div className="max-w-5xl mx-auto p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Ambulance className="w-5 h-5 text-primary" />
+                    <div className="p-2 bg-blue-50 rounded-lg border border-blue-100">
+                      <Ambulance className="w-4 h-4 text-blue-600" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold leading-none">Transfer Logs</h2>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <h2 className="text-lg font-semibold text-neutral-900">Transfer Logs</h2>
+                      <p className="text-xs text-neutral-500 mt-0.5">
                         Hospital transfer history and records
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setIsAddingTransferLog(true);
-                        setTransferLogFormStep(1);
-                        transferLogForm.reset({
-                          date: today,
-                          time: "",
-                          hospitalName: "",
-                          reason: "",
-                          outcome: "",
-                          followUp: "",
-                          filesChanged: {
-                            carePlan: false,
-                            riskAssessment: false,
-                            other: "",
-                          },
-                          medicationChanges: {
-                            medicationsAdded: false,
-                            addedMedications: "",
-                            medicationsRemoved: false,
-                            removedMedications: "",
-                            medicationsModified: false,
-                            modifiedMedications: "",
-                          },
-                        });
-                      }}
-                      className="gap-2"
-                    >
-                      <Plus className="w-4 h-4" /> Add Transfer Log
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setActiveView(null)}>
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setActiveView(null)}
+                    className="h-8 w-8 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
-                <div className="p-6">
-                  {isAddingTransferLog || isEditingTransferLog ? (
-                    <TransferLogInlineForm
-                      form={transferLogForm}
-                      onSubmit={handleTransferLogSubmit}
-                      residentName={resident?.firstName + ' ' + resident?.lastName}
-                      currentStep={transferLogFormStep}
-                      setCurrentStep={setTransferLogFormStep}
-                      handleNextStep={transferLogNextStep}
-                      prevStep={transferLogPrevStep}
-                      isEditMode={isEditingTransferLog}
-                      onCancel={handleCancelTransferLog}
-                    />
-                  ) : transferLogs.length > 0 ? (
-                    <div className="space-y-4">
-                      {transferLogs.map((log: any) => (
+                <div className="space-y-5">
+                    {(isAddingTransferLog || isEditingTransferLog) && (
+                      <TransferLogInlineForm
+                        form={transferLogForm}
+                        onSubmit={handleTransferLogSubmit}
+                        residentName={resident?.firstName + ' ' + resident?.lastName}
+                        currentStep={transferLogFormStep}
+                        setCurrentStep={setTransferLogFormStep}
+                        handleNextStep={transferLogNextStep}
+                        prevStep={transferLogPrevStep}
+                        isEditMode={isEditingTransferLog}
+                        onCancel={handleCancelTransferLog}
+                      />
+                    )}
+
+                    {transferLogs.length > 0 ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Recent Transfers</h3>
+                          {!isAddingTransferLog && !isEditingTransferLog && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setIsAddingTransferLog(true);
+                                setTransferLogFormStep(1);
+                                transferLogForm.reset({
+                                  date: today,
+                                  time: "",
+                                  hospitalName: "",
+                                  reason: "",
+                                  outcome: "",
+                                  followUp: "",
+                                  filesChanged: {
+                                    carePlan: false,
+                                    riskAssessment: false,
+                                    other: "",
+                                  },
+                                  medicationChanges: {
+                                    medicationsAdded: false,
+                                    addedMedications: "",
+                                    medicationsRemoved: false,
+                                    removedMedications: "",
+                                    medicationsModified: false,
+                                    modifiedMedications: "",
+                                  },
+                                });
+                              }}
+                              className="gap-2 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 font-medium h-8"
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Add Transfer Log
+                            </Button>
+                          )}
+                        </div>
+                        {transferLogs.slice(0, 20).map((log: any) => (
                         <div
                           key={log._id}
-                          className="border rounded-lg p-4 hover:border-primary/50 transition-colors"
+                          className="bg-white border border-neutral-200/60 rounded-xl p-4 hover:shadow-md hover:border-neutral-300/70 transition-all duration-200 group"
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex items-start gap-3 flex-1">
-                              <div className="p-2 bg-blue-50 rounded-lg">
-                                <Ambulance className="w-5 h-5 text-blue-600" />
+                              <div className="p-2 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-lg border border-blue-200/50">
+                                <Ambulance className="w-4 h-4 text-blue-600" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-base mb-1">{log.hospitalName}</h3>
-                                <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-                                  <span className="flex items-center gap-1">
+                                <h3 className="font-semibold text-sm text-neutral-900 mb-1">{log.hospitalName}</h3>
+                                <div className="flex flex-wrap gap-2.5 text-xs">
+                                  <span className="flex items-center gap-1 text-neutral-500">
                                     <Calendar className="w-3 h-3" />
                                     {formatDate(log.date)}
                                   </span>
                                   {log.time && (
-                                    <span className="flex items-center gap-1">
+                                    <span className="flex items-center gap-1 text-neutral-500">
                                       <Clock className="w-3 h-3" />
                                       {log.time}
                                     </span>
@@ -1290,118 +1298,122 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                                 </div>
                               </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
-                                className="h-8"
+                                className="h-7 px-2 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
                                 onClick={() => handleViewTransferLog(log)}
                               >
                                 <Eye className="w-3 h-3 mr-1" /> View
                               </Button>
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
-                                className="h-8"
+                                className="h-7 px-2 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
                                 onClick={() => handleEditTransferLog(log)}
                               >
                                 <Edit className="w-3 h-3 mr-1" /> Edit
                               </Button>
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
-                                className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
                                 onClick={() => handleDeleteTransferLog(log)}
                               >
                                 <Trash2 className="w-3 h-3" />
                               </Button>
                             </div>
                           </div>
-                          <div className="space-y-2 text-sm">
+                          <div className="space-y-2 text-xs pl-[44px]">
                             <div>
-                              <span className="font-medium text-muted-foreground">Reason: </span>
-                              <span>{log.reason}</span>
+                              <span className="font-medium text-neutral-500">Reason: </span>
+                              <span className="text-neutral-700">{log.reason}</span>
                             </div>
                             {log.outcome && (
                               <div>
-                                <span className="font-medium text-muted-foreground">Outcome: </span>
-                                <span>{log.outcome}</span>
+                                <span className="font-medium text-neutral-500">Outcome: </span>
+                                <span className="text-neutral-700">{log.outcome}</span>
                               </div>
                             )}
                             {log.followUp && (
                               <div>
-                                <span className="font-medium text-muted-foreground">Follow-up: </span>
-                                <span>{log.followUp}</span>
+                                <span className="font-medium text-neutral-500">Follow-up: </span>
+                                <span className="text-neutral-700">{log.followUp}</span>
                               </div>
                             )}
                           </div>
                         </div>
                       ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                        <Ambulance className="w-8 h-8 text-muted-foreground" />
+                      {transferLogs.length > 20 && (
+                        <div className="flex justify-center pt-4 mt-1">
+                          <Button
+                            variant="ghost"
+                            onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
+                            className="gap-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 font-medium h-9"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            View All {transferLogs.length} Transfer Logs
+                          </Button>
+                        </div>
+                      )}
                       </div>
-                      <h3 className="text-lg font-medium text-foreground mb-2">No Transfer Logs Yet</h3>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Add your first transfer log to track hospital visits
-                      </p>
-                      <Button
-                        onClick={() => {
-                          setIsAddingTransferLog(true);
-                          setTransferLogFormStep(1);
-                          transferLogForm.reset();
-                        }}
-                        className="gap-2"
-                      >
-                        <Plus className="w-4 h-4" /> Add Transfer Log
-                      </Button>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="text-center py-12">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-50 border border-neutral-200/50 flex items-center justify-center mx-auto mb-3">
+                          <Ambulance className="w-6 h-6 text-neutral-400" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-neutral-900 mb-1">No Transfer Logs Yet</h3>
+                        <p className="text-xs text-neutral-500">
+                          Add your first transfer log to track hospital visits
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-8 text-muted-foreground">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-2">
-                <FileText className="w-8 h-8" />
+            <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 border border-neutral-200/50 flex items-center justify-center mb-2">
+                <FileText className="w-8 h-8 text-neutral-400" />
               </div>
-              <h3 className="text-lg font-medium text-foreground">Select a form or document</h3>
-              <p className="max-w-xs text-sm">
-                Choose a form from the right panel to view or create hospital transfer documentation.
-              </p>
+              <div>
+                <h3 className="text-base font-semibold text-neutral-900 mb-1.5">Select a form or document</h3>
+                <p className="max-w-xs text-sm text-neutral-500">
+                  Choose a form from the sidebar to view or create hospital transfer documentation.
+                </p>
+              </div>
             </div>
           )}
         </main>
 
-        {/* Right Sidebar */}
-        <aside className={`flex-shrink-0 border-l bg-background h-full transition-all duration-300 ease-in-out ${
-          isSidebarCollapsed ? "w-0 opacity-0 invisible" : "w-[200px] opacity-100"
-        } overflow-y-auto overflow-x-hidden p-3`}>
+        {/* Right Sidebar - Attio Style */}
+        <aside className={`flex-shrink-0 border-l border-neutral-200/60 bg-white h-full transition-all duration-300 ease-in-out ${
+          isSidebarCollapsed ? "w-0 opacity-0 invisible" : "w-[220px] opacity-100"
+        } overflow-y-auto overflow-x-hidden p-4`}>
           <div className="flex flex-col gap-6">
             {/* Forms Section */}
             <div>
-              <div className="flex items-center justify-between px-1 mb-2">
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Forms</p>
+              <div className="flex items-center justify-between px-2 mb-3">
+                <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">Forms</p>
               </div>
               <div className="flex flex-col gap-1">
                 <button
                   onClick={() => {
                     setActiveView('passport');
                   }}
-                  className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                  className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
                     activeView === 'passport'
-                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                      : "hover:bg-muted/60 text-foreground"
+                      ? "bg-neutral-100 text-neutral-900"
+                      : "hover:bg-neutral-50 text-neutral-700"
                   }`}
                 >
-                  <FileText className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold leading-tight mb-0.5">Hospital Passport</p>
-                    <Badge variant="outline" className="text-[8px] h-3 px-1">
-                      {hospitalPassports.length > 0 ? 'COMPLETE' : 'NOT STARTED'}
-                    </Badge>
+                  <FileText className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeView === 'passport' ? 'text-neutral-900' : 'text-neutral-400'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold leading-tight mb-1">Hospital Passport</p>
+                    <span className={`text-[10px] font-medium ${hospitalPassports.length > 0 ? 'text-green-600' : 'text-neutral-400'}`}>
+                      {hospitalPassports.length > 0 ? 'Complete' : 'Not started'}
+                    </span>
                   </div>
                 </button>
 
@@ -1409,18 +1421,18 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                   onClick={() => {
                     setActiveView('bodymap');
                   }}
-                  className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                  className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
                     activeView === 'bodymap'
-                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                      : "hover:bg-muted/60 text-foreground"
+                      ? "bg-neutral-100 text-neutral-900"
+                      : "hover:bg-neutral-50 text-neutral-700"
                   }`}
                 >
-                  <MapIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold leading-tight mb-0.5">Body Map</p>
-                    <Badge variant="outline" className="text-[8px] h-3 px-1">
-                      {residentBodyMaps.length > 0 ? 'COMPLETE' : 'NOT STARTED'}
-                    </Badge>
+                  <MapIcon className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeView === 'bodymap' ? 'text-neutral-900' : 'text-neutral-400'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold leading-tight mb-1">Body Map</p>
+                    <span className={`text-[10px] font-medium ${residentBodyMaps.length > 0 ? 'text-green-600' : 'text-neutral-400'}`}>
+                      {residentBodyMaps.length > 0 ? 'Complete' : 'Not started'}
+                    </span>
                   </div>
                 </button>
 
@@ -1428,18 +1440,18 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                   onClick={() => {
                     setActiveView('kardex');
                   }}
-                  className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                  className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
                     activeView === 'kardex'
-                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                      : "hover:bg-muted/60 text-foreground"
+                      ? "bg-neutral-100 text-neutral-900"
+                      : "hover:bg-neutral-50 text-neutral-700"
                   }`}
                 >
-                  <Pill className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold leading-tight mb-0.5">Kardex</p>
-                    <Badge variant="outline" className="text-[8px] h-3 px-1">
-                      {medications.length > 0 ? `${medications.length} MEDS` : 'EMPTY'}
-                    </Badge>
+                  <Pill className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeView === 'kardex' ? 'text-neutral-900' : 'text-neutral-400'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold leading-tight mb-1">Kardex</p>
+                    <span className={`text-[10px] font-medium ${medications.length > 0 ? 'text-blue-600' : 'text-neutral-400'}`}>
+                      {medications.length > 0 ? `${medications.length} medications` : 'Empty'}
+                    </span>
                   </div>
                 </button>
 
@@ -1447,57 +1459,21 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                   onClick={() => {
                     setActiveView('transferlogs');
                   }}
-                  className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                  className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
                     activeView === 'transferlogs'
-                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                      : "hover:bg-muted/60 text-foreground"
+                      ? "bg-neutral-100 text-neutral-900"
+                      : "hover:bg-neutral-50 text-neutral-700"
                   }`}
                 >
-                  <Ambulance className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold leading-tight mb-0.5">Transfer Logs</p>
-                    <Badge variant="outline" className="text-[8px] h-3 px-1">
-                      {transferLogs.length > 0 ? `${transferLogs.length} LOGS` : 'EMPTY'}
-                    </Badge>
+                  <Ambulance className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeView === 'transferlogs' ? 'text-neutral-900' : 'text-neutral-400'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold leading-tight mb-1">Transfer Logs</p>
+                    <span className={`text-[10px] font-medium ${transferLogs.length > 0 ? 'text-blue-600' : 'text-neutral-400'}`}>
+                      {transferLogs.length > 0 ? `${transferLogs.length} logs` : 'Empty'}
+                    </span>
                   </div>
                 </button>
               </div>
-            </div>
-
-            {/* Body Maps Section */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">Body Maps</p>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={handleAddBodyMap}
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </div>
-              {residentBodyMaps.length > 0 ? (
-                <div className="flex flex-col gap-1">
-                  {residentBodyMaps.slice(0, 3).map((bm: any) => (
-                    <button
-                      key={bm._id}
-                      onClick={() => handleEditBodyMap(bm)}
-                      className="w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all hover:bg-muted/60 text-foreground"
-                    >
-                      <MapIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-purple-500" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold leading-tight truncate">{bm.label || 'Body Map'}</p>
-                        <p className="text-[10px] text-muted-foreground">{formatDate(bm.date)}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="px-2 py-3 border border-dashed rounded-lg text-center">
-                  <p className="text-[10px] text-muted-foreground italic">No body maps yet</p>
-                </div>
-              )}
             </div>
           </div>
         </aside>
