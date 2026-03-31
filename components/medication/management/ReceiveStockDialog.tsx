@@ -47,6 +47,7 @@ interface ReceiveStockDialogProps {
     name: string;
     strength: string;
     strength_unit: string;
+    dosage_form: string;
     total_count: number | null;
     organization_id: string;
     care_home_id: string | null;
@@ -88,6 +89,27 @@ export function ReceiveStockDialog({
       setIsSubmitting(false);
     }
   }, [open, form]);
+
+  const getStockUnitLabel = (med: NonNullable<ReceiveStockDialogProps["medication"]>) => {
+    const form = med.dosage_form?.toLowerCase() || "";
+    
+    if (form.includes("tablet")) return "tablets";
+    if (form.includes("capsule")) return "capsules";
+    if (form.includes("softgel")) return "softgels";
+    if (form.includes("gummy")) return "gummies";
+    if (form.includes("lozenge")) return "lozenges";
+    if (form.includes("liquid") || form.includes("syrup") || form.includes("injection")) return "mL";
+    if (form.includes("drops")) return "drops";
+    if (form.includes("spray")) return "sprays";
+    if (form.includes("inhaler")) return "puffs";
+    if (form.includes("patch")) return "patches";
+    if (form.includes("cream") || form.includes("ointment") || form.includes("gel") || form.includes("lotion")) return "packs";
+    if (form.includes("sachet") || form.includes("powder")) return "sachets";
+    
+    return "units";
+  };
+
+  const unitLabel = medication ? getStockUnitLabel(medication) : "units";
 
   const onSubmit = async (data: ReceiveStockFormData) => {
     if (!profile || !medication) {
@@ -154,7 +176,7 @@ export function ReceiveStockDialog({
       }
 
       toast.success(
-        `Successfully received ${data.quantity_received} ${medication.strength_unit}. Stock updated from ${currentStock} to ${newStock}.`
+        `Successfully received ${data.quantity_received} ${unitLabel}. Stock updated from ${currentStock} to ${newStock}.`
       );
 
       form.reset();
@@ -194,32 +216,42 @@ export function ReceiveStockDialog({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Current Stock Info */}
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex flex-col gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-blue-900">Current Stock:</span>
-                <span className="text-lg font-bold text-blue-700">
-                  {medication.total_count ?? 0} {medication.strength_unit}
-                </span>
+                <div>
+                  <p className="text-sm font-medium text-blue-900">Medication Strength</p>
+                  <p className="text-xs text-blue-700">{medication.strength} {medication.strength_unit}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-blue-900">Physical Inventory (Current)</p>
+                  <span className="text-xl font-bold text-blue-700">
+                    {medication.total_count ?? 0} {unitLabel}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Quantity Received */}
             <FormField
               control={form.control}
               name="quantity_received"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Quantity Received *</FormLabel>
+                  <FormLabel className="text-base font-bold">Quantity to Add (Physical Count) *</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="Enter quantity received"
-                      {...field}
-                      className="text-lg font-semibold"
-                    />
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        placeholder={`e.g. 28`}
+                        {...field}
+                        className="text-lg font-semibold pr-20 h-12"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground bg-background px-2">
+                        {unitLabel}
+                      </div>
+                    </div>
                   </FormControl>
-                  <FormDescription>
-                    Number of {medication.strength_unit} received
+                  <FormDescription className="text-sm text-blue-600 font-medium">
+                    Enter the number of <strong>{unitLabel}</strong> physically received.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -323,7 +355,7 @@ export function ReceiveStockDialog({
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-green-900">New Stock After Receipt:</span>
                   <span className="text-lg font-bold text-green-700">
-                    {(medication.total_count ?? 0) + form.watch("quantity_received")} {medication.strength_unit}
+                    {(medication.total_count ?? 0) + Number(form.watch("quantity_received") || 0)} {unitLabel}
                   </span>
                 </div>
               </div>

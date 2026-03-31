@@ -57,7 +57,7 @@ interface Medication {
 }
 
 export const createMedicationColumns = (
-  createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string) => Promise<any>,
+  createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string, witnessId?: string) => Promise<any>,
   showAdministrateButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },
@@ -328,7 +328,13 @@ export const createMedicationColumns = (
                 // Validate required fields
                 // Witness is required for non-topical medications in full form
                 // For topical in full form, witness is optional
+                // Witness is required for PRN medications
                 if (!useSimplifiedTopical && !isTopical && !witnessedBy) {
+                  toast.error("Please select a witness");
+                  return;
+                }
+
+                if (isPRN && !witnessedBy) {
                   toast.error("Please select a witness");
                   return;
                 }
@@ -354,7 +360,8 @@ export const createMedicationColumns = (
                     medication.resident_id,
                     format(time, "HH:mm"),
                     quantity,
-                    administrationNotes
+                    administrationNotes,
+                    witnessedBy
                   );
 
                   toast.success(isTopical
@@ -736,6 +743,30 @@ export const createMedicationColumns = (
                                 placeholder={`Enter ${unitInfo.label.toLowerCase()}`}
                                 className="h-8"
                               />
+                            </div>
+
+                            <div className="space-y-1 col-span-2">
+                              <Label htmlFor="witnessedBy" className="text-xs text-muted-foreground">
+                                Witnessed by <span className="text-red-500">*</span>
+                              </Label>
+                              <Select
+                                value={witnessedBy}
+                                onValueChange={setWitnessedBy}
+                              >
+                                <SelectTrigger id="witnessedBy" className="h-8">
+                                  <SelectValue placeholder="Select witness" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {teamMembers?.map((member) => (
+                                    <SelectItem
+                                      key={member.userId}
+                                      value={member.userId}
+                                    >
+                                      {member.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
 
                             <div className="space-y-1 col-span-2">

@@ -93,25 +93,58 @@ export function ActiveMedicationsTable({
   const getStockStatus = (count: number | null) => {
     if (count === null || count === undefined) return "unknown";
     if (count === 0) return "out";
-    if (count <= 10) return "low";
+    if (count < 20) return "low";
     return "ok";
   };
 
-  const getStockBadge = (count: number | null) => {
+  const getStockUnitLabel = (medication: MedicationData) => {
+    // For PRN and Supplements, check frequency field (stores dosage unit)
+    if (medication.schedule_type === "PRN (As Needed)" || medication.schedule_type === "Supplement") {
+      const dosageUnit = medication.frequency || "";
+      if (dosageUnit.includes('mL')) return 'mL';
+      if (dosageUnit.includes('Drops')) return 'drops';
+      if (dosageUnit.includes('Puffs')) return 'puffs';
+      if (dosageUnit.includes('Patches')) return 'patches';
+      if (dosageUnit.includes('Sachets')) return 'sachets';
+      if (dosageUnit.includes('Injections')) return 'mL';
+      if (dosageUnit.includes('Tablets')) return 'tablets';
+    }
+
+    // For scheduled medications, determine from dosage form
+    const dosageForm = medication.dosage_form?.toLowerCase() || "";
+    if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) return 'mL';
+    if (dosageForm.includes('drops')) return 'drops';
+    if (dosageForm.includes('inhaler')) return 'puffs';
+    if (dosageForm.includes('spray')) return 'sprays';
+    if (dosageForm.includes('injection')) return 'mL';
+    if (dosageForm.includes('sachet') || dosageForm.includes('powder')) return 'sachets';
+    if (dosageForm.includes('patch')) return 'patches';
+    if (dosageForm.includes('tablet')) return 'tablets';
+    if (dosageForm.includes('capsule')) return 'capsules';
+    if (dosageForm.includes('softgel')) return 'softgels';
+    if (dosageForm.includes('gummy')) return 'gummies';
+    if (dosageForm.includes('cream') || dosageForm.includes('ointment') || dosageForm.includes('gel')) return 'packs';
+
+    return medication.strength_unit === 'mg' ? 'units' : medication.strength_unit || 'units';
+  };
+
+  const getStockBadge = (medication: MedicationData) => {
+    const count = medication.total_count;
     const status = getStockStatus(count);
-    const displayCount = count ?? "-";
+    const unitLabel = getStockUnitLabel(medication);
+    const displayCount = count !== null && count !== undefined ? `${count} ${unitLabel}` : "-";
 
     switch (status) {
       case "out":
         return (
-          <Badge variant="destructive" className="gap-1">
+          <Badge variant="outline" className="gap-1 bg-red-50 text-red-700 border-red-300">
             <AlertCircle className="h-3 w-3" />
             Out of Stock
           </Badge>
         );
       case "low":
         return (
-          <Badge variant="outline" className="gap-1 bg-orange-50 text-orange-700 border-orange-300">
+          <Badge variant="outline" className="gap-1 bg-yellow-50 text-yellow-700 border-yellow-300">
             <TrendingDown className="h-3 w-3" />
             Low ({displayCount})
           </Badge>
@@ -243,7 +276,7 @@ export function ActiveMedicationsTable({
       {
         accessorKey: "total_count",
         header: "Stock",
-        cell: ({ row }) => getStockBadge(row.original.total_count),
+        cell: ({ row }) => getStockBadge(row.original),
       },
       {
         accessorKey: "prescriber_name",
@@ -428,7 +461,10 @@ export function ActiveMedicationsTable({
       />
 
       <ReceiveStockDialog
-        medication={selectedMedication}
+        medication={selectedMedication ? {
+          ...selectedMedication,
+          dosage_form: selectedMedication.dosage_form
+        } : null}
         residentId={residentId}
         residentName={residentName}
         open={activeDialog === "receive"}
@@ -437,7 +473,10 @@ export function ActiveMedicationsTable({
       />
 
       <AdjustStockDialog
-        medication={selectedMedication}
+        medication={selectedMedication ? {
+          ...selectedMedication,
+          dosage_form: selectedMedication.dosage_form
+        } : null}
         residentId={residentId}
         residentName={residentName}
         open={activeDialog === "adjust"}
@@ -454,7 +493,10 @@ export function ActiveMedicationsTable({
       />
 
       <StockHistoryDialog
-        medication={selectedMedication}
+        medication={selectedMedication ? {
+          ...selectedMedication,
+          dosage_form: selectedMedication.dosage_form
+        } : null}
         open={activeDialog === "history"}
         onOpenChange={handleDialogClose}
       />

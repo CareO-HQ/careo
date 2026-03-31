@@ -28,6 +28,7 @@ interface StockHistoryDialogProps {
     name: string;
     strength: string;
     strength_unit: string;
+    dosage_form: string;
   } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -60,6 +61,27 @@ export function StockHistoryDialog({
       fetchStockHistory();
     }
   }, [open, medication?.id]);
+
+  const getStockUnitLabel = (med: NonNullable<StockHistoryDialogProps["medication"]>) => {
+    const form = med.dosage_form?.toLowerCase() || "";
+    
+    if (form.includes("tablet")) return "tablets";
+    if (form.includes("capsule")) return "capsules";
+    if (form.includes("softgel")) return "softgels";
+    if (form.includes("gummy")) return "gummies";
+    if (form.includes("lozenge")) return "lozenges";
+    if (form.includes("liquid") || form.includes("syrup") || form.includes("injection")) return "mL";
+    if (form.includes("drops")) return "drops";
+    if (form.includes("spray")) return "sprays";
+    if (form.includes("inhaler")) return "puffs";
+    if (form.includes("patch")) return "patches";
+    if (form.includes("cream") || form.includes("ointment") || form.includes("gel") || form.includes("lotion")) return "packs";
+    if (form.includes("sachet") || form.includes("powder")) return "sachets";
+    
+    return "units";
+  };
+
+  const unitLabel = medication ? getStockUnitLabel(medication) : "units";
 
   const fetchStockHistory = async () => {
     if (!medication) return;
@@ -249,12 +271,12 @@ export function StockHistoryDialog({
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {transaction.stock_before} {medication.strength_unit}
+                      {transaction.stock_before} {unitLabel}
                     </TableCell>
                     <TableCell className="text-right font-mono font-semibold">
                       {transaction.transaction_type === "receipt" ? (
                         <span className="text-green-700">
-                          +{transaction.quantity} {medication.strength_unit}
+                          +{transaction.quantity} {unitLabel}
                         </span>
                       ) : (
                         <span
@@ -265,12 +287,12 @@ export function StockHistoryDialog({
                           }
                         >
                           {(transaction.quantity_change || 0) > 0 ? "+" : ""}
-                          {transaction.quantity_change} {medication.strength_unit}
+                          {transaction.quantity_change} {unitLabel}
                         </span>
                       )}
                     </TableCell>
                     <TableCell className="text-right font-mono font-bold">
-                      {transaction.stock_after} {medication.strength_unit}
+                      {transaction.stock_after} {unitLabel}
                     </TableCell>
                     <TableCell className="text-sm">
                       {performerNames[transaction.performed_by] || "Unknown"}

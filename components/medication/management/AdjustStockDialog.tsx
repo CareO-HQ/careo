@@ -61,6 +61,7 @@ interface AdjustStockDialogProps {
     name: string;
     strength: string;
     strength_unit: string;
+    dosage_form: string;
     total_count: number | null;
     organization_id: string;
     care_home_id: string | null;
@@ -111,9 +112,30 @@ export function AdjustStockDialog({
     }
   }, [open, form]);
 
+  const getStockUnitLabel = (med: NonNullable<AdjustStockDialogProps["medication"]>) => {
+    const form = med.dosage_form?.toLowerCase() || "";
+    
+    if (form.includes("tablet")) return "tablets";
+    if (form.includes("capsule")) return "capsules";
+    if (form.includes("softgel")) return "softgels";
+    if (form.includes("gummy")) return "gummies";
+    if (form.includes("lozenge")) return "lozenges";
+    if (form.includes("liquid") || form.includes("syrup") || form.includes("injection")) return "mL";
+    if (form.includes("drops")) return "drops";
+    if (form.includes("spray")) return "sprays";
+    if (form.includes("inhaler")) return "puffs";
+    if (form.includes("patch")) return "patches";
+    if (form.includes("cream") || form.includes("ointment") || form.includes("gel") || form.includes("lotion")) return "packs";
+    if (form.includes("sachet") || form.includes("powder")) return "sachets";
+    
+    return "units";
+  };
+
+  const unitLabel = medication ? getStockUnitLabel(medication) : "units";
+
   const direction = form.watch("direction");
-  const quantity = form.watch("quantity");
-  const currentStock = medication?.total_count ?? 0;
+  const quantity = Number(form.watch("quantity") || 0);
+  const currentStock = Number(medication?.total_count ?? 0);
   const quantityChange = direction === "increase" ? quantity : -quantity;
   const newStock = Math.max(0, currentStock + quantityChange);
 
@@ -178,7 +200,7 @@ export function AdjustStockDialog({
 
       const changeText = data.direction === "increase" ? `increased by ${data.quantity}` : `decreased by ${data.quantity}`;
       toast.success(
-        `Stock ${changeText}. Updated from ${currentStock} to ${newStock} ${medication.strength_unit}.`
+        `Stock ${changeText}. Updated from ${currentStock} to ${newStock} ${unitLabel}.`
       );
 
       form.reset();
@@ -222,12 +244,18 @@ export function AdjustStockDialog({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Current Stock Info */}
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex flex-col gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-blue-900">Current Stock:</span>
-                <span className="text-lg font-bold text-blue-700">
-                  {currentStock} {medication.strength_unit}
-                </span>
+                <div>
+                  <p className="text-sm font-medium text-blue-900">Medication Strength</p>
+                  <p className="text-xs text-blue-700">{medication.strength} {medication.strength_unit}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-blue-900">Physical Inventory (Current)</p>
+                  <span className="text-xl font-bold text-blue-700">
+                    {currentStock} {unitLabel}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -283,17 +311,22 @@ export function AdjustStockDialog({
               name="quantity"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Quantity *</FormLabel>
+                  <FormLabel className="text-base font-bold">Quantity to {direction === 'increase' ? 'Add' : 'Remove'} (Physical Count) *</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="Enter quantity to adjust"
-                      {...field}
-                      className="text-lg font-semibold"
-                    />
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        placeholder="e.g. 10"
+                        {...field}
+                        className="text-lg font-semibold pr-20 h-12"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground bg-background px-2">
+                        {unitLabel}
+                      </div>
+                    </div>
                   </FormControl>
-                  <FormDescription>
-                    Number of {medication.strength_unit} to {direction}
+                  <FormDescription className="text-sm text-blue-600 font-medium">
+                    Enter the number of <strong>{unitLabel}</strong> to {direction}.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -383,7 +416,7 @@ export function AdjustStockDialog({
                     <span className={`text-lg font-bold ${
                       direction === "increase" ? "text-green-700" : "text-orange-700"
                     }`}>
-                      {direction === "increase" ? "+" : "-"}{quantity} {medication.strength_unit}
+                      {direction === "increase" ? "+" : "-"}{quantity} {unitLabel}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -395,7 +428,7 @@ export function AdjustStockDialog({
                     <span className={`text-lg font-bold ${
                       direction === "increase" ? "text-green-700" : "text-orange-700"
                     }`}>
-                      {newStock} {medication.strength_unit}
+                      {newStock} {unitLabel}
                     </span>
                   </div>
                 </div>

@@ -398,7 +398,7 @@ export default function EditMedicationDialog({
 
                   return (
                     <FormItem>
-                      <FormLabel>Total Count (Optional)</FormLabel>
+                      <FormLabel>Physical Inventory Count (Stock)</FormLabel>
                       <FormControl>
                         <div className="flex items-center gap-2">
                           <Input

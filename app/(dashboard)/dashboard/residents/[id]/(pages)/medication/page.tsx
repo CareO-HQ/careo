@@ -464,16 +464,29 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     return await updateMedicationIntakeStatus(args.intakeId, mappedState);
   };
 
-  const createAndAdministerMedicationIntake = async (medicationId: string, residentId: string, time: string, quantity: number = 1, notes?: string) => {
-    // First, check if this is a topical medication
+  const createAndAdministerMedicationIntake = async (medicationId: string, residentId: string, time: string, quantity: number = 1, notes?: string, witnessId?: string) => {
+    // First, check the medication schedule type and current stock
     const { data: medication } = await supabase
       .from("medications")
-      .select("schedule_type")
+      .select("schedule_type, total_count")
       .eq("id", medicationId)
       .single();
 
     const isTopical = medication?.schedule_type === "Topical";
     const isPRN = medication?.schedule_type === "PRN (As Needed)";
+    const currentStock = medication?.total_count ?? 0;
+    const newStock = Math.max(0, currentStock - quantity);
+
+    // Update medication stock count
+    const { error: stockError } = await supabase
+      .from("medications")
+      .update({ total_count: newStock })
+      .eq("id", medicationId);
+
+    if (stockError) {
+      console.error("Error updating medication stock:", stockError);
+      // We continue even if stock update fails, but log it
+    }
 
     // Save to medication_intakes table
     const { data, error } = await supabase
@@ -487,6 +500,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         comment: notes,
         administered_by_id: profile?.id,
         administered_at: new Date().toISOString(),
+        witness_id: witnessId || null,
+        witness_at: witnessId ? new Date().toISOString() : null,
         organization_id: profile?.active_organization_id,
         care_home_id: profile?.active_care_home_id
       })
@@ -529,6 +544,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               status: "given",
               quantity: quantity,
               notes: notes,
+              witness_id: witnessId || null,
+              witness_at: witnessId ? new Date().toISOString() : null,
               organization_id: profile?.active_organization_id,
               care_home_id: profile?.active_care_home_id,
             });
@@ -546,6 +563,16 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         console.error('Error integrating with eMAR:', emarIntegrationError);
       }
     }
+
+    // Optimistic updates for all medication states
+    const updateMedState = (prev: any[]) => prev.map(m =>
+      m.id === medicationId ? { ...m, total_count: newStock } : m
+    );
+
+    setPrnOrTopicalMedications(updateMedState);
+    setTopicalMedications(updateMedState);
+    setSupplementMedications(updateMedState);
+    setAllActiveMedications(updateMedState);
 
     fetchData();
     return data;
