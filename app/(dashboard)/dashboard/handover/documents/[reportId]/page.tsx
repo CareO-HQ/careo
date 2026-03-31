@@ -266,20 +266,6 @@ export default function HandoverReportDetailPage() {
                             {resident.totalFluid} ml
                           </span>
                         </div>
-                        {resident.medicationStatus && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-600">Medication:</span>
-                            <span className={cn(
-                              "font-semibold",
-                              resident.medicationStatus === "all_administered" ? "text-green-600" : 
-                              resident.medicationStatus === "missed" ? "text-red-600" : "text-amber-600"
-                            )}>
-                              {resident.medicationStatus === "all_administered"
-                                ? "All administered"
-                                : `${resident.medicationStatus === "missed" ? "Missed dose" : "Pending"} ${resident.nextMedicationName ? `- ${resident.nextMedicationName}` : ""} (${resident.nextMedicationTime || "--:--"})`}
-                            </span>
-                          </div>
-                        )}
                       </div>
 
                     {/* Indicators */}

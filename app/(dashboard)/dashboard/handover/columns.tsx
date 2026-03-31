@@ -18,9 +18,7 @@ import { toast } from "sonner";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useHandoverComment } from "@/hooks/use-handover-comment";
 import { useProfile } from "@/hooks/use-profile";
-import { getUKTodayDate, formatTimestampToUKTime } from "@/lib/date-utils";
-import { fromZonedTime } from "date-fns-tz";
-import { cn } from "@/lib/utils";
+import { getUKTodayDate } from "@/lib/date-utils";
 
 // Helper function to fetch handover report data
 const useHandoverReport = (residentId: string, teamId?: string) => {
@@ -115,60 +113,7 @@ const useHandoverReport = (residentId: string, teamId?: string) => {
             hospitalName: transfer.hospital_name,
             reason: transfer.reason,
           })),
-          medicationStatus: "all_administered" as const,
-          nextMedicationName: undefined as string | undefined,
-          nextMedicationTime: undefined as string | undefined,
         });
-
-        // Fetch medication status for the shift
-        const UK_TIMEZONE = "Europe/London";
-        const dateStr = today;
-        const shift = getCurrentShift();
-        const shiftStartStr = `${dateStr}T${shift === "day" ? "08:00:00" : "20:00:00"}`;
-        const shiftEndStr = `${dateStr}T${shift === "day" ? "20:00:00" : "08:00:00"}`;
-        
-        const shiftStartUTC = fromZonedTime(shiftStartStr, UK_TIMEZONE);
-        let shiftEndUTC = fromZonedTime(shiftEndStr, UK_TIMEZONE);
-
-        if (shift === "night") {
-          const nextDay = new Date(shiftEndUTC);
-          nextDay.setDate(nextDay.getDate() + 1);
-          shiftEndUTC = nextDay;
-        }
-
-        const { data: medicationIntakes } = await supabase
-          .from("medication_intakes")
-          .select("status, scheduled_time, medication:medication_id (name)")
-          .eq("resident_id", residentId)
-          .gte("scheduled_time", shiftStartUTC.toISOString())
-          .lt("scheduled_time", shiftEndUTC.toISOString())
-          .order("scheduled_time", { ascending: true });
-
-        let medStatus: "all_administered" | "missed" | "pending" = "all_administered";
-        let nextMedName: string | undefined = undefined;
-        let nextMedTime: string | undefined = undefined;
-
-        if (medicationIntakes && medicationIntakes.length > 0) {
-          const missedIntakes = medicationIntakes.filter(i => i.status === 'missed' || i.status === 'refused');
-          const pendingIntakes = medicationIntakes.filter(i => i.status === 'scheduled' || i.status === 'pending');
-
-          if (missedIntakes.length > 0) {
-            medStatus = "missed";
-            nextMedTime = formatTimestampToUKTime(missedIntakes[0].scheduled_time);
-            nextMedName = (missedIntakes[0].medication as any)?.name;
-          } else if (pendingIntakes.length > 0) {
-            medStatus = "pending";
-            nextMedTime = formatTimestampToUKTime(pendingIntakes[0].scheduled_time);
-            nextMedName = (pendingIntakes[0].medication as any)?.name;
-          }
-        }
-
-        setReport(prev => ({
-          ...prev!,
-          medicationStatus: medStatus,
-          nextMedicationName: nextMedName,
-          nextMedicationTime: nextMedTime,
-        }));
       } catch (error) {
         console.error("Error fetching handover report:", error);
         setReport(null);
@@ -398,30 +343,6 @@ const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; team
   );
 };
 
-// Component for displaying medication status
-const MedicationCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
-  const { report, isLoading } = useHandoverReport(residentId, teamId);
-
-  if (isLoading || !report) {
-    return <Badge variant="outline">Loading...</Badge>;
-  }
-
-  return (
-    <Badge 
-      variant="table" 
-      className={cn(
-        "rounded-sm text-[10px] px-1 py-0 h-5",
-        report.medicationStatus === "all_administered" ? "bg-green-50 text-green-700 border-green-300" :
-        report.medicationStatus === "missed" ? "bg-red-50 text-red-700 border-red-300" :
-        "bg-amber-50 text-amber-700 border-amber-300"
-      )}
-    >
-      {report.medicationStatus === "all_administered" ? "All" : 
-       report.medicationStatus === "missed" ? "Missed" : "Pending"}
-    </Badge>
-  );
-};
-
 // Component for comments with database persistence and auto-save
 const CommentsCell = ({
   residentId,
@@ -615,20 +536,6 @@ export const getColumns = (
       cell: ({ row }) => {
         const resident = row.original;
         return <HospitalTransferCell residentId={resident.id} teamId={teamId} />;
-      }
-    },
-    {
-      accessorKey: "medication",
-      header: () => {
-        return (
-          <div className="text-left text-muted-foreground text-sm">Medication</div>
-        );
-      },
-      enableSorting: false,
-      size: 70,
-      cell: ({ row }) => {
-        const resident = row.original;
-        return <MedicationCell residentId={resident.id} teamId={teamId} />;
       }
     },
     {
