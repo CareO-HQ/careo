@@ -1,140 +1,139 @@
-
-  
-   Local          | Remote         | Time (UTC)          
-  ----------------|----------------|---------------------
-   20240630000000 | 20240630000000 | 2024-06-30 00:00:00 
-   20260121050000 | 20260121050000 | 2026-01-21 05:00:00 
-   20260122053000 | 20260122053000 | 2026-01-22 05:30:00 
-   202601220713   | 202601220713   | 202601220713        
-   202601220745   | 202601220745   | 202601220745        
-   202601220800   | 202601220800   | 202601220800        
-   202601220815   | 202601220815   | 202601220815        
-   202601220851   | 202601220851   | 202601220851        
-   202601220906   | 202601220906   | 202601220906        
-   202601220923   | 202601220923   | 202601220923        
-   202601220935   | 202601220935   | 202601220935        
-   202601221000   | 202601221000   | 202601221000        
-   202601221136   | 202601221136   | 202601221136        
-   202601221815   | 202601221815   | 202601221815        
-   202601231045   | 202601231045   | 202601231045        
-   202601231100   | 202601231100   | 202601231100        
-   202601231140   | 202601231140   | 202601231140        
-   202601231155   | 202601231155   | 202601231155        
-   202601231415   | 202601231415   | 202601231415        
-   202601240000   | 202601240000   | 202601240000        
-   20260127000000 | 20260127000000 | 2026-01-27 00:00:00 
-   20260127120000 | 20260127120000 | 2026-01-27 12:00:00 
-   202601271230   | 202601271230   | 202601271230        
-   202601271300   | 202601271300   | 202601271300        
-   20260128000000 | 20260128000000 | 2026-01-28 00:00:00 
-   20260128100000 | 20260128100000 | 2026-01-28 10:00:00 
-   20260128113000 | 20260128113000 | 2026-01-28 11:30:00 
-   20260128120000 | 20260128120000 | 2026-01-28 12:00:00 
-   20260128140000 | 20260128140000 | 2026-01-28 14:00:00 
-   202601281700   | 202601281700   | 202601281700        
-   202601291000   | 202601291000   | 202601291000        
-   202601291100   | 202601291100   | 202601291100        
-   202601292200   | 202601292200   | 202601292200        
-   202601292205   | 202601292205   | 202601292205        
-   20260130094000 | 20260130094000 | 2026-01-30 09:40:00 
-   20260131000000 | 20260131000000 | 2026-01-31 00:00:00 
-   20260201000000 | 20260201000000 | 2026-02-01 00:00:00 
-   20260201010000 | 20260201010000 | 2026-02-01 01:00:00 
-   20260201020000 | 20260201020000 | 2026-02-01 02:00:00 
-   20260201030000 | 20260201030000 | 2026-02-01 03:00:00 
-   20260202000000 | 20260202000000 | 2026-02-02 00:00:00 
-   20260202120000 | 20260202120000 | 2026-02-02 12:00:00 
-   20260203000000 | 20260203000000 | 2026-02-03 00:00:00 
-   20260203000001 | 20260203000001 | 2026-02-03 00:00:01 
-   20260203000002 | 20260203000002 | 2026-02-03 00:00:02 
-   20260203000003 | 20260203000003 | 2026-02-03 00:00:03 
-   20260203000005 | 20260203000005 | 2026-02-03 00:00:05 
-   20260203000006 | 20260203000006 | 2026-02-03 00:00:06 
-   20260204000000 | 20260204000000 | 2026-02-04 00:00:00 
-   20260204000001 | 20260204000001 | 2026-02-04 00:00:01 
-   20260204000002 | 20260204000002 | 2026-02-04 00:00:02 
-   20260204000003 | 20260204000003 | 2026-02-04 00:00:03 
-   20260204000004 | 20260204000004 | 2026-02-04 00:00:04 
-   20260204000005 | 20260204000005 | 2026-02-04 00:00:05 
-   20260204000006 | 20260204000006 | 2026-02-04 00:00:06 
-   20260204000007 | 20260204000007 | 2026-02-04 00:00:07 
-   20260204000008 | 20260204000008 | 2026-02-04 00:00:08 
-   20260204100000 | 20260204100000 | 2026-02-04 10:00:00 
-   20260204120000 | 20260204120000 | 2026-02-04 12:00:00 
-   20260205000000 | 20260205000000 | 2026-02-05 00:00:00 
-   20260205000001 | 20260205000001 | 2026-02-05 00:00:01 
-   20260205000002 | 20260205000002 | 2026-02-05 00:00:02 
-   20260205000003 | 20260205000003 | 2026-02-05 00:00:03 
-   20260205000004 | 20260205000004 | 2026-02-05 00:00:04 
-   20260205000005 | 20260205000005 | 2026-02-05 00:00:05 
-   20260205100000 | 20260205100000 | 2026-02-05 10:00:00 
-   20260205112500 | 20260205112500 | 2026-02-05 11:25:00 
-   20260205120000 | 20260205120000 | 2026-02-05 12:00:00 
-   20260205123000 | 20260205123000 | 2026-02-05 12:30:00 
-   20260205130000 | 20260205130000 | 2026-02-05 13:00:00 
-   20260205140000 | 20260205140000 | 2026-02-05 14:00:00 
-   20260205143000 | 20260205143000 | 2026-02-05 14:30:00 
-   20260205150000 | 20260205150000 | 2026-02-05 15:00:00 
-   20260205154000 | 20260205154000 | 2026-02-05 15:40:00 
-   20260206130000 | 20260206130000 | 2026-02-06 13:00:00 
-   20260209000000 | 20260209000000 | 2026-02-09 00:00:00 
-   20260209000001 | 20260209000001 | 2026-02-09 00:00:01 
-   20260210000000 | 20260210000000 | 2026-02-10 00:00:00 
-   20260210000001 | 20260210000001 | 2026-02-10 00:00:01 
-   20260210070000 | 20260210070000 | 2026-02-10 07:00:00 
-   20260210130000 | 20260210130000 | 2026-02-10 13:00:00 
-   20260210140000 | 20260210140000 | 2026-02-10 14:00:00 
-   202602111100   | 202602111100   | 202602111100        
-   202602122200   | 202602122200   | 202602122200        
-   202602122300   | 202602122300   | 202602122300        
-   202602131015   | 202602131015   | 202602131015        
-   202602160000   | 202602160000   | 202602160000        
-   202602181710   | 202602181710   | 202602181710        
-   202602191455   | 202602191455   | 202602191455        
-   20260221000000 | 20260221000000 | 2026-02-21 00:00:00 
-   20260225131500 | 20260225131500 | 2026-02-25 13:15:00 
-   20260225150000 | 20260225150000 | 2026-02-25 15:00:00 
-   20260227000000 | 20260227000000 | 2026-02-27 00:00:00 
-   20260228000000 | 20260228000000 | 2026-02-28 00:00:00 
-   20260228000001 | 20260228000001 | 2026-02-28 00:00:01 
-   20260302000000 | 20260302000000 | 2026-03-02 00:00:00 
-   20260302000001 | 20260302000001 | 2026-03-02 00:00:01 
-   20260302154500 | 20260302154500 | 2026-03-02 15:45:00 
-   20260303100000 | 20260303100000 | 2026-03-03 10:00:00 
-   20260303120000 | 20260303120000 | 2026-03-03 12:00:00 
-   20260303121000 | 20260303121000 | 2026-03-03 12:10:00 
-   20260303124700 | 20260303124700 | 2026-03-03 12:47:00 
-   20260303140300 | 20260303140300 | 2026-03-03 14:03:00 
-   20260303151500 | 20260303151500 | 2026-03-03 15:15:00 
-   20260303154500 | 20260303154500 | 2026-03-03 15:45:00 
-   20260304000000 | 20260304000000 | 2026-03-04 00:00:00 
-   20260304000001 | 20260304000001 | 2026-03-04 00:00:01 
-   20260304120000 | 20260304120000 | 2026-03-04 12:00:00 
-   20260305000000 | 20260305000000 | 2026-03-05 00:00:00 
-   20260307000000 | 20260307000000 | 2026-03-07 00:00:00 
-   20260307100000 | 20260307100000 | 2026-03-07 10:00:00 
-   20260307110000 | 20260307110000 | 2026-03-07 11:00:00 
-   20260307120000 | 20260307120000 | 2026-03-07 12:00:00 
-   20260309000000 | 20260309000000 | 2026-03-09 00:00:00 
-   20260309100000 | 20260309100000 | 2026-03-09 10:00:00 
-   20260309115000 | 20260309115000 | 2026-03-09 11:50:00 
-   20260309120000 | 20260309120000 | 2026-03-09 12:00:00 
-   20260309121500 | 20260309121500 | 2026-03-09 12:15:00 
-   20260309124000 | 20260309124000 | 2026-03-09 12:40:00 
-   20260309130000 | 20260309130000 | 2026-03-09 13:00:00 
-   20260309133000 | 20260309133000 | 2026-03-09 13:30:00 
-   20260310072653 | 20260310072653 | 2026-03-10 07:26:53 
-   20260310120000 | 20260310120000 | 2026-03-10 12:00:00 
-   20260312130000 | 20260312130000 | 2026-03-12 13:00:00 
-   20260312140000 | 20260312140000 | 2026-03-12 14:00:00 
-   20260313120000 | 20260313120000 | 2026-03-13 12:00:00 
-   20260313170000 | 20260313170000 | 2026-03-13 17:00:00 
-   20260313173000 | 20260313173000 | 2026-03-13 17:30:00 
-   20260313180000 | 20260313180000 | 2026-03-13 18:00:00 
-   20260316000000 | 20260316000000 | 2026-03-16 00:00:00 
-   20260316000001 | 20260316000001 | 2026-03-16 00:00:01 
-   20260318000000 | 20260318000000 | 2026-03-18 00:00:00 
-   20260318000001 | 20260318000001 | 2026-03-18 00:00:01 
-   20260319130500 | 20260319130500 | 2026-03-19 13:05:00 
-   20260319144400 | 20260319144400 | 2026-03-19 14:44:00 
-
+﻿supabase/migrations/20240630000000_audit_system.sql
+supabase/migrations/20250224_create_modified_diet_audit.sql
+supabase/migrations/20260121050000_consolidated_careo_schema.sql
+supabase/migrations/20260122053000_fix_invitation_acceptance.sql
+supabase/migrations/202601220713_fix_can_access_organization.sql
+supabase/migrations/202601220745_fix_is_saas_admin_function.sql
+supabase/migrations/202601220800_create_invitations_table.sql
+supabase/migrations/202601220815_add_care_homes_insert_policy.sql
+supabase/migrations/202601220851_fix_can_access_organization_remove_auth_members.sql
+supabase/migrations/202601220906_fix_care_homes_policies_role_check.sql
+supabase/migrations/202601220923_create_get_active_organization_id_function.sql
+supabase/migrations/202601220935_simplify_can_access_organization_function.sql
+supabase/migrations/202601221000_fix_care_homes_rls_policy.sql
+supabase/migrations/202601221136_fix_care_homes_insert_policy_for_owners_without_active_organization.sql
+supabase/migrations/202601221815_drop_conflicting_policy.sql
+supabase/migrations/202601231045_nuclear_rls_reset.sql
+supabase/migrations/202601231100_add_todos_rls_policies.sql
+supabase/migrations/202601231140_fix_teams_and_invitations_rls.sql
+supabase/migrations/202601231155_robust_rls_helpers.sql
+supabase/migrations/202601231415_add_residents_rls_policies.sql
+supabase/migrations/202601240000_add_care_plan_assessments_rls.sql
+supabase/migrations/20260127000000_add_care_plan_version_tracking.sql
+supabase/migrations/20260127120000_add_care_files_rls.sql
+supabase/migrations/202601271230_fix_assessment_schemas.sql
+supabase/migrations/202601271300_standardize_remaining_assessments.sql
+supabase/migrations/20260128000000_fix_assessment_schemas.sql
+supabase/migrations/20260128100000_fix_remaining_assessment_schemas.sql
+supabase/migrations/20260128113000_restore_permissions.sql
+supabase/migrations/20260128120000_add_versioning_to_assessments.sql
+supabase/migrations/20260128140000_fix_timl_and_oral_schemas.sql
+supabase/migrations/202601281700_add_medication_columns.sql
+supabase/migrations/202601291000_add_medication_intakes_rls.sql
+supabase/migrations/202601291100_add_missing_care_data_rls.sql
+supabase/migrations/202601292200_add_medication_alert_tracking.sql
+supabase/migrations/202601292205_add_medication_alert_trigger.sql
+supabase/migrations/20260130094000_automate_medication_alerts.sql
+supabase/migrations/20260131000000_add_alert_dismissals_table.sql
+supabase/migrations/20260201000000_fix_food_fluid_logs_rls.sql
+supabase/migrations/20260201010000_fix_food_fluid_schema_issues.sql
+supabase/migrations/20260201020000_add_diet_lifestyle_rls.sql
+supabase/migrations/20260201030000_fix_daily_care_rls_policies.sql
+supabase/migrations/20260202000000_update_progress_notes_schema.sql
+supabase/migrations/20260202120000_add_documents_rls.sql
+supabase/migrations/20260203000000_add_appointment_fields.sql
+supabase/migrations/20260203000001_add_notification_fields.sql
+supabase/migrations/20260203000002_create_appointment_notes_table.sql
+supabase/migrations/20260203000003_add_appointments_rls.sql
+supabase/migrations/20260203000005_hospital_transfers.sql
+supabase/migrations/20260203000006_add_diet_information.sql
+supabase/migrations/20260204000000_fix_users_rls_policies.sql
+supabase/migrations/20260204000001_sync_user_metadata.sql
+supabase/migrations/20260204000002_fix_staff_scoping_and_visibility.sql
+supabase/migrations/20260204000003_fix_rls_recursion.sql
+supabase/migrations/20260204000004_break_rls_recursion.sql
+supabase/migrations/20260204000005_robust_onboarding_rls.sql
+supabase/migrations/20260204000006_fix_foreign_keys_for_joining.sql
+supabase/migrations/20260204000007_final_recursion_fix.sql
+supabase/migrations/20260204000008_junction_recursion_and_manager_view.sql
+supabase/migrations/20260204100000_fix_hospital_tables.sql
+supabase/migrations/20260204120000_add_category_to_audit_completions.sql
+supabase/migrations/20260205000000_add_read_status_rls.sql
+supabase/migrations/20260205000001_fix_incidents_schema_and_rls.sql
+supabase/migrations/20260205000002_fix_notifications_rls.sql
+supabase/migrations/20260205000003_fix_action_plan_constraints.sql
+supabase/migrations/20260205000004_add_resident_name_to_action_plans.sql
+supabase/migrations/20260205000005_create_labels_table.sql
+supabase/migrations/20260205100000_create_notification_dismissals.sql
+supabase/migrations/20260205112500_fix_menu_items_rls.sql
+supabase/migrations/20260205120000_add_clinical_notes_policy.sql
+supabase/migrations/20260205123000_fix_saas_admin_access.sql
+supabase/migrations/20260205130000_add_lifestyle_social_tables.sql
+supabase/migrations/20260205140000_fix_personal_interests_constraint.sql
+supabase/migrations/20260205143000_add_mdt_rls_policies.sql
+supabase/migrations/20260205150000_fix_handover_schema.sql
+supabase/migrations/20260205154000_add_storage_rls_policies.sql
+supabase/migrations/20260206130000_add_missing_mdt_column.sql
+supabase/migrations/20260209000000_storage_setup.sql
+supabase/migrations/20260209000001_add_org_logo_url.sql
+supabase/migrations/20260210000000_add_staff_details_to_users.sql
+supabase/migrations/20260210000001_fix_users_update_policy.sql
+supabase/migrations/20260210070000_fix_invitations_updated_at.sql
+supabase/migrations/20260210130000_add_care_home_id_to_notifs_and_apts.sql
+supabase/migrations/20260210140000_add_team_id_to_notifications.sql
+supabase/migrations/202602111100_add_quantity_to_medication_intakes.sql
+supabase/migrations/202602122200_fix_medication_stock_management.sql
+supabase/migrations/202602122300_schedule_intake_generation.sql
+supabase/migrations/202602131015_add_unique_constraint_to_medication_intakes.sql
+supabase/migrations/202602160000_add_body_map_data_to_incidents.sql
+supabase/migrations/202602181710_create_resident_body_maps.sql
+supabase/migrations/202602191455_allow_org_managers_update_organization.sql
+supabase/migrations/20260221000000_create_incident_folders_table.sql
+supabase/migrations/20260225131500_add_outcome_position_to_evaluations.sql
+supabase/migrations/20260225150000_add_reviewed_by_name_to_evaluations.sql
+supabase/migrations/20260227000000_add_body_map_data_to_incident_folders.sql
+supabase/migrations/20260228000000_add_folder_id_to_incidents.sql
+supabase/migrations/20260228000001_fix_trust_incident_reports_schema.sql
+supabase/migrations/20260302000000_create_braden_risk_assessments.sql
+supabase/migrations/20260302000001_add_versioning_to_braden.sql
+supabase/migrations/20260302154500_add_assessment_data_to_bedrail_consents.sql
+supabase/migrations/20260303100000_create_restraints_consents.sql
+supabase/migrations/20260303120000_add_versioning_to_restraints.sql
+supabase/migrations/20260303121000_create_care_folder_body_maps.sql
+supabase/migrations/20260303124700_create_smoking_risk_assessments.sql
+supabase/migrations/20260303140300_create_specimen_records.sql
+supabase/migrations/20260303151500_add_smoking_environment_fields.sql
+supabase/migrations/20260303154500_add_smoking_review_and_relatives_fields.sql
+supabase/migrations/20260304000000_create_wounds_table.sql
+supabase/migrations/20260304000001_create_wound_folders_table.sql
+supabase/migrations/20260304120000_create_prn_consents.sql
+supabase/migrations/20260305000000_create_continence_entries_table.sql
+supabase/migrations/20260307000000_create_wound_assessments_table.sql
+supabase/migrations/20260307100000_create_wound_photograph_evaluations.sql
+supabase/migrations/20260307110000_add_wound_folder_status.sql
+supabase/migrations/20260307120000_create_wound_treatment_evaluations.sql
+supabase/migrations/20260309000000_create_modified_diet_audit.sql
+supabase/migrations/20260309100000_add_wound_folder_id_to_care_plans.sql
+supabase/migrations/20260309115000_fix_choking_risk_schema.sql
+supabase/migrations/20260309120000_complete_choking_risk_schema_fix.sql
+supabase/migrations/20260309121500_create_dependency_assessments.sql
+supabase/migrations/20260309124000_fix_dependency_assessments_schema_fix.sql
+supabase/migrations/20260309130000_create_fall_risk_assessments.sql
+supabase/migrations/20260309133000_add_missing_columns_to_fall_risk.sql
+supabase/migrations/20260310072653_add_type_to_incident_folders.sql
+supabase/migrations/20260310120000_create_oral_assessment_evaluations.sql
+supabase/migrations/20260312130000_create_prn_protocols.sql
+supabase/migrations/20260312140000_create_blood_monitoring_records.sql
+supabase/migrations/20260313120000_manager_audit_shared_state.sql
+supabase/migrations/20260313170000_add_care_home_id_to_audit_action_plans.sql
+supabase/migrations/20260313173000_add_audit_manager_action_plans.sql
+supabase/migrations/20260313180000_fix_manager_action_plans_status.sql
+supabase/migrations/20260323000000_add_care_file_numbers_to_progress_notes.sql
+supabase/migrations/20260323000000_create_emar_system.sql
+supabase/migrations/20260323000001_sync_medication_intakes_to_emar.sql
+supabase/migrations/20260323000002_fix_backfill_function.sql
+supabase/migrations/20260323000003_fix_sync_trigger_conflict.sql
+supabase/migrations/20260323100000_medication_stock_management.sql
+supabase/migrations/20260325000000_add_topical_to_emar.sql
+supabase/migrations/20260326000001_add_body_regions_to_medications.sql
+supabase/migrations/README_TOPICAL_EMAR.md

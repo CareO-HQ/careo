@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { createColumns } from "@/components/medication/daily/columns";
 import { createMedicationColumns, createTopicalMedicationColumns } from "@/components/medication/daily/medication-columns";
@@ -551,7 +551,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     return data;
   };
 
-  // ── History helpers ──────────────────────────────────────────────────────────
+  // ΓöÇΓöÇ History helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   const fetchHistory = React.useCallback(async () => {
     if (!id) return;
@@ -686,9 +686,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         return (
           <div className="flex items-center gap-3 text-sm">
             <span className="text-muted-foreground">Total: {totalCount}</span>
-            {administeredCount > 0 && <span className="text-green-600 font-medium">✓ {administeredCount}</span>}
-            {missedCount > 0 && <span className="text-red-600 font-medium">✗ {missedCount}</span>}
-            {refusedCount > 0 && <span className="text-orange-600 font-medium">⊘ {refusedCount}</span>}
+            {administeredCount > 0 && <span className="text-green-600 font-medium">Γ£ô {administeredCount}</span>}
+            {missedCount > 0 && <span className="text-red-600 font-medium">Γ£ù {missedCount}</span>}
+            {refusedCount > 0 && <span className="text-orange-600 font-medium">Γèÿ {refusedCount}</span>}
           </div>
         );
       },
@@ -997,7 +997,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
-        {/* ── Today's Medications ── */}
+        {/* ΓöÇΓöÇ Today's Medications ΓöÇΓöÇ */}
         <TabsContent value="today" className="flex flex-col gap-6 mt-4">
           <div className="flex items-center justify-between">
             <ShiftTimes selectedTime={selectedTime} setSelectedTime={setSelectedTime} />
@@ -1212,7 +1212,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           </div>
         </TabsContent>
 
-        {/* ── Active Medications ── */}
+        {/* ΓöÇΓöÇ Active Medications ΓöÇΓöÇ */}
         <TabsContent value="active" className="flex flex-col gap-6 mt-4">
           <ActiveMedicationsTable
             medications={allActiveMedications}
@@ -1222,7 +1222,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           />
         </TabsContent>
 
-        {/* ── eMAR ── */}
+        {/* ΓöÇΓöÇ eMAR ΓöÇΓöÇ */}
         <TabsContent value="emar" className="flex flex-col gap-6 mt-4">
           <EmarSheet
             residentId={id}
@@ -1232,7 +1232,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           />
         </TabsContent>
 
-        {/* ── Discontinued ── */}
+        {/* ΓöÇΓöÇ Discontinued ΓöÇΓöÇ */}
         <TabsContent value="discontinued" className="flex flex-col gap-4 mt-4">
           {discontinuedMedications.length === 0 && completedCancelledMedications.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-center border border-slate-200 rounded-lg bg-slate-50">
@@ -1261,12 +1261,12 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           )}
         </TabsContent>
 
-        {/* ── Kardex ── */}
+        {/* ΓöÇΓöÇ Kardex ΓöÇΓöÇ */}
         <TabsContent value="kardex" className="mt-4">
           <KardexModal medications={allActiveMedications} resident={resident} inlineMode />
         </TabsContent>
 
-        {/* ── History ── */}
+        {/* ΓöÇΓöÇ History ΓöÇΓöÇ */}
         <TabsContent value="history" className="flex flex-col gap-4 mt-4">
           <div className="flex items-center justify-between">
             <div className="flex gap-3">
@@ -1293,7 +1293,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           </div>
 
           {historyLoading ? (
-            <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">Loading history…</div>
+            <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">Loading historyΓÇª</div>
           ) : (
             <div className="rounded-md border overflow-hidden">
               <Table>

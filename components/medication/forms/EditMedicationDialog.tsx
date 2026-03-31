@@ -38,7 +38,7 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -113,15 +113,17 @@ interface Medication {
 }
 
 interface EditMedicationDialogProps {
-  medication: Medication;
+  medication: Medication | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
 export default function EditMedicationDialog({
   medication,
   open,
-  onOpenChange
+  onOpenChange,
+  onSuccess
 }: EditMedicationDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
@@ -129,25 +131,49 @@ export default function EditMedicationDialog({
   const form = useForm<z.infer<typeof UpdateMedicationSchema>>({
     resolver: zodResolver(UpdateMedicationSchema),
     mode: "onBlur",
-    defaultValues: {
-      name: medication.name,
-      strength: medication.strength,
-      strengthUnit: medication.strength_unit as any,
-      totalCount: medication.total_count,
-      dosageForm: medication.dosage_form as any,
-      route: medication.route as any,
-      frequency: medication.frequency as any,
-      scheduleType: medication.schedule_type as any,
-      times: medication.times || [],
-      timeQuantities: medication.time_quantities || {},
-      instructions: medication.instructions || undefined,
-      prescriberName: medication.prescriber_name,
-      startDate: new Date(medication.start_date),
-      status: medication.status as "active" | "completed" | "cancelled"
-    }
   });
 
+  // Reset form when dialog opens or closes
+  useEffect(() => {
+    if (open && medication) {
+      // Dialog opening - populate form with medication data
+      form.reset({
+        name: medication.name,
+        strength: medication.strength,
+        strengthUnit: medication.strength_unit as any,
+        totalCount: medication.total_count,
+        dosageForm: medication.dosage_form as any,
+        route: medication.route as any,
+        frequency: medication.frequency as any,
+        scheduleType: medication.schedule_type as any,
+        times: medication.times || [],
+        timeQuantities: medication.time_quantities || {},
+        instructions: medication.instructions || undefined,
+        prescriberName: medication.prescriber_name,
+        startDate: medication.start_date ? new Date(medication.start_date) : new Date(),
+        status: medication.status as "active" | "completed" | "cancelled"
+      });
+    } else if (!open) {
+      // Dialog closing - reset form to default empty state
+      form.reset();
+      setIsLoading(false);
+      setStartDatePopoverOpen(false);
+    }
+  }, [open, medication?.id]);
+
+  const handleOpenChange = (newOpen: boolean) => {
+    // Prevent closing while loading
+    if (!newOpen && isLoading) {
+      return;
+    }
+
+    onOpenChange(newOpen);
+  };
+
   async function onSubmit(values: z.infer<typeof UpdateMedicationSchema>) {
+    // Prevent double submission or null medication
+    if (isLoading || !medication) return;
+
     setIsLoading(true);
     try {
       const updates: Record<string, any> = {};
@@ -217,9 +243,15 @@ export default function EditMedicationDialog({
       }
 
       toast.success("Medication updated successfully");
-      onOpenChange(false);
-      // Force a page reload to regenerate intakes with new times
-      window.location.reload();
+      handleOpenChange(false);
+
+      // Call onSuccess callback if provided, otherwise reload the page
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        // Force a page reload to regenerate intakes with new times
+        window.location.reload();
+      }
     } catch (error) {
       console.error("Error updating medication:", error);
       toast.error(
@@ -230,8 +262,11 @@ export default function EditMedicationDialog({
     }
   }
 
+  // Guard: Don't render if no medication
+  if (!medication) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Medication</DialogTitle>
@@ -292,6 +327,10 @@ export default function EditMedicationDialog({
                       placeholder = "e.g., 10";
                       unitLabel = "patches";
                       description = "Total patches in the box";
+                    } else if (frequencyValue.includes('Sachets')) {
+                      placeholder = "e.g., 30";
+                      unitLabel = "sachets";
+                      description = "Total sachets in the box";
                     } else if (frequencyValue.includes('Injections')) {
                       allowDecimals = true;
                       step = "0.1";
@@ -621,6 +660,7 @@ export default function EditMedicationDialog({
                         <SelectItem value="Applications (Topical)">Applications (Topical)</SelectItem>
                         <SelectItem value="Sprays">Sprays</SelectItem>
                         <SelectItem value="Patches">Patches</SelectItem>
+                        <SelectItem value="Sachets">Sachets</SelectItem>
                         <SelectItem value="Injections">Injections</SelectItem>
                       </SelectContent>
                     </Select>
@@ -759,6 +799,9 @@ export default function EditMedicationDialog({
                                             } else if (frequencyValue.includes('Patches')) {
                                               placeholder = "e.g., 1";
                                               unitLabel = "patches";
+                                            } else if (frequencyValue.includes('Sachets')) {
+                                              placeholder = "e.g., 1";
+                                              unitLabel = "sachets";
                                             } else if (frequencyValue.includes('Injections')) {
                                               allowDecimals = true;
                                               step = "0.1";
@@ -860,10 +903,13 @@ export default function EditMedicationDialog({
               name="prescriberName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Prescriber Name</FormLabel>
+                  <FormLabel>Prescriber Name (Optional)</FormLabel>
                   <FormControl>
                     <Input placeholder="Dr. Smith" {...field} />
                   </FormControl>
+                  <FormDescription className="text-xs">
+                    Defaults to resident&apos;s GP if available
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -964,7 +1010,7 @@ export default function EditMedicationDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
                 disabled={isLoading}
               >
                 Cancel

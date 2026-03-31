@@ -38,18 +38,23 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useProfile } from "@/hooks/use-profile";
+import { InteractiveBodyMap } from "@/components/body-map/InteractiveBodyMap";
+import { BODY_REGIONS } from "@/lib/config/body-regions";
+import type { BodyRegion } from "@/types/body-map";
 
 
 export default function CreateMedicationForm({
   residentId,
   teamId,
   organizationId,
+  gpName,
   initialType,
   onSuccess
 }: {
   residentId: string;
   teamId?: string;
   organizationId?: string;
+  gpName?: string;
   initialType?: "Scheduled" | "PRN (As Needed)" | "Topical" | "Supplement";
   onSuccess: () => void;
 }) {
@@ -74,14 +79,15 @@ export default function CreateMedicationForm({
       times: [],
       timeQuantities: {},
       instructions: undefined,
-      prescriberName: "",
+      prescriberName: gpName || "",
       startDate: toZonedTime(new Date(), "Europe/London"),
       status: "active",
       isControlledDrug: false,
       controlledDrugSchedule: undefined,
       minIntervalHours: undefined,
       maxDailyDose: undefined,
-      maxDailyDoseUnit: undefined
+      maxDailyDoseUnit: undefined,
+      bodyRegions: []
     }
   });
 
@@ -124,7 +130,8 @@ export default function CreateMedicationForm({
             controlled_drug_schedule: values.controlledDrugSchedule,
             min_interval_hours: values.minIntervalHours,
             max_daily_dose: values.maxDailyDose,
-            max_daily_dose_unit: values.maxDailyDoseUnit
+            max_daily_dose_unit: values.maxDailyDoseUnit,
+            body_regions: values.bodyRegions
           })
           .select()
           .single();
@@ -234,7 +241,7 @@ export default function CreateMedicationForm({
   };
 
   const handleThirdStepValidation = async () => {
-    const fieldsToValidate = ["prescriberName", "startDate"] as const;
+    const fieldsToValidate = ["startDate"] as const;
 
     const isValid = await form.trigger(fieldsToValidate);
 
@@ -247,18 +254,18 @@ export default function CreateMedicationForm({
   };
 
   return (
-    <div>
+    <div className="[&_label]:text-xs [&_label]:text-muted-foreground [&_input]:h-8 [&_.grid]:gap-3">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
           {step === 0 && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <h3 className="font-semibold text-lg mb-2">Select Medication Type</h3>
-                <p className="text-sm text-muted-foreground mb-4">
+                <h3 className="font-semibold text-base mb-1">Select Medication Type</h3>
+                <p className="text-xs text-muted-foreground mb-3">
                   Choose the type of medication you want to add
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -266,9 +273,9 @@ export default function CreateMedicationForm({
                     form.setValue("scheduleType", "Scheduled");
                     setStep(1);
                   }}
-                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  className="p-3 border rounded-lg hover:border-primary hover:bg-slate-50 transition-colors text-left"
                 >
-                  <div className="font-semibold mb-1">Scheduled</div>
+                  <div className="font-semibold text-sm mb-0.5">Scheduled</div>
                   <div className="text-xs text-muted-foreground">
                     Regular medications with set times
                   </div>
@@ -280,9 +287,9 @@ export default function CreateMedicationForm({
                     form.setValue("scheduleType", "PRN (As Needed)");
                     setStep(1);
                   }}
-                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  className="p-3 border rounded-lg hover:border-primary hover:bg-slate-50 transition-colors text-left"
                 >
-                  <div className="font-semibold mb-1">PRN</div>
+                  <div className="font-semibold text-sm mb-0.5">PRN</div>
                   <div className="text-xs text-muted-foreground">
                     As needed medications
                   </div>
@@ -294,9 +301,9 @@ export default function CreateMedicationForm({
                     form.setValue("scheduleType", "Topical");
                     setStep(1);
                   }}
-                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  className="p-3 border rounded-lg hover:border-primary hover:bg-slate-50 transition-colors text-left"
                 >
-                  <div className="font-semibold mb-1">Topical</div>
+                  <div className="font-semibold text-sm mb-0.5">Topical</div>
                   <div className="text-xs text-muted-foreground">
                     Creams, ointments, patches
                   </div>
@@ -308,9 +315,9 @@ export default function CreateMedicationForm({
                     form.setValue("scheduleType", "Supplement");
                     setStep(1);
                   }}
-                  className="p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  className="p-3 border rounded-lg hover:border-primary hover:bg-slate-50 transition-colors text-left"
                 >
-                  <div className="font-semibold mb-1">Supplement</div>
+                  <div className="font-semibold text-sm mb-0.5">Supplement</div>
                   <div className="text-xs text-muted-foreground">
                     Vitamins and supplements
                   </div>
@@ -340,7 +347,7 @@ export default function CreateMedicationForm({
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="strength"
@@ -356,7 +363,7 @@ export default function CreateMedicationForm({
                                 : "100"
                             }
                             {...field}
-                            className="pr-16"
+                            className="pr-20 h-8"
                           />
                           <FormField
                             control={form.control}
@@ -366,7 +373,7 @@ export default function CreateMedicationForm({
                                 onValueChange={unitField.onChange}
                                 defaultValue={unitField.value}
                               >
-                                <SelectTrigger className="absolute right-0 top-0 h-full w-18 border-l border-l-border bg-muted/50 rounded-l-none">
+                                <SelectTrigger className="absolute right-0 top-0 h-8 w-20 border-l border-l-border bg-muted/50 rounded-l-none text-xs">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -408,24 +415,36 @@ export default function CreateMedicationForm({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="Tablet">Tablet</SelectItem>
-                          <SelectItem value="Capsule">Capsule</SelectItem>
-                          <SelectItem value="Softgel">Softgel</SelectItem>
-                          <SelectItem value="Chewable Tablet">Chewable Tablet</SelectItem>
-                          <SelectItem value="Gummy">Gummy</SelectItem>
-                          <SelectItem value="Liquid">Liquid</SelectItem>
-                          <SelectItem value="Syrup">Syrup</SelectItem>
-                          <SelectItem value="Drops">Drops</SelectItem>
-                          <SelectItem value="Powder">Powder</SelectItem>
-                          <SelectItem value="Effervescent Tablet">Effervescent Tablet</SelectItem>
-                          <SelectItem value="Spray">Spray</SelectItem>
-                          <SelectItem value="Lozenge">Lozenge</SelectItem>
-                          <SelectItem value="Injection">Injection</SelectItem>
-                          <SelectItem value="Cream">Cream</SelectItem>
-                          <SelectItem value="Ointment">Ointment</SelectItem>
-                          <SelectItem value="Gel">Gel</SelectItem>
-                          <SelectItem value="Patch">Patch</SelectItem>
-                          <SelectItem value="Inhaler">Inhaler</SelectItem>
+                          {medicationType === "Topical" ? (
+                            <>
+                              <SelectItem value="Cream">Cream</SelectItem>
+                              <SelectItem value="Ointment">Ointment</SelectItem>
+                              <SelectItem value="Gel">Gel</SelectItem>
+                              <SelectItem value="Lotion">Lotion</SelectItem>
+                              <SelectItem value="Patch">Patch</SelectItem>
+                            </>
+                          ) : (
+                            <>
+                              <SelectItem value="Tablet">Tablet</SelectItem>
+                              <SelectItem value="Capsule">Capsule</SelectItem>
+                              <SelectItem value="Softgel">Softgel</SelectItem>
+                              <SelectItem value="Chewable Tablet">Chewable Tablet</SelectItem>
+                              <SelectItem value="Gummy">Gummy</SelectItem>
+                              <SelectItem value="Liquid">Liquid</SelectItem>
+                              <SelectItem value="Syrup">Syrup</SelectItem>
+                              <SelectItem value="Drops">Drops</SelectItem>
+                              <SelectItem value="Powder">Powder</SelectItem>
+                              <SelectItem value="Effervescent Tablet">Effervescent Tablet</SelectItem>
+                              <SelectItem value="Spray">Spray</SelectItem>
+                              <SelectItem value="Lozenge">Lozenge</SelectItem>
+                              <SelectItem value="Injection">Injection</SelectItem>
+                              <SelectItem value="Cream">Cream</SelectItem>
+                              <SelectItem value="Ointment">Ointment</SelectItem>
+                              <SelectItem value="Gel">Gel</SelectItem>
+                              <SelectItem value="Patch">Patch</SelectItem>
+                              <SelectItem value="Inhaler">Inhaler</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                       {medicationType === "Supplement" && (
@@ -438,7 +457,7 @@ export default function CreateMedicationForm({
                   )}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="route"
@@ -510,6 +529,10 @@ export default function CreateMedicationForm({
                         placeholder = "e.g., 10";
                         unitLabel = "patches";
                         description = "Total patches in the box";
+                      } else if (frequencyValue.includes('Sachets')) {
+                        placeholder = "e.g., 30";
+                        unitLabel = "sachets";
+                        description = "Total sachets in the box";
                       } else if (frequencyValue.includes('Injections')) {
                         allowDecimals = true;
                         step = "0.1";
@@ -524,7 +547,13 @@ export default function CreateMedicationForm({
                     }
                     // Check scheduled medication dosage form
                     else {
-                      if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) {
+                      // Check for topical medications (Cream, Ointment, Gel, Lotion)
+                      if (dosageForm.includes('cream') || dosageForm.includes('ointment') ||
+                          dosageForm.includes('gel') || dosageForm.includes('lotion')) {
+                        placeholder = "e.g., 2 or 3";
+                        unitLabel = "packs";
+                        description = "Total packs in the box";
+                      } else if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) {
                         allowDecimals = true;
                         step = "0.1";
                         placeholder = "e.g., 100 or 250";
@@ -690,6 +719,7 @@ export default function CreateMedicationForm({
                           <SelectItem value="Applications (Topical)">Applications (Topical)</SelectItem>
                           <SelectItem value="Sprays">Sprays</SelectItem>
                           <SelectItem value="Patches">Patches</SelectItem>
+                          <SelectItem value="Sachets">Sachets</SelectItem>
                           <SelectItem value="Injections">Injections</SelectItem>
                         </SelectContent>
                       </Select>
@@ -704,7 +734,7 @@ export default function CreateMedicationForm({
                 />
               )}
               <div className="flex justify-end">
-                <Button type="button" onClick={handleFirstStep}>
+                <Button type="button" onClick={handleFirstStep} size="sm" className="px-6">
                   Continue
                 </Button>
               </div>
@@ -724,12 +754,13 @@ export default function CreateMedicationForm({
                   <div className="flex justify-between">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setStep(1)}
                     >
                       Back
                     </Button>
-                    <Button type="button" onClick={handleSecondStep}>
+                    <Button type="button" onClick={handleSecondStep} size="sm" className="px-6">
                       Continue
                     </Button>
                   </div>
@@ -769,7 +800,7 @@ export default function CreateMedicationForm({
                             <h4 className="mb-3 text-sm font-medium text-muted-foreground">
                               {timeGroup.name}
                             </h4>
-                            <div className="grid grid-cols-1 gap-3">
+                            <div className="grid grid-cols-2 gap-3">
                               {timeGroup.values.map((time) => (
                                 <FormField
                                   key={time}
@@ -853,6 +884,9 @@ export default function CreateMedicationForm({
                                                 } else if (frequencyValue.includes('Patches')) {
                                                   placeholder = "e.g., 1";
                                                   unitLabel = "patches";
+                                                } else if (frequencyValue.includes('Sachets')) {
+                                                  placeholder = "e.g., 1";
+                                                  unitLabel = "sachets";
                                                 } else if (frequencyValue.includes('Injections')) {
                                                   allowDecimals = true;
                                                   step = "0.1";
@@ -954,7 +988,8 @@ export default function CreateMedicationForm({
                     <Button
                       type="button"
                       onClick={() => setStep(0)}
-                      variant="outline"
+                      variant="ghost"
+                      size="sm"
                     >
                       Back
                     </Button>
@@ -962,6 +997,8 @@ export default function CreateMedicationForm({
                       type="button"
                       onClick={handleSecondStep}
                       disabled={isLoading}
+                      size="sm"
+                      className="px-6"
                     >
                       Continue
                     </Button>
@@ -970,17 +1007,125 @@ export default function CreateMedicationForm({
               )}
             </>
           )}
-          {step === 3 && (
+          {step === 3 && scheduleType === "Topical" && (
+            <>
+              <FormField
+                control={form.control}
+                name="bodyRegions"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="mb-4">
+                      <FormLabel className="text-base">Application Sites</FormLabel>
+                      <FormDescription>
+                        Select the body regions where this topical medication should be applied
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <div className="space-y-4">
+                        <div className="relative">
+                          <InteractiveBodyMap
+                            entries={(field.value || []).map((regionId: string) => {
+                              const region = BODY_REGIONS.find(r => r.region_id === regionId);
+                              return {
+                                id: regionId,
+                                region_id: regionId,
+                                region_name: region?.region_name || regionId,
+                                condition_type: "other" as const,
+                                severity: 1,
+                                notes: "Application site",
+                                date_time: new Date().toISOString(),
+                                status: "active" as const
+                              };
+                            })}
+                            onRegionClick={(region: BodyRegion) => {
+                              const currentRegions = field.value || [];
+                              const isSelected = currentRegions.includes(region.region_id);
+
+                              if (isSelected) {
+                                // Remove region
+                                field.onChange(currentRegions.filter((id: string) => id !== region.region_id));
+                              } else {
+                                // Add region
+                                field.onChange([...currentRegions, region.region_id]);
+                              }
+                            }}
+                            selectedRegionId={null}
+                            viewMode={false}
+                          />
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-lg border">
+                          <p className="text-sm font-medium mb-2">Selected Application Sites:</p>
+                          {field.value && field.value.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {field.value.map((regionId: string) => {
+                                const region = BODY_REGIONS.find(r => r.region_id === regionId);
+                                return (
+                                  <span
+                                    key={regionId}
+                                    className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-md border border-purple-200"
+                                  >
+                                    {region?.region_name || regionId}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              No sites selected. Click on the body map to select application sites.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-between">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setStep(2)}
+                  disabled={isLoading}
+                >
+                  Back
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    // Validate body regions
+                    const bodyRegions = form.getValues("bodyRegions");
+                    if (!bodyRegions || bodyRegions.length === 0) {
+                      form.setError("bodyRegions", {
+                        type: "manual",
+                        message: "Please select at least one application site"
+                      });
+                      return;
+                    }
+                    setStep(4); // Go to final step
+                  }}
+                  disabled={isLoading}
+                >
+                  Continue
+                </Button>
+              </div>
+            </>
+          )}
+          {((step === 4) || (step === 3 && scheduleType !== "Topical")) && (
             <>
               <FormField
                 control={form.control}
                 name="prescriberName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel required>Prescriber Name</FormLabel>
+                    <FormLabel>Prescriber Name (Optional)</FormLabel>
                     <FormControl>
                       <Input placeholder="Dr. John Doe" {...field} />
                     </FormControl>
+                    <FormDescription className="text-xs">
+                      Defaults to resident&apos;s GP if available
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1054,15 +1199,22 @@ export default function CreateMedicationForm({
                 <Button
                   type="button"
                   onClick={() => {
-                    // If PRN, go back to step 1; otherwise go to step 2
+                    // Go back to appropriate previous step
                     const scheduleType = form.getValues("scheduleType");
-                    setStep(scheduleType === "PRN (As Needed)" ? 1 : 2);
+                    if (scheduleType === "PRN (As Needed)") {
+                      setStep(1);
+                    } else if (scheduleType === "Topical") {
+                      setStep(3); // Go back to body map selection
+                    } else {
+                      setStep(2); // Go back to time selection
+                    }
                   }}
-                  variant="outline"
+                  variant="ghost"
+                  size="sm"
                 >
                   Back
                 </Button>
-                <Button type="submit" disabled={isLoading}>
+                <Button type="submit" disabled={isLoading} size="sm" className="px-6">
                   {isLoading ? "Creating..." : "Create Medication"}
                 </Button>
               </div>
