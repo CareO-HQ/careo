@@ -17,8 +17,10 @@ export {
 export type Resident = {
   id: string;
   first_name: string;
+  middle_name?: string;
   last_name: string;
   firstName?: string; // Alias for frontend consistency
+  middleName?: string; // Alias for frontend consistency
   lastName?: string;  // Alias for frontend consistency
   room_number?: string;
   roomNumber?: string; // Alias

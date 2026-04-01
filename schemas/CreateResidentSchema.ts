@@ -2,6 +2,7 @@ import z from "zod";
 
 export const CreateResidentSchema = z.object({
   firstName: z.string().min(1, { message: "First name is required" }),
+  middleName: z.string().optional(),
   lastName: z.string().min(1, { message: "Last name is required" }),
   dateOfBirth: z.string().min(1, { message: "Date of birth is required" }),
   phoneNumber: z.string().optional(),

@@ -184,7 +184,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
     );
   }
 
-  const fullName = `${resident.first_name} ${resident.last_name}`;
+  const fullName = [resident.first_name, resident.middle_name, resident.last_name].filter(Boolean).join(" ");
   const initials =
     `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 
@@ -678,7 +678,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       <Dialog open={showAlertsDialog} onOpenChange={setShowAlertsDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Alerts for {resident.first_name} {resident.last_name}</DialogTitle>
+            <DialogTitle>Alerts for {fullName}</DialogTitle>
             <DialogDescription>
               {alerts && alerts.length > 0
                 ? `${alerts.length} active alert${alerts.length !== 1 ? 's' : ''} requiring attention`

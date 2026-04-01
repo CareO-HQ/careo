@@ -43,6 +43,7 @@ import {
   Clock,
   CircleDashed,
   Map as MapIcon,
+  History,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -382,14 +383,24 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           )}
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="h-9 w-9 text-muted-foreground hover:text-foreground"
-        >
-          {isSidebarCollapsed ? <PanelRight className="h-4.5 w-4.5" /> : <PanelRightClose className="h-4.5 w-4.5" />}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/records` as any)}
+            className="h-9 text-muted-foreground hover:text-foreground hidden sm:flex border-neutral-200"
+          >
+            <History className="w-4 h-4 mr-2" /> View All Records
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+          >
+            {isSidebarCollapsed ? <PanelRight className="h-4.5 w-4.5" /> : <PanelRightClose className="h-4.5 w-4.5" />}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-1 min-h-0 overflow-hidden bg-muted/5">
