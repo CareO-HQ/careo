@@ -152,7 +152,7 @@ export default function HandoverReportDetailPage() {
               {report.teamName} HANDOVER SHEET
             </h1>
 
-            <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm max-w-4xl mx-auto">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm max-w-4xl mx-auto mb-6">
               <div className="flex items-center gap-2">
                 <span className="font-semibold min-w-[100px]">Date:</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 px-2">
@@ -183,7 +183,7 @@ export default function HandoverReportDetailPage() {
 
               <div className="col-span-2 flex items-center gap-4 pt-2">
                 <span className="font-semibold">Shift:</span>
-                <div className="flex gap-6">
+                <div className="flex gap-10 items-center">
                   <label className="flex items-center gap-2">
                     <input
                       type="radio"
@@ -202,6 +202,37 @@ export default function HandoverReportDetailPage() {
                     />
                     <span>Night</span>
                   </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Shift Summary Section */}
+            <div className="grid grid-cols-3 gap-4 max-w-4xl mx-auto py-3 px-4 border-2 border-gray-200 rounded-lg bg-gray-50/50">
+              <div className="text-center space-y-1 border-r border-gray-200">
+                <div className="text-xs uppercase font-bold text-gray-500 tracking-wider">Total Incidents</div>
+                <div className={cn(
+                  "text-2xl font-black",
+                  report.residentHandovers.reduce((sum: number, h: any) => sum + (h.incidentCount || h.incident_count || 0), 0) > 0 ? "text-red-600" : "text-gray-400"
+                )}>
+                  {report.residentHandovers.reduce((sum: number, h: any) => sum + (h.incidentCount || h.incident_count || 0), 0)}
+                </div>
+              </div>
+              <div className="text-center space-y-1 border-r border-gray-200">
+                <div className="text-xs uppercase font-bold text-gray-500 tracking-wider">Total Falls</div>
+                <div className={cn(
+                  "text-2xl font-black",
+                  report.residentHandovers.reduce((sum: number, h: any) => sum + (h.fallCount || h.fall_count || 0), 0) > 0 ? "text-red-600" : "text-gray-400"
+                )}>
+                  {report.residentHandovers.reduce((sum: number, h: any) => sum + (h.fallCount || h.fall_count || 0), 0)}
+                </div>
+              </div>
+              <div className="text-center space-y-1">
+                <div className="text-xs uppercase font-bold text-gray-500 tracking-wider">Hospital Transport</div>
+                <div className={cn(
+                  "text-2xl font-black",
+                  report.residentHandovers.reduce((sum: number, h: any) => sum + (h.hospitalTransferCount || h.hospital_transfer_count || h.hospitalTransferLogs?.length || 0), 0) > 0 ? "text-blue-600" : "text-gray-400"
+                )}>
+                  {report.residentHandovers.reduce((sum: number, h: any) => sum + (h.hospitalTransferCount || h.hospital_transfer_count || h.hospitalTransferLogs?.length || 0), 0)}
                 </div>
               </div>
             </div>
@@ -266,35 +297,27 @@ export default function HandoverReportDetailPage() {
                             {resident.totalFluid} ml
                           </span>
                         </div>
-                        {resident.medicationStatus && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-600">Medication:</span>
-                            <span className={cn(
-                              "font-semibold",
-                              resident.medicationStatus === "all_administered" ? "text-green-600" : 
-                              resident.medicationStatus === "missed" ? "text-red-600" : "text-amber-600"
-                            )}>
-                              {resident.medicationStatus === "all_administered"
-                                ? "All administered"
-                                : `${resident.medicationStatus === "missed" ? "Missed dose" : "Pending"} ${resident.nextMedicationName ? `- ${resident.nextMedicationName}` : ""} (${resident.nextMedicationTime || "--:--"})`}
-                            </span>
-                          </div>
-                        )}
                       </div>
 
                     {/* Indicators */}
-                    {(hasIncident || hasHospitalTransfer) && (
-                      <div className="flex gap-2 pt-2">
-                        {hasIncident && (
+                    {( (resident.incidentCount || resident.incident_count || 0) > 0 || (resident.fallCount || resident.fall_count || 0) > 0 || (resident.hospitalTransferCount || resident.hospital_transfer_count || 0) > 0) && (
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {(resident.incidentCount || resident.incident_count || 0) > 0 && (
                           <Badge variant="destructive" className="text-xs">
                             <AlertCircle className="w-3 h-3 mr-1" />
-                            ⚠ Incident recorded
+                            Incident{(resident.incidentCount || resident.incident_count) > 1 ? `s - ${(resident.incidentCount || resident.incident_count)}` : ' - 1'}
                           </Badge>
                         )}
-                        {hasHospitalTransfer && (
+                        {(resident.fallCount || resident.fall_count || 0) > 0 && (
+                          <Badge variant="destructive" className="text-xs">
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            Fall{(resident.fallCount || resident.fall_count) > 1 ? `s - ${(resident.fallCount || resident.fall_count)}` : ' - 1'}
+                          </Badge>
+                        )}
+                        {(resident.hospitalTransferCount || resident.hospital_transfer_count || 0) > 0 && (
                           <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
                             <Building2 className="w-3 h-3 mr-1" />
-                            🏥 Hospital transfer
+                            Hospital Transport{(resident.hospitalTransferCount || resident.hospital_transfer_count) > 1 ? `s - ${(resident.hospitalTransferCount || resident.hospital_transfer_count)}` : ' - 1'}
                           </Badge>
                         )}
                       </div>

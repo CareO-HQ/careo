@@ -32,7 +32,7 @@ import { CalendarIcon, FileText, MessageSquare, Users } from "lucide-react";
 import { getCurrentShift } from "@/lib/config/shift-config";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
-import { getUKTodayDate, formatTimestampToUKTime } from "@/lib/date-utils";
+import { getUKTodayDate } from "@/lib/date-utils";
 import { fromZonedTime } from "date-fns-tz";
 
 export default function HandoverPage() {
@@ -51,6 +51,13 @@ export default function HandoverPage() {
   const [hospital, setHospital] = useState("");
   const [vacant, setVacant] = useState("");
 
+  // Set in-charge name to current user when loaded
+  useEffect(() => {
+    if (currentUser?.name && !inCharge) {
+      setInCharge(currentUser.name);
+    }
+  }, [currentUser, inCharge]);
+
   const fetchResidents = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -59,10 +66,14 @@ export default function HandoverPage() {
         .eq("team_id", activeTeamId);
 
       if (error) throw error;
-      setResidents((data as Resident[]) || []);
-    } catch (error) {
-      console.error("Error fetching residents:", error);
-      setResidents([]);
+      
+      const sortedResidents = (data as Resident[] || []).sort((a, b) => {
+        if (!a.room_number) return 1;
+        if (!b.room_number) return -1;
+        return a.room_number.localeCompare(b.room_number, undefined, { numeric: true });
+      });
+      
+      setResidents(sortedResidents);
     } finally {
       setIsLoadingResidents(false);
     }
@@ -167,50 +178,49 @@ export default function HandoverPage() {
       toast.info("Finalizing comments...");
       await new Promise(resolve => setTimeout(resolve, 2500));
 
-      // Define shift boundaries in UK time and convert to UTC for Supabase queries
+      const UK_TIMEZONE = "Europe/London";
+
+      // Define shift boundaries exactly as in HandoverSheetView
       const getShiftBoundaries = (date: Date, shift: "day" | "night") => {
         const dateStr = format(date, 'yyyy-MM-dd');
-        let startHour, endHour;
-
+        const nextDay = new Date(date);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const nextDayStr = format(nextDay, 'yyyy-MM-dd');
+        
+        let shiftStartUTC, shiftEndUTC;
         if (shift === "day") {
-          startHour = 8; // 8 AM
-          endHour = 20; // 8 PM
+          shiftStartUTC = fromZonedTime(`${dateStr}T08:00:00`, UK_TIMEZONE);
+          shiftEndUTC = fromZonedTime(`${dateStr}T20:00:00`, UK_TIMEZONE);
         } else {
-          startHour = 20; // 8 PM
-          endHour = 8; // 8 AM next day
+          shiftStartUTC = fromZonedTime(`${dateStr}T20:00:00`, UK_TIMEZONE);
+          shiftEndUTC = fromZonedTime(`${nextDayStr}T08:00:00`, UK_TIMEZONE);
         }
-
-        const startDateTimeStr = `${dateStr}T${String(startHour).padStart(2, '0')}:00:00`;
-        let endDateTimeStr = `${dateStr}T${String(endHour).padStart(2, '0')}:00:00`;
-
-        // If night shift, end date is next day
-        if (shift === "night" && endHour < startHour) {
-          const nextDay = new Date(date);
-          nextDay.setDate(nextDay.getDate() + 1);
-          endDateTimeStr = `${format(nextDay, 'yyyy-MM-dd')}T${String(endHour).padStart(2, '0')}:00:00`;
-        }
-
-        // Convert to UTC
-        const shiftStartUTC = fromZonedTime(startDateTimeStr, 'Europe/London');
-        const shiftEndUTC = fromZonedTime(endDateTimeStr, 'Europe/London');
-
         return { shiftStartUTC, shiftEndUTC };
       };
 
       const { shiftStartUTC, shiftEndUTC } = getShiftBoundaries(selectedDate, selectedShift);
+      
+      const getFullDayBoundaries = (date: Date) => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        return { 
+          startOfDayUTC: fromZonedTime(`${dateStr}T00:00:00`, UK_TIMEZONE),
+          endOfDayUTC: fromZonedTime(`${dateStr}T23:59:59`, UK_TIMEZONE)
+        };
+      };
+      const { startOfDayUTC, endOfDayUTC } = getFullDayBoundaries(selectedDate);
 
       // Fetch handover data for each resident
       const residentHandoversPromises = residents.map(async (resident) => {
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
         const fluidTypes = ["Water", "Tea", "Coffee", "Juice", "Milk"];
 
-        // Fetch food/fluid logs for selected date
+        // Fetch food/fluid logs for selected date (Full 24-hr day)
         const { data: logs } = await supabase
           .from("food_fluid_logs")
           .select("*")
           .eq("resident_id", resident.id)
-          .gte("timestamp", shiftStartUTC.toISOString())
-          .lt("timestamp", shiftEndUTC.toISOString())
+          .gte("timestamp", startOfDayUTC.toISOString())
+          .lte("timestamp", endOfDayUTC.toISOString())
           .eq("is_archived", false)
           .order("timestamp", { ascending: false });
 
@@ -231,48 +241,72 @@ export default function HandoverPage() {
         const totalFluid = fluidLogs.reduce((sum, log) => sum + (log.fluid_consumed_ml || 0), 0);
 
         // Fetch incidents for selected date
-        const { data: incidents } = await supabase
+        const { data: incidents, error: incidentsError } = await supabase
           .from("incidents")
           .select("*")
           .eq("resident_id", resident.id)
-          .gte("timestamp", shiftStartUTC.toISOString())
-          .lt("timestamp", shiftEndUTC.toISOString())
-          .order("timestamp", { ascending: false });
+          .gte("created_at", shiftStartUTC.toISOString())
+          .lt("created_at", shiftEndUTC.toISOString());
+          
+        if (incidentsError) console.error(`Error fetching incidents for ${resident.id}:`, incidentsError);
+
+        // Fetch incident folders for selected date
+        const { data: folders, error: foldersError } = await supabase
+          .from("incident_folders")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .gte("created_at", shiftStartUTC.toISOString())
+          .lt("created_at", shiftEndUTC.toISOString());
+
+        if (foldersError) console.error(`Error fetching folders for ${resident.id}:`, foldersError);
 
         // Fetch hospital transfers for selected date
-        const { data: transfers } = await supabase
+        const { data: transfers, error: transfersError } = await supabase
           .from("hospital_transfer_logs")
           .select("*")
           .eq("resident_id", resident.id)
-          .gte("timestamp", shiftStartUTC.toISOString())
-          .lt("timestamp", shiftEndUTC.toISOString());
+          .gte("created_at", shiftStartUTC.toISOString())
+          .lt("created_at", shiftEndUTC.toISOString());
 
-        // Fetch medication status for the shift
-        const { data: medicationIntakes } = await supabase
-          .from("medication_intakes")
-          .select("status, scheduled_time, medication:medication_id (name)")
+        if (transfersError) console.error(`Error fetching transfers for ${resident.id}:`, transfersError);
+
+        // Fetch active wounds
+        const { data: wounds } = await supabase
+          .from("wounds")
+          .select("*")
           .eq("resident_id", resident.id)
-          .gte("scheduled_time", shiftStartUTC.toISOString())
-          .lt("scheduled_time", shiftEndUTC.toISOString())
-          .order("scheduled_time", { ascending: true });
+          .neq("status", "healed");
 
-        let medStatus: "all_administered" | "missed" | "pending" = "all_administered";
-        let nextMedName: string | undefined = undefined;
-        let nextMedTime: string | undefined = undefined;
+        // Fetch appointments for the selected date
+        const { data: appointments } = await supabase
+          .from("appointments")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .gte("start_time", startOfDayUTC.toISOString())
+          .lte("start_time", endOfDayUTC.toISOString());
 
-        if (medicationIntakes && medicationIntakes.length > 0) {
-          const missedIntakes = medicationIntakes.filter(i => i.status === 'missed' || i.status === 'refused');
-          const pendingIntakes = medicationIntakes.filter(i => i.status === 'scheduled' || i.status === 'pending');
+        // Calculate counts from folders and loose incidents
+        const fallsFromFolders = (folders || []).filter(f => f.folder_type === 'fall').length;
+        const incidentsFromFolders = (folders || []).filter(f => f.folder_type === 'incident').length;
 
-          if (missedIntakes.length > 0) {
-            medStatus = "missed";
-            nextMedTime = formatTimestampToUKTime(missedIntakes[0].scheduled_time);
-            nextMedName = (missedIntakes[0].medication as any)?.name;
-          } else if (pendingIntakes.length > 0) {
-            medStatus = "pending";
-            nextMedTime = formatTimestampToUKTime(pendingIntakes[0].scheduled_time);
-            nextMedName = (pendingIntakes[0].medication as any)?.name;
-          }
+        // Differentiate Incidents vs Falls from the incidents table
+        const fallsFromIncidents = (incidents || []).filter(inc => {
+          if (inc.folder_id) return false;
+          const types = inc.incident_types || [];
+          return types.some((t: string) => t.toLowerCase() === 'fall' || t.toLowerCase() === 'falls');
+        }).length;
+        const nonFallIncidentsFromIncidents = (incidents || []).filter(inc => {
+          if (inc.folder_id) return false;
+          const types = inc.incident_types || [];
+          return !types.some((t: string) => t.toLowerCase() === 'fall' || t.toLowerCase() === 'falls');
+        }).length;
+
+        const incidentCount = incidentsFromFolders + nonFallIncidentsFromIncidents;
+        const fallCount = fallsFromFolders + fallsFromIncidents;
+        const hospitalTransferCount = transfers?.length || 0;
+
+        if (incidentCount > 0 || fallCount > 0 || hospitalTransferCount > 0) {
+          console.log(`[Handover Archive] Resident ${resident.id} (${resident.first_name}): Incidents=${incidentCount}, Falls=${fallCount}, Hospital=${hospitalTransferCount}`);
         }
 
         // Get comments from database
@@ -293,11 +327,12 @@ export default function HandoverPage() {
           age: getAge(resident.date_of_birth),
           foodIntakeCount: foodLogs.length,
           totalFluid: totalFluid,
-          incidentCount: incidents?.length || 0,
-          hospitalTransferCount: transfers?.length || 0,
-          medicationStatus: medStatus,
-          nextMedicationName: nextMedName,
-          nextMedicationTime: nextMedTime,
+          incidentCount,
+          fallCount,
+          woundCount: wounds?.length || 0,
+          hospitalTransferCount,
+          appointmentCount: appointments?.length || 0,
+          appointments: appointments || [],
           comments: comments,
         };
       });
@@ -331,10 +366,12 @@ export default function HandoverPage() {
       if (insertError) throw insertError;
 
       // Cleanup: Delete draft comments after successful archive
+      // We delete by resident_ids because the handover_comments table doesn't have team_id
+      const residentIds = residents.map(r => r.id);
       await supabase
         .from("handover_comments")
         .delete()
-        .eq("team_id", activeTeamId)
+        .in("resident_id", residentIds)
         .eq("date", dateString)
         .eq("shift", selectedShift);
 

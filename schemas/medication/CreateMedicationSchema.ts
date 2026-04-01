@@ -63,6 +63,7 @@ export const CreateMedicationSchema = z
       z.literal("Applications (Topical)"),
       z.literal("Sprays"),
       z.literal("Patches"),
+      z.literal("Sachets"),
       z.literal("Injections")
     ]).optional(),
     scheduleType: z.union([
@@ -73,9 +74,7 @@ export const CreateMedicationSchema = z
     ]),
     times: z.array(z.string()).optional(),
     timeQuantities: z.record(z.string(), z.number().min(1)).optional(),
-    prescriberName: z.string().min(1, {
-      message: "Prescriber name is required"
-    }),
+    prescriberName: z.string().optional(),
     instructions: z.string().optional(),
     startDate: z.date(),
     status: z.union([
@@ -89,7 +88,8 @@ export const CreateMedicationSchema = z
       .optional(),
     minIntervalHours: z.number().positive().optional(),
     maxDailyDose: z.number().positive().optional(),
-    maxDailyDoseUnit: z.string().optional()
+    maxDailyDoseUnit: z.string().optional(),
+    bodyRegions: z.array(z.string()).optional()
   })
   .refine(
     (data) => {
@@ -125,5 +125,18 @@ export const CreateMedicationSchema = z
     {
       message: "Frequency/Dosage unit is required",
       path: ["frequency"]
+    }
+  )
+  .refine(
+    (data) => {
+      // Body regions are required for topical medications
+      if (data.scheduleType === "Topical") {
+        return data.bodyRegions && data.bodyRegions.length > 0;
+      }
+      return true;
+    },
+    {
+      message: "Please select at least one body region for topical medication",
+      path: ["bodyRegions"]
     }
   );

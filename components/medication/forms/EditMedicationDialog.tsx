@@ -1,5 +1,6 @@
 "use client";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -38,7 +39,7 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -89,7 +90,8 @@ const UpdateMedicationSchema = z.object({
   instructions: z.string().optional(),
   prescriberName: z.string().optional(),
   startDate: z.date().optional(),
-  status: z.enum(["active", "completed", "cancelled"]).optional()
+  status: z.enum(["active", "completed", "cancelled", "discontinued"]).optional(),
+  revertToActive: z.boolean().optional()
 });
 
 interface Medication {
@@ -113,15 +115,17 @@ interface Medication {
 }
 
 interface EditMedicationDialogProps {
-  medication: Medication;
+  medication: Medication | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
 export default function EditMedicationDialog({
   medication,
   open,
-  onOpenChange
+  onOpenChange,
+  onSuccess
 }: EditMedicationDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
@@ -129,25 +133,50 @@ export default function EditMedicationDialog({
   const form = useForm<z.infer<typeof UpdateMedicationSchema>>({
     resolver: zodResolver(UpdateMedicationSchema),
     mode: "onBlur",
-    defaultValues: {
-      name: medication.name,
-      strength: medication.strength,
-      strengthUnit: medication.strength_unit as any,
-      totalCount: medication.total_count,
-      dosageForm: medication.dosage_form as any,
-      route: medication.route as any,
-      frequency: medication.frequency as any,
-      scheduleType: medication.schedule_type as any,
-      times: medication.times || [],
-      timeQuantities: medication.time_quantities || {},
-      instructions: medication.instructions || undefined,
-      prescriberName: medication.prescriber_name,
-      startDate: new Date(medication.start_date),
-      status: medication.status as "active" | "completed" | "cancelled"
-    }
   });
 
+  // Reset form when dialog opens or closes
+  useEffect(() => {
+    if (open && medication) {
+      // Dialog opening - populate form with medication data
+      form.reset({
+        name: medication.name,
+        strength: medication.strength,
+        strengthUnit: medication.strength_unit as any,
+        totalCount: medication.total_count,
+        dosageForm: medication.dosage_form as any,
+        route: medication.route as any,
+        frequency: medication.frequency as any,
+        scheduleType: medication.schedule_type as any,
+        times: medication.times || [],
+        timeQuantities: medication.time_quantities || {},
+        instructions: medication.instructions || undefined,
+        prescriberName: medication.prescriber_name,
+        startDate: medication.start_date ? new Date(medication.start_date) : new Date(),
+        status: medication.status as any,
+        revertToActive: false
+      });
+    } else if (!open) {
+      // Dialog closing - reset form to default empty state
+      form.reset();
+      setIsLoading(false);
+      setStartDatePopoverOpen(false);
+    }
+  }, [open, medication?.id]);
+
+  const handleOpenChange = (newOpen: boolean) => {
+    // Prevent closing while loading
+    if (!newOpen && isLoading) {
+      return;
+    }
+
+    onOpenChange(newOpen);
+  };
+
   async function onSubmit(values: z.infer<typeof UpdateMedicationSchema>) {
+    // Prevent double submission or null medication
+    if (isLoading || !medication) return;
+
     setIsLoading(true);
     try {
       const updates: Record<string, any> = {};
@@ -166,7 +195,12 @@ export default function EditMedicationDialog({
       if (values.instructions !== undefined) updates.instructions = values.instructions;
       if (values.prescriberName !== undefined) updates.prescriber_name = values.prescriberName;
       if (values.startDate !== undefined) updates.start_date = values.startDate.toISOString();
-      if (values.status !== undefined) updates.status = values.status;
+      
+      if (values.revertToActive) {
+        updates.status = 'active';
+      } else if (values.status !== undefined) {
+        updates.status = values.status;
+      }
 
       const { error } = await supabase
         .from("medications")
@@ -217,9 +251,15 @@ export default function EditMedicationDialog({
       }
 
       toast.success("Medication updated successfully");
-      onOpenChange(false);
-      // Force a page reload to regenerate intakes with new times
-      window.location.reload();
+      handleOpenChange(false);
+
+      // Call onSuccess callback if provided, otherwise reload the page
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        // Force a page reload to regenerate intakes with new times
+        window.location.reload();
+      }
     } catch (error) {
       console.error("Error updating medication:", error);
       toast.error(
@@ -230,8 +270,11 @@ export default function EditMedicationDialog({
     }
   }
 
+  // Guard: Don't render if no medication
+  if (!medication) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Medication</DialogTitle>
@@ -292,6 +335,10 @@ export default function EditMedicationDialog({
                       placeholder = "e.g., 10";
                       unitLabel = "patches";
                       description = "Total patches in the box";
+                    } else if (frequencyValue.includes('Sachets')) {
+                      placeholder = "e.g., 30";
+                      unitLabel = "sachets";
+                      description = "Total sachets in the box";
                     } else if (frequencyValue.includes('Injections')) {
                       allowDecimals = true;
                       step = "0.1";
@@ -359,7 +406,7 @@ export default function EditMedicationDialog({
 
                   return (
                     <FormItem>
-                      <FormLabel>Total Count (Optional)</FormLabel>
+                      <FormLabel>Physical Inventory Count (Stock)</FormLabel>
                       <FormControl>
                         <div className="flex items-center gap-2">
                           <Input
@@ -621,6 +668,7 @@ export default function EditMedicationDialog({
                         <SelectItem value="Applications (Topical)">Applications (Topical)</SelectItem>
                         <SelectItem value="Sprays">Sprays</SelectItem>
                         <SelectItem value="Patches">Patches</SelectItem>
+                        <SelectItem value="Sachets">Sachets</SelectItem>
                         <SelectItem value="Injections">Injections</SelectItem>
                       </SelectContent>
                     </Select>
@@ -759,6 +807,9 @@ export default function EditMedicationDialog({
                                             } else if (frequencyValue.includes('Patches')) {
                                               placeholder = "e.g., 1";
                                               unitLabel = "patches";
+                                            } else if (frequencyValue.includes('Sachets')) {
+                                              placeholder = "e.g., 1";
+                                              unitLabel = "sachets";
                                             } else if (frequencyValue.includes('Injections')) {
                                               allowDecimals = true;
                                               step = "0.1";
@@ -860,10 +911,13 @@ export default function EditMedicationDialog({
               name="prescriberName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Prescriber Name</FormLabel>
+                  <FormLabel>Prescriber Name (Optional)</FormLabel>
                   <FormControl>
                     <Input placeholder="Dr. Smith" {...field} />
                   </FormControl>
+                  <FormDescription className="text-xs">
+                    Defaults to resident&apos;s GP if available
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -934,37 +988,36 @@ export default function EditMedicationDialog({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
+            {medication.status !== "active" && (
+              <FormField
+                control={form.control}
+                name="revertToActive"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 bg-blue-50/50">
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="font-semibold text-blue-900">
+                        Revert to active medication
+                      </FormLabel>
+                      <FormDescription className="text-blue-700/70">
+                        This will move the medication back to the active list and today&apos;s round.
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <div className="flex justify-end gap-2 pt-4">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
                 disabled={isLoading}
               >
                 Cancel

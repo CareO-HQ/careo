@@ -1,0 +1,63 @@
+﻿
+> nextjs-starter@0.1.0 build
+> next build
+
+   Γû▓ Next.js 15.5.9
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ Γ£ô Compiled successfully in 17.4s
+   Linting and checking validity of types ...
+node.exe : 
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (:  
+  String) [], RemoteExc   
+ eption
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+Failed to compile.
+
+./components/medication/fo
+rms/CreateMedicationForm.t
+sx
+1127:43  Error: `'` can 
+be escaped with `&apos;`, 
+`&lsquo;`, `&#39;`, 
+`&rsquo;`.  react/no-unesc
+aped-entities
+
+./components/medication/fo
+rms/EditMedicationDialog.t
+sx
+162:5  Warning: Unused 
+eslint-disable directive 
+(no problems were 
+reported from 'react-hooks
+/exhaustive-deps').
+
+./components/medication/ma
+nagement/StockHistoryDialo
+g.tsx
+62:5  Warning: Unused 
+eslint-disable directive 
+(no problems were 
+reported from 'react-hooks
+/exhaustive-deps').
+
+info  - Need to disable 
+some ESLint rules? Learn 
+more here: https://nextjs.
+org/docs/app/api-reference
+/config/eslint#disabling-r
+ules
+

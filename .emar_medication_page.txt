@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { createColumns } from "@/components/medication/daily/columns";
 import { createMedicationColumns, createTopicalMedicationColumns } from "@/components/medication/daily/medication-columns";
@@ -26,7 +26,7 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import { config } from "@/config";
 import { toast } from "sonner";
-import { formatTimestampToUKTime, formatTimestampToUKDateTime, getUKTodayDate, UK_TIMEZONE } from "@/lib/date-utils";
+import { formatTimestampToUKTime, formatTimestampToUKDateTime } from "@/lib/date-utils";
 import {
   ColumnDef,
   SortingState,
@@ -56,7 +56,7 @@ type GroupedIntake = {
   givenCount: number;
 };
 
-// UK_TIMEZONE is now imported from @/lib/date-utils
+const UK_TIMEZONE = "Europe/London";
 
 // Helper function to find the nearest medication time
 const getNearestMedicationTime = (): string | null => {
@@ -124,10 +124,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("today");
 
-  const fetchData = React.useCallback(async (silentRefresh = false) => {
-    if (!silentRefresh) {
-      setIsLoading(true);
-    }
+  const fetchData = React.useCallback(async () => {
+    setIsLoading(true);
     try {
       // Fetch resident
       const { data: residentData } = await supabase
@@ -466,29 +464,16 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     return await updateMedicationIntakeStatus(args.intakeId, mappedState);
   };
 
-  const createAndAdministerMedicationIntake = async (medicationId: string, residentId: string, time: string, quantity: number = 1, notes?: string, witnessId?: string) => {
-    // First, check the medication schedule type and current stock
+  const createAndAdministerMedicationIntake = async (medicationId: string, residentId: string, time: string, quantity: number = 1, notes?: string) => {
+    // First, check if this is a topical medication
     const { data: medication } = await supabase
       .from("medications")
-      .select("schedule_type, total_count")
+      .select("schedule_type")
       .eq("id", medicationId)
       .single();
 
     const isTopical = medication?.schedule_type === "Topical";
     const isPRN = medication?.schedule_type === "PRN (As Needed)";
-    const currentStock = medication?.total_count ?? 0;
-    const newStock = Math.max(0, currentStock - quantity);
-
-    // Update medication stock count
-    const { error: stockError } = await supabase
-      .from("medications")
-      .update({ total_count: newStock })
-      .eq("id", medicationId);
-
-    if (stockError) {
-      console.error("Error updating medication stock:", stockError);
-      // We continue even if stock update fails, but log it
-    }
 
     // Save to medication_intakes table
     const { data, error } = await supabase
@@ -496,16 +481,12 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       .insert({
         medication_id: medicationId,
         resident_id: residentId,
-        scheduled_time: (isTopical && time) 
-          ? fromZonedTime(`${getUKTodayDate()}T${time}:00`, UK_TIMEZONE).toISOString()
-          : new Date().toISOString(),
+        scheduled_time: new Date().toISOString(),
         status: "given",
         quantity: quantity,
         comment: notes,
         administered_by_id: profile?.id,
         administered_at: new Date().toISOString(),
-        witness_id: witnessId || null,
-        witness_at: witnessId ? new Date().toISOString() : null,
         organization_id: profile?.active_organization_id,
         care_home_id: profile?.active_care_home_id
       })
@@ -548,8 +529,6 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               status: "given",
               quantity: quantity,
               notes: notes,
-              witness_id: witnessId || null,
-              witness_at: witnessId ? new Date().toISOString() : null,
               organization_id: profile?.active_organization_id,
               care_home_id: profile?.active_care_home_id,
             });
@@ -568,21 +547,11 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       }
     }
 
-    // Optimistic updates for all medication states
-    const updateMedState = (prev: any[]) => prev.map(m =>
-      m.id === medicationId ? { ...m, total_count: newStock } : m
-    );
-
-    setPrnOrTopicalMedications(updateMedState);
-    setTopicalMedications(updateMedState);
-    setSupplementMedications(updateMedState);
-    setAllActiveMedications(updateMedState);
-
     fetchData();
     return data;
   };
 
-  // ── History helpers ──────────────────────────────────────────────────────────
+  // ΓöÇΓöÇ History helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   const fetchHistory = React.useCallback(async () => {
     if (!id) return;
@@ -717,9 +686,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         return (
           <div className="flex items-center gap-3 text-sm">
             <span className="text-muted-foreground">Total: {totalCount}</span>
-            {administeredCount > 0 && <span className="text-green-600 font-medium">✓ {administeredCount}</span>}
-            {missedCount > 0 && <span className="text-red-600 font-medium">✗ {missedCount}</span>}
-            {refusedCount > 0 && <span className="text-orange-600 font-medium">⊘ {refusedCount}</span>}
+            {administeredCount > 0 && <span className="text-green-600 font-medium">Γ£ô {administeredCount}</span>}
+            {missedCount > 0 && <span className="text-red-600 font-medium">Γ£ù {missedCount}</span>}
+            {refusedCount > 0 && <span className="text-orange-600 font-medium">Γèÿ {refusedCount}</span>}
           </div>
         );
       },
@@ -767,7 +736,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
       if (error) throw error;
       toast.success("Medication round completed!");
-      fetchData(true);
+      fetchData();
     } catch (error) {
       console.error(error);
       toast.error("Failed to complete round");
@@ -795,31 +764,15 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     [availableMembers, profile, medicationRoundStatus]
   );
 
-  // Get a map of administered times for each medication today to disable them in the selection dropdown
-  const administeredTimesToday = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    selectedDateIntakes.forEach(intake => {
-      if (intake.status === 'given' || intake.status === 'administered') {
-        const time = formatTimestampToUKTime(intake.scheduled_time);
-        if (!map[intake.medication_id]) map[intake.medication_id] = [];
-        if (!map[intake.medication_id].includes(time)) {
-          map[intake.medication_id].push(time);
-        }
-      }
-    });
-    return map;
-  }, [selectedDateIntakes]);
-
   const prnTopicalColumns = useMemo(
     () => createMedicationColumns(
       createAndAdministerMedicationIntake,
       true,
       availableMembers,
       profile ? { name: profile.name || "", userId: profile.id } : undefined,
-      true,  // Use simplified dialog for PRN medications in Today's tab
-      administeredTimesToday
+      true  // Use simplified dialog for PRN medications in Today's tab
     ),
-    [availableMembers, profile, administeredTimesToday]
+    [availableMembers, profile]
   );
 
   const topicalMedicationColumns = useMemo(
@@ -827,10 +780,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       createAndAdministerMedicationIntake,
       true,
       availableMembers,
-      profile ? { name: profile.name || "", userId: profile.id } : undefined,
-      administeredTimesToday
+      profile ? { name: profile.name || "", userId: profile.id } : undefined
     ),
-    [availableMembers, profile, administeredTimesToday]
+    [availableMembers, profile]
   );
 
   const allActiveMedicationColumns = useMemo(
@@ -839,10 +791,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       false,
       availableMembers,
       profile ? { name: profile.name || "", userId: profile.id } : undefined,
-      true,  // Default to simplified
-      administeredTimesToday
+      true  // Default to simplified
     ),
-    [availableMembers, profile, administeredTimesToday]
+    [availableMembers, profile]
   );
 
   const supplementColumns: ColumnDef<any>[] = useMemo(
@@ -951,7 +902,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         const isActedUpon = intake.status !== 'scheduled' && intake.status !== 'pending';
         const isRoundCompleted = medicationRoundStatus?.status === 'completed';
 
-        if ((medStatus === 'completed' || medStatus === 'cancelled' || medStatus === 'discontinued') && !isActedUpon && !isRoundCompleted) {
+        if ((medStatus === 'completed' || medStatus === 'cancelled') && !isActedUpon && !isRoundCompleted) {
           return false;
         }
 
@@ -1046,7 +997,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
-        {/* ── Today's Medications ── */}
+        {/* ΓöÇΓöÇ Today's Medications ΓöÇΓöÇ */}
         <TabsContent value="today" className="flex flex-col gap-6 mt-4">
           <div className="flex items-center justify-between">
             <ShiftTimes selectedTime={selectedTime} setSelectedTime={setSelectedTime} />
@@ -1261,17 +1212,17 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           </div>
         </TabsContent>
 
-        {/* ── Active Medications ── */}
+        {/* ΓöÇΓöÇ Active Medications ΓöÇΓöÇ */}
         <TabsContent value="active" className="flex flex-col gap-6 mt-4">
           <ActiveMedicationsTable
             medications={allActiveMedications}
             residentId={id}
             residentName={fullName}
-            onRefresh={() => fetchData(true)}
+            onRefresh={fetchData}
           />
         </TabsContent>
 
-        {/* ── eMAR ── */}
+        {/* ΓöÇΓöÇ eMAR ΓöÇΓöÇ */}
         <TabsContent value="emar" className="flex flex-col gap-6 mt-4">
           <EmarSheet
             residentId={id}
@@ -1281,7 +1232,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           />
         </TabsContent>
 
-        {/* ── Discontinued ── */}
+        {/* ΓöÇΓöÇ Discontinued ΓöÇΓöÇ */}
         <TabsContent value="discontinued" className="flex flex-col gap-4 mt-4">
           {discontinuedMedications.length === 0 && completedCancelledMedications.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-center border border-slate-200 rounded-lg bg-slate-50">
@@ -1310,12 +1261,12 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           )}
         </TabsContent>
 
-        {/* ── Kardex ── */}
+        {/* ΓöÇΓöÇ Kardex ΓöÇΓöÇ */}
         <TabsContent value="kardex" className="mt-4">
           <KardexModal medications={allActiveMedications} resident={resident} inlineMode />
         </TabsContent>
 
-        {/* ── History ── */}
+        {/* ΓöÇΓöÇ History ΓöÇΓöÇ */}
         <TabsContent value="history" className="flex flex-col gap-4 mt-4">
           <div className="flex items-center justify-between">
             <div className="flex gap-3">
@@ -1342,7 +1293,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           </div>
 
           {historyLoading ? (
-            <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">Loading history…</div>
+            <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">Loading historyΓÇª</div>
           ) : (
             <div className="rounded-md border overflow-hidden">
               <Table>

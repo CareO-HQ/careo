@@ -50,11 +50,13 @@ const MEDICATION_OPTIONS = [
 export default function CreateResidentMedication({
   residentId,
   residentName,
+  gpName,
   teamId,
   organizationId
 }: {
   residentId: string;
   residentName?: string;
+  gpName?: string;
   teamId?: string;
   organizationId?: string;
 }) {
@@ -148,6 +150,7 @@ export default function CreateResidentMedication({
               residentId={residentId}
               teamId={teamId}
               organizationId={organizationId}
+              gpName={gpName}
               initialType={selectedType ?? undefined}
               onSuccess={() => {
                 handleClose();

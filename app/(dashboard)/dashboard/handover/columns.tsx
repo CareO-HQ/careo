@@ -18,9 +18,7 @@ import { toast } from "sonner";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useHandoverComment } from "@/hooks/use-handover-comment";
 import { useProfile } from "@/hooks/use-profile";
-import { getUKTodayDate, formatTimestampToUKTime } from "@/lib/date-utils";
-import { fromZonedTime } from "date-fns-tz";
-import { cn } from "@/lib/utils";
+import { getUKTodayDate } from "@/lib/date-utils";
 
 // Helper function to fetch handover report data
 const useHandoverReport = (residentId: string, teamId?: string) => {
@@ -85,6 +83,16 @@ const useHandoverReport = (residentId: string, teamId?: string) => {
 
         if (transfersError) throw transfersError;
 
+        // Fetch appointments for today
+        const { data: appointments, error: appointmentsError } = await supabase
+          .from("appointments")
+          .select("*")
+          .eq("resident_id", residentId)
+          .gte("start_time", `${today}T00:00:00Z`)
+          .lte("start_time", `${today}T23:59:59Z`);
+
+        if (appointmentsError) throw appointmentsError;
+
         setReport({
           foodIntakeCount: foodLogs.length,
           foodIntakeLogs: foodLogs.map(log => ({
@@ -115,60 +123,14 @@ const useHandoverReport = (residentId: string, teamId?: string) => {
             hospitalName: transfer.hospital_name,
             reason: transfer.reason,
           })),
-          medicationStatus: "all_administered" as const,
-          nextMedicationName: undefined as string | undefined,
-          nextMedicationTime: undefined as string | undefined,
+          appointmentCount: appointments?.length || 0,
+          appointments: (appointments || []).map(apt => ({
+            id: apt.id,
+            title: apt.title,
+            startTime: apt.start_time,
+            location: apt.location,
+          })),
         });
-
-        // Fetch medication status for the shift
-        const UK_TIMEZONE = "Europe/London";
-        const dateStr = today;
-        const shift = getCurrentShift();
-        const shiftStartStr = `${dateStr}T${shift === "day" ? "08:00:00" : "20:00:00"}`;
-        const shiftEndStr = `${dateStr}T${shift === "day" ? "20:00:00" : "08:00:00"}`;
-        
-        const shiftStartUTC = fromZonedTime(shiftStartStr, UK_TIMEZONE);
-        let shiftEndUTC = fromZonedTime(shiftEndStr, UK_TIMEZONE);
-
-        if (shift === "night") {
-          const nextDay = new Date(shiftEndUTC);
-          nextDay.setDate(nextDay.getDate() + 1);
-          shiftEndUTC = nextDay;
-        }
-
-        const { data: medicationIntakes } = await supabase
-          .from("medication_intakes")
-          .select("status, scheduled_time, medication:medication_id (name)")
-          .eq("resident_id", residentId)
-          .gte("scheduled_time", shiftStartUTC.toISOString())
-          .lt("scheduled_time", shiftEndUTC.toISOString())
-          .order("scheduled_time", { ascending: true });
-
-        let medStatus: "all_administered" | "missed" | "pending" = "all_administered";
-        let nextMedName: string | undefined = undefined;
-        let nextMedTime: string | undefined = undefined;
-
-        if (medicationIntakes && medicationIntakes.length > 0) {
-          const missedIntakes = medicationIntakes.filter(i => i.status === 'missed' || i.status === 'refused');
-          const pendingIntakes = medicationIntakes.filter(i => i.status === 'scheduled' || i.status === 'pending');
-
-          if (missedIntakes.length > 0) {
-            medStatus = "missed";
-            nextMedTime = formatTimestampToUKTime(missedIntakes[0].scheduled_time);
-            nextMedName = (missedIntakes[0].medication as any)?.name;
-          } else if (pendingIntakes.length > 0) {
-            medStatus = "pending";
-            nextMedTime = formatTimestampToUKTime(pendingIntakes[0].scheduled_time);
-            nextMedName = (pendingIntakes[0].medication as any)?.name;
-          }
-        }
-
-        setReport(prev => ({
-          ...prev!,
-          medicationStatus: medStatus,
-          nextMedicationName: nextMedName,
-          nextMedicationTime: nextMedTime,
-        }));
       } catch (error) {
         console.error("Error fetching handover report:", error);
         setReport(null);
@@ -398,31 +360,59 @@ const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; team
   );
 };
 
-// Component for displaying medication status
-const MedicationCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
+// Component for displaying appointments
+const AppointmentsCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
   const { report, isLoading } = useHandoverReport(residentId, teamId);
 
   if (isLoading || !report) {
     return <Badge variant="outline">Loading...</Badge>;
   }
 
+  if (report.appointmentCount === 0) {
+    return (
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm text-[10px] px-1 py-0 h-5">
+        0
+      </Badge>
+    );
+  }
+
   return (
-    <Badge 
-      variant="table" 
-      className={cn(
-        "rounded-sm text-[10px] px-1 py-0 h-5",
-        report.medicationStatus === "all_administered" ? "bg-green-50 text-green-700 border-green-300" :
-        report.medicationStatus === "missed" ? "bg-red-50 text-red-700 border-red-300" :
-        "bg-amber-50 text-amber-700 border-amber-300"
-      )}
-    >
-      {report.medicationStatus === "all_administered" ? "All" : 
-       report.medicationStatus === "missed" ? "Missed" : "Pending"}
-    </Badge>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
+          {report.appointmentCount}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="bg-white border max-w-md">
+        <div className="flex flex-col gap-2 p-2">
+          {report.appointments.map((apt: any, index: number) => (
+            <div key={apt.id} className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-primary">
+                  {new Date(apt.startTime).toLocaleTimeString("en-GB", {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                  })}
+                </span>
+                <span className="font-medium text-sm">
+                  {apt.title}
+                </span>
+              </div>
+              {apt.location && (
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  Location: {apt.location}
+                </div>
+              )}
+              {index < report.appointments.length - 1 && (
+                <div className="border-t my-1" />
+              )}
+            </div>
+          ))}
+        </div>
+      </TooltipContent>
+    </Tooltip>
   );
 };
-
-// Component for comments with database persistence and auto-save
 const CommentsCell = ({
   residentId,
   teamId,
@@ -618,17 +608,19 @@ export const getColumns = (
       }
     },
     {
-      accessorKey: "medication",
+      accessorKey: "appointments",
       header: () => {
         return (
-          <div className="text-left text-muted-foreground text-sm">Medication</div>
+          <div className="text-left text-muted-foreground text-sm">
+            Appointments
+          </div>
         );
       },
       enableSorting: false,
-      size: 70,
+      size: 100,
       cell: ({ row }) => {
         const resident = row.original;
-        return <MedicationCell residentId={resident.id} teamId={teamId} />;
+        return <AppointmentsCell residentId={resident.id} teamId={teamId} />;
       }
     },
     {

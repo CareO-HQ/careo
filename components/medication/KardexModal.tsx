@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -52,6 +53,21 @@ interface KardexModalProps {
   inlineMode?: boolean;
   triggerLabel?: string;
   triggerIcon?: React.ElementType;
+}
+
+interface Administration {
+  id: string;
+  medication_id: string;
+  administration_date: string;
+  scheduled_time: string;
+  status: string;
+  administered_by: string;
+  notes?: string;
+}
+
+interface User {
+  id: string;
+  name: string;
 }
 
 const UK_TIMEZONE = "Europe/London";
@@ -159,8 +175,14 @@ const PRINT_STYLES = `
 
 // ─── Kardex Print View ────────────────────────────────────────────────────────
 
-function KardexPrintView({ medications, resident }: KardexModalProps) {
+function KardexPrintView({
+  medications,
+  resident,
+  administrations,
+  users,
+}: KardexModalProps & { administrations: Administration[]; users: User[] }) {
   const now = toZonedTime(new Date(), UK_TIMEZONE);
+  const todayStr = format(now, "yyyy-MM-dd");
   const monthLabel = format(now, "MMMM yyyy");
   const timeSlotEntries = Object.entries(TIME_SLOTS);
 
@@ -185,7 +207,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
       {/* Header */}
       <div className="border-2 border-black mb-2">
         <div className="bg-gray-800 text-white text-center py-1.5">
-          <h1 className="text-sm font-bold tracking-wide">MEDICATION ADMINISTRATION RECORD (MAR)</h1>
+          <h1 className="text-sm font-bold tracking-wide">KARDEX</h1>
         </div>
         <div className="grid grid-cols-3 border-t border-black">
           <div className="p-2 border-r border-black flex items-center gap-2">
@@ -303,6 +325,23 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                       times.map((time) => {
                         const isScheduled = med.times.includes(time);
                         const quantity = qty(time);
+
+                        // Find administration for today
+                        const admin = administrations.find(
+                          (a) =>
+                            a.medication_id === med.id &&
+                            a.administration_date === todayStr &&
+                            a.scheduled_time.startsWith(time)
+                        );
+
+                        const staff = users.find((u) => u.id === admin?.administered_by);
+                        const initials = staff?.name
+                          ? staff.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                          : "";
+
                         const getUnitLabel = () => {
                           const df = med.dosage_form?.toLowerCase() || "";
                           if (df.includes("liquid") || df.includes("syrup")) return "mL";
@@ -321,9 +360,22 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                             style={{ minWidth: "22px", height: "32px", verticalAlign: "middle" }}
                           >
                             {isScheduled ? (
-                              <div className="flex flex-col items-center justify-center">
-                                <p className="font-bold text-[9px] text-blue-900">{quantity}</p>
-                                <p className="text-[7px] text-gray-600">{getUnitLabel()}</p>
+                              <div className="flex flex-col items-center justify-center p-0.5 h-full">
+                                <div className="flex items-center justify-between w-full">
+                                  <p className="font-bold text-[8px] text-blue-900">{quantity}</p>
+                                  <p className="text-[6px] text-gray-500">{getUnitLabel()}</p>
+                                </div>
+                                {admin && (
+                                  <div className={`mt-0.5 w-full text-center rounded-[1px] border-[0.5px] ${
+                                    admin.status === 'given' ? 'bg-green-50 border-green-200 text-green-700' :
+                                    admin.status === 'refused' ? 'bg-red-50 border-red-200 text-red-700' :
+                                    'bg-amber-50 border-amber-200 text-amber-700'
+                                  }`}>
+                                    <p className="font-bold text-[8px] leading-tight">
+                                      {admin.status === 'given' ? initials || '✓' : admin.status.charAt(0).toUpperCase()}
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <span className="text-gray-300 text-[7px]">—</span>
@@ -377,9 +429,55 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600"><div>{med.frequency || "—"}</div></td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "—"}</td>
                   {timeSlotEntries.map(([period, times]) =>
-                    times.map((time) => (
-                      <td key={`${period}-${time}`} className="border border-black text-center align-top" style={{ minWidth: "22px", height: "32px" }} />
-                    ))
+                    times.map((time) => {
+                      const isScheduled = (med.times || []).includes(time);
+                      const quantity = med.time_quantities && med.time_quantities[time] ? med.time_quantities[time] : 1;
+
+                      // Find administration for today
+                      const admin = (administrations || []).find(
+                        (a) =>
+                          a.medication_id === med.id &&
+                          a.administration_date === todayStr &&
+                          a.scheduled_time.startsWith(time)
+                      );
+
+                      const staff = (users || []).find((u) => u.id === admin?.administered_by);
+                      const initials = staff?.name
+                        ? staff.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                        : "";
+
+                      return (
+                        <td
+                          key={`${period}-${time}`}
+                          className={`border border-black text-center align-middle ${
+                            !isScheduled ? "bg-gray-100" : "bg-blue-50"
+                          }`}
+                          style={{ minWidth: "22px", height: "32px" }}
+                        >
+                          {isScheduled ? (
+                            <div className="flex flex-col items-center justify-center h-full p-0.5">
+                              <p className="font-bold text-[8px] text-blue-900">{quantity}×</p>
+                              {admin && (
+                                <div className={`mt-0.5 w-full text-center rounded-[1px] border-[0.5px] ${
+                                  admin.status === 'given' ? 'bg-green-50 border-green-200 text-green-700' :
+                                  admin.status === 'refused' ? 'bg-red-50 border-red-200 text-red-700' :
+                                  'bg-amber-50 border-amber-200 text-amber-700'
+                                }`}>
+                                  <p className="font-bold text-[8px] leading-tight">
+                                    {admin.status === 'given' ? initials || '✓' : admin.status.charAt(0).toUpperCase()}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-300 text-[7px]">—</span>
+                          )}
+                        </td>
+                      );
+                    })
                   )}
                 </tr>
               ))}
@@ -428,9 +526,45 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight"><div>{med.frequency || "—"}</div></td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "—"}</td>
                   {timeSlotEntries.map(([period, times]) =>
-                    times.map((time) => (
-                      <td key={`${period}-${time}`} className="border border-black text-center align-top" style={{ minWidth: "22px", height: "32px" }} />
-                    ))
+                    times.map((time) => {
+                      // For PRN, we show administrations that occurred today
+                      const admin = (administrations || []).find(
+                        (a) =>
+                          a.medication_id === med.id &&
+                          a.administration_date === todayStr &&
+                          a.scheduled_time.startsWith(time)
+                      );
+
+                      const staff = (users || []).find((u) => u.id === admin?.administered_by);
+                      const initials = staff?.name
+                        ? staff.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                        : "";
+
+                      return (
+                        <td
+                          key={`${period}-${time}`}
+                          className="border border-black text-center align-middle"
+                          style={{ minWidth: "22px", height: "32px" }}
+                        >
+                          {admin ? (
+                            <div className="flex flex-col items-center justify-center h-full p-0.5">
+                              <div className={`w-full text-center rounded-[1px] border-[0.5px] ${
+                                admin.status === 'given' ? 'bg-green-50 border-green-200 text-green-700' :
+                                admin.status === 'refused' ? 'bg-red-50 border-red-200 text-red-700' :
+                                'bg-amber-50 border-amber-200 text-amber-700'
+                              }`}>
+                                <p className="font-bold text-[8px] leading-tight">
+                                  {admin.status === 'given' ? initials || '✓' : admin.status.charAt(0).toUpperCase()}
+                                </p>
+                              </div>
+                            </div>
+                          ) : null}
+                        </td>
+                      );
+                    })
                   )}
                   <td className="border border-black text-center align-top" style={{ minWidth: "28px", height: "32px" }} />
                   <td className="border border-black text-center align-top" style={{ minWidth: "28px", height: "32px" }} />
@@ -477,9 +611,55 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight"><div>{med.frequency || "—"}</div></td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "—"}</td>
                   {timeSlotEntries.map(([period, times]) =>
-                    times.map((time) => (
-                      <td key={`${period}-${time}`} className="border border-black text-center align-top" style={{ minWidth: "22px", height: "32px" }} />
-                    ))
+                    times.map((time) => {
+                      const isScheduled = (med.times || []).includes(time);
+                      const quantity = med.time_quantities && med.time_quantities[time] ? med.time_quantities[time] : 1;
+
+                      // Find administration for today
+                      const admin = (administrations || []).find(
+                        (a) =>
+                          a.medication_id === med.id &&
+                          a.administration_date === todayStr &&
+                          a.scheduled_time.startsWith(time)
+                      );
+
+                      const staff = (users || []).find((u) => u.id === admin?.administered_by);
+                      const initials = staff?.name
+                        ? staff.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                        : "";
+
+                      return (
+                        <td
+                          key={`${period}-${time}`}
+                          className={`border border-black text-center align-middle ${
+                            !isScheduled ? "bg-gray-100" : "bg-blue-50"
+                          }`}
+                          style={{ minWidth: "22px", height: "32px" }}
+                        >
+                          {isScheduled ? (
+                            <div className="flex flex-col items-center justify-center h-full p-0.5">
+                              <p className="font-bold text-[8px] text-blue-900">{quantity}×</p>
+                              {admin && (
+                                <div className={`mt-0.5 w-full text-center rounded-[1px] border-[0.5px] ${
+                                  admin.status === 'given' || admin.status === 'applied' ? 'bg-green-50 border-green-200 text-green-700' :
+                                  admin.status === 'refused' ? 'bg-red-50 border-red-200 text-red-700' :
+                                  'bg-amber-50 border-amber-200 text-amber-700'
+                                }`}>
+                                  <p className="font-bold text-[8px] leading-tight">
+                                    {(admin.status === 'given' || admin.status === 'applied') ? initials || '✓' : admin.status.charAt(0).toUpperCase()}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-300 text-[7px]">—</span>
+                          )}
+                        </td>
+                      );
+                    })
                   )}
                 </tr>
               ))}
@@ -526,8 +706,46 @@ export default function KardexModal({
   triggerIcon: TriggerIcon,
 }: KardexModalProps) {
   const [open, setOpen] = useState(false);
+  const [administrations, setAdministrations] = useState<Administration[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const activeMeds = medications.filter((m) => m.status === "active");
   const printRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if ((open || inlineMode) && resident.id) {
+      fetchData();
+    }
+  }, [open, inlineMode, resident.id]);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const today = new Date();
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+      const firstDayStr = format(firstDay, "yyyy-MM-dd");
+      const lastDayStr = format(lastDay, "yyyy-MM-dd");
+
+      const [adminsResponse, usersResponse] = await Promise.all([
+        supabase
+          .from("emar_administrations")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .gte("administration_date", firstDayStr)
+          .lte("administration_date", lastDayStr),
+        supabase.from("users").select("id, name"),
+      ]);
+
+      if (adminsResponse.data) setAdministrations(adminsResponse.data);
+      if (usersResponse.data) setUsers(usersResponse.data);
+    } catch (error) {
+      console.error("Error fetching Kardex data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handlePrint = () => {
     const el = printRef.current;
@@ -558,7 +776,7 @@ export default function KardexModal({
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-semibold">Medication Administration Record (MAR)</p>
+            <p className="font-semibold">KARDEX</p>
             <p className="text-sm text-muted-foreground">
               {activeMeds.length} active medication{activeMeds.length !== 1 ? "s" : ""} —{" "}
               {new Date().toLocaleString("en-GB", { month: "long", year: "numeric" })}
@@ -581,7 +799,12 @@ export default function KardexModal({
         ) : (
           <div className="overflow-auto rounded border bg-white shadow-sm">
             <div className="p-4" ref={printRef}>
-              <KardexPrintView medications={medications} resident={resident} />
+              <KardexPrintView
+                medications={medications}
+                resident={resident}
+                administrations={administrations}
+                users={users}
+              />
             </div>
           </div>
         )}
@@ -639,7 +862,12 @@ export default function KardexModal({
           ) : (
             <div className="flex-1 overflow-auto p-4 bg-gray-50">
               <div className="bg-white shadow-sm rounded border p-4" ref={printRef}>
-                <KardexPrintView medications={medications} resident={resident} />
+                <KardexPrintView
+                  medications={medications}
+                  resident={resident}
+                  administrations={administrations}
+                  users={users}
+                />
               </div>
             </div>
           )}

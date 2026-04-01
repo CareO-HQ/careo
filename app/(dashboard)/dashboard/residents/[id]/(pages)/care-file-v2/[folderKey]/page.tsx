@@ -396,7 +396,11 @@ export default function CareFileV2FolderPage() {
     const handlePrint = async () => {
         if (!activeFormKey || !resident) return;
         if (activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && !formDataForEdit) return;
-        const formName = activeFormKey === "care-plan-form" ? (formDataForEdit.care_plan_type || "Care Plan") : (folder?.forms.find(f => f.key === activeFormKey)?.value || "Form");
+        const formName = activeFormKey === "care-plan-form"
+            ? (formDataForEdit.care_plan_type || "Care Plan")
+            : activeFormKey === "v2-general-risk"
+                ? "General Risk Assessment"
+                : (folder?.forms.find(f => f.key === activeFormKey)?.value || "Form");
 
         toast.info(`Generating PDF for ${formName}...`);
 
