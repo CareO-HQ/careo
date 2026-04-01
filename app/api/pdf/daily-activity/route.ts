@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chromium } from "playwright";
-import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { format, parseISO } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { UK_TIMEZONE } from "@/lib/date-utils";
 
 export const runtime = "nodejs";
@@ -36,34 +36,13 @@ function getUserDisplayName(users: any[], identifier: string | undefined): strin
   return identifier || 'Staff';
 }
 
-function generateDailyCareHTML(resident: any, dayData: any, users: any[]): string {
+function generateDailyActivityHTML(resident: any, dayData: any, users: any[]): string {
   const { date, tasks } = dayData;
   const fullName = `${resident.first_name} ${resident.last_name}`;
   const formattedDate = format(parseISO(date), "EEEE, MMMM d, yyyy");
   const dob = resident.date_of_birth ? format(parseISO(resident.date_of_birth), "dd/MM/yyyy") : '--';
   const room = resident.room_number || '--';
   const careHome = resident.care_home_name || '--';
-
-  // Activity labels
-  const activityLabels: Record<string, string> = {
-    bed_bath: "Bed Bath",
-    shampoo_in_bed: "Shampoo In Bed",
-    shower_shampoo: "Shower + Shampoo",
-    wash_upper_body: "Wash Upper Body",
-    wash_lower_body: "Wash Lower Body",
-    creams_applied: "Creams Applied",
-    shaved: "Shaved",
-    oral_care: "Oral Care",
-    fingernails_trimmed: "Fingernails Trimmed",
-    fingernails_cleaned: "Fingernails Cleaned",
-    hair_brushed: "Hair Brushed",
-    hair_washed_hairdresser: "Hair Washed/Set by Hairdresser",
-    clothing_changed: "Clothing Changed",
-    bed_linens_changed: "Bed Linens Changed",
-    bed_made: "Bed Made",
-    eyeglasses_care: "Eyeglasses Care",
-    footwear_care: "Footwear Care",
-  };
 
   // Sort tasks chronologically
   const sortedTasks = [...tasks].sort((a: any, b: any) => {
@@ -74,26 +53,19 @@ function generateDailyCareHTML(resident: any, dayData: any, users: any[]): strin
 
   // Generate table rows
   const tableRows = sortedTasks.map((task: any) => {
-    const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string } | null;
+    const payload = task.payload as { time?: string; staff?: string } | null;
     const displayTime = payload?.time || (task.created_at ? formatTimestampToUKTime(task.created_at) : '--');
-    const staffIdentifier = payload?.primaryStaff || payload?.staff;
+    const staffIdentifier = payload?.staff;
     const staffName = getUserDisplayName(users, staffIdentifier);
-    const assistedStaffName = payload?.assistedStaff ? getUserDisplayName(users, payload.assistedStaff) : null;
-    const activityName = activityLabels[task.task_type] || task.task_type;
     const notes = task.notes || '';
     const displayDate = format(parseISO(date), 'dd/MM/yyyy');
-
-    const staffDisplay = assistedStaffName
-      ? `${staffName} (Assisted: ${assistedStaffName})`
-      : staffName;
 
     return `
       <tr>
         <td class="date-cell">${displayDate}</td>
         <td class="time-cell">${displayTime}</td>
-        <td class="activity-cell">${activityName}</td>
         <td class="comments-cell">${notes || '--'}</td>
-        <td class="signature-cell">${staffDisplay}</td>
+        <td class="signature-cell">${staffName}</td>
       </tr>
     `;
   }).join('');
@@ -103,7 +75,7 @@ function generateDailyCareHTML(resident: any, dayData: any, users: any[]): strin
     <html>
       <head>
         <meta charset="UTF-8">
-        <title>Personal Care Record - ${fullName} (${date})</title>
+        <title>Daily Activity Record - ${fullName} (${date})</title>
         <style>
           @page {
             size: A4;
@@ -178,11 +150,8 @@ function generateDailyCareHTML(resident: any, dayData: any, users: any[]): strin
             width: 10%;
             text-align: center;
           }
-          .activity-cell {
-            width: 18%;
-          }
           .comments-cell {
-            width: 40%;
+            width: 58%;
           }
           .signature-cell {
             width: 20%;
@@ -199,7 +168,7 @@ function generateDailyCareHTML(resident: any, dayData: any, users: any[]): strin
       <body>
         <div class="logo">CareO</div>
 
-        <div class="title">PERSONAL CARE RECORD</div>
+        <div class="title">DAILY ACTIVITY RECORD</div>
         <div class="subtitle">Day: ${formattedDate}</div>
 
         <table class="info-table">
@@ -224,13 +193,12 @@ function generateDailyCareHTML(resident: any, dayData: any, users: any[]): strin
             <tr>
               <th>Date</th>
               <th>Time</th>
-              <th>Activity</th>
               <th>Comments</th>
               <th>Staff Name</th>
             </tr>
           </thead>
           <tbody>
-            ${tableRows || '<tr><td colspan="5" style="text-align: center; padding: 20px;">No personal care records found for this day.</td></tr>'}
+            ${tableRows || '<tr><td colspan="4" style="text-align: center; padding: 20px;">No activity records found for this day.</td></tr>'}
           </tbody>
         </table>
 
@@ -254,7 +222,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const htmlContent = generateDailyCareHTML(resident, dayData, users || []);
+    const htmlContent = generateDailyActivityHTML(resident, dayData, users || []);
 
     // Launch browser
     const browser = await chromium.launch({
@@ -291,7 +259,7 @@ export async function POST(request: NextRequest) {
       const sanitize = (str: string) =>
         str.replace(/[^a-zA-Z0-9-_\s]/g, "").replace(/\s+/g, "-");
       const residentName = sanitize(`${resident.first_name}-${resident.last_name}`);
-      const fileName = `personal-care-record-${residentName}-${dayData.date}.pdf`;
+      const fileName = `activity-record-${residentName}-${dayData.date}.pdf`;
 
       // Return the PDF
       return new NextResponse(pdfBuffer as any, {
@@ -306,9 +274,8 @@ export async function POST(request: NextRequest) {
       throw error;
     }
   } catch (error) {
-    console.error("Daily Care PDF generation error:", error);
+    console.error("Daily Activity PDF generation error:", error);
 
-    // Provide more specific error details in logs to help identify the failure
     if (error instanceof Error) {
       console.error("Error Name:", error.name);
       console.error("Error Message:", error.message);

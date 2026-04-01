@@ -578,12 +578,14 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
   // Calculate stats
   const reportStats = useMemo(() => {
     const total = reportObjects.length;
+    const personalCareCount = reportObjects.filter(r => r.type === 'personal_care').length;
+    const activityRecordCount = reportObjects.filter(r => r.type === 'activity_record').length;
     const thisMonth = reportObjects.filter(report => {
       const reportDate = parseISO(report.date);
       const now = new Date();
       return reportDate.getMonth() === now.getMonth() && reportDate.getFullYear() === now.getFullYear();
     }).length;
-    return { total, thisMonth };
+    return { total, thisMonth, personalCareCount, activityRecordCount };
   }, [reportObjects]);
 
   // Loading state
@@ -648,13 +650,13 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-700">Total Days</p>
-                <p className="text-2xl font-bold text-blue-900">{reportStats.total}</p>
+                <p className="text-sm font-medium text-blue-700">Personal Care Records</p>
+                <p className="text-2xl font-bold text-blue-900">{reportStats.personalCareCount}</p>
               </div>
               <div className="p-2 bg-white rounded-lg">
                 <FileText className="w-5 h-5 text-blue-600" />
@@ -667,11 +669,11 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-green-700">This Month</p>
-                <p className="text-2xl font-bold text-green-900">{reportStats.thisMonth}</p>
+                <p className="text-sm font-medium text-green-700">Activity Records</p>
+                <p className="text-2xl font-bold text-green-900">{reportStats.activityRecordCount}</p>
               </div>
               <div className="p-2 bg-white rounded-lg">
-                <Calendar className="w-5 h-5 text-green-600" />
+                <Activity className="w-5 h-5 text-green-600" />
               </div>
             </div>
           </CardContent>
@@ -681,11 +683,25 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-purple-700">Total Activities</p>
-                <p className="text-2xl font-bold text-purple-900">{allTasks.length}</p>
+                <p className="text-sm font-medium text-purple-700">Total Documents</p>
+                <p className="text-2xl font-bold text-purple-900">{reportStats.total}</p>
               </div>
               <div className="p-2 bg-white rounded-lg">
-                <Activity className="w-5 h-5 text-purple-600" />
+                <FileText className="w-5 h-5 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 bg-gradient-to-br from-amber-50 to-amber-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-amber-700">This Month</p>
+                <p className="text-2xl font-bold text-amber-900">{reportStats.thisMonth}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg">
+                <Calendar className="w-5 h-5 text-amber-600" />
               </div>
             </div>
           </CardContent>
@@ -937,7 +953,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       <Card className="border-0">
         <CardHeader>
           <CardTitle>
-            Daily Care Records ({filteredReports.length})
+            Daily Care Documents ({filteredReports.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -955,9 +971,9 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date (8am-8am)</TableHead>
-                      <TableHead>Activities</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Date & Document Type</TableHead>
+                      <TableHead>Count</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
