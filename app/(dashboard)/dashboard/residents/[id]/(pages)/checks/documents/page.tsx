@@ -418,7 +418,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     const headers = ["Date", "Report Type", "Status"];
     const rows = filteredReports.map(report => [
       report.date,
-      "Night Check Report",
+      "Check Report",
       "Archived"
     ]);
 
@@ -433,7 +433,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     const a = document.createElement("a");
     a.href = url;
     const today = getUKTodayDate();
-    a.download = `night-check-reports-${fullName.replace(/\s+/g, "-")}-${today}.csv`;
+    a.download = `check-reports-${fullName.replace(/\s+/g, "-")}-${today}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -520,7 +520,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     });
 
     generatePDFFromHTML(htmlContent);
-    toast.success('Night check report will open for printing');
+    toast.success('Check report will open for printing');
   };
 
   const generatePDFContent = ({ resident, recordings, date }: { resident: any; recordings: any[]; date: string; }) => {
@@ -535,18 +535,18 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     });
 
     const typeLabels: Record<string, string> = {
-      night_check: "Night Check",
+      night_check: "Check",
       positioning: "Positioning",
       pad_change: "Pad Change",
       bed_rails: "Bed Rails Check",
       environmental: "Environmental Check",
-      night_note: "Night Note",
+      night_note: "Note",
       cleaning: "Cleaning"
     };
 
     return `
       <div class="header">
-        <h1>Night Check Report</h1>
+        <h1>Check Report</h1>
         <p style="color: #64748B; margin: 0;">${resident.first_name} ${resident.last_name}</p>
       </div>
 
@@ -566,7 +566,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
       </div>
 
       <div class="activities">
-        <h2>Night Checks Log</h2>
+        <h2>Checks Log</h2>
         ${recordings && recordings.length > 0
           ? recordings.map((recording: any) => `
               <div class="activity-item">
@@ -575,7 +575,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
                 <span style="color: #64748B; font-size: 12px;">Recorded by: ${recording.recordedByName}</span>
               </div>
             `).join('')
-          : '<p>No night checks logged for this day.</p>'
+          : '<p>No checks logged for this day.</p>'
         }
       </div>
     `;
@@ -589,7 +589,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Night Check Report</title>
+          <title>Check Report</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; }
             .header { text-align: center; margin-bottom: 20px; }
@@ -638,10 +638,10 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}/night-check`)}
+          onClick={() => router.push(`/dashboard/residents/${id}/checks`)}
           className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
         >
-          Night Check
+          Checks
         </Button>
         <span>/</span>
         <span className="text-foreground">All Reports</span>
@@ -652,7 +652,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
         <Button
           variant="outline"
           size="icon"
-          onClick={() => router.push(`/dashboard/residents/${id}/night-check`)}
+          onClick={() => router.push(`/dashboard/residents/${id}/checks`)}
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>
@@ -661,9 +661,9 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
             <Moon className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Night Check Reports History</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Check Reports History</h1>
             <p className="text-muted-foreground text-sm">
-              Complete history of night check reports for {fullName}
+              Complete history of check reports for {fullName}
             </p>
           </div>
         </div>
@@ -703,7 +703,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-purple-700">Night Reports</p>
+                <p className="text-sm font-medium text-purple-700">Reports</p>
                 <p className="text-2xl font-bold text-purple-900">{reportStats.total}</p>
               </div>
               <div className="p-2 bg-white rounded-lg">
@@ -835,7 +835,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
       <Card className="border-0">
         <CardHeader>
           <CardTitle>
-            Night Check Reports ({filteredReports.length})
+            Check Reports ({filteredReports.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -844,7 +844,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
               <Moon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 font-medium">No reports found</p>
               <p className="text-gray-400 text-sm mt-1">
-                {searchQuery ? "Try adjusting your search criteria" : "No night check reports recorded yet"}
+                {searchQuery ? "Try adjusting your search criteria" : "No check reports recorded yet"}
               </p>
             </div>
           ) : (
@@ -872,7 +872,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
                           {report.hasData ? (
                             <div className="flex items-center space-x-2">
                               <Moon className="w-4 h-4 text-blue-600" />
-                              <span className="text-sm">Night Check Report</span>
+                              <span className="text-sm">Check Report</span>
                             </div>
                           ) : (
                             <span className="text-sm text-gray-400">-</span>
@@ -982,10 +982,10 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              Night Check Report - {selectedReport && format(new Date(selectedReport.date + 'T00:00:00'), "PPP")}
+              Check Report - {selectedReport && format(new Date(selectedReport.date + 'T00:00:00'), "PPP")}
             </DialogTitle>
             <DialogDescription>
-              All night checks logged for this day
+              All checks logged for this day
             </DialogDescription>
           </DialogHeader>
           <div className={`space-y-2 ${(() => {
@@ -1002,12 +1002,12 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
               const recordings = selectedReportData || [];
 
               const typeLabels: Record<string, string> = {
-                night_check: "Night Check",
+                night_check: "Check",
                 positioning: "Positioning",
                 pad_change: "Pad Change",
                 bed_rails: "Bed Rails Check",
                 environmental: "Environmental Check",
-                night_note: "Night Note",
+                night_note: "Note",
                 cleaning: "Cleaning",
                 personal_care: "Personal Care Activities"
               };

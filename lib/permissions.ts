@@ -291,7 +291,7 @@ export function canViewResidentSection(section: string, role?: string): boolean 
       return canViewProgressNotes(role);
     case "documents":
       return canViewDocuments(role);
-    case "night-check":
+    case "checks":
       // Page is visible to all users
       return true;
     case "appointments":

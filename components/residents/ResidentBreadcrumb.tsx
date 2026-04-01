@@ -71,8 +71,8 @@ export default function ResidentBreadcrumb({
     case "documents":
       pathName = "Documents";
       break;
-    case "night-check":
-      pathName = "Night Docs";
+    case "checks":
+      pathName = "Checks";
       break;
     case "appointments":
       pathName = "Appointments";
