@@ -1,7 +1,9 @@
 "use client";
 
 import React from "react";
-import { UseFormReturn } from "react-hook-form";
+import { useForm, UseFormReturn } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
   FormControl,
@@ -24,29 +26,66 @@ import { Calendar, X, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
+const TransferLogSchema = z.object({
+  date: z.string().min(1, "Date is required"),
+  time: z.string().optional(),
+  hospitalName: z.string().min(1, "Hospital name is required"),
+  reason: z.string().min(1, "Reason for transfer is required"),
+  outcome: z.string().optional(),
+  followUp: z.string().optional(),
+  filesChanged: z.object({
+    carePlan: z.boolean(),
+    riskAssessment: z.boolean(),
+    other: z.string().optional(),
+  }).optional(),
+  medicationChanges: z.object({
+    medicationsAdded: z.boolean(),
+    addedMedications: z.string().optional(),
+    medicationsRemoved: z.boolean(),
+    removedMedications: z.string().optional(),
+    medicationsModified: z.boolean(),
+    modifiedMedications: z.string().optional(),
+  }).optional(),
+});
+
 interface TransferLogInlineFormProps {
-  form: UseFormReturn<any>;
   onSubmit: (data: any) => Promise<void> | void;
-  residentName: string;
-  currentStep: number;
-  setCurrentStep: (step: number) => void;
-  handleNextStep: () => void;
-  prevStep: () => void;
-  isEditMode?: boolean;
   onCancel: () => void;
+  initialData?: any;
+  isEditing?: boolean;
 }
 
 export function TransferLogInlineForm({
-  form,
   onSubmit,
-  residentName,
-  currentStep,
-  setCurrentStep,
-  handleNextStep,
-  prevStep,
-  isEditMode = false,
   onCancel,
+  initialData,
+  isEditing = false,
 }: TransferLogInlineFormProps) {
+  const form = useForm<any>({
+    resolver: zodResolver(TransferLogSchema),
+    defaultValues: initialData || {
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+      hospitalName: "",
+      reason: "",
+      outcome: "",
+      followUp: "",
+      filesChanged: {
+        carePlan: false,
+        riskAssessment: false,
+        other: "",
+      },
+      medicationChanges: {
+        medicationsAdded: false,
+        addedMedications: "",
+        medicationsRemoved: false,
+        removedMedications: "",
+        medicationsModified: false,
+        modifiedMedications: "",
+      },
+    },
+  });
+
   const handleFormSubmit = async (data: any) => {
     await onSubmit(data);
   };
@@ -75,6 +114,7 @@ export function TransferLogInlineForm({
                       <FormControl>
                         <Button
                           variant="outline"
+                          type="button"
                           className={cn(
                             "w-full pl-3 text-left font-normal h-10 border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 rounded-lg",
                             !field.value && "text-neutral-400"
@@ -390,7 +430,7 @@ export function TransferLogInlineForm({
             className="gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-medium shadow-sm h-9"
           >
             <Save className="w-3.5 h-3.5" />
-            {isEditMode ? "Update Transfer Log" : "Save Transfer Log"}
+            {isEditing ? "Update Transfer Log" : "Save Transfer Log"}
           </Button>
         </div>
       </form>

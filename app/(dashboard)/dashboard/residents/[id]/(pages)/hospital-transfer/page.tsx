@@ -41,6 +41,8 @@ import {
   PanelRightClose,
   X,
   Clock,
+  CircleDashed,
+  Map as MapIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -57,15 +59,13 @@ import {
 import { useRouter } from "next/navigation";
 import { HospitalPassportInlineForm } from "./hospital-passport-inline-form";
 import { ViewPassportInline } from "./view-passport-inline";
-import { TransferLogDialog } from "./transfer-log-dialog";
 import { TransferLogInlineForm } from "./transfer-log-inline-form";
-import { ViewTransferLogDialog } from "./view-transfer-log-dialog";
-import { hospitalTransferService, HospitalPassport, HospitalTransferLog } from "@/lib/hospital-transfer-service";
-import { BodyMapDialog } from "@/components/body-map/BodyMapDialog";
+import { ViewTransferLogInline } from "./view-transfer-log-inline";
+import { hospitalTransferService } from "@/lib/hospital-transfer-service";
+import { BodyMapWorkspace } from "@/components/body-map/BodyMapWorkspace";
 import { BodyMapData } from "@/types/body-map";
 import { generateBodyMapPDF } from "@/lib/body-map-pdf-utils";
 import { generatePassportPDF } from "@/lib/hospital-passport-pdf-utils";
-import { Map as MapIcon } from "lucide-react";
 import KardexModal from "@/components/medication/KardexModal";
 
 type HospitalTransferPageProps = {
@@ -101,6 +101,22 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const [residentBodyMaps, setResidentBodyMaps] = useState<any[]>([]);
   const [medications, setMedications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // UI State
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [activeItem, setActiveItem] = useState<{ type: 'passport' | 'transfer-log' | 'body-map' | 'kardex', id: string | 'new', data?: any } | null>(null);
+  const [isEditingPassport, setIsEditingPassport] = useState(false);
+  const [isEditingTransferLog, setIsEditingTransferLog] = useState(false);
+  const [editingTransferLog, setEditingTransferLog] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Dialog states for deletion
+  const [showDeletePassportDialog, setShowDeletePassportDialog] = useState(false);
+  const [passportToDelete, setPassportToDelete] = useState<any>(null);
+  const [showDeleteTransferLogDialog, setShowDeleteTransferLogDialog] = useState(false);
+  const [transferLogToDelete, setTransferLogToDelete] = useState<any>(null);
+  const [showDeleteBodyMapDialog, setShowDeleteBodyMapDialog] = useState(false);
+  const [bodyMapToDelete, setBodyMapToDelete] = useState<any>(null);
 
   // Fetch data on load
   useEffect(() => {
@@ -130,7 +146,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       }
     }
     loadData();
-  }, [id]);
+  }, [id, supabase]);
 
   // Refresh data helper
   const refreshData = async () => {
@@ -148,408 +164,17 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   };
 
-  // Get today's date and time
-  const today = new Date().toISOString().split('T')[0];
-  const now = new Date().toISOString().slice(0, 16);
-
-  // Helper function to format allergies from diet information
-  const formatAllergies = React.useCallback((allergies: any[]) => {
-    if (!allergies || !Array.isArray(allergies) || allergies.length === 0) {
-      return "";
-    }
-    return allergies.map(item =>
-      typeof item === 'string' ? item : item.allergy
-    ).join(', ');
-  }, []);
-
-  // Multi-step form state
-  const [currentStep, setCurrentStep] = React.useState(1);
-  const totalSteps = 13;
-
-  // Transfer Log Schema
-  const TransferLogSchema = z.object({
-    date: z.string().min(1, "Date is required"),
-    time: z.string().optional(),
-    hospitalName: z.string().min(1, "Hospital name is required"),
-    reason: z.string().min(1, "Reason for transfer is required"),
-    outcome: z.string().optional(),
-    followUp: z.string().optional(),
-    filesChanged: z.object({
-      carePlan: z.boolean(),
-      riskAssessment: z.boolean(),
-      other: z.string().optional(),
-    }).optional(),
-    medicationChanges: z.object({
-      medicationsAdded: z.boolean(),
-      addedMedications: z.string().optional(),
-      medicationsRemoved: z.boolean(),
-      removedMedications: z.string().optional(),
-      medicationsModified: z.boolean(),
-      modifiedMedications: z.string().optional(),
-    }).optional(),
-  });
-
-  type TransferLogFormData = z.infer<typeof TransferLogSchema>;
-
-  // Form setup
-  const form = useForm<HospitalPassportFormData>({
-    resolver: zodResolver(HospitalPassportSchema),
-    defaultValues: {
-      generalDetails: {
-        // Initialize with empty defaults, will be populated via useEffect when resident matches
-        personName: "",
-        knownAs: "",
-        dateOfBirth: "",
-        nhsNumber: "",
-        religion: "",
-        weightOnTransfer: "",
-        careType: "residential",
-        transferDateTime: now,
-        accompaniedBy: "",
-        englishFirstLanguage: "yes",
-        firstLanguage: "",
-        careHomeName: "",
-        careHomeAddress: "",
-        careHomePhone: "",
-        hospitalName: "",
-        hospitalAddress: "",
-        hospitalPhone: "",
-        nextOfKinName: "",
-        nextOfKinAddress: "",
-        nextOfKinPhone: "",
-        gpName: "",
-        gpAddress: "",
-        gpPhone: "",
-        careManagerName: "",
-        careManagerAddress: "",
-        careManagerPhone: "",
-      },
-      medicalCareNeeds: {
-        situation: "",
-        background: "",
-        assessment: "",
-        recommendations: "",
-        pastMedicalHistory: "",
-        knownAllergies: "",
-        historyOfConfusion: "no",
-        learningDisabilityMentalHealth: "",
-        communicationIssues: "",
-        hearingAid: false,
-        glasses: false,
-        otherAids: "",
-        mobilityAssistance: "independent",
-        mobilityAids: "",
-        historyOfFalls: false,
-        dateOfLastFall: "",
-        toiletingAssistance: "independent",
-        continenceStatus: "continent",
-        nutritionalAssistance: "independent",
-        dietType: "",
-        swallowingDifficulties: false,
-        enteralNutrition: false,
-        mustScore: "",
-        personalHygieneAssistance: "independent",
-        topDentures: false,
-        bottomDentures: false,
-        denturesAccompanying: false,
-      },
-      skinMedicationAttachments: {
-        skinIntegrityAssistance: "independent",
-        bradenScore: "",
-        skinStateOnTransfer: "",
-        currentSkinCareRegime: "",
-        pressureRelievingEquipment: "",
-        knownToTVN: false,
-        tvnName: "",
-        currentMedicationRegime: "",
-        lastMedicationDateTime: now,
-        lastMealDrinkDateTime: now,
-        attachments: {
-          currentMedications: false,
-          bodyMap: false,
-          observations: false,
-          dnacprForm: false,
-          enteralFeedingRegime: false,
-          other: false,
-          otherSpecify: "",
-        },
-      },
-      signOff: {
-        signature: "",
-        printedName: "",
-        designation: "",
-        contactPhone: "",
-        completedDate: today,
-      },
-    },
-  });
-
-  // Update form default values when resident data loads
-  useEffect(() => {
-    if (resident && !form.formState.isDirty) { // Only update if form hasn't been touched
-      form.reset({
-        generalDetails: {
-          personName: `${resident?.firstName || ""} ${resident?.lastName || ""}`.trim(),
-          knownAs: resident?.firstName || "",
-          dateOfBirth: resident?.dateOfBirth || "",
-          nhsNumber: resident?.nhsHealthNumber || "",
-          religion: "",
-          weightOnTransfer: "",
-          careType: "residential",
-          transferDateTime: now,
-          accompaniedBy: "",
-          englishFirstLanguage: "yes",
-          firstLanguage: "",
-          careHomeName: "",
-          careHomeAddress: "",
-          careHomePhone: "",
-          hospitalName: "",
-          hospitalAddress: "",
-          hospitalPhone: "",
-          nextOfKinName: resident?.emergencyContacts?.[0]?.name || "",
-          nextOfKinAddress: resident?.emergencyContacts?.[0]?.address || "",
-          nextOfKinPhone: resident?.emergencyContacts?.[0]?.phoneNumber || "",
-          gpName: resident?.gpName || "",
-          gpAddress: resident?.gpAddress || "",
-          gpPhone: resident?.gpPhone || "",
-          careManagerName: resident?.careManagerName || "",
-          careManagerAddress: resident?.careManagerAddress || "",
-          careManagerPhone: resident?.careManagerPhone || "",
-        },
-        medicalCareNeeds: {
-          ...form.getValues().medicalCareNeeds,
-          knownAllergies: formatAllergies(dietInformation?.allergies || []),
-        },
-        skinMedicationAttachments: form.getValues().skinMedicationAttachments,
-        signOff: {
-          ...form.getValues().signOff,
-          printedName: profile?.name || "",
-          signature: profile?.name || "",
-        }
-      });
-    }
-  }, [resident, dietInformation, form, formatAllergies, now, profile]);
-
-  // Dialog states
-  const [showDeletePassportDialog, setShowDeletePassportDialog] = React.useState(false);
-  const [passportToDelete, setPassportToDelete] = React.useState<any>(null);
-
-  // Transfer Log states
-  const [isTransferLogDialogOpen, setIsTransferLogDialogOpen] = React.useState(false);
-  const [isEditTransferLogDialogOpen, setIsEditTransferLogDialogOpen] = React.useState(false);
-  const [isViewTransferLogDialogOpen, setIsViewTransferLogDialogOpen] = React.useState(false);
-  const [editingTransferLog, setEditingTransferLog] = React.useState<any>(null);
-  const [selectedTransferLog, setSelectedTransferLog] = React.useState<any>(null);
-  const [showDeleteTransferLogDialog, setShowDeleteTransferLogDialog] = React.useState(false);
-  const [transferLogToDelete, setTransferLogToDelete] = React.useState<any>(null);
-  const [isAddingTransferLog, setIsAddingTransferLog] = React.useState(false);
-  const [isEditingTransferLog, setIsEditingTransferLog] = React.useState(false);
-  const [transferLogFormStep, setTransferLogFormStep] = React.useState(1);
-
-  // Loading states
-  const [isCreating, setIsCreating] = React.useState(false);
-  const [isUpdating, setIsUpdating] = React.useState(false);
-  const [isDeleting, setIsDeleting] = React.useState(false);
-  const [isEditingPassport, setIsEditingPassport] = React.useState(false);
-
-  // Body Map states
-  const [isBodyMapDialogOpen, setIsBodyMapDialogOpen] = React.useState(false);
-  const [selectedBodyMap, setSelectedBodyMap] = React.useState<any>(null);
-  const [currentBodyMapId, setCurrentBodyMapId] = React.useState<string | null>(null);
-  const [showDeleteBodyMapDialog, setShowDeleteBodyMapDialog] = React.useState(false);
-  const [bodyMapToDelete, setBodyMapToDelete] = React.useState<any>(null);
-
-  // Edit form setup
-  const editForm = useForm<HospitalPassportFormData>({
-    resolver: zodResolver(HospitalPassportSchema),
-    defaultValues: {
-      generalDetails: {
-        personName: "",
-        knownAs: "",
-        dateOfBirth: "",
-        nhsNumber: "",
-        religion: "",
-        weightOnTransfer: "",
-        careType: "residential",
-        transferDateTime: now,
-        accompaniedBy: "",
-        englishFirstLanguage: "yes",
-        firstLanguage: "",
-        careHomeName: "",
-        careHomeAddress: "",
-        careHomePhone: "",
-        hospitalName: "",
-        hospitalAddress: "",
-        hospitalPhone: "",
-        nextOfKinName: "",
-        nextOfKinAddress: "",
-        nextOfKinPhone: "",
-        gpName: "",
-        gpAddress: "",
-        gpPhone: "",
-        careManagerName: "",
-        careManagerAddress: "",
-        careManagerPhone: "",
-      },
-      medicalCareNeeds: {
-        situation: "",
-        background: "",
-        assessment: "",
-        recommendations: "",
-        pastMedicalHistory: "",
-        knownAllergies: "",
-        historyOfConfusion: "no",
-        learningDisabilityMentalHealth: "",
-        communicationIssues: "",
-        hearingAid: false,
-        glasses: false,
-        otherAids: "",
-        mobilityAssistance: "independent",
-        mobilityAids: "",
-        historyOfFalls: false,
-        dateOfLastFall: "",
-        toiletingAssistance: "independent",
-        continenceStatus: "continent",
-        nutritionalAssistance: "independent",
-        dietType: "",
-        swallowingDifficulties: false,
-        enteralNutrition: false,
-        mustScore: "",
-        personalHygieneAssistance: "independent",
-        topDentures: false,
-        bottomDentures: false,
-        denturesAccompanying: false,
-      },
-      skinMedicationAttachments: {
-        skinIntegrityAssistance: "independent",
-        bradenScore: "",
-        skinStateOnTransfer: "",
-        currentSkinCareRegime: "",
-        pressureRelievingEquipment: "",
-        knownToTVN: false,
-        tvnName: "",
-        currentMedicationRegime: "",
-        lastMedicationDateTime: now,
-        lastMealDrinkDateTime: now,
-        attachments: {
-          currentMedications: false,
-          bodyMap: false,
-          observations: false,
-          dnacprForm: false,
-          enteralFeedingRegime: false,
-          other: false,
-          otherSpecify: "",
-        },
-      },
-      signOff: {
-        signature: "",
-        printedName: "",
-        designation: "",
-        contactPhone: "",
-        completedDate: today,
-      },
-    }
-  });
-
-  // Transfer Log Form
-  const transferLogForm = useForm<TransferLogFormData>({
-    resolver: zodResolver(TransferLogSchema),
-    defaultValues: {
-      date: today,
-      time: "",
-      hospitalName: "",
-      reason: "",
-      outcome: "",
-      followUp: "",
-      filesChanged: {
-        carePlan: false,
-        riskAssessment: false,
-        other: "",
-      },
-      medicationChanges: {
-        medicationsAdded: false,
-        addedMedications: "",
-        medicationsRemoved: false,
-        removedMedications: "",
-        medicationsModified: false,
-        modifiedMedications: "",
-      },
-    },
-  });
-
-  const nextStep = () => {
-    if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const [editCurrentStep, setEditCurrentStep] = React.useState(1);
-
-  const editNextStep = () => {
-    if (editCurrentStep < totalSteps) {
-      setEditCurrentStep(editCurrentStep + 1);
-    }
-  };
-
-  const editPrevStep = () => {
-    if (editCurrentStep > 1) {
-      setEditCurrentStep(editCurrentStep - 1);
-    }
-  };
-
-  // Transfer Log step navigation
-  const transferLogNextStep = () => {
-    if (transferLogFormStep < 3) {
-      setTransferLogFormStep(transferLogFormStep + 1);
-    }
-  };
-
-  const transferLogPrevStep = () => {
-    if (transferLogFormStep > 1) {
-      setTransferLogFormStep(transferLogFormStep - 1);
-    }
-  };
-
-
-  // Format helper functions
-  const formatDateTime = (dateValue: string | number | Date) => {
-    if (!dateValue) return "Not specified";
-    const date = new Date(dateValue);
-    if (isNaN(date.getTime())) return String(dateValue);
-    return date.toLocaleString('en-GB', {
-      timeZone: 'Europe/London'
-    });
-  };
-
   const formatDate = (dateValue: string | number | Date) => {
     if (!dateValue) return "Not specified";
     const date = new Date(dateValue);
     if (isNaN(date.getTime())) return String(dateValue);
-    return date.toLocaleDateString('en-GB', {
-      timeZone: 'Europe/London'
-    });
-  };
-
-  const formatAssistanceLevel = (level: string) => {
-    if (!level) return "Not specified";
-    return level.charAt(0).toUpperCase() + level.slice(1);
+    return date.toLocaleDateString('en-GB', { timeZone: 'Europe/London' });
   };
 
   const handlePrintPassport = async (passport: any) => {
     if (!passport) return;
-
     try {
-      await generatePassportPDF({
-        passport,
-        resident,
-        orgLogoUrl
-      });
+      await generatePassportPDF({ passport, resident, orgLogoUrl });
       toast.success("Passport PDF generated");
     } catch (error) {
       console.error("Error generating passport PDF:", error);
@@ -560,28 +185,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const handleEditTransferLog = (log: any) => {
     setEditingTransferLog(log);
     setIsEditingTransferLog(true);
-    setTransferLogFormStep(1);
-    transferLogForm.reset({
-      date: log.date,
-      time: log.time || "",
-      hospitalName: log.hospitalName,
-      reason: log.reason,
-      outcome: log.outcome || "",
-      followUp: log.followUp || "",
-      filesChanged: log.filesChanged || {
-        carePlan: false,
-        riskAssessment: false,
-        other: "",
-      },
-      medicationChanges: log.medicationChanges || {
-        medicationsAdded: false,
-        addedMedications: "",
-        medicationsRemoved: false,
-        removedMedications: "",
-        medicationsModified: false,
-        modifiedMedications: "",
-      },
-    });
+    setActiveItem({ type: 'transfer-log', id: log._id, data: log });
   };
 
   const handleDeleteTransferLog = (log: any) => {
@@ -596,33 +200,24 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       await hospitalTransferService.deleteTransferLog(transferLogToDelete._id);
       toast.success("Transfer log deleted");
       setShowDeleteTransferLogDialog(false);
-      setTransferLogToDelete(null);
+      if (activeItem?.id === transferLogToDelete._id) setActiveItem(null);
       refreshData();
     } catch (error) {
-      console.error("Error deleting log", error);
       toast.error("Failed to delete log");
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const handleViewTransferLog = (log: any) => {
-    setSelectedTransferLog(log);
-    setIsViewTransferLogDialogOpen(true);
-  };
-
   const handleEditSubmit = async (data: HospitalPassportFormData) => {
-    if (!hospitalPassports[0]) return;
+    if (!activeItem?.data?._id) return;
     const updatingToast = toast.loading("Updating passport...");
     try {
-      await hospitalTransferService.updatePassport(hospitalPassports[0]._id, data);
+      await hospitalTransferService.updatePassport(activeItem.data._id, data);
       toast.success("Passport updated", { id: updatingToast });
       setIsEditingPassport(false);
-      setCurrentStep(1);
-      setEditCurrentStep(1);
       refreshData();
     } catch (error) {
-      console.error("Error updating passport", error);
       toast.error("Failed to update passport", { id: updatingToast });
     }
   };
@@ -639,10 +234,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       await hospitalTransferService.deletePassport(passportToDelete._id);
       toast.success("Passport deleted");
       setShowDeletePassportDialog(false);
-      setPassportToDelete(null);
+      if (activeItem?.id === passportToDelete._id) setActiveItem(null);
       refreshData();
     } catch (error) {
-      console.error("Error deleting passport", error);
       toast.error("Failed to delete passport");
     } finally {
       setIsDeleting(false);
@@ -650,47 +244,31 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   };
 
   const handleSubmit = async (data: HospitalPassportFormData) => {
-    if (!activeOrganizationId || !profile?.id) {
-      toast.error("Auth error: Missing organization or profile");
-      return;
-    }
+    if (!activeOrganizationId || !profile?.id) return;
     const creatingToast = toast.loading("Creating passport...");
     try {
-      console.log("Submitting passport:", { activeOrganizationId, profileId: profile?.id, data });
       await hospitalTransferService.createPassport({
         ...data,
         residentId: id,
         organizationId: activeOrganizationId,
         createdBy: profile.id
       });
-
       toast.success("Passport created successfully", { id: creatingToast });
-      form.reset();
-      setCurrentStep(1);
+      setActiveItem(null);
       refreshData();
     } catch (error) {
-      console.error("Error creating passport", error);
       toast.error("Failed to create passport", { id: creatingToast });
     }
   };
 
-  // Transfer Log submit handlers
-  const handleTransferLogSubmit = async (data: TransferLogFormData) => {
-    if (!activeOrganizationId || !profile?.id) {
-      toast.error("Auth error: Missing organization or profile");
-      return;
-    }
-
-    const toastMessage = isEditingTransferLog ? "Updating transfer log..." : "Creating transfer log...";
-    const savingToast = toast.loading(toastMessage);
-
+  const handleTransferLogSubmit = async (data: any) => {
+    if (!activeOrganizationId || !profile?.id) return;
+    const savingToast = toast.loading("Saving transfer log...");
     try {
       if (isEditingTransferLog && editingTransferLog) {
-        // Update existing transfer log
         await hospitalTransferService.updateTransferLog(editingTransferLog._id, data);
         toast.success("Transfer log updated", { id: savingToast });
       } else {
-        // Create new transfer log
         await hospitalTransferService.createTransferLog({
           ...data,
           residentId: id,
@@ -699,64 +277,37 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         });
         toast.success("Transfer log created", { id: savingToast });
       }
-
-      // Reset form and state
-      transferLogForm.reset();
-      setTransferLogFormStep(1);
-      setIsAddingTransferLog(false);
       setIsEditingTransferLog(false);
       setEditingTransferLog(null);
+      setActiveItem(null);
       refreshData();
     } catch (error) {
-      console.error("Error saving transfer log", error);
       toast.error("Failed to save transfer log", { id: savingToast });
     }
   };
 
-  const handleCancelTransferLog = () => {
-    transferLogForm.reset();
-    setTransferLogFormStep(1);
-    setIsAddingTransferLog(false);
-    setIsEditingTransferLog(false);
-    setEditingTransferLog(null);
-  };
-
-  // Body Map Handlers
-  const handleEditBodyMap = (bm: any) => {
-    setSelectedBodyMap(bm);
-    setCurrentBodyMapId(bm._id);
-    setIsBodyMapDialogOpen(true);
-  };
-
-  const [isDownloading, setIsDownloading] = useState(false);
-
-  const handleDownloadBodyMap = async (bm: any) => {
-    if (!bm.bodyMapData || !bm.bodyMapData.sessions || bm.bodyMapData.sessions.length === 0) {
-      toast.error("No data to download");
-      return;
-    }
-
-    setIsDownloading(true);
+  const handleBodyMapSave = async (bodyMapData: BodyMapData) => {
+    if (!activeOrganizationId || !profile?.id) return;
     try {
-      await generateBodyMapPDF({
-        residentName: fullName,
-        incidentDate: bm.date,
-        incidentType: "Hospital Passport Documentation",
-        currentSession: bm.bodyMapData.sessions[0],
-        orgLogoUrl
-      });
-      toast.success("PDF downloaded successfully");
+      const sessionLabel = bodyMapData.sessions?.[bodyMapData.sessions.length - 1]?.label || `Body Map ${new Date().toLocaleDateString()}`;
+      if (activeItem?.id !== 'new') {
+        await hospitalTransferService.updateBodyMap(activeItem!.id, { bodyMapData, label: sessionLabel });
+      } else {
+        await hospitalTransferService.createBodyMap({
+          residentId: id,
+          date: new Date().toISOString().split('T')[0],
+          label: sessionLabel,
+          bodyMapData,
+          organizationId: activeOrganizationId,
+          createdBy: profile.id
+        });
+      }
+      setActiveItem(null);
+      refreshData();
+      toast.success("Body map saved");
     } catch (error) {
-      console.error("Error downloading PDF:", error);
-      toast.error("Failed to download PDF");
-    } finally {
-      setIsDownloading(false);
+      toast.error("Failed to save body map");
     }
-  };
-
-  const handleDeleteBodyMap = (bm: any) => {
-    setBodyMapToDelete(bm);
-    setShowDeleteBodyMapDialog(true);
   };
 
   const confirmDeleteBodyMap = async () => {
@@ -766,138 +317,66 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
       await hospitalTransferService.deleteBodyMap(bodyMapToDelete._id);
       toast.success("Body map deleted");
       setShowDeleteBodyMapDialog(false);
-      setBodyMapToDelete(null);
+      if (activeItem?.id === bodyMapToDelete._id) setActiveItem(null);
       refreshData();
     } catch (error) {
-      console.error("Error deleting body map", error);
       toast.error("Failed to delete body map");
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const handleBodyMapSave = async (bodyMapData: BodyMapData) => {
-    if (!activeOrganizationId || !profile?.id) {
-      toast.error("Auth error: Missing organization or profile");
-      return;
-    }
-
+  const handleDownloadBodyMap = async (bm: any) => {
     try {
-      // Extract label from latest session if available
-      const sessions = bodyMapData.sessions || [];
-      const latestSession = sessions[sessions.length - 1];
-      const sessionLabel = latestSession?.label || `Body Map ${new Date().toLocaleDateString()}`;
-
-      if (selectedBodyMap) {
-        await hospitalTransferService.updateBodyMap(selectedBodyMap._id, {
-          bodyMapData,
-          label: sessionLabel
-        });
-      } else if (currentBodyMapId) {
-        // If we already created a record in this dialog session, update it instead of creating another
-        await hospitalTransferService.updateBodyMap(currentBodyMapId, {
-          bodyMapData,
-          label: sessionLabel
-        });
-      } else {
-        const today = new Date().toISOString().split('T')[0];
-        const newRecord = await hospitalTransferService.createBodyMap({
-          residentId: id,
-          date: today,
-          label: sessionLabel,
-          bodyMapData,
-          organizationId: activeOrganizationId,
-          createdBy: profile.id
-        });
-
-        // Store the ID so subsequent saves in this dialog session update this record
-        if (newRecord?.id) {
-          setCurrentBodyMapId(newRecord.id);
-        }
-      }
-      refreshData();
+      await generateBodyMapPDF({
+        residentName: fullName,
+        incidentDate: bm.date,
+        incidentType: "Hospital Passport Documentation",
+        currentSession: bm.bodyMapData.sessions[0],
+        orgLogoUrl
+      });
+      toast.success("PDF downloaded");
     } catch (error) {
-      console.error("Error saving body map", error);
-      throw error;
+      toast.error("Failed to download PDF");
     }
   };
 
-  // Step validation
-  const validateCurrentStep = async () => {
-    // Simplified validation logic relying on react-hook-form trigger
-    // In a real scenario, you map steps to fields like in the original file
-    // For brevity, we trigger validation on all fields for now or specific ones if needed
-
-    // Mapping fields based on step (Partial list from original)
-    const fields: any[] = [];
-    if (currentStep === 1) fields.push('generalDetails.personName', 'generalDetails.dateOfBirth');
-    // ... add more as per original logic if strict validation per step is needed
-
-    if (fields.length > 0) {
-      return await form.trigger(fields);
-    }
-    return true;
-  };
-
-  const handleNextStep = async () => {
-    // Add validation check here if needed
-    nextStep();
-  };
-
-  const handleEditNextStep = () => {
-    editNextStep();
-  };
-
-
-  // Sidebar state
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
-  const [activeView, setActiveView] = React.useState<'passport' | 'bodymap' | 'kardex' | 'transferlogs' | null>(null);
-
-  // Helper for age
-  const calculateAge = React.useCallback((dob: string) => {
-    if (!dob) return 'Unknown';
-    const birthDate = new Date(dob);
-    const diff = Date.now() - birthDate.getTime();
-    const ageDate = new Date(diff);
-    return Math.abs(ageDate.getUTCFullYear() - 1970);
-  }, []);
-
-  const currentAge = React.useMemo(() => calculateAge(resident?.dateOfBirth), [resident, calculateAge]);
-  const fullName = resident ? `${resident.firstName} ${resident.lastName}` : "";
-  const initials = resident ? `${resident.firstName[0]}${resident.lastName[0]}` : "";
+  const fullName = `${resident?.firstName || ""} ${resident?.lastName || ""}`.trim();
 
   if (isLoading || isProfileLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <div className="text-center animate-in fade-in duration-500">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-sm text-muted-foreground">Preparing clinical workspace...</p>
+        </div>
       </div>
     );
   }
 
-  if (!resident) {
-    return <div className="p-8 text-center">Resident not found</div>;
-  }
-
   return (
-    <div className="flex flex-col w-full relative h-[calc(100vh-theme(spacing.24))] bg-[#fafafa]">
-      {/* Top Bar - Attio Style */}
-      <div className="flex items-center gap-3 px-6 py-3.5 bg-white border-b border-neutral-200/60 flex-shrink-0">
+    <div className="flex flex-col gap-0 w-full relative h-[calc(100vh-theme(spacing.24))]">
+      {/* Top Bar */}
+      <div className="flex items-center gap-2 px-4 py-3 bg-background border-b flex-shrink-0">
         <button
           onClick={() => router.push(`/dashboard/residents/${id}`)}
-          className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-500 hover:text-neutral-900"
+          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <div className="flex flex-1 items-center gap-2 text-sm">
-          <span className="text-neutral-600 font-medium">Hospital Transfer</span>
-          {activeView && (
+        <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground overflow-hidden">
+          <span className="hover:text-foreground cursor-pointer whitespace-nowrap" onClick={() => router.push(`/dashboard/residents/${id}`)}>Residents</span> 
+          <span className="text-muted-foreground/30">/</span> 
+          <span className="hover:text-foreground cursor-pointer truncate" onClick={() => setActiveItem(null)}>{fullName}</span> 
+          <span className="text-muted-foreground/30">/</span> 
+          <span className="font-medium text-foreground whitespace-nowrap">Hospital Transfer</span>
+          {activeItem && (
             <>
-              <span className="text-neutral-300">/</span>
-              <span className="font-semibold text-neutral-900">
-                {activeView === 'passport' && 'Hospital Passport'}
-                {activeView === 'bodymap' && 'Body Map'}
-                {activeView === 'kardex' && 'Kardex'}
-                {activeView === 'transferlogs' && 'Transfer Logs'}
+              <span className="text-muted-foreground/30">/</span>
+              <span className="text-foreground font-medium whitespace-nowrap">
+                {activeItem.type === 'passport' ? 'Hospital Passport' :
+                 activeItem.type === 'transfer-log' ? 'Transfer Log' :
+                 activeItem.type === 'body-map' ? 'Body Map' : 'Kardex'}
               </span>
             </>
           )}
@@ -905,655 +384,268 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
 
         <Button
           variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
-          className="h-8 gap-2 text-xs font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
-          title="View all past transfer records and documents"
-        >
-          <Eye className="h-3.5 w-3.5" />
-          View All Records
-        </Button>
-        <Button
-          variant="ghost"
           size="icon"
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="h-8 w-8 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-all duration-200"
-          title={isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"}
+          className="h-9 w-9 text-muted-foreground hover:text-foreground"
         >
-          {isSidebarCollapsed ? (
-            <PanelRight className="h-4 w-4" />
-          ) : (
-            <PanelRightClose className="h-4 w-4" />
-          )}
+          {isSidebarCollapsed ? <PanelRight className="h-4.5 w-4.5" /> : <PanelRightClose className="h-4.5 w-4.5" />}
         </Button>
       </div>
 
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        <main className="flex-1 min-w-0 flex flex-col overflow-hidden bg-[#fafafa]">
-          {activeView === 'passport' ? (
-            <div className="flex-1 overflow-y-auto scrollbar-thin">
-              <div className="max-w-5xl mx-auto p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-50 rounded-lg border border-green-100">
-                      <FileText className="w-4 h-4 text-green-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-neutral-900">Hospital Passport</h2>
-                      {hospitalPassports.length > 0 && (
-                        <p className="text-xs text-neutral-500 mt-0.5">
-                          Viewing existing passport
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {hospitalPassports.length > 0 && !isEditingPassport && (
-                      <>
-                        <Button variant="ghost" size="sm" onClick={() => {
-                          setIsEditingPassport(true);
-                          editForm.reset({
-                            generalDetails: hospitalPassports[0].generalDetails,
-                            medicalCareNeeds: hospitalPassports[0].medicalCareNeeds,
-                            skinMedicationAttachments: hospitalPassports[0].skinMedicationAttachments,
-                            signOff: {
-                              ...hospitalPassports[0].signOff,
-                              printedName: profile?.name || "",
-                              signature: profile?.name || "",
-                              completedDate: new Date().toISOString().split('T')[0],
-                            },
-                          });
-                          setEditCurrentStep(1);
-                        }} className="gap-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 font-medium">
-                          <Edit className="w-3.5 h-3.5" /> Edit
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handlePrintPassport(hospitalPassports[0])} className="gap-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 font-medium">
-                          <Printer className="w-3.5 h-3.5" /> Print
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setActiveView(null);
-                        setIsEditingPassport(false);
-                        setCurrentStep(1);
-                        setEditCurrentStep(1);
-                      }}
-                      className="h-8 w-8 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="bg-white border border-neutral-200/60 rounded-xl shadow-sm p-5 sm:p-6">
-                  {hospitalPassports.length > 0 && !isEditingPassport ? (
-                    <ViewPassportInline
-                      passport={hospitalPassports[0]}
-                      resident={resident}
-                    />
-                  ) : (
-                    <HospitalPassportInlineForm
-                      form={hospitalPassports.length > 0 && isEditingPassport ? editForm : form}
-                      onSubmit={hospitalPassports.length > 0 && isEditingPassport ? handleEditSubmit : handleSubmit}
-                      residentName={fullName}
-                      currentStep={hospitalPassports.length > 0 && isEditingPassport ? editCurrentStep : currentStep}
-                      setCurrentStep={hospitalPassports.length > 0 && isEditingPassport ? setEditCurrentStep : setCurrentStep}
-                      handleNextStep={hospitalPassports.length > 0 && isEditingPassport ? handleEditNextStep : handleNextStep}
-                      prevStep={hospitalPassports.length > 0 && isEditingPassport ? editPrevStep : prevStep}
-                      isEditMode={hospitalPassports.length > 0 && isEditingPassport}
-                      onCancel={() => {
-                        setActiveView(null);
-                        setIsEditingPassport(false);
-                        setCurrentStep(1);
-                        setEditCurrentStep(1);
-                      }}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : activeView === 'bodymap' ? (
-            <div className="flex-1 overflow-y-auto scrollbar-thin">
-              <div className="max-w-5xl mx-auto p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-50 rounded-lg border border-purple-100">
-                      <MapIcon className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-neutral-900">Body Map</h2>
-                      <p className="text-xs text-neutral-500 mt-0.5">
-                        Document body marks and injuries
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedBodyMap(null);
-                        setCurrentBodyMapId(null);
-                        setIsBodyMapDialogOpen(true);
-                      }}
-                      className="gap-2 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 font-medium"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add New
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setActiveView(null)}
-                      className="h-8 w-8 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  {residentBodyMaps.length > 0 ? (
-                    <div className="space-y-4">
-                      <h3 className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Recent Body Maps</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {residentBodyMaps.map((bm: any) => {
-                          // Extract regions from entries
-                          const entries = bm.bodyMapData?.sessions?.[0]?.entries || [];
-                          const regions = [...new Set(entries.map((entry: any) => entry.region))].filter(Boolean);
-                          const displayName = regions.length > 0
-                            ? regions.length === 1
-                              ? `Region: ${regions[0]}`
-                              : `Regions: ${regions.join(', ')}`
-                            : bm.label || 'Body Map';
-
-                          return (
-                            <div
-                              key={bm._id}
-                              className="bg-white border border-neutral-200/60 rounded-xl p-3 hover:shadow-md hover:border-neutral-300/70 transition-all duration-200 cursor-pointer group"
-                              onClick={() => handleEditBodyMap(bm)}
-                            >
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <MapIcon className="w-3.5 h-3.5 text-purple-600" />
-                                  <h4 className="font-semibold text-xs text-neutral-900">{displayName}</h4>
-                                </div>
-                                <span className="text-[9px] font-medium text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded">
-                                  {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-neutral-500 flex items-center gap-1 mb-2">
-                                <Calendar className="w-2.5 h-2.5" />
-                                {formatDate(bm.date)}
-                              </p>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="flex-1 h-6 text-[10px] text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 px-2"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditBodyMap(bm);
-                                }}
-                              >
-                                <Edit className="w-2.5 h-2.5 mr-0.5" /> Edit
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-1.5 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDownloadBodyMap(bm);
-                                }}
-                                disabled={isDownloading}
-                              >
-                                <Download className="w-2.5 h-2.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-1.5 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteBodyMap(bm);
-                                }}
-                              >
-                                <Trash2 className="w-2.5 h-2.5" />
-                              </Button>
-                            </div>
-                          </div>
-                          );
-                        })}
+      <div className="flex flex-1 min-h-0 overflow-hidden bg-muted/5">
+        {/* Main Area */}
+        <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          {activeItem?.type === 'passport' ? (
+            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+              <div className="max-w-4xl mx-auto bg-background rounded-2xl border shadow-sm p-8 min-h-full">
+                <div className="flex items-center justify-between mb-8 border-b pb-6">
+                   <div className="flex items-center gap-4">
+                      <div className="p-3 bg-primary/10 rounded-2xl">
+                        <Ambulance className="w-6 h-6 text-primary" />
                       </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-50 border border-neutral-200/50 flex items-center justify-center mx-auto mb-3">
-                        <MapIcon className="w-6 h-6 text-neutral-400" />
+                      <div>
+                        <h2 className="text-xl font-bold">{activeItem.id === 'new' ? 'New Hospital Passport (SBAR)' : 'Hospital Passport'}</h2>
+                        <p className="text-xs text-muted-foreground mt-1">SBAR Communication Tool</p>
                       </div>
-                      <h3 className="text-sm font-semibold text-neutral-900 mb-1">No Body Maps Yet</h3>
-                      <p className="text-xs text-neutral-500 mb-4">
-                        Create your first body map to document marks and injuries
-                      </p>
-                      <Button
-                        onClick={() => {
-                          setSelectedBodyMap(null);
-                          setCurrentBodyMapId(null);
-                          setIsBodyMapDialogOpen(true);
-                        }}
-                        className="gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-medium h-9"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Create Body Map
-                      </Button>
-                    </div>
-                  )}
+                   </div>
+                   <Button variant="ghost" size="icon" onClick={() => setActiveItem(null)}><X className="w-5 h-5" /></Button>
                 </div>
-              </div>
-            </div>
-          ) : activeView === 'kardex' ? (
-            <div className="flex-1 overflow-y-auto scrollbar-thin">
-              <div className="max-w-6xl mx-auto p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-indigo-50 rounded-lg border border-indigo-100">
-                      <Pill className="w-4 h-4 text-indigo-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-neutral-900">Kardex</h2>
-                      <p className="text-xs text-neutral-500 mt-0.5">
-                        Medication Administration Record
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setActiveView(null)}
-                    className="h-8 w-8 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="bg-white border border-neutral-200/60 rounded-xl shadow-sm overflow-hidden">
-                  <KardexModal
-                    medications={medications}
-                    resident={{
-                      id: resident.id,
-                      first_name: resident.firstName,
-                      last_name: resident.lastName,
-                      date_of_birth: resident.dateOfBirth,
-                      room_number: resident.roomNumber,
-                      nhs_health_number: resident.nhsHealthNumber,
-                      image_url: resident.imageUrl,
-                      gp_name: resident.gpName,
-                      gp_address: resident.gpAddress,
-                    }}
-                    inlineMode={true}
+                {activeItem.id === 'new' || isEditingPassport ? (
+                  <HospitalPassportInlineForm
+                    resident={resident}
+                    onSubmit={isEditingPassport ? handleEditSubmit : handleSubmit}
+                    onCancel={() => { setIsEditingPassport(false); if(activeItem.id === 'new') setActiveItem(null); }}
+                    initialData={isEditingPassport ? activeItem.data : undefined}
+                    isEditing={isEditingPassport}
                   />
-                </div>
+                ) : (
+                  <ViewPassportInline
+                    passport={activeItem.data}
+                    resident={resident}
+                    onEdit={() => setIsEditingPassport(true)}
+                    onDelete={() => handleDeletePassport(activeItem.data)}
+                    onPrint={() => handlePrintPassport(activeItem.data)}
+                  />
+                )}
               </div>
             </div>
-          ) : activeView === 'transferlogs' ? (
-            <div className="flex-1 overflow-y-auto scrollbar-thin">
-              <div className="max-w-5xl mx-auto p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-50 rounded-lg border border-blue-100">
-                      <Ambulance className="w-4 h-4 text-blue-600" />
+          ) : activeItem?.type === 'transfer-log' ? (
+            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+              <div className="max-w-3xl mx-auto bg-background rounded-2xl border shadow-sm p-8">
+                 <div className="flex items-center justify-between mb-8 border-b pb-6">
+                    <div className="flex items-center gap-4">
+                       <div className="p-3 bg-primary/10 rounded-2xl">
+                         <ClipboardList className="w-6 h-6 text-primary" />
+                       </div>
+                       <h2 className="text-xl font-bold">{activeItem.id === 'new' ? 'Add Transfer Log' : 'Transfer Log Details'}</h2>
                     </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-neutral-900">Transfer Logs</h2>
-                      <p className="text-xs text-neutral-500 mt-0.5">
-                        Hospital transfer history and records
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setActiveView(null)}
-                    className="h-8 w-8 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="space-y-5">
-                    {(isAddingTransferLog || isEditingTransferLog) && (
-                      <TransferLogInlineForm
-                        form={transferLogForm}
-                        onSubmit={handleTransferLogSubmit}
-                        residentName={resident?.firstName + ' ' + resident?.lastName}
-                        currentStep={transferLogFormStep}
-                        setCurrentStep={setTransferLogFormStep}
-                        handleNextStep={transferLogNextStep}
-                        prevStep={transferLogPrevStep}
-                        isEditMode={isEditingTransferLog}
-                        onCancel={handleCancelTransferLog}
-                      />
-                    )}
-
-                    {transferLogs.length > 0 ? (
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Recent Transfers</h3>
-                          {!isAddingTransferLog && !isEditingTransferLog && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setIsAddingTransferLog(true);
-                                setTransferLogFormStep(1);
-                                transferLogForm.reset({
-                                  date: today,
-                                  time: "",
-                                  hospitalName: "",
-                                  reason: "",
-                                  outcome: "",
-                                  followUp: "",
-                                  filesChanged: {
-                                    carePlan: false,
-                                    riskAssessment: false,
-                                    other: "",
-                                  },
-                                  medicationChanges: {
-                                    medicationsAdded: false,
-                                    addedMedications: "",
-                                    medicationsRemoved: false,
-                                    removedMedications: "",
-                                    medicationsModified: false,
-                                    modifiedMedications: "",
-                                  },
-                                });
-                              }}
-                              className="gap-2 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 font-medium h-8"
-                            >
-                              <Plus className="w-3.5 h-3.5" /> Add Transfer Log
-                            </Button>
-                          )}
-                        </div>
-                        {transferLogs.slice(0, 20).map((log: any) => (
-                        <div
-                          key={log._id}
-                          className="bg-white border border-neutral-200/60 rounded-xl p-4 hover:shadow-md hover:border-neutral-300/70 transition-all duration-200 group"
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-start gap-3 flex-1">
-                              <div className="p-2 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-lg border border-blue-200/50">
-                                <Ambulance className="w-4 h-4 text-blue-600" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-sm text-neutral-900 mb-1">{log.hospitalName}</h3>
-                                <div className="flex flex-wrap gap-2.5 text-xs">
-                                  <span className="flex items-center gap-1 text-neutral-500">
-                                    <Calendar className="w-3 h-3" />
-                                    {formatDate(log.date)}
-                                  </span>
-                                  {log.time && (
-                                    <span className="flex items-center gap-1 text-neutral-500">
-                                      <Clock className="w-3 h-3" />
-                                      {log.time}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
-                                onClick={() => handleViewTransferLog(log)}
-                              >
-                                <Eye className="w-3 h-3 mr-1" /> View
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
-                                onClick={() => handleEditTransferLog(log)}
-                              >
-                                <Edit className="w-3 h-3 mr-1" /> Edit
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => handleDeleteTransferLog(log)}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="space-y-2 text-xs pl-[44px]">
-                            <div>
-                              <span className="font-medium text-neutral-500">Reason: </span>
-                              <span className="text-neutral-700">{log.reason}</span>
-                            </div>
-                            {log.outcome && (
-                              <div>
-                                <span className="font-medium text-neutral-500">Outcome: </span>
-                                <span className="text-neutral-700">{log.outcome}</span>
-                              </div>
-                            )}
-                            {log.followUp && (
-                              <div>
-                                <span className="font-medium text-neutral-500">Follow-up: </span>
-                                <span className="text-neutral-700">{log.followUp}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {transferLogs.length > 20 && (
-                        <div className="flex justify-center pt-4 mt-1">
-                          <Button
-                            variant="ghost"
-                            onClick={() => router.push(`/dashboard/residents/${id}/hospital-transfer/documents` as any)}
-                            className="gap-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 font-medium h-9"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            View All {transferLogs.length} Transfer Logs
-                          </Button>
-                        </div>
-                      )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-50 border border-neutral-200/50 flex items-center justify-center mx-auto mb-3">
-                          <Ambulance className="w-6 h-6 text-neutral-400" />
-                        </div>
-                        <h3 className="text-sm font-semibold text-neutral-900 mb-1">No Transfer Logs Yet</h3>
-                        <p className="text-xs text-neutral-500">
-                          Add your first transfer log to track hospital visits
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                    <Button variant="ghost" size="icon" onClick={() => setActiveItem(null)}><X className="w-5 h-5" /></Button>
+                 </div>
+                 {activeItem.id === 'new' || isEditingTransferLog ? (
+                   <TransferLogInlineForm
+                     onSubmit={handleTransferLogSubmit}
+                     onCancel={() => { setIsEditingTransferLog(false); if(activeItem.id === 'new') setActiveItem(null); }}
+                     isEditing={isEditingTransferLog}
+                     initialData={isEditingTransferLog ? activeItem.data : undefined}
+                   />
+                  ) : (
+                    <ViewTransferLogInline
+                      log={activeItem.data}
+                      onEdit={() => handleEditTransferLog(activeItem.data)}
+                      onDelete={() => handleDeleteTransferLog(activeItem.data)}
+                      formatDate={formatDate}
+                    />
+                 )}
+              </div>
+            </div>
+          ) : activeItem?.type === 'body-map' ? (
+            <div className="flex-1 overflow-hidden bg-background">
+              <BodyMapWorkspace
+                residentName={fullName}
+                initialData={activeItem.data?.bodyMapData}
+                onSave={handleBodyMapSave}
+                simpleMode={true}
+                orgLogoUrl={orgLogoUrl}
+                onClose={() => setActiveItem(null)}
+              />
+            </div>
+          ) : activeItem?.type === 'kardex' ? (
+            <div className="flex-1 bg-background flex flex-col h-full overflow-hidden">
+               <div className="flex items-center justify-between px-6 py-4 border-b">
+                 <h2 className="text-xl font-bold flex items-center gap-3"><Pill className="w-6 h-6 text-primary" /> Resident Kardex</h2>
+                 <Button variant="ghost" size="icon" onClick={() => setActiveItem(null)}><X className="w-5 h-5" /></Button>
+               </div>
+               <div className="flex-1 overflow-hidden">
+                 <KardexModal
+                   resident={resident}
+                   medications={medications}
+                   inlineMode={true}
+                 />
+               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 border border-neutral-200/50 flex items-center justify-center mb-2">
-                <FileText className="w-8 h-8 text-neutral-400" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-neutral-900 mb-1.5">Select a form or document</h3>
-                <p className="max-w-xs text-sm text-neutral-500">
-                  Choose a form from the sidebar to view or create hospital transfer documentation.
-                </p>
-              </div>
+            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+               <div className="w-24 h-24 rounded-[2.5rem] bg-background border shadow-xl shadow-primary/5 flex items-center justify-center mb-6">
+                 <Ambulance className="w-10 h-10 text-primary/40" />
+               </div>
+               <h3 className="text-2xl font-bold mb-2">Hospital transfer records</h3>
+               <p className="max-w-md text-muted-foreground leading-relaxed">
+                 Select a hospital passport, transfer log, or clinical record from the sidebar to begin documenting.
+               </p>
             </div>
           )}
         </main>
 
-        {/* Right Sidebar - Attio Style */}
-        <aside className={`flex-shrink-0 border-l border-neutral-200/60 bg-white h-full transition-all duration-300 ease-in-out ${
-          isSidebarCollapsed ? "w-0 opacity-0 invisible" : "w-[220px] opacity-100"
-        } overflow-y-auto overflow-x-hidden p-4`}>
+        {/* Sidebar */}
+        <aside className={`flex-shrink-0 border-l bg-background transition-all duration-300 ease-in-out ${isSidebarCollapsed ? "w-0 opacity-0 invisible" : "w-[200px] opacity-100"} overflow-y-auto p-3`}>
           <div className="flex flex-col gap-6">
-            {/* Forms Section */}
-            <div>
-              <div className="flex items-center justify-between px-2 mb-3">
-                <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">Forms</p>
+            {/* Hospital Passport */}
+            <section>
+              <div className="flex items-center justify-between px-1 mb-2">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Hospital Passports</p>
+                <Button variant="ghost" size="icon" className="h-5 w-5 text-primary" onClick={() => { setIsEditingPassport(false); setActiveItem({ type: 'passport', id: 'new' }); }}><Plus className="h-3 w-3" /></Button>
               </div>
               <div className="flex flex-col gap-1">
-                <button
-                  onClick={() => {
-                    setActiveView('passport');
-                  }}
-                  className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
-                    activeView === 'passport'
-                      ? "bg-neutral-100 text-neutral-900"
-                      : "hover:bg-neutral-50 text-neutral-700"
-                  }`}
-                >
-                  <FileText className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeView === 'passport' ? 'text-neutral-900' : 'text-neutral-400'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold leading-tight mb-1">Hospital Passport</p>
-                    <span className={`text-[10px] font-medium ${hospitalPassports.length > 0 ? 'text-green-600' : 'text-neutral-400'}`}>
-                      {hospitalPassports.length > 0 ? 'Complete' : 'Not started'}
-                    </span>
+                {hospitalPassports.length > 0 ? (
+                  hospitalPassports.map(p => (
+                    <div key={p._id} className="group relative">
+                      <button 
+                        onClick={() => { setIsEditingPassport(false); setActiveItem({ type: 'passport', id: p._id, data: p }); }} 
+                        className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeItem?.id === p._id ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-muted/60 text-foreground"}`}
+                      >
+                        <CircleDashed className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeItem?.id === p._id ? "text-primary" : "text-muted-foreground/70"}`} />
+                        <div className="min-w-0 pr-6">
+                          <p className="text-xs font-semibold leading-tight">Hospital Passport</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(p.created_at)}</p>
+                        </div>
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setPassportToDelete(p); setShowDeletePassportDialog(true); }}
+                        className="absolute right-2 top-1.5 p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-2 py-3 border border-dashed rounded-lg text-center">
+                    <p className="text-[10px] text-muted-foreground italic">No passports found</p>
                   </div>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setActiveView('bodymap');
-                  }}
-                  className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
-                    activeView === 'bodymap'
-                      ? "bg-neutral-100 text-neutral-900"
-                      : "hover:bg-neutral-50 text-neutral-700"
-                  }`}
-                >
-                  <MapIcon className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeView === 'bodymap' ? 'text-neutral-900' : 'text-neutral-400'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold leading-tight mb-1">Body Map</p>
-                    <span className={`text-[10px] font-medium ${residentBodyMaps.length > 0 ? 'text-green-600' : 'text-neutral-400'}`}>
-                      {residentBodyMaps.length > 0 ? 'Complete' : 'Not started'}
-                    </span>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setActiveView('kardex');
-                  }}
-                  className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
-                    activeView === 'kardex'
-                      ? "bg-neutral-100 text-neutral-900"
-                      : "hover:bg-neutral-50 text-neutral-700"
-                  }`}
-                >
-                  <Pill className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeView === 'kardex' ? 'text-neutral-900' : 'text-neutral-400'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold leading-tight mb-1">Kardex</p>
-                    <span className={`text-[10px] font-medium ${medications.length > 0 ? 'text-blue-600' : 'text-neutral-400'}`}>
-                      {medications.length > 0 ? `${medications.length} medications` : 'Empty'}
-                    </span>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setActiveView('transferlogs');
-                  }}
-                  className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
-                    activeView === 'transferlogs'
-                      ? "bg-neutral-100 text-neutral-900"
-                      : "hover:bg-neutral-50 text-neutral-700"
-                  }`}
-                >
-                  <Ambulance className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeView === 'transferlogs' ? 'text-neutral-900' : 'text-neutral-400'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold leading-tight mb-1">Transfer Logs</p>
-                    <span className={`text-[10px] font-medium ${transferLogs.length > 0 ? 'text-blue-600' : 'text-neutral-400'}`}>
-                      {transferLogs.length > 0 ? `${transferLogs.length} logs` : 'Empty'}
-                    </span>
-                  </div>
-                </button>
+                )}
               </div>
-            </div>
+            </section>
+
+            {/* Hospital Transfer */}
+            <section>
+              <div className="flex items-center justify-between px-1 mb-2">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Hospital Transfers</p>
+                <Button variant="ghost" size="icon" className="h-5 w-5 text-primary" onClick={() => { setIsEditingTransferLog(false); setActiveItem({ type: 'transfer-log', id: 'new' }); }}><Plus className="h-3 w-3" /></Button>
+              </div>
+              <div className="flex flex-col gap-1">
+                {transferLogs.length > 0 ? (
+                  transferLogs.map(log => (
+                    <div key={log._id} className="group relative">
+                      <button 
+                        onClick={() => { setIsEditingTransferLog(false); setActiveItem({ type: 'transfer-log', id: log._id, data: log }); }} 
+                        className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeItem?.id === log._id ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-muted/60 text-foreground"}`}
+                      >
+                        <CircleDashed className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeItem?.id === log._id ? "text-primary" : "text-muted-foreground/70"}`} />
+                        <div className="min-w-0 pr-6">
+                          <p className="text-xs font-semibold leading-tight truncate">{log.hospitalName}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(log.date)}</p>
+                        </div>
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setTransferLogToDelete(log); setShowDeleteTransferLogDialog(true); }}
+                        className="absolute right-2 top-1.5 p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-2 py-3 border border-dashed rounded-lg text-center">
+                    <p className="text-[10px] text-muted-foreground italic">No transfer logs found</p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Body Map */}
+            <section>
+              <div className="flex items-center justify-between px-1 mb-2">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Body Maps</p>
+                <Button variant="ghost" size="icon" className="h-5 w-5 text-primary" onClick={() => { setActiveItem({ type: 'body-map', id: 'new' }); }}><Plus className="h-3 w-3" /></Button>
+              </div>
+              <div className="flex flex-col gap-1">
+                {residentBodyMaps.length > 0 ? (
+                  residentBodyMaps.map(bm => (
+                    <div key={bm._id} className="group relative">
+                      <button 
+                        onClick={() => { setActiveItem({ type: 'body-map', id: bm._id, data: bm }); }} 
+                        className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeItem?.id === bm._id ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-muted/60 text-foreground"}`}
+                      >
+                        <CircleDashed className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeItem?.id === bm._id ? "text-primary" : "text-muted-foreground/70"}`} />
+                        <div className="min-w-0 pr-6">
+                          <p className="text-xs font-semibold leading-tight mb-0.5 truncate">{bm.label || "Observation"}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{formatDate(bm.date || bm.created_at)}</p>
+                        </div>
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setBodyMapToDelete(bm); setShowDeleteBodyMapDialog(true); }}
+                        className="absolute right-2 top-1.5 p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-2 py-3 border border-dashed rounded-lg text-center">
+                    <p className="text-[10px] text-muted-foreground italic">No body maps found</p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Kardex */}
+            <section>
+              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1 mb-2">Medication Record</p>
+              <button 
+                onClick={() => setActiveItem({ type: 'kardex', id: 'view' })} 
+                className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeItem?.type === 'kardex' ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-muted/60 text-foreground"}`}
+              >
+                <CircleDashed className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeItem?.type === 'kardex' ? "text-primary" : "text-muted-foreground/70"}`} />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold leading-tight">Resident Kardex</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Current Record</p>
+                </div>
+              </button>
+            </section>
           </div>
         </aside>
       </div>
 
-      {/* Dialogs */}
-      <TransferLogDialog
-        open={isTransferLogDialogOpen}
-        onOpenChange={setIsTransferLogDialogOpen}
-        onSubmit={handleTransferLogSubmit}
-        residentName={fullName}
-      />
-
-      <TransferLogDialog
-        open={isEditTransferLogDialogOpen}
-        onOpenChange={setIsEditTransferLogDialogOpen}
-        onSubmit={handleTransferLogSubmit}
-        residentName={fullName}
-        transferLog={editingTransferLog}
-        isEditMode={true}
-      />
-
-      <ViewTransferLogDialog
-        open={isViewTransferLogDialogOpen}
-        onOpenChange={setIsViewTransferLogDialogOpen}
-        transferLog={selectedTransferLog}
-        residentName={fullName}
-        currentUser={profile}
-      />
-
-      {/* Alert Dialogs for Deletion */}
+      {/* Delete Dialogs */}
       <AlertDialog open={showDeletePassportDialog} onOpenChange={setShowDeletePassportDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Passport?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeletePassport} className="bg-red-600">Delete</AlertDialogAction>
-          </AlertDialogFooter>
+        <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
+          <AlertDialogHeader><AlertDialogTitle className="text-xl font-bold">Delete record?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel className="rounded-2xl h-12">Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDeletePassport} className="rounded-2xl h-12 bg-destructive hover:bg-destructive/90">Delete Permanently</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       <AlertDialog open={showDeleteTransferLogDialog} onOpenChange={setShowDeleteTransferLogDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Transfer Log?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteTransferLog} className="bg-red-600">Delete</AlertDialogAction>
-          </AlertDialogFooter>
+        <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
+          <AlertDialogHeader><AlertDialogTitle className="text-xl font-bold">Delete transfer log?</AlertDialogTitle><AlertDialogDescription>This will permanently remove the record.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel className="rounded-2xl h-12">Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDeleteTransferLog} className="rounded-2xl h-12 bg-destructive hover:bg-destructive/90">Delete Log</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       <AlertDialog open={showDeleteBodyMapDialog} onOpenChange={setShowDeleteBodyMapDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Body Map?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteBodyMap} className="bg-red-600">Delete</AlertDialogAction>
-          </AlertDialogFooter>
+        <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
+          <AlertDialogHeader><AlertDialogTitle className="text-xl font-bold">Remove body map?</AlertDialogTitle><AlertDialogDescription>This will delete all observations associated with this record.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel className="rounded-2xl h-12">Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDeleteBodyMap} className="rounded-2xl h-12 bg-destructive hover:bg-destructive/90">Remove Record</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <BodyMapDialog
-        isOpen={isBodyMapDialogOpen}
-        onClose={() => setIsBodyMapDialogOpen(false)}
-        residentName={fullName}
-        initialData={selectedBodyMap?.bodyMapData}
-        onSave={handleBodyMapSave}
-        incidentType="Hospital Passport Documentation"
-        incidentDate={selectedBodyMap?.date}
-        orgLogoUrl={orgLogoUrl}
-      />
     </div>
   );
 }

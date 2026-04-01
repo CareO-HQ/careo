@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { FileText, Printer, X } from "lucide-react";
 
-// ΓöÇΓöÇΓöÇ Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// --- Types ---------------------------------------------------------------------------------------------------------------------------------------------------
 
 interface Medication {
   id: string;
@@ -56,7 +56,7 @@ interface KardexModalProps {
 
 const UK_TIMEZONE = "Europe/London";
 
-// ΓöÇΓöÇΓöÇ Time Slots Configuration ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// --- Time Slots Configuration ---------------------------------------------------------------------------------
 
 const TIME_SLOTS: Record<string, string[]> = {
   Morning: ["08:00", "10:00", "12:00"],
@@ -64,7 +64,7 @@ const TIME_SLOTS: Record<string, string[]> = {
   Evening: ["22:00", "00:00"],
 };
 
-// ΓöÇΓöÇΓöÇ Print styles injected into popup window ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// --- Print styles injected into popup window -----------------------------------------------------------------
 // These re-implement the Tailwind classes used in KardexPrintView so the
 // popup window (which has no Tailwind stylesheet) renders correctly.
 
@@ -157,7 +157,7 @@ const PRINT_STYLES = `
   .text-xs { font-size: 10px; }
 `;
 
-// ΓöÇΓöÇΓöÇ Kardex Print View ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// --- Kardex Print View ---------------------------------------------------------------------------------------
 
 function KardexPrintView({ medications, resident }: KardexModalProps) {
   const now = toZonedTime(new Date(), UK_TIMEZONE);
@@ -185,7 +185,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
       {/* Header */}
       <div className="border-2 border-black mb-2">
         <div className="bg-gray-800 text-white text-center py-1.5">
-          <h1 className="text-sm font-bold tracking-wide">MEDICATION ADMINISTRATION RECORD (MAR)</h1>
+          <h1 className="text-sm font-bold tracking-wide">KARDEX</h1>
         </div>
         <div className="grid grid-cols-3 border-t border-black">
           <div className="p-2 border-r border-black flex items-center gap-2">
@@ -197,7 +197,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                   className="w-20 h-20 rounded-full object-cover border border-gray-300"
                 />
                 <p className="text-[7px] text-gray-400 mt-0.5 leading-tight">
-                  {resident.updated_at ? format(new Date(resident.updated_at), "dd/MM/yyyy") : "ΓÇö"}
+                  {resident.updated_at ? format(new Date(resident.updated_at), "dd/MM/yyyy") : "-"}
                 </p>
               </div>
             ) : null}
@@ -211,16 +211,16 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
               <div>
                 <p className="text-[9px] text-gray-500 uppercase font-semibold">DOB</p>
                 <p className="font-medium">
-                  {resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : "ΓÇö"}
+                  {resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : "-"}
                 </p>
               </div>
               <div>
                 <p className="text-[9px] text-gray-500 uppercase font-semibold">Room</p>
-                <p className="font-medium">{resident.room_number || "ΓÇö"}</p>
+                <p className="font-medium">{resident.room_number || "-"}</p>
               </div>
               <div>
                 <p className="text-[9px] text-gray-500 uppercase font-semibold">NHS No.</p>
-                <p className="font-medium">{resident.nhs_health_number || "ΓÇö"}</p>
+                <p className="font-medium">{resident.nhs_health_number || "-"}</p>
               </div>
               <div>
                 <p className="text-[9px] text-gray-500 uppercase font-semibold">Month</p>
@@ -232,7 +232,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <p className="text-[9px] text-gray-500 uppercase font-semibold">GP Name</p>
-                <p className="font-medium">{resident.gp_name || "ΓÇö"}</p>
+                <p className="font-medium">{resident.gp_name || "-"}</p>
               </div>
               <div>
                 <p className="text-[9px] text-gray-500 uppercase font-semibold">Signature of GP</p>
@@ -241,7 +241,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
             </div>
             <div className="mt-1">
               <p className="text-[9px] text-gray-500 uppercase font-semibold">Health Centre</p>
-              <p className="font-medium">{resident.gp_address || "ΓÇö"}</p>
+              <p className="font-medium">{resident.gp_address || "-"}</p>
             </div>
           </div>
         </div>
@@ -260,7 +260,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                 <th className="border border-black px-1 py-0.5 text-left w-[50px]" rowSpan={2}>Strength</th>
                 <th className="border border-black px-1 py-0.5 text-left w-[45px]" rowSpan={2}>Route</th>
                 <th className="border border-black px-1 py-0.5 text-left w-[70px]" rowSpan={2}>Prescriber</th>
-                <th className="border border-black px-1 py-0.5 text-left w-[55px]" rowSpan={2}>Start ΓÇô End</th>
+                <th className="border border-black px-1 py-0.5 text-left w-[55px]" rowSpan={2}>Start - End</th>
                 {timeSlotEntries.map(([period, times]) => (
                   <th key={period} colSpan={times.length} className="border border-black text-center px-1 py-0.5 font-bold">
                     {period}
@@ -288,15 +288,15 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                   <tr key={med.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                     <td className="border border-black px-1 py-0.5 align-top">
                       <p className="font-bold leading-tight">{med.name}</p>
-                      {med.is_controlled_drug && <p className="text-red-700 font-bold">ΓÜá CD</p>}
+                      {med.is_controlled_drug && <p className="text-red-700 font-bold">⚠️ CD</p>}
                     </td>
                     <td className="border border-black px-1 py-0.5 align-top text-gray-600">
                       {med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""}
                     </td>
-                    <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.route || "ΓÇö"}</td>
-                    <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "ΓÇö"}</td>
+                    <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.route || "-"}</td>
+                    <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "-"}</td>
                     <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight">
-                      <div>{med.start_date ? format(new Date(med.start_date), "dd/MM/yy") : "ΓÇö"}</div>
+                      <div>{med.start_date ? format(new Date(med.start_date), "dd/MM/yy") : "-"}</div>
                       <div>{med.end_date ? format(new Date(med.end_date), "dd/MM/yy") : "Ongoing"}</div>
                     </td>
                     {timeSlotEntries.map(([period, times]) =>
@@ -326,7 +326,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                                 <p className="text-[7px] text-gray-600">{getUnitLabel()}</p>
                               </div>
                             ) : (
-                              <span className="text-gray-300 text-[7px]">ΓÇö</span>
+                              <span className="text-gray-300 text-[7px]">-</span>
                             )}
                           </td>
                         );
@@ -373,9 +373,9 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                     <p className="font-bold leading-tight">{med.name}</p>
                     <p className="text-gray-600">{med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""} {med.dosage_form}</p>
                   </td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "ΓÇö"}</td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600"><div>{med.frequency || "ΓÇö"}</div></td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "ΓÇö"}</td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "-"}</td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600"><div>{med.frequency || "-"}</div></td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "-"}</td>
                   {timeSlotEntries.map(([period, times]) =>
                     times.map((time) => (
                       <td key={`${period}-${time}`} className="border border-black text-center align-top" style={{ minWidth: "22px", height: "32px" }} />
@@ -422,11 +422,11 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                     <p className="font-bold leading-tight">{med.name}</p>
                     <p className="text-gray-600">{med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""} {med.dosage_form}</p>
                     {med.route && <p className="text-gray-500">Route: {med.route}</p>}
-                    {med.is_controlled_drug && <p className="text-red-700 font-bold">ΓÜá CD</p>}
+                    {med.is_controlled_drug && <p className="text-red-700 font-bold">⚠️ CD</p>}
                   </td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "ΓÇö"}</td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight"><div>{med.frequency || "ΓÇö"}</div></td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "ΓÇö"}</td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "-"}</td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight"><div>{med.frequency || "-"}</div></td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "-"}</td>
                   {timeSlotEntries.map(([period, times]) =>
                     times.map((time) => (
                       <td key={`${period}-${time}`} className="border border-black text-center align-top" style={{ minWidth: "22px", height: "32px" }} />
@@ -473,9 +473,9 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                     <p className="text-gray-600">{med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""} {med.dosage_form}</p>
                     {med.route && <p className="text-gray-500">Route: {med.route}</p>}
                   </td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "ΓÇö"}</td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight"><div>{med.frequency || "ΓÇö"}</div></td>
-                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "ΓÇö"}</td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "-"}</td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight"><div>{med.frequency || "-"}</div></td>
+                  <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "-"}</td>
                   {timeSlotEntries.map(([period, times]) =>
                     times.map((time) => (
                       <td key={`${period}-${time}`} className="border border-black text-center align-top" style={{ minWidth: "22px", height: "32px" }} />
@@ -510,13 +510,13 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
 
       {/* Footer */}
       <div className="mt-1 text-[8px] text-gray-400 text-center">
-        Generated {format(now, "dd/MM/yyyy HH:mm")} ΓÇö CareO Home Management
+        Generated {format(now, "dd/MM/yyyy HH:mm")} - CareO Home Management
       </div>
     </div>
   );
 }
 
-// ΓöÇΓöÇΓöÇ Modal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// --- Modal ---------------------------------------------------------------------------------------------------------------------------------------------------
 
 export default function KardexModal({
   medications,
@@ -541,7 +541,7 @@ export default function KardexModal({
 
     printWindow.document.write(
       `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>` +
-        `<title>Medication Kardex \u2013 ${resident.first_name} ${resident.last_name}</title>` +
+        `<title>Medication Kardex - ${resident.first_name} ${resident.last_name}</title>` +
         `<style>${PRINT_STYLES}</style></head><body>${el.innerHTML}</body></html>`
     );
     printWindow.document.close();
@@ -552,15 +552,15 @@ export default function KardexModal({
     }, 500);
   };
 
-  // ΓöÇΓöÇ Inline mode ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --- Inline mode -------------------------------------------------------------------------------------------
   if (inlineMode) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 h-full">
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-semibold">Medication Administration Record (MAR)</p>
+            <p className="font-semibold">KARDEX</p>
             <p className="text-sm text-muted-foreground">
-              {activeMeds.length} active medication{activeMeds.length !== 1 ? "s" : ""} ΓÇö{" "}
+              {activeMeds.length} active medication{activeMeds.length !== 1 ? "s" : ""} -{" "}
               {new Date().toLocaleString("en-GB", { month: "long", year: "numeric" })}
             </p>
           </div>
@@ -579,7 +579,7 @@ export default function KardexModal({
             <p className="text-xs text-muted-foreground">Add active medications to generate a kardex.</p>
           </div>
         ) : (
-          <div className="overflow-auto rounded border bg-white shadow-sm">
+          <div className="overflow-auto rounded border bg-white shadow-sm flex-1 min-h-0">
             <div className="p-4" ref={printRef}>
               <KardexPrintView medications={medications} resident={resident} />
             </div>
@@ -589,7 +589,7 @@ export default function KardexModal({
     );
   }
 
-  // ΓöÇΓöÇ Dialog mode ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --- Dialog mode -------------------------------------------------------------------------------------------
   return (
     <>
       <Button variant="outline" onClick={() => setOpen(true)}>
@@ -606,7 +606,7 @@ export default function KardexModal({
           <DialogHeader className="px-4 py-3 border-b flex-shrink-0">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-base">
-                Medication Kardex ΓÇö {resident.first_name} {resident.last_name}
+                Medication Kardex - {resident.first_name} {resident.last_name}
               </DialogTitle>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">

@@ -1,6 +1,7 @@
 import React from "react";
-import { UseFormReturn } from "react-hook-form";
-import { HospitalPassportFormData } from "./types";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { HospitalPassportFormData, HospitalPassportSchema } from "./types";
 import {
   Form,
   FormControl,
@@ -57,27 +58,96 @@ const FormLabelRequired = ({ children, required = false }: { children: React.Rea
 );
 
 interface HospitalPassportInlineFormProps {
-  form: UseFormReturn<HospitalPassportFormData>;
+  resident: any;
   onSubmit: (data: HospitalPassportFormData) => void;
-  residentName: string;
-  currentStep: number;
-  setCurrentStep: (step: number) => void;
-  handleNextStep: () => void;
-  prevStep: () => void;
-  isEditMode?: boolean;
   onCancel: () => void;
+  initialData?: any;
+  isEditing?: boolean;
 }
 
 export function HospitalPassportInlineForm({
-  form,
+  resident,
   onSubmit,
-  residentName,
-  currentStep,
-  handleNextStep,
-  prevStep,
-  isEditMode = false,
   onCancel,
+  initialData,
+  isEditing = false,
 }: HospitalPassportInlineFormProps) {
+  const [currentStep, setCurrentStep] = React.useState(1);
+  const totalSteps = 13;
+
+  const form = useForm<HospitalPassportFormData>({
+    resolver: zodResolver(HospitalPassportSchema),
+    defaultValues: initialData || {
+      generalDetails: {
+        personName: `${resident?.firstName || ""} ${resident?.lastName || ""}`.trim(),
+        knownAs: "",
+        dateOfBirth: resident?.dateOfBirth || "",
+        nhsNumber: resident?.nhsHealthNumber || "",
+        religion: "",
+        weightOnTransfer: "",
+        careType: "residential",
+        transferDateTime: new Date().toISOString().slice(0, 16),
+        accompaniedBy: "",
+        englishFirstLanguage: "yes",
+        firstLanguage: "",
+        careHomeName: "",
+        careHomePhone: "",
+        careHomeAddress: "",
+        hospitalName: "",
+        hospitalPhone: "",
+        hospitalAddress: "",
+        nextOfKinName: resident?.contacts?.find((c: any) => c.is_next_of_kin)?.name || "",
+        nextOfKinPhone: resident?.contacts?.find((c: any) => c.is_next_of_kin)?.phone || "",
+        nextOfKinAddress: "",
+        gpName: resident?.gpName || "",
+        gpPhone: resident?.gpPhone || "",
+        gpAddress: resident?.gpAddress || "",
+        careManagerName: "",
+        careManagerPhone: "",
+        careManagerAddress: "",
+      },
+      medicalCareNeeds: {
+        situation: "",
+        background: "",
+        assessment: "",
+        recommendations: "",
+        pastMedicalHistory: "",
+        knownAllergies: "",
+        historyOfConfusion: "no",
+        learningDisabilityMentalHealth: "",
+        communicationIssues: "",
+        hearingAid: false,
+        glasses: false,
+        otherAids: "",
+        mobilityAssistance: "independent",
+        continenceNeeds: "independent",
+        skinIntegrityNotes: "",
+        pressureUlcerRisk: "low",
+        hasExistingPressureUlcers: false,
+        existingPressureUlcersDetails: "",
+        nutritionalNeeds: "",
+        requiresFeedingAssistance: false,
+        swallowingIssues: false,
+        painManagement: "",
+        endOfLifeCareStatus: "no",
+        dnarStatus: "no",
+        advanceDirectiveStatus: "no",
+        additionalNotes: "",
+      },
+      signOff: {
+        printedName: "",
+        signature: "",
+        completedDate: new Date().toISOString().split('T')[0],
+      }
+    }
+  });
+
+  const prevStep = () => { if (currentStep > 1) setCurrentStep(currentStep - 1); };
+  const handleNextStep = async () => {
+    // We could add step-specific validation here if needed
+    if (currentStep < totalSteps) setCurrentStep(currentStep + 1);
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
@@ -1652,7 +1722,7 @@ export function HospitalPassportInlineForm({
           </Button>
 
           <Button type="submit">
-              {isEditMode ? "Update Passport" : "Generate Passport"}
+              {isEditing ? "Update Passport" : "Generate Passport"}
               <Check className="w-4 h-4 ml-2" />
             </Button>
         </div>

@@ -6,9 +6,12 @@ import { CheckCircle, XCircle } from "lucide-react";
 interface ViewPassportInlineProps {
   passport: any;
   resident?: any;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onPrint?: () => void;
 }
 
-export function ViewPassportInline({ passport, resident }: ViewPassportInlineProps) {
+export function ViewPassportInline({ passport, resident, onEdit, onDelete, onPrint }: ViewPassportInlineProps) {
   if (!passport) return null;
 
   const formatDateTime = (dateValue: string | number | Date) => {
