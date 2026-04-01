@@ -29,30 +29,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   ArrowLeft,
   Search,
   Calendar,
   FileText,
   Filter,
   Download,
-  Eye,
   ChevronLeft,
   ChevronRight,
   Activity,
-  User,
-  Clock,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
-import { formatTimestampToUKTime, formatTimestampToUKDateTime, formatDateForDisplay, UK_TIMEZONE } from "@/lib/date-utils";
+import { formatTimestampToUKTime, UK_TIMEZONE } from "@/lib/date-utils";
 
 type DailyCareDocumentsPageProps = {
   params: Promise<{ id: string }>;
@@ -65,17 +56,38 @@ function getDayKey(timestamp: string | Date): string {
   // Convert to UK timezone
   const ukDate = toZonedTime(date, UK_TIMEZONE);
   const hour = ukDate.getHours();
-  
+
   // If before 8am, it belongs to previous day
   if (hour < 8) {
     const prevDay = new Date(ukDate);
     prevDay.setDate(prevDay.getDate() - 1);
     return formatInTimeZone(prevDay, UK_TIMEZONE, 'yyyy-MM-dd');
   }
-  
+
   // Otherwise, it belongs to current day
   return formatInTimeZone(ukDate, UK_TIMEZONE, 'yyyy-MM-dd');
 }
+
+// Activity labels mapping
+const activityLabels: Record<string, string> = {
+  bed_bath: "Bed Bath",
+  shampoo_in_bed: "Shampoo In Bed",
+  shower_shampoo: "Shower + Shampoo",
+  wash_upper_body: "Wash Upper Body",
+  wash_lower_body: "Wash Lower Body",
+  creams_applied: "Creams Applied",
+  shaved: "Shaved",
+  oral_care: "Oral Care",
+  fingernails_trimmed: "Fingernails Trimmed",
+  fingernails_cleaned: "Fingernails Cleaned",
+  hair_brushed: "Hair Brushed",
+  hair_washed_hairdresser: "Hair Washed/Set by Hairdresser",
+  clothing_changed: "Clothing Changed",
+  bed_linens_changed: "Bed Linens Changed",
+  bed_made: "Bed Made",
+  eyeglasses_care: "Eyeglasses Care",
+  footwear_care: "Footwear Care",
+};
 
 export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPageProps) {
   const { id } = React.use(params);
@@ -91,15 +103,23 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
   const [dateRangeFilter, setDateRangeFilter] = useState<"last_7" | "last_30" | "last_90" | "all">("all");
   const itemsPerPage = 30;
 
-  // Dialog state
-  const [selectedReport, setSelectedReport] = useState<any>(null);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [selectedDayData, setSelectedDayData] = useState<any>(null);
-  const [isLoadingDayData, setIsLoadingDayData] = useState(false);
+  // Expanded days state
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+
+  // Monthly download state
+  const [selectedDownloadMonth, setSelectedDownloadMonth] = useState<string>("");
+  const [selectedDownloadYear, setSelectedDownloadYear] = useState<string>("");
+  const [isDownloadingMonthly, setIsDownloadingMonthly] = useState(false);
+
+  // Monthly activity record download state
+  const [selectedActivityMonth, setSelectedActivityMonth] = useState<string>("");
+  const [selectedActivityYear, setSelectedActivityYear] = useState<string>("");
+  const [isDownloadingActivity, setIsDownloadingActivity] = useState(false);
 
   // Data state
   const [resident, setResident] = useState<any>(null);
   const [allTasks, setAllTasks] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch resident and all tasks
@@ -137,7 +157,18 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
 
         if (tasksError) throw tasksError;
 
+        // Fetch all users for name mapping
+        const { data: usersData, error: usersError } = await supabase
+          .from("users")
+          .select("*")
+          .eq("active_organization_id", profile?.active_organization_id);
+
+        if (usersError) {
+          console.error("Error fetching users:", usersError);
+        }
+
         setAllTasks(taskEvents || []);
+        setUsers(usersData || []);
       } catch (error) {
         console.error("Error fetching data:", error);
         toast.error("Failed to load daily care records");
@@ -165,7 +196,24 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
     return grouped;
   }, [allTasks]);
 
-  // Get unique days and create report objects
+  // Separate personal care activities and daily activity records by day
+  const personalCareByDay = useMemo(() => {
+    const grouped: Record<string, any[]> = {};
+    Object.keys(tasksByDay).forEach(day => {
+      grouped[day] = tasksByDay[day].filter(task => task.task_type !== 'daily_activity_record');
+    });
+    return grouped;
+  }, [tasksByDay]);
+
+  const dailyActivityByDay = useMemo(() => {
+    const grouped: Record<string, any[]> = {};
+    Object.keys(tasksByDay).forEach(day => {
+      grouped[day] = tasksByDay[day].filter(task => task.task_type === 'daily_activity_record');
+    });
+    return grouped;
+  }, [tasksByDay]);
+
+  // Get unique days and create separate report objects for each document type
   const reportObjects = useMemo(() => {
     const days = Object.keys(tasksByDay).sort((a, b) => {
       return sortOrder === "desc" ? b.localeCompare(a) : a.localeCompare(b);
@@ -204,14 +252,41 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       });
     }
 
-    return filteredDays.map(day => ({
-      date: day,
-      formattedDate: format(parseISO(day), "PPP"),
-      _id: day,
-      hasData: tasksByDay[day]?.length > 0,
-      taskCount: tasksByDay[day]?.length || 0,
-    }));
-  }, [tasksByDay, sortOrder, dateRangeFilter, selectedMonth, selectedYear]);
+    // Create separate documents for each day
+    const reports: any[] = [];
+    filteredDays.forEach(day => {
+      const personalCareCount = personalCareByDay[day]?.length || 0;
+      const activityRecordCount = dailyActivityByDay[day]?.length || 0;
+
+      // Add Personal Care Record if it exists
+      if (personalCareCount > 0) {
+        reports.push({
+          date: day,
+          formattedDate: format(parseISO(day), "PPP"),
+          _id: `${day}-personal-care`,
+          type: 'personal_care',
+          typeName: 'Personal Care Record',
+          hasData: true,
+          taskCount: personalCareCount,
+        });
+      }
+
+      // Add Daily Activity Record if it exists
+      if (activityRecordCount > 0) {
+        reports.push({
+          date: day,
+          formattedDate: format(parseISO(day), "PPP"),
+          _id: `${day}-activity-record`,
+          type: 'activity_record',
+          typeName: 'Daily Activity Record',
+          hasData: true,
+          taskCount: activityRecordCount,
+        });
+      }
+    });
+
+    return reports;
+  }, [tasksByDay, personalCareByDay, dailyActivityByDay, sortOrder, dateRangeFilter, selectedMonth, selectedYear]);
 
   // Get unique years from data
   const availableYears = useMemo(() => {
@@ -240,24 +315,41 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
   const endIndex = startIndex + itemsPerPage;
   const paginatedReports = filteredReports.slice(startIndex, endIndex);
 
-  // Handlers
-  const handleViewReport = async (report: any) => {
-    setSelectedReport(report);
-    setIsViewDialogOpen(true);
-    setIsLoadingDayData(true);
+  // Helper to get user display name
+  const getUserDisplayName = (identifier: string | undefined): string => {
+    if (!identifier) return 'Staff';
 
-    try {
-      const dayTasks = tasksByDay[report.date] || [];
-      setSelectedDayData({
-        date: report.date,
-        tasks: dayTasks,
-      });
-    } catch (error) {
-      console.error("Error loading day data:", error);
-      toast.error("Failed to load report data");
-    } finally {
-      setIsLoadingDayData(false);
+    // Try to find user by ID, email, or username
+    const user = users.find(u =>
+      u.id === identifier ||
+      u.email === identifier ||
+      u.username === identifier
+    );
+
+    if (user) {
+      // Return full name if available, otherwise email or username
+      if (user.first_name && user.last_name) {
+        return `${user.first_name} ${user.last_name}`;
+      }
+      if (user.first_name) return user.first_name;
+      if (user.name) return user.name;
+      if (user.email) return user.email;
     }
+
+    return identifier;
+  };
+
+  // Handlers
+  const handleToggleDay = (id: string) => {
+    setExpandedDays(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
   };
 
   const handleDownloadPDF = async (report: any) => {
@@ -267,14 +359,21 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
     }
 
     try {
-      const dayTasks = tasksByDay[report.date] || [];
+      const dayTasks = report.type === 'personal_care'
+        ? (personalCareByDay[report.date] || [])
+        : (dailyActivityByDay[report.date] || []);
+
       const dayData = {
         date: report.date,
         tasks: dayTasks,
       };
 
-      // Call PDF generation API
-      const response = await fetch('/api/pdf/daily-care', {
+      // Call appropriate PDF generation API based on type
+      const apiEndpoint = report.type === 'personal_care'
+        ? '/api/pdf/daily-care'
+        : '/api/pdf/daily-activity';
+
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -282,6 +381,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
         body: JSON.stringify({
           resident,
           dayData,
+          users,
         }),
       });
 
@@ -293,16 +393,157 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `daily-care-report-${resident.first_name}-${resident.last_name}-${report.date}.pdf`;
+      const filePrefix = report.type === 'personal_care' ? 'personal-care' : 'activity-record';
+      a.download = `${filePrefix}-${resident.first_name}-${resident.last_name}-${report.date}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
-      toast.success('PDF downloaded successfully');
+      toast.success(`${report.typeName} downloaded successfully`);
     } catch (error) {
       console.error('Error downloading PDF:', error);
       toast.error('Failed to download PDF');
+    }
+  };
+
+  const handleDownloadMonthlyReport = async () => {
+    if (!selectedDownloadMonth || !selectedDownloadYear || !resident) {
+      toast.error('Please select both month and year');
+      return;
+    }
+
+    setIsDownloadingMonthly(true);
+    try {
+      const monthKey = `${selectedDownloadYear}-${selectedDownloadMonth.padStart(2, '0')}`;
+      const monthStart = parseISO(`${monthKey}-01`);
+      const monthEnd = new Date(monthStart);
+      monthEnd.setMonth(monthEnd.getMonth() + 1);
+      monthEnd.setDate(0); // Last day of the month
+
+      // Get all tasks for the selected month
+      const monthTasks = allTasks.filter((task) => {
+        if (!task.created_at) return false;
+        const taskDay = getDayKey(task.created_at);
+        return taskDay >= format(monthStart, 'yyyy-MM-dd') && taskDay <= format(monthEnd, 'yyyy-MM-dd');
+      });
+
+      // Group tasks by day
+      const tasksByDayForMonth: Record<string, any[]> = {};
+      monthTasks.forEach((task) => {
+        const dayKey = getDayKey(task.created_at);
+        if (!tasksByDayForMonth[dayKey]) {
+          tasksByDayForMonth[dayKey] = [];
+        }
+        tasksByDayForMonth[dayKey].push(task);
+      });
+
+      // Call PDF generation API
+      const response = await fetch('/api/pdf/personal-care-monthly', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resident,
+          month: parseInt(selectedDownloadMonth),
+          year: parseInt(selectedDownloadYear),
+          tasksByDay: tasksByDayForMonth,
+          users,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate monthly PDF');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const monthName = format(monthStart, 'MMMM-yyyy');
+      a.download = `personal-care-record-${resident.first_name}-${resident.last_name}-${monthName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`Monthly report for ${format(monthStart, 'MMMM yyyy')} downloaded successfully`);
+    } catch (error) {
+      console.error('Error downloading monthly PDF:', error);
+      toast.error('Failed to download monthly PDF');
+    } finally {
+      setIsDownloadingMonthly(false);
+    }
+  };
+
+  const handleDownloadActivityRecord = async () => {
+    if (!selectedActivityMonth || !selectedActivityYear || !resident) {
+      toast.error('Please select both month and year');
+      return;
+    }
+
+    setIsDownloadingActivity(true);
+    try {
+      const monthKey = `${selectedActivityYear}-${selectedActivityMonth.padStart(2, '0')}`;
+      const monthStart = parseISO(`${monthKey}-01`);
+      const monthEnd = new Date(monthStart);
+      monthEnd.setMonth(monthEnd.getMonth() + 1);
+      monthEnd.setDate(0); // Last day of the month
+
+      // Get all activity records for the selected month
+      const activityRecords = allTasks.filter((task) => {
+        if (!task.created_at || task.task_type !== 'daily_activity_record') return false;
+        const taskDay = getDayKey(task.created_at);
+        return taskDay >= format(monthStart, 'yyyy-MM-dd') && taskDay <= format(monthEnd, 'yyyy-MM-dd');
+      });
+
+      // Group activity records by day
+      const activityByDay: Record<string, any[]> = {};
+      activityRecords.forEach((task) => {
+        const dayKey = getDayKey(task.created_at);
+        if (!activityByDay[dayKey]) {
+          activityByDay[dayKey] = [];
+        }
+        activityByDay[dayKey].push(task);
+      });
+
+      // Call PDF generation API
+      const response = await fetch('/api/pdf/activity-record-monthly', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resident,
+          month: parseInt(selectedActivityMonth),
+          year: parseInt(selectedActivityYear),
+          activityByDay,
+          users,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate activity record PDF');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const monthName = format(monthStart, 'MMMM-yyyy');
+      a.download = `activity-record-${resident.first_name}-${resident.last_name}-${monthName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`Activity record for ${format(monthStart, 'MMMM yyyy')} downloaded successfully`);
+    } catch (error) {
+      console.error('Error downloading activity record PDF:', error);
+      toast.error('Failed to download activity record PDF');
+    } finally {
+      setIsDownloadingActivity(false);
     }
   };
 
@@ -446,6 +687,129 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
               <div className="p-2 bg-white rounded-lg">
                 <Activity className="w-5 h-5 text-purple-600" />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Monthly Downloads */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Personal Care Record */}
+        <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Download className="w-5 h-5 text-blue-600" />
+              <span>Download Monthly Personal Care Record</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-3">
+              <Select value={selectedDownloadMonth} onValueChange={setSelectedDownloadMonth}>
+                <SelectTrigger className="w-full bg-white">
+                  <SelectValue placeholder="Select Month" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">January</SelectItem>
+                  <SelectItem value="2">February</SelectItem>
+                  <SelectItem value="3">March</SelectItem>
+                  <SelectItem value="4">April</SelectItem>
+                  <SelectItem value="5">May</SelectItem>
+                  <SelectItem value="6">June</SelectItem>
+                  <SelectItem value="7">July</SelectItem>
+                  <SelectItem value="8">August</SelectItem>
+                  <SelectItem value="9">September</SelectItem>
+                  <SelectItem value="10">October</SelectItem>
+                  <SelectItem value="11">November</SelectItem>
+                  <SelectItem value="12">December</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={selectedDownloadYear} onValueChange={setSelectedDownloadYear}>
+                <SelectTrigger className="w-full bg-white">
+                  <SelectValue placeholder="Select Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.map(year => (
+                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={handleDownloadMonthlyReport}
+                disabled={!selectedDownloadMonth || !selectedDownloadYear || isDownloadingMonthly}
+                className="w-full"
+              >
+                {isDownloadingMonthly ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Record
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Activity Record */}
+        <Card className="border-0 bg-gradient-to-br from-green-50 to-green-100">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Download className="w-5 h-5 text-green-600" />
+              <span>Download Monthly Activity Record</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-3">
+              <Select value={selectedActivityMonth} onValueChange={setSelectedActivityMonth}>
+                <SelectTrigger className="w-full bg-white">
+                  <SelectValue placeholder="Select Month" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">January</SelectItem>
+                  <SelectItem value="2">February</SelectItem>
+                  <SelectItem value="3">March</SelectItem>
+                  <SelectItem value="4">April</SelectItem>
+                  <SelectItem value="5">May</SelectItem>
+                  <SelectItem value="6">June</SelectItem>
+                  <SelectItem value="7">July</SelectItem>
+                  <SelectItem value="8">August</SelectItem>
+                  <SelectItem value="9">September</SelectItem>
+                  <SelectItem value="10">October</SelectItem>
+                  <SelectItem value="11">November</SelectItem>
+                  <SelectItem value="12">December</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={selectedActivityYear} onValueChange={setSelectedActivityYear}>
+                <SelectTrigger className="w-full bg-white">
+                  <SelectValue placeholder="Select Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.map(year => (
+                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={handleDownloadActivityRecord}
+                disabled={!selectedActivityMonth || !selectedActivityYear || isDownloadingActivity}
+                className="w-full"
+              >
+                {isDownloadingActivity ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Record
+                  </>
+                )}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -598,47 +962,127 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedReports.map((report) => (
-                      <TableRow key={report._id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center space-x-2">
-                            <Calendar className="w-4 h-4 text-gray-400" />
-                            <span>{format(parseISO(report.date), "dd MMM yyyy")}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Activity className="w-4 h-4 text-blue-600" />
-                            <span className="text-sm">{report.taskCount} activities</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className="bg-green-100 text-green-800 border-0">
-                            Recorded
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end space-x-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleViewReport(report)}
-                              className="h-8 w-8"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDownloadPDF(report)}
-                              className="h-8 w-8"
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {paginatedReports.map((report) => {
+                      const isExpanded = expandedDays.has(report._id);
+                      const dayTasks = report.type === 'personal_care'
+                        ? (personalCareByDay[report.date] || [])
+                        : (dailyActivityByDay[report.date] || []);
+                      const sortedTasks = [...dayTasks].sort((a: any, b: any) => {
+                        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+                        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+                        return bTime - aTime;
+                      });
+
+                      return (
+                        <React.Fragment key={report._id}>
+                          <TableRow
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => handleToggleDay(report._id)}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center space-x-2">
+                                {isExpanded ? (
+                                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                                )}
+                                <Calendar className="w-4 h-4 text-gray-400" />
+                                <div className="flex flex-col">
+                                  <span>{format(parseISO(report.date), "dd MMM yyyy")}</span>
+                                  <span className="text-xs text-muted-foreground">{report.typeName}</span>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center space-x-2">
+                                <Activity className={`w-4 h-4 ${report.type === 'personal_care' ? 'text-blue-600' : 'text-green-600'}`} />
+                                <span className="text-sm">{report.taskCount} {report.type === 'personal_care' ? 'activities' : 'records'}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={report.type === 'personal_care' ? 'bg-blue-100 text-blue-800 border-0' : 'bg-green-100 text-green-800 border-0'}>
+                                {report.typeName}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end space-x-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDownloadPDF(report);
+                                  }}
+                                  className="h-8 w-8"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow>
+                              <TableCell colSpan={4} className="bg-muted/20 p-6">
+                                <div>
+                                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-4">
+                                    {report.typeName} - {format(parseISO(report.date), "EEEE, MMMM d, yyyy")}
+                                  </h4>
+                                  {sortedTasks.length > 0 ? (
+                                    <div className="border rounded-lg overflow-hidden bg-white">
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead className="w-[30%]">Activity</TableHead>
+                                            <TableHead className="w-[15%]">Time</TableHead>
+                                            <TableHead className="w-[25%]">Staff</TableHead>
+                                            <TableHead className="w-[30%]">Notes</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {sortedTasks.map((task: any, index: number) => {
+                                            const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string } | null;
+                                            const displayTime = payload?.time || (task.created_at ? formatTimestampToUKTime(task.created_at) : '--');
+                                            const staffIdentifier = payload?.primaryStaff || payload?.staff;
+                                            const staffName = getUserDisplayName(staffIdentifier);
+                                            const assistedStaffName = payload?.assistedStaff ? getUserDisplayName(payload.assistedStaff) : null;
+                                            const isActivityRecord = task.task_type === 'daily_activity_record';
+                                            const activityName = isActivityRecord
+                                              ? 'Daily Activity Record'
+                                              : (activityLabels[task.task_type] || task.task_type);
+
+                                            return (
+                                              <TableRow key={task.id || index}>
+                                                <TableCell className="font-medium">{activityName}</TableCell>
+                                                <TableCell>{displayTime}</TableCell>
+                                                <TableCell>
+                                                  <div>
+                                                    <div>{staffName}</div>
+                                                    {assistedStaffName && (
+                                                      <div className="text-xs text-muted-foreground">Assisted: {assistedStaffName}</div>
+                                                    )}
+                                                  </div>
+                                                </TableCell>
+                                                <TableCell className="text-sm text-muted-foreground">
+                                                  {task.notes || '--'}
+                                                </TableCell>
+                                              </TableRow>
+                                            );
+                                          })}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-muted-foreground text-center py-4">
+                                      No {report.type === 'personal_care' ? 'activities' : 'records'} logged
+                                    </p>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -701,106 +1145,6 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
         </CardContent>
       </Card>
 
-      {/* View Report Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              Daily Care Record - {selectedReport && format(parseISO(selectedReport.date), "PPP")}
-            </DialogTitle>
-            <DialogDescription>
-              All activities logged for this day (8am to 8am next day)
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {isLoadingDayData ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-2 text-muted-foreground">Loading record...</p>
-              </div>
-            ) : selectedDayData && selectedDayData.tasks.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="text-sm text-muted-foreground">Total Activities</div>
-                      <div className="text-2xl font-bold">{selectedDayData.tasks.length}</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="text-sm text-muted-foreground">Date</div>
-                      <div className="text-lg font-semibold">{format(parseISO(selectedDayData.date), "EEEE, MMMM d, yyyy")}</div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-lg mb-3">Activities</h3>
-                  {selectedDayData.tasks
-                    .sort((a: any, b: any) => {
-                      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-                      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-                      return bTime - aTime;
-                    })
-                    .map((task: any, index: number) => {
-                      const payload = task.payload as { time?: string; primaryStaff?: string; assistedStaff?: string; staff?: string } | null;
-                      const displayTime = payload?.time || (task.created_at ? formatTimestampToUKTime(task.created_at) : '--');
-                      const staffName = payload?.primaryStaff || payload?.staff || 'Staff';
-                      const isActivityRecord = task.task_type === 'daily_activity_record';
-
-                      return (
-                        <Card key={task.id || index} className="border">
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  {isActivityRecord ? (
-                                    <Activity className="w-4 h-4 text-green-600" />
-                                  ) : (
-                                    <User className="w-4 h-4 text-blue-600" />
-                                  )}
-                                  <h4 className="font-semibold text-sm">
-                                    {isActivityRecord ? 'Daily Activity Record' : task.task_type}
-                                  </h4>
-                                  <Badge variant="outline" className="text-xs">
-                                    {task.status || 'completed'}
-                                  </Badge>
-                                </div>
-                                {task.notes && (
-                                  <p className="text-sm text-muted-foreground mb-2">{task.notes}</p>
-                                )}
-                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                  <div className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    <span>{displayTime}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <User className="w-3 h-3" />
-                                    <span>{staffName}</span>
-                                  </div>
-                                  {payload?.assistedStaff && (
-                                    <div className="flex items-center gap-1">
-                                      <span>Assisted by: {payload.assistedStaff}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                </div>
-              </>
-            ) : (
-              <p className="text-gray-500 py-8 text-center">
-                No activities logged for this day
-              </p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
