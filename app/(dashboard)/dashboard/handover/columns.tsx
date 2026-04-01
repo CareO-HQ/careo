@@ -83,6 +83,16 @@ const useHandoverReport = (residentId: string, teamId?: string) => {
 
         if (transfersError) throw transfersError;
 
+        // Fetch appointments for today
+        const { data: appointments, error: appointmentsError } = await supabase
+          .from("appointments")
+          .select("*")
+          .eq("resident_id", residentId)
+          .gte("start_time", `${today}T00:00:00Z`)
+          .lte("start_time", `${today}T23:59:59Z`);
+
+        if (appointmentsError) throw appointmentsError;
+
         setReport({
           foodIntakeCount: foodLogs.length,
           foodIntakeLogs: foodLogs.map(log => ({
@@ -112,6 +122,13 @@ const useHandoverReport = (residentId: string, teamId?: string) => {
             id: transfer.id,
             hospitalName: transfer.hospital_name,
             reason: transfer.reason,
+          })),
+          appointmentCount: appointments?.length || 0,
+          appointments: (appointments || []).map(apt => ({
+            id: apt.id,
+            title: apt.title,
+            startTime: apt.start_time,
+            location: apt.location,
           })),
         });
       } catch (error) {
@@ -343,7 +360,59 @@ const HospitalTransferCell = ({ residentId, teamId }: { residentId: string; team
   );
 };
 
-// Component for comments with database persistence and auto-save
+// Component for displaying appointments
+const AppointmentsCell = ({ residentId, teamId }: { residentId: string; teamId?: string }) => {
+  const { report, isLoading } = useHandoverReport(residentId, teamId);
+
+  if (isLoading || !report) {
+    return <Badge variant="outline">Loading...</Badge>;
+  }
+
+  if (report.appointmentCount === 0) {
+    return (
+      <Badge variant="table" className="bg-green-50 text-green-700 border-green-300 rounded-sm text-[10px] px-1 py-0 h-5">
+        0
+      </Badge>
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm cursor-pointer text-[10px] px-1 py-0 h-5">
+          {report.appointmentCount}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="bg-white border max-w-md">
+        <div className="flex flex-col gap-2 p-2">
+          {report.appointments.map((apt: any, index: number) => (
+            <div key={apt.id} className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-primary">
+                  {new Date(apt.startTime).toLocaleTimeString("en-GB", {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                  })}
+                </span>
+                <span className="font-medium text-sm">
+                  {apt.title}
+                </span>
+              </div>
+              {apt.location && (
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  Location: {apt.location}
+                </div>
+              )}
+              {index < report.appointments.length - 1 && (
+                <div className="border-t my-1" />
+              )}
+            </div>
+          ))}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+};
 const CommentsCell = ({
   residentId,
   teamId,
@@ -536,6 +605,22 @@ export const getColumns = (
       cell: ({ row }) => {
         const resident = row.original;
         return <HospitalTransferCell residentId={resident.id} teamId={teamId} />;
+      }
+    },
+    {
+      accessorKey: "appointments",
+      header: () => {
+        return (
+          <div className="text-left text-muted-foreground text-sm">
+            Appointments
+          </div>
+        );
+      },
+      enableSorting: false,
+      size: 100,
+      cell: ({ row }) => {
+        const resident = row.original;
+        return <AppointmentsCell residentId={resident.id} teamId={teamId} />;
       }
     },
     {

@@ -26,7 +26,7 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import { config } from "@/config";
 import { toast } from "sonner";
-import { formatTimestampToUKTime, formatTimestampToUKDateTime } from "@/lib/date-utils";
+import { formatTimestampToUKTime, formatTimestampToUKDateTime, getUKTodayDate, UK_TIMEZONE } from "@/lib/date-utils";
 import {
   ColumnDef,
   SortingState,
@@ -56,7 +56,7 @@ type GroupedIntake = {
   givenCount: number;
 };
 
-const UK_TIMEZONE = "Europe/London";
+// UK_TIMEZONE is now imported from @/lib/date-utils
 
 // Helper function to find the nearest medication time
 const getNearestMedicationTime = (): string | null => {
@@ -124,8 +124,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("today");
 
-  const fetchData = React.useCallback(async () => {
-    setIsLoading(true);
+  const fetchData = React.useCallback(async (silentRefresh = false) => {
+    if (!silentRefresh) {
+      setIsLoading(true);
+    }
     try {
       // Fetch resident
       const { data: residentData } = await supabase
@@ -494,7 +496,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       .insert({
         medication_id: medicationId,
         resident_id: residentId,
-        scheduled_time: new Date().toISOString(),
+        scheduled_time: (isTopical && time) 
+          ? fromZonedTime(`${getUKTodayDate()}T${time}:00`, UK_TIMEZONE).toISOString()
+          : new Date().toISOString(),
         status: "given",
         quantity: quantity,
         comment: notes,
@@ -763,7 +767,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
       if (error) throw error;
       toast.success("Medication round completed!");
-      fetchData();
+      fetchData(true);
     } catch (error) {
       console.error(error);
       toast.error("Failed to complete round");
@@ -791,15 +795,31 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     [availableMembers, profile, medicationRoundStatus]
   );
 
+  // Get a map of administered times for each medication today to disable them in the selection dropdown
+  const administeredTimesToday = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    selectedDateIntakes.forEach(intake => {
+      if (intake.status === 'given' || intake.status === 'administered') {
+        const time = formatTimestampToUKTime(intake.scheduled_time);
+        if (!map[intake.medication_id]) map[intake.medication_id] = [];
+        if (!map[intake.medication_id].includes(time)) {
+          map[intake.medication_id].push(time);
+        }
+      }
+    });
+    return map;
+  }, [selectedDateIntakes]);
+
   const prnTopicalColumns = useMemo(
     () => createMedicationColumns(
       createAndAdministerMedicationIntake,
       true,
       availableMembers,
       profile ? { name: profile.name || "", userId: profile.id } : undefined,
-      true  // Use simplified dialog for PRN medications in Today's tab
+      true,  // Use simplified dialog for PRN medications in Today's tab
+      administeredTimesToday
     ),
-    [availableMembers, profile]
+    [availableMembers, profile, administeredTimesToday]
   );
 
   const topicalMedicationColumns = useMemo(
@@ -807,9 +827,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       createAndAdministerMedicationIntake,
       true,
       availableMembers,
-      profile ? { name: profile.name || "", userId: profile.id } : undefined
+      profile ? { name: profile.name || "", userId: profile.id } : undefined,
+      administeredTimesToday
     ),
-    [availableMembers, profile]
+    [availableMembers, profile, administeredTimesToday]
   );
 
   const allActiveMedicationColumns = useMemo(
@@ -818,9 +839,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       false,
       availableMembers,
       profile ? { name: profile.name || "", userId: profile.id } : undefined,
-      true  // Default to simplified
+      true,  // Default to simplified
+      administeredTimesToday
     ),
-    [availableMembers, profile]
+    [availableMembers, profile, administeredTimesToday]
   );
 
   const supplementColumns: ColumnDef<any>[] = useMemo(
@@ -929,7 +951,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         const isActedUpon = intake.status !== 'scheduled' && intake.status !== 'pending';
         const isRoundCompleted = medicationRoundStatus?.status === 'completed';
 
-        if ((medStatus === 'completed' || medStatus === 'cancelled') && !isActedUpon && !isRoundCompleted) {
+        if ((medStatus === 'completed' || medStatus === 'cancelled' || medStatus === 'discontinued') && !isActedUpon && !isRoundCompleted) {
           return false;
         }
 
@@ -1245,7 +1267,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
             medications={allActiveMedications}
             residentId={id}
             residentName={fullName}
-            onRefresh={fetchData}
+            onRefresh={() => fetchData(true)}
           />
         </TabsContent>
 

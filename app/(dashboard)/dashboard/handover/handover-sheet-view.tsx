@@ -47,6 +47,7 @@ interface ResidentHandoverData {
   woundCount: number;
   hospitalTransferCount: number;
   appointmentCount: number;
+  appointments: any[];
   dietInfo?: {
     textureGrade?: string;
     fluidConsistency?: string;
@@ -130,6 +131,20 @@ const ResidentRow = ({
             {handoverData?.dietInfo?.diabeticStatus && (
               <div>• Diabetic {handoverData.dietInfo.diabeticStatus}</div>
             )}
+            {handoverData?.appointments && handoverData.appointments.length > 0 && (
+              <div className="mt-2 text-purple-700 space-y-1">
+                <div className="font-bold flex items-center gap-1">
+                  <CalendarIcon className="w-3 h-3" />
+                  Upcoming Appointments:
+                </div>
+                {handoverData.appointments.map((apt: any) => (
+                  <div key={apt.id} className="ml-2 text-xs border-l-2 border-purple-200 pl-2">
+                    <span className="font-semibold">{format(new Date(apt.start_time), "HH:mm")}</span> - {apt.title}
+                    {apt.location && <span className="text-gray-500 italic"> ({apt.location})</span>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Auto-populated Data */}
@@ -190,7 +205,7 @@ const ResidentRow = ({
               {handoverData.hospitalTransferCount > 0 && (
                 <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
                   <Building2 className="w-3 h-3 mr-1" />
-                  Hospital Transfer{handoverData.hospitalTransferCount > 1 ? `s - ${handoverData.hospitalTransferCount}` : ' - 1'}
+                  Hospital Transport{handoverData.hospitalTransferCount > 1 ? `s - ${handoverData.hospitalTransferCount}` : ' - 1'}
                 </Badge>
               )}
             </div>
@@ -248,6 +263,20 @@ const ResidentRow = ({
               )}
               {handoverData?.dietInfo?.diabeticStatus && (
                 <div>• Diabetic {handoverData.dietInfo.diabeticStatus}</div>
+              )}
+              {handoverData?.appointments && handoverData.appointments.length > 0 && (
+                <div className="mt-3 text-purple-700 space-y-1 bg-purple-50 p-2 rounded-md border border-purple-100">
+                  <div className="font-bold flex items-center gap-1">
+                    <CalendarIcon className="w-3 h-3" />
+                    Appointments:
+                  </div>
+                  {handoverData.appointments.map((apt: any) => (
+                    <div key={apt.id} className="text-xs">
+                      <span className="font-semibold">{format(new Date(apt.start_time), "HH:mm")}</span> - {apt.title}
+                      {apt.location && <span className="text-muted-foreground"> @ {apt.location}</span>}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
@@ -309,7 +338,7 @@ const ResidentRow = ({
                 {handoverData.hospitalTransferCount > 0 && (
                   <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
                     <Building2 className="w-3 h-3 mr-1" />
-                    Hospital{handoverData.hospitalTransferCount > 1 ? `s - ${handoverData.hospitalTransferCount}` : ''}
+                    Hospital Transport{handoverData.hospitalTransferCount > 1 ? `s - ${handoverData.hospitalTransferCount}` : ' - 1'}
                   </Badge>
                 )}
               </div>
@@ -427,16 +456,24 @@ export function HandoverSheetView({
           .from("incidents")
           .select("*")
           .eq("resident_id", resident.id)
-          .gte("timestamp", shiftStartUTC.toISOString())
-          .lt("timestamp", shiftEndUTC.toISOString());
+          .gte("created_at", shiftStartUTC.toISOString())
+          .lt("created_at", shiftEndUTC.toISOString());
+
+        // Fetch incident folders for the shift
+        const { data: folders } = await supabase
+          .from("incident_folders")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .gte("created_at", shiftStartUTC.toISOString())
+          .lt("created_at", shiftEndUTC.toISOString());
 
         // Fetch hospital transfers for the shift
         const { data: transfers } = await supabase
           .from("hospital_transfer_logs")
           .select("*")
           .eq("resident_id", resident.id)
-          .gte("timestamp", shiftStartUTC.toISOString())
-          .lt("timestamp", shiftEndUTC.toISOString());
+          .gte("created_at", shiftStartUTC.toISOString())
+          .lt("created_at", shiftEndUTC.toISOString());
           
         // Fetch active wounds
         const { data: wounds } = await supabase
@@ -450,8 +487,8 @@ export function HandoverSheetView({
           .from("appointments")
           .select("*")
           .eq("resident_id", resident.id)
-          .gte("appointment_date", startOfDayUTC.toISOString())
-          .lte("appointment_date", endOfDayUTC.toISOString());
+          .gte("start_time", startOfDayUTC.toISOString())
+          .lte("start_time", endOfDayUTC.toISOString());
 
         // Fetch diet information
         const { data: dietInfo } = await supabase
@@ -460,26 +497,33 @@ export function HandoverSheetView({
           .eq("resident_id", resident.id)
           .maybeSingle();
 
-        // Differentiate Incidents vs Falls
-        const falls = (incidents || []).filter(inc => {
+        // Calculate counts from folders and loose incidents
+        const fallsFromFolders = (folders || []).filter(f => f.folder_type === 'fall').length;
+        const incidentsFromFolders = (folders || []).filter(f => f.folder_type === 'incident').length;
+
+        // Differentiate Incidents vs Falls from the incidents table (only those NOT in a folder to avoid double counting)
+        const fallsFromIncidents = (incidents || []).filter(inc => {
+          if (inc.folder_id) return false;
           const types = inc.incident_types || [];
           return types.some((t: string) => t.toLowerCase() === 'fall' || t.toLowerCase() === 'falls');
-        });
-        const nonFallIncidents = (incidents || []).filter(inc => {
+        }).length;
+        const nonFallIncidentsFromIncidents = (incidents || []).filter(inc => {
+          if (inc.folder_id) return false;
           const types = inc.incident_types || [];
           return !types.some((t: string) => t.toLowerCase() === 'fall' || t.toLowerCase() === 'falls');
-        });
+        }).length;
 
         return {
           residentId: resident.id,
           foodIntakeCount: foodLogs.length,
           foodIntakePercentage: Math.min(foodIntakePercentage, 100),
           totalFluid,
-          incidentCount: nonFallIncidents.length,
-          fallCount: falls.length,
+          incidentCount: incidentsFromFolders + nonFallIncidentsFromIncidents,
+          fallCount: fallsFromFolders + fallsFromIncidents,
           woundCount: wounds?.length || 0,
           hospitalTransferCount: transfers?.length || 0,
           appointmentCount: appointments?.length || 0,
+          appointments: appointments || [],
           dietInfo: dietInfo
             ? {
                 textureGrade: dietInfo.texture_grade,
@@ -585,7 +629,7 @@ export function HandoverSheetView({
               {teamName} HANDOVER SHEET
             </h1>
 
-            <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm max-w-4xl mx-auto">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm max-w-4xl mx-auto mb-6">
               <div className="flex items-center gap-2">
                 <span className="font-semibold min-w-[100px]">Date:</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 px-2">
@@ -609,7 +653,7 @@ export function HandoverSheetView({
                   value={hospital}
                   onChange={(e) => setHospital(e.target.value)}
                   className="flex-1 h-7 border-b border-dotted border-gray-400 border-t-0 border-x-0 rounded-none px-2 print:border-b"
-                  placeholder="Name"
+                  placeholder="Number"
                 />
               </div>
 
@@ -625,7 +669,7 @@ export function HandoverSheetView({
 
               <div className="col-span-2 flex items-center gap-4 pt-2">
                 <span className="font-semibold">Shift:</span>
-                <div className="flex gap-6">
+                <div className="flex gap-10 items-center">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
@@ -647,6 +691,39 @@ export function HandoverSheetView({
                 </div>
               </div>
             </div>
+
+            {/* Shift Summary Section */}
+            {!isLoading && (
+              <div className="grid grid-cols-3 gap-4 max-w-4xl mx-auto py-3 px-4 border-2 border-gray-200 rounded-lg bg-gray-50/50">
+                <div className="text-center space-y-1 border-r border-gray-200">
+                  <div className="text-xs uppercase font-bold text-gray-500 tracking-wider">Total Incidents</div>
+                  <div className={cn(
+                    "text-2xl font-black",
+                    Object.values(handoverData).reduce((sum, h) => sum + h.incidentCount, 0) > 0 ? "text-red-600" : "text-gray-400"
+                  )}>
+                    {Object.values(handoverData).reduce((sum, h) => sum + h.incidentCount, 0)}
+                  </div>
+                </div>
+                <div className="text-center space-y-1 border-r border-gray-200">
+                  <div className="text-xs uppercase font-bold text-gray-500 tracking-wider">Total Falls</div>
+                  <div className={cn(
+                    "text-2xl font-black",
+                    Object.values(handoverData).reduce((sum, h) => sum + h.fallCount, 0) > 0 ? "text-red-600" : "text-gray-400"
+                  )}>
+                    {Object.values(handoverData).reduce((sum, h) => sum + h.fallCount, 0)}
+                  </div>
+                </div>
+                <div className="text-center space-y-1">
+                  <div className="text-xs uppercase font-bold text-gray-500 tracking-wider">Hospital Transport</div>
+                  <div className={cn(
+                    "text-2xl font-black",
+                    Object.values(handoverData).reduce((sum, h) => sum + h.hospitalTransferCount, 0) > 0 ? "text-blue-600" : "text-gray-400"
+                  )}>
+                    {Object.values(handoverData).reduce((sum, h) => sum + h.hospitalTransferCount, 0)}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Table */}

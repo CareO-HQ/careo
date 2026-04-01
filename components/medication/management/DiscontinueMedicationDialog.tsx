@@ -12,16 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -176,177 +166,170 @@ export function DiscontinueMedicationDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-700">
-              <StopCircle className="h-5 w-5" />
-              Discontinue Medication
+        <DialogContent className="max-w-md p-0 overflow-hidden">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle className="flex items-center gap-2 text-red-700 text-lg">
+              {showConfirmation ? <AlertTriangle className="h-4 w-4" /> : <StopCircle className="h-4 w-4" />}
+              {showConfirmation ? "Confirm Discontinuation" : "Discontinue Medication"}
             </DialogTitle>
-            <DialogDescription>
-              You are about to discontinue <strong>{medication.name}</strong> ({medication.strength} {medication.strength_unit}) for <strong>{residentName}</strong>.
+            <DialogDescription className="text-xs">
+              {showConfirmation 
+                ? "Please review the details below before proceeding."
+                : <span className="text-xs">Discontinue <strong>{medication.name}</strong> ({medication.strength} {medication.strength_unit}) for <strong>{residentName}</strong>.</span>
+              }
             </DialogDescription>
           </DialogHeader>
 
-          {/* Warning */}
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-amber-900">Important</p>
-              <p className="text-sm text-amber-800">
-                Discontinuing this medication will:
-              </p>
-              <ul className="text-sm text-amber-800 list-disc list-inside space-y-1">
-                <li>Stop all future scheduled administrations</li>
-                <li>Move this medication to the Discontinued section</li>
-                <li>Preserve all administration history for audit purposes</li>
-                <li>Require prescriber approval (ensure authorization before proceeding)</li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Medication Details */}
-          <div className="p-4 bg-gray-50 border rounded-lg space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Medication:</span>
-              <span className="font-medium">{medication.name}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Strength:</span>
-              <span className="font-medium">{medication.strength} {medication.strength_unit}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Form:</span>
-              <span className="font-medium">{medication.dosage_form}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Route:</span>
-              <span className="font-medium">{medication.route}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Type:</span>
-              <Badge variant="outline">{medication.schedule_type}</Badge>
-            </div>
-          </div>
-
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {/* Discontinuation Reason */}
-              <FormField
-                control={form.control}
-                name="discontinuation_reason"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Discontinuation Reason *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a reason" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {discontinuationReasons.map((reason) => (
-                          <SelectItem key={reason.value} value={reason.value}>
-                            {reason.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Select the primary reason for discontinuing this medication
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
+          {showConfirmation ? (
+            <div className="px-4 pb-4 space-y-4">
+              <div className="space-y-3 text-sm">
+                <p>
+                  Are you absolutely sure you want to discontinue{" "}
+                  <strong>{medication.name}</strong> for <strong>{residentName}</strong>?
+                </p>
+                {formData && (
+                  <div className="p-3 bg-gray-50 border rounded text-sm space-y-1">
+                    <div className="font-medium text-foreground">
+                      Reason:{" "}
+                      {discontinuationReasons.find((r) => r.value === formData.discontinuation_reason)
+                        ?.label || formData.discontinuation_reason}
+                    </div>
+                    {formData.discontinuation_notes && (
+                      <div className="text-muted-foreground">
+                        Notes: {formData.discontinuation_notes}
+                      </div>
+                    )}
+                  </div>
                 )}
-              />
-
-              {/* Additional Notes */}
-              <FormField
-                control={form.control}
-                name="discontinuation_notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Additional Notes</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="e.g., Prescriber name, date of authorization, specific instructions..."
-                        {...field}
-                        rows={4}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Include prescriber authorization details and any relevant clinical information
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <DialogFooter>
+                <p className="text-red-600 font-medium">
+                  This action will stop all future administrations immediately.
+                </p>
+              </div>
+              <DialogFooter className="pt-2">
                 <Button
-                  type="button"
+                  onClick={() => setShowConfirmation(false)}
                   variant="outline"
-                  onClick={() => handleOpenChange(false)}
+                  size="sm"
                   disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button
-                  type="submit"
+                  onClick={handleConfirmDiscontinue}
                   variant="destructive"
+                  size="sm"
                   disabled={isSubmitting}
                 >
-                  Discontinue Medication
+                  {isSubmitting ? "Discontinuing..." : "Yes, Discontinue"}
                 </Button>
               </DialogFooter>
-            </form>
-          </Form>
+            </div>
+          ) : (
+            <div className="px-4 pb-4 space-y-4">
+              {/* Warning */}
+              <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg flex gap-2 text-[11px]">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-amber-900">Important</p>
+                  <ul className="text-amber-800 list-disc list-inside">
+                    <li>Stops future scheduled doses</li>
+                    <li>Preserves audit history</li>
+                    <li>Requires authorization</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Medication Details */}
+              <div className="p-2 bg-gray-50 border rounded-lg space-y-1 text-[11px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Medication:</span>
+                  <span className="font-medium">{medication.name} ({medication.strength}{medication.strength_unit})</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Type/Route:</span>
+                  <div className="flex gap-1 items-center">
+                    <Badge variant="outline" className="h-4 text-[9px] px-1">{medication.schedule_type}</Badge>
+                    <span className="font-medium">{medication.route}</span>
+                  </div>
+                </div>
+              </div>
+
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+                  {/* Discontinuation Reason */}
+                  <FormField
+                    control={form.control}
+                    name="discontinuation_reason"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs">Discontinuation Reason *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Reason" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {discontinuationReasons.map((reason) => (
+                              <SelectItem key={reason.value} value={reason.value}>
+                                {reason.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Select the primary reason for discontinuing this medication
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Additional Notes */}
+                  <FormField
+                    control={form.control}
+                    name="discontinuation_notes"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs">Additional Notes</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Prescriber name, date..."
+                            {...field}
+                            rows={2}
+                            className="text-xs"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <DialogFooter className="pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenChange(false)}
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="destructive"
+                      size="sm"
+                      disabled={isSubmitting}
+                    >
+                      Discontinue
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
-
-      {/* Confirmation Dialog */}
-      <AlertDialog open={showConfirmation} onOpenChange={setShowConfirmation}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-red-700">
-              <AlertTriangle className="h-5 w-5" />
-              Confirm Discontinuation
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>
-                Are you absolutely sure you want to discontinue{" "}
-                <strong>{medication.name}</strong> for <strong>{residentName}</strong>?
-              </p>
-              {formData && (
-                <div className="p-3 bg-gray-50 border rounded text-sm space-y-1">
-                  <div className="font-medium">
-                    Reason:{" "}
-                    {discontinuationReasons.find((r) => r.value === formData.discontinuation_reason)
-                      ?.label || formData.discontinuation_reason}
-                  </div>
-                  {formData.discontinuation_notes && (
-                    <div className="text-muted-foreground">
-                      Notes: {formData.discontinuation_notes}
-                    </div>
-                  )}
-                </div>
-              )}
-              <p className="text-red-600 font-medium">
-                This action will stop all future administrations immediately.
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDiscontinue}
-              disabled={isSubmitting}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {isSubmitting ? "Discontinuing..." : "Yes, Discontinue"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

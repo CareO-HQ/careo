@@ -61,7 +61,8 @@ export const createMedicationColumns = (
   showAdministrateButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },
-  useSimplifiedTopicalDialog: boolean = true
+  useSimplifiedTopicalDialog: boolean = true,
+  administeredTimesToday: Record<string, string[]> = {}
 ): ColumnDef<Medication>[] => [
     {
       id: "medication",
@@ -269,6 +270,8 @@ export const createMedicationColumns = (
               const [time, setTime] = useState<Date>(new Date());
               const [units, setUnits] = useState<number | "">(1);
               const [applicationStatus, setApplicationStatus] = useState<"applied" | "refused" | "missed">("applied");
+
+              const administeredForMedication = administeredTimesToday[medication.id] || [];
 
               const isTopical = medication.schedule_type === "Topical";
               const isPRN = medication.schedule_type === "PRN (As Needed)";
@@ -558,11 +561,18 @@ export const createMedicationColumns = (
                                   <SelectValue placeholder="Select prescribed time" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {medication.times.map((prescribedTime: string) => (
-                                    <SelectItem key={prescribedTime} value={prescribedTime}>
-                                      {prescribedTime}
-                                    </SelectItem>
-                                  ))}
+                                  {medication.times.map((prescribedTime: string) => {
+                                    const isAlreadyAdministered = administeredForMedication.includes(prescribedTime);
+                                    return (
+                                      <SelectItem
+                                        key={prescribedTime}
+                                        value={prescribedTime}
+                                        disabled={isAlreadyAdministered}
+                                      >
+                                        {prescribedTime} {isAlreadyAdministered && "(Administered)"}
+                                      </SelectItem>
+                                    );
+                                  })}
                                 </SelectContent>
                               </Select>
                             ) : (
@@ -630,11 +640,18 @@ export const createMedicationColumns = (
                                     <SelectValue placeholder="Select time" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {medication.times.map((prescribedTime: string) => (
-                                      <SelectItem key={prescribedTime} value={prescribedTime}>
-                                        {prescribedTime}
-                                      </SelectItem>
-                                    ))}
+                                    {medication.times.map((prescribedTime: string) => {
+                                      const isAlreadyAdministered = administeredForMedication.includes(prescribedTime);
+                                      return (
+                                        <SelectItem
+                                          key={prescribedTime}
+                                          value={prescribedTime}
+                                          disabled={isAlreadyAdministered}
+                                        >
+                                          {prescribedTime} {isAlreadyAdministered && "(Administered)"}
+                                        </SelectItem>
+                                      );
+                                    })}
                                   </SelectContent>
                                 </Select>
                               ) : (
@@ -825,7 +842,8 @@ export const createTopicalMedicationColumns = (
   createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string) => Promise<any>,
   showAdministrateButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
-  currentUser?: { name: string; userId: string }
+  currentUser?: { name: string; userId: string },
+  administeredTimesToday: Record<string, string[]> = {}
 ): ColumnDef<Medication>[] => {
   // Get base columns
   const baseColumns = createMedicationColumns(
@@ -833,7 +851,8 @@ export const createTopicalMedicationColumns = (
     showAdministrateButton,
     teamMembers,
     currentUser,
-    false
+    false,
+    administeredTimesToday
   );
 
   // Remove prescriber column and extract action columns

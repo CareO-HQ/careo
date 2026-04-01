@@ -1,5 +1,6 @@
 "use client";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -89,7 +90,8 @@ const UpdateMedicationSchema = z.object({
   instructions: z.string().optional(),
   prescriberName: z.string().optional(),
   startDate: z.date().optional(),
-  status: z.enum(["active", "completed", "cancelled"]).optional()
+  status: z.enum(["active", "completed", "cancelled", "discontinued"]).optional(),
+  revertToActive: z.boolean().optional()
 });
 
 interface Medication {
@@ -151,7 +153,8 @@ export default function EditMedicationDialog({
         instructions: medication.instructions || undefined,
         prescriberName: medication.prescriber_name,
         startDate: medication.start_date ? new Date(medication.start_date) : new Date(),
-        status: medication.status as "active" | "completed" | "cancelled"
+        status: medication.status as any,
+        revertToActive: false
       });
     } else if (!open) {
       // Dialog closing - reset form to default empty state
@@ -192,7 +195,12 @@ export default function EditMedicationDialog({
       if (values.instructions !== undefined) updates.instructions = values.instructions;
       if (values.prescriberName !== undefined) updates.prescriber_name = values.prescriberName;
       if (values.startDate !== undefined) updates.start_date = values.startDate.toISOString();
-      if (values.status !== undefined) updates.status = values.status;
+      
+      if (values.revertToActive) {
+        updates.status = 'active';
+      } else if (values.status !== undefined) {
+        updates.status = values.status;
+      }
 
       const { error } = await supabase
         .from("medications")
@@ -980,31 +988,30 @@ export default function EditMedicationDialog({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
+            {medication.status !== "active" && (
+              <FormField
+                control={form.control}
+                name="revertToActive"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 bg-blue-50/50">
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="font-semibold text-blue-900">
+                        Revert to active medication
+                      </FormLabel>
+                      <FormDescription className="text-blue-700/70">
+                        This will move the medication back to the active list and today&apos;s round.
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <div className="flex justify-end gap-2 pt-4">
               <Button
