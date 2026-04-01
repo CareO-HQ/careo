@@ -67,6 +67,14 @@ interface MedicationIntake {
   } | null;
   witness_id?: string | null;
   witness_at?: string | null;
+  witness?: {
+    id: string;
+    name: string;
+  } | null;
+  administered_by?: {
+    id: string;
+    name: string;
+  } | null;
   quantity?: number;
 }
 
@@ -304,7 +312,9 @@ export const createColumns = (
       header: "Witnessed By",
       cell: ({ row }) => {
         const medicationIntake = row.original;
-        const witnessName = members.find(m => m.userId === medicationIntake.witness_id)?.name;
+        // Try to get witness name from the witness object first, then fall back to members lookup
+        const witnessName = medicationIntake.witness?.name ||
+                           members.find(m => m.userId === medicationIntake.witness_id)?.name;
 
         const setWitness = async (value: string) => {
           if (!setWithnessForMedicationIntake) {

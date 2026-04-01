@@ -136,7 +136,10 @@ export default function CreateMedicationForm({
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error("Supabase error details:", error);
+          throw error;
+        }
 
         // Generate intakes for today if applicable
         if (newMedication && values.scheduleType !== "PRN (As Needed)" && values.times && values.times.length > 0) {
@@ -185,7 +188,18 @@ export default function CreateMedicationForm({
         onSuccess();
       } catch (error) {
         console.error("Error creating medication:", error);
-        toast.error(`Failed to create medication: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+        // Handle Supabase error format
+        let errorMessage = 'Unknown error';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (error && typeof error === 'object') {
+          // Supabase errors are objects with message, details, hint, code
+          const err = error as any;
+          errorMessage = err.message || err.details || err.hint || JSON.stringify(error);
+        }
+
+        toast.error(`Failed to create medication: ${errorMessage}`);
       }
     });
   }
