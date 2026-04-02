@@ -64,6 +64,8 @@ type Props = {
     photograph_url: string;
     signedUrl?: string;
     site_of_wound: string;
+    length_cm?: number;
+    width_cm?: number;
     rgn_signature: string;
     comment?: string;
     created_at: string;
@@ -158,18 +160,44 @@ export function PhotographEvaluationForm({
 
   const handleEditEvaluation = (evaluation: typeof evaluations[0]) => {
     // Parse site_of_wound to extract components
+    // Format: "Main Site (LeftRight | ActualPosition | State | InnerOuter)"
     const siteText = evaluation.site_of_wound || "";
-    const mainSite = siteText.split("(")[0].trim();
+    let mainSite = siteText;
+    let leftRight = "";
+    let actualPosition = "";
+    let state = "";
+    let innerOuter = "";
+
+    // Check if there are parentheses (additional info)
+    if (siteText.includes("(") && siteText.includes(")")) {
+      mainSite = siteText.split("(")[0].trim();
+      const additionalInfo = siteText.split("(")[1].split(")")[0];
+      const parts = additionalInfo.split("|").map(p => p.trim());
+
+      // The order is: leftRight, actualPosition, state, innerOuter
+      leftRight = parts[0] || "";
+      actualPosition = parts[1] || "";
+      state = parts[2] || "";
+      innerOuter = parts[3] || "";
+    }
+
+    // Build measurement string from length and width
+    let measurement = "";
+    if (evaluation.length_cm && evaluation.width_cm) {
+      measurement = `${evaluation.length_cm} x ${evaluation.width_cm} cm`;
+    } else if (evaluation.length_cm) {
+      measurement = `${evaluation.length_cm} cm`;
+    }
 
     // Set form values with existing data
     form.reset({
       photographDate: evaluation.photograph_date ? new Date(evaluation.photograph_date) : new Date(),
       siteOfWound: mainSite,
-      leftRight: "",
-      actualPosition: "",
-      state: "",
-      innerOuter: "",
-      actualMeasurement: "",
+      leftRight: leftRight,
+      actualPosition: actualPosition,
+      state: state,
+      innerOuter: innerOuter,
+      actualMeasurement: measurement,
       rgnSignature: evaluation.rgn_signature || profile?.name || "",
       comments: evaluation.comment || "",
     });
