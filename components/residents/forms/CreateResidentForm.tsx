@@ -71,6 +71,7 @@ export function CreateResidentForm({
     if (editMode && residentData) {
       return {
         firstName: residentData.first_name || "",
+        middleName: residentData.middle_name || "",
         lastName: residentData.last_name || "",
         dateOfBirth: residentData.date_of_birth || "",
         phoneNumber: residentData.phone_number || "",
@@ -114,6 +115,7 @@ export function CreateResidentForm({
 
     return {
       firstName: "",
+      middleName: "",
       lastName: "",
       dateOfBirth: "",
       phoneNumber: "",
@@ -144,7 +146,7 @@ export function CreateResidentForm({
   }, [editMode, residentData]);
 
   const form = useForm<FormType>({
-    resolver: zodResolver(CreateResidentSchema),
+    resolver: zodResolver(CreateResidentSchema) as any,
     mode: "onChange",
     defaultValues: getDefaultValues(),
   });
@@ -245,6 +247,7 @@ export function CreateResidentForm({
 
       const residentPayload = {
         first_name: values.firstName,
+        middle_name: values.middleName,
         last_name: values.lastName,
         date_of_birth: values.dateOfBirth,
         phone_number: values.phoneNumber,
@@ -358,6 +361,7 @@ export function CreateResidentForm({
     if (step === 1) {
       const valid = await form.trigger([
         "firstName",
+        "middleName",
         "lastName",
         "dateOfBirth",
         "phoneNumber",
@@ -404,12 +408,21 @@ export function CreateResidentForm({
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <FormField control={form.control} name="firstName" render={({ field }) => (
                 <FormItem>
                   <FormLabel required>First Name</FormLabel>
                   <FormControl>
                     <Input placeholder="John" disabled={isLoading} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="middleName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Middle Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="William" disabled={isLoading} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -766,6 +779,9 @@ export function CreateResidentForm({
                             <SelectItem value="Fully Dependent">
                               Fully Dependent
                             </SelectItem>
+                            <SelectItem value="Prompt Needed">
+                              Prompt Needed
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -802,6 +818,9 @@ export function CreateResidentForm({
                             </SelectItem>
                             <SelectItem value="Fully Dependent">
                               Fully Dependent
+                            </SelectItem>
+                            <SelectItem value="Prompt Needed">
+                              Prompt Needed
                             </SelectItem>
                           </SelectContent>
                         </Select>
@@ -840,6 +859,9 @@ export function CreateResidentForm({
                             <SelectItem value="Fully Dependent">
                               Fully Dependent
                             </SelectItem>
+                            <SelectItem value="Prompt Needed">
+                              Prompt Needed
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -876,6 +898,9 @@ export function CreateResidentForm({
                             </SelectItem>
                             <SelectItem value="Fully Dependent">
                               Fully Dependent
+                            </SelectItem>
+                            <SelectItem value="Prompt Needed">
+                              Prompt Needed
                             </SelectItem>
                           </SelectContent>
                         </Select>

@@ -165,11 +165,18 @@ export const generatePassportPDF = async ({
     // 6. Authorization & Sign-off
     if (yPos > 240) { doc.addPage(); yPos = 20; }
     yPos = addSectionTitle("6. AUTHORIZATION & SIGN-OFF", yPos);
-    y1 = addField("Signature", passport.signOff.signature, margin, yPos, colWidth);
-    y2 = addField("Printed Name", passport.signOff.printedName, col2, yPos, colWidth);
-    yPos = Math.max(y1, y2) + 5;
-    y1 = addField("Designation", passport.signOff.designation, margin, yPos, colWidth);
-    y2 = addField("Completion Date", formatDateUK(passport.signOff.completedDate), col2, yPos, colWidth);
+    if (passport.signOff) {
+        y1 = addField("Signature", passport.signOff.signature || "N/A", margin, yPos, colWidth);
+        y2 = addField("Printed Name", passport.signOff.printedName || "N/A", col2, yPos, colWidth);
+        yPos = Math.max(y1, y2) + 5;
+        y1 = addField("Designation", passport.signOff.designation || "N/A", margin, yPos, colWidth);
+        y2 = addField("Completion Date", formatDateUK(passport.signOff.completedDate), col2, yPos, colWidth);
+    } else {
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "italic");
+        doc.text("Authorization details not provided", margin, yPos + 5);
+        yPos += 15;
+    }
 
     // Footer
     doc.setFontSize(8);

@@ -1,0 +1,460 @@
+"use client";
+
+import React from "react";
+import { useForm, UseFormReturn } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar, X, Save } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+
+const TransferLogSchema = z.object({
+  label: z.string().optional(),
+  date: z.string().min(1, "Date is required"),
+  time: z.string().optional(),
+  hospitalName: z.string().min(1, "Hospital name is required"),
+  reason: z.string().min(1, "Reason for transfer is required"),
+  outcome: z.string().optional(),
+  followUp: z.string().optional(),
+  filesChanged: z.object({
+    carePlan: z.boolean().default(false),
+    riskAssessment: z.boolean().default(false),
+    other: z.string().optional(),
+  }).optional().default({ carePlan: false, riskAssessment: false, other: "" }),
+  medicationChanges: z.object({
+    medicationsAdded: z.boolean().default(false),
+    addedMedications: z.string().optional(),
+    medicationsRemoved: z.boolean().default(false),
+    removedMedications: z.string().optional(),
+    medicationsModified: z.boolean().default(false),
+    modifiedMedications: z.string().optional(),
+  }).optional().default({
+    medicationsAdded: false,
+    addedMedications: "",
+    medicationsRemoved: false,
+    removedMedications: "",
+    medicationsModified: false,
+    modifiedMedications: "",
+  }),
+});
+
+interface TransferLogInlineFormProps {
+  onSubmit: (data: any) => Promise<void> | void;
+  onCancel: () => void;
+  initialData?: any;
+  isEditing?: boolean;
+}
+
+export function TransferLogInlineForm({
+  onSubmit,
+  onCancel,
+  initialData,
+  isEditing = false,
+}: TransferLogInlineFormProps) {
+  const form = useForm<any>({
+    resolver: zodResolver(TransferLogSchema) as any,
+    defaultValues: initialData || {
+      label: "",
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+      hospitalName: "",
+      reason: "",
+      outcome: "",
+      followUp: "",
+      filesChanged: {
+        carePlan: false,
+        riskAssessment: false,
+        other: "",
+      },
+      medicationChanges: {
+        medicationsAdded: false,
+        addedMedications: "",
+        medicationsRemoved: false,
+        removedMedications: "",
+        medicationsModified: false,
+        modifiedMedications: "",
+      },
+    },
+  });
+
+  const handleFormSubmit = async (data: any) => {
+    await onSubmit(data);
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="bg-white border border-neutral-200/60 rounded-xl shadow-sm p-5 sm:p-6 space-y-6">
+        {/* Transfer Details Section */}
+        <div className="space-y-5">
+          <div className="mb-2">
+            <FormField
+              control={form.control}
+              name="label"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Transfer Log Name (e.g., A&E Admission)"
+                      className="text-xl font-bold text-neutral-900 border-none px-0 h-auto bg-transparent focus-visible:ring-0 placeholder:text-neutral-300 transition-all hover:bg-neutral-50/50 rounded-lg focus:bg-transparent"
+                    />
+                  </FormControl>
+                  <p className="text-[11px] text-neutral-400 mt-0.5 ml-0.5">Click to rename this record</p>
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="date"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Transfer Date *</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          type="button"
+                          className={cn(
+                            "w-full pl-3 text-left font-normal h-10 border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 rounded-lg",
+                            !field.value && "text-neutral-400"
+                          )}
+                        >
+                          {field.value ? (
+                            format(new Date(field.value), "PPP")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                          <Calendar className="ml-auto h-4 w-4 text-neutral-400" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 border-neutral-200 rounded-xl shadow-lg" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={field.value ? new Date(field.value) : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(format(date, "yyyy-MM-dd"));
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="time"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Transfer Time</FormLabel>
+                  <FormControl>
+                    <Input type="time" {...field} className="h-10 border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="hospitalName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Hospital Name *</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="e.g., Royal London Hospital"
+                    {...field}
+                    className="h-10 border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="reason"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Reason for Transfer *</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Describe the reason for hospital transfer..."
+                    className="min-h-[80px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="outcome"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Outcome</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Describe the outcome of the transfer..."
+                    className="min-h-[80px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="followUp"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Follow-up Actions</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Any follow-up actions required..."
+                    className="min-h-[80px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Files Changed */}
+          <div className="space-y-3 p-4 bg-neutral-50/50 border border-neutral-200/60 rounded-xl">
+            <h4 className="text-xs font-semibold text-neutral-900">Files Changed</h4>
+            <div className="space-y-2.5">
+              <FormField
+                control={form.control}
+                name="filesChanged.carePlan"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="mt-0.5 data-[state=checked]:bg-neutral-900 data-[state=checked]:border-neutral-900"
+                      />
+                    </FormControl>
+                    <FormLabel className="text-sm font-normal cursor-pointer text-neutral-700">
+                      Care Plan Updated
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="filesChanged.riskAssessment"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="mt-0.5 data-[state=checked]:bg-neutral-900 data-[state=checked]:border-neutral-900"
+                      />
+                    </FormControl>
+                    <FormLabel className="text-sm font-normal cursor-pointer text-neutral-700">
+                      Risk Assessment Updated
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="filesChanged.other"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs font-semibold text-neutral-700 mb-2">Other Files Changed</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="List other files..."
+                        {...field}
+                        className="h-10 border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Medication Changes */}
+          <div className="space-y-3 p-4 bg-neutral-50/50 border border-neutral-200/60 rounded-xl">
+            <h4 className="text-xs font-semibold text-neutral-900">Medication Changes</h4>
+
+            <div className="space-y-2.5">
+              <FormField
+                control={form.control}
+                name="medicationChanges.medicationsAdded"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="mt-0.5 data-[state=checked]:bg-neutral-900 data-[state=checked]:border-neutral-900"
+                      />
+                    </FormControl>
+                    <FormLabel className="text-sm font-normal cursor-pointer text-neutral-700">
+                      Medications Added
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+
+              {form.watch("medicationChanges.medicationsAdded") && (
+                <FormField
+                  control={form.control}
+                  name="medicationChanges.addedMedications"
+                  render={({ field }) => (
+                    <FormItem className="ml-7">
+                      <FormControl>
+                        <Textarea
+                          placeholder="List added medications..."
+                          className="min-h-[60px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none text-sm"
+                          {...field}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <FormField
+                control={form.control}
+                name="medicationChanges.medicationsRemoved"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="mt-0.5 data-[state=checked]:bg-neutral-900 data-[state=checked]:border-neutral-900"
+                      />
+                    </FormControl>
+                    <FormLabel className="text-sm font-normal cursor-pointer text-neutral-700">
+                      Medications Removed
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+
+              {form.watch("medicationChanges.medicationsRemoved") && (
+                <FormField
+                  control={form.control}
+                  name="medicationChanges.removedMedications"
+                  render={({ field }) => (
+                    <FormItem className="ml-7">
+                      <FormControl>
+                        <Textarea
+                          placeholder="List removed medications..."
+                          className="min-h-[60px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none text-sm"
+                          {...field}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <FormField
+                control={form.control}
+                name="medicationChanges.medicationsModified"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="mt-0.5 data-[state=checked]:bg-neutral-900 data-[state=checked]:border-neutral-900"
+                      />
+                    </FormControl>
+                    <FormLabel className="text-sm font-normal cursor-pointer text-neutral-700">
+                      Medications Modified
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+
+              {form.watch("medicationChanges.medicationsModified") && (
+                <FormField
+                  control={form.control}
+                  name="medicationChanges.modifiedMedications"
+                  render={({ field }) => (
+                    <FormItem className="ml-7">
+                      <FormControl>
+                        <Textarea
+                          placeholder="List modified medications..."
+                          className="min-h-[60px] border-neutral-200 rounded-lg hover:border-neutral-300 focus:border-neutral-400 resize-none text-sm"
+                          {...field}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-end gap-2 pt-5 border-t border-neutral-200">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCancel}
+            className="text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 font-medium h-9"
+          >
+            Cancel
+          </Button>
+
+          <Button
+            type="submit"
+            className="gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-medium shadow-sm h-9"
+          >
+            <Save className="w-3.5 h-3.5" />
+            {isEditing ? "Update Transfer Log" : "Save Transfer Log"}
+          </Button>
+        </div>
+      </form>
+    </Form>
+  );
+}

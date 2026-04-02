@@ -1,4 +1,4 @@
-
+﻿
 import { supabase } from "@/lib/supabase";
 
 export interface HospitalPassport {
@@ -10,8 +10,6 @@ export interface HospitalPassport {
     sign_off: any;
     organization_id: string;
     created_by: string;
-    is_archived: boolean;
-    archived_at?: string;
     created_at: string;
     updated_at: string;
 }
@@ -40,7 +38,6 @@ export const hospitalTransferService = {
             .from('hospital_passports')
             .select('*')
             .eq('resident_id', residentId)
-            .order('is_archived', { ascending: true }) // Active first
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -62,32 +59,13 @@ export const hospitalTransferService = {
             signOff: passport.sign_off,
             organizationId: passport.organization_id,
             createdBy: passport.created_by,
-            isArchived: passport.is_archived,
-            archivedAt: passport.archived_at,
             createdAt: passport.created_at,
             updatedAt: passport.updated_at
         }));
     },
 
     async createPassport(passport: any) {
-        // 1. Archive any existing active passport for this resident
-        const { error: archiveError } = await supabase
-            .from('hospital_passports')
-            .update({ 
-                is_archived: true, 
-                archived_at: new Date().toISOString() 
-            })
-            .eq('resident_id', passport.residentId)
-            .eq('is_archived', false);
-
-        if (archiveError) {
-            console.error("Error archiving previous passport:", archiveError);
-            // We continue anyway to create the new one, or should we fail?
-            // Usually better to fail if archiving is critical for audit.
-            throw archiveError;
-        }
-
-        // 2. Map frontend structure to DB structure
+        // Map frontend structure to DB structure
         const dbPayload = {
             resident_id: passport.residentId,
             general_details: passport.generalDetails,
@@ -95,8 +73,7 @@ export const hospitalTransferService = {
             skin_medication_attachments: passport.skinMedicationAttachments,
             sign_off: passport.signOff,
             organization_id: passport.organizationId,
-            created_by: passport.createdBy,
-            is_archived: false
+            created_by: passport.createdBy
         };
 
         const { data, error } = await supabase
@@ -107,18 +84,6 @@ export const hospitalTransferService = {
 
         if (error) throw error;
         return data;
-    },
-
-    async archivePassport(id: string) {
-        const { error } = await supabase
-            .from('hospital_passports')
-            .update({ 
-                is_archived: true, 
-                archived_at: new Date().toISOString() 
-            })
-            .eq('id', id);
-
-        if (error) throw error;
     },
 
     async updatePassport(id: string, updates: any) {
@@ -171,10 +136,9 @@ export const hospitalTransferService = {
             reason: log.reason,
             outcome: log.outcome,
             followUp: log.follow_up,
-            time: log.time,
-            label: log.label,
-            filesChanged: log.files_changed,
-            medicationChanges: log.medication_changes,
+            escortDetails: log.escort_details,
+            paperworkSent: log.paperwork_sent,
+            medicationSent: log.medication_sent,
             organizationId: log.organization_id,
             createdBy: log.created_by,
             createdAt: log.created_at,
@@ -183,22 +147,22 @@ export const hospitalTransferService = {
     },
 
     async createTransferLog(log: any) {
-        // Write only verified schema columns to avoid PostgREST 400 errors
-        const dbPayload: any = {
+        // Write to both column naming conventions to handle schema conflicts
+        const dbPayload = {
             resident_id: log.residentId,
-            // Support both naming conventions to avoid NOT NULL constraint errors
+            // Both date column names
             date: log.date,
             transfer_date: log.date,
+            // Both hospital column names  
             hospital_name: log.hospitalName,
             destination_hospital: log.hospitalName,
             reason: log.reason || '',
-            label: log.label || null,
-            files_changed: log.filesChanged || {},
-            medication_changes: log.medicationChanges || {},
-            time: log.time || null,
-            // Verified schema columns
+            // Additional columns from different schema versions
             outcome: log.outcome || null,
             follow_up: log.followUp || null,
+            escort_details: log.escortDetails || null,
+            paperwork_sent: log.paperworkSent || false,
+            medication_sent: log.medicationSent || false,
             organization_id: log.organizationId,
             created_by: log.createdBy
         };
@@ -215,6 +179,7 @@ export const hospitalTransferService = {
 
     async updateTransferLog(id: string, updates: any) {
         const dbPayload: any = {};
+        // Write to both column naming conventions
         if (updates.date) {
             dbPayload.date = updates.date;
             dbPayload.transfer_date = updates.date;
@@ -224,12 +189,11 @@ export const hospitalTransferService = {
             dbPayload.destination_hospital = updates.hospitalName;
         }
         if (updates.reason) dbPayload.reason = updates.reason;
-        if (updates.time) dbPayload.time = updates.time;
         if (updates.outcome) dbPayload.outcome = updates.outcome;
         if (updates.followUp) dbPayload.follow_up = updates.followUp;
-        if (updates.filesChanged) dbPayload.files_changed = updates.filesChanged;
-        if (updates.medicationChanges) dbPayload.medication_changes = updates.medicationChanges;
-        if (updates.label !== undefined) dbPayload.label = updates.label;
+        if (updates.escortDetails) dbPayload.escort_details = updates.escortDetails;
+        if (updates.paperworkSent !== undefined) dbPayload.paperwork_sent = updates.paperworkSent;
+        if (updates.medicationSent !== undefined) dbPayload.medication_sent = updates.medicationSent;
 
         const { data, error } = await supabase
             .from('hospital_transfer_logs')

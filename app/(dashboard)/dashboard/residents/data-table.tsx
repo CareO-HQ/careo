@@ -23,8 +23,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-import { Search, X } from "lucide-react";
+import { Search, X, UploadIcon } from "lucide-react";
 import { CreateResidentForm } from "@/components/residents/forms/CreateResidentForm";
+import { BulkUploadResidents } from "@/components/residents/forms/BulkUploadResidents";
 import {
   DialogContent,
   DialogDescription,
@@ -121,21 +122,41 @@ export function DataTable<TData, TValue>({
             {table.getCoreRowModel().rows.length} resident(s)
           </div>
           {canCreateResident(userRole) && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">Add Resident</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Resident Profile</DialogTitle>
-                  <DialogDescription>
-                    Enter the resident&apos;s personal information and relevant care
-                    details to create their profile.
-                  </DialogDescription>
-                </DialogHeader>
-                <CreateResidentForm onSuccess={() => setIsDialogOpen(false)} />
-              </DialogContent>
-            </Dialog>
+            <div className="flex items-center gap-2">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" className="gap-2">
+                    <UploadIcon className="h-4 w-4" />
+                    Bulk Upload
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Bulk Upload Residents</DialogTitle>
+                    <DialogDescription>
+                      Upload a CSV file to add multiple residents at once.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <BulkUploadResidents />
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">Add Resident</Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl">
+                  <DialogHeader>
+                    <DialogTitle>Create New Resident Profile</DialogTitle>
+                    <DialogDescription>
+                      Enter the resident&apos;s personal information and relevant care
+                      details to create their profile.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <CreateResidentForm onSuccess={() => setIsDialogOpen(false)} />
+                </DialogContent>
+              </Dialog>
+            </div>
           )}
         </div>
       </div>

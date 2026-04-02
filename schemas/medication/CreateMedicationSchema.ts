@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { PRNProtocolSchema } from "@/schemas/residents/medication/prnProtocolSchema";
+
 
 export const CreateMedicationSchema = z
   .object({
@@ -89,7 +91,12 @@ export const CreateMedicationSchema = z
     minIntervalHours: z.number().positive().optional(),
     maxDailyDose: z.number().positive().optional(),
     maxDailyDoseUnit: z.string().optional(),
-    bodyRegions: z.array(z.string()).optional()
+    bodyRegions: z.array(z.string()).optional(),
+    prnProtocols: z.array(
+      PRNProtocolSchema.extend({
+        protocolLabel: z.string().min(1, "Protocol name is required")
+      })
+    ).optional()
   })
   .refine(
     (data) => {

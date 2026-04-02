@@ -2,6 +2,7 @@ import z from "zod";
 
 export const CreateResidentSchema = z.object({
   firstName: z.string().min(1, { message: "First name is required" }),
+  middleName: z.string().optional(),
   lastName: z.string().min(1, { message: "Last name is required" }),
   dateOfBirth: z.string().min(1, { message: "Date of birth is required" }),
   phoneNumber: z.string().optional(),
@@ -29,10 +30,10 @@ export const CreateResidentSchema = z.object({
     )
     .optional(),
   dependencies: z.object({
-    mobility: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Mobility level is required" }),
-    eating: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Eating level is required" }),
-    dressing: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Dressing level is required" }),
-    toileting: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Toileting level is required" }),
+    mobility: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent", "Prompt Needed"], { message: "Mobility level is required" }),
+    eating: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent", "Prompt Needed"], { message: "Eating level is required" }),
+    dressing: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent", "Prompt Needed"], { message: "Dressing level is required" }),
+    toileting: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent", "Prompt Needed"], { message: "Toileting level is required" }),
   }),
   emergencyContacts: z
     .array(

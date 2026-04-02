@@ -80,13 +80,17 @@ export function ViewTransferLogDialog({
         <div className="flex-1 overflow-y-auto space-y-6 px-1">
           {/* Transfer Details Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Transfer Details</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{transferLog.label || "Transfer Details"}</h3>
 
             <div className="bg-white rounded-lg border p-4 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <span className="text-sm font-medium text-gray-600">Transfer Date</span>
+                  <span className="text-sm font-medium text-gray-600">Date</span>
                   <p className="text-gray-900 font-medium">{formatDate(transferLog.date)}</p>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Time</span>
+                  <p className="text-gray-900 font-medium">{transferLog.time || "Not provided"}</p>
                 </div>
                 <div>
                   <span className="text-sm font-medium text-gray-600">Hospital</span>
@@ -99,138 +103,99 @@ export function ViewTransferLogDialog({
                 <p className="text-gray-900 mt-1">{transferLog.reason}</p>
               </div>
 
-              {transferLog.outcome && (
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Outcome</span>
-                  <p className="text-gray-900 mt-1">{transferLog.outcome}</p>
-                </div>
-              )}
+              <div>
+                <span className="text-sm font-medium text-gray-600">Outcome</span>
+                <p className={transferLog.outcome ? "text-gray-900 mt-1" : "text-gray-500 mt-1 italic"}>
+                  {transferLog.outcome || "Not provided"}
+                </p>
+              </div>
 
-              {transferLog.followUp && (
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Follow Up Required</span>
-                  <p className="text-gray-900 mt-1">{transferLog.followUp}</p>
-                </div>
-              )}
+              <div>
+                <span className="text-sm font-medium text-gray-600">Follow Up Required</span>
+                <p className={transferLog.followUp ? "text-gray-900 mt-1" : "text-gray-500 mt-1 italic"}>
+                  {transferLog.followUp || "Not provided"}
+                </p>
+              </div>
             </div>
           </div>
 
           <Separator />
 
           {/* Files Changed Section */}
-          {transferLog.filesChanged && (transferLog.filesChanged.carePlan || transferLog.filesChanged.riskAssessment || transferLog.filesChanged.other) && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Files Changed</h3>
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Files Changed</h3>
 
-              <div className="bg-white rounded-lg border p-4">
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    {transferLog.filesChanged.carePlan && (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                        Care Plan Updated
-                      </Badge>
-                    )}
-                    {transferLog.filesChanged.riskAssessment && (
-                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                        Risk Assessment Updated
-                      </Badge>
-                    )}
-                    {transferLog.filesChanged.other && (
-                      <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-                        Other Files Updated
-                      </Badge>
-                    )}
-                  </div>
+            <div className="bg-white rounded-lg border p-4">
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className={transferLog.filesChanged?.carePlan ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-50 text-gray-400 border-gray-200"}>
+                    Care Plan {transferLog.filesChanged?.carePlan ? "Updated" : "Not Updated"}
+                  </Badge>
+                  <Badge variant="outline" className={transferLog.filesChanged?.riskAssessment ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-gray-50 text-gray-400 border-gray-200"}>
+                    Risk Assessment {transferLog.filesChanged?.riskAssessment ? "Updated" : "Not Updated"}
+                  </Badge>
+                </div>
 
-                  {transferLog.filesChanged.other && (
-                    <div>
-                      <span className="text-sm font-medium text-gray-600">Other Files Changed</span>
-                      <p className="text-gray-900 mt-1">{transferLog.filesChanged.other}</p>
-                    </div>
-                  )}
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Other Files Changed</span>
+                  <p className={transferLog.filesChanged?.other ? "text-gray-900 mt-1" : "text-gray-500 mt-1 italic"}>
+                    {transferLog.filesChanged?.other || "None recorded"}
+                  </p>
                 </div>
               </div>
             </div>
-          )}
-
-          {transferLog.filesChanged && !(transferLog.filesChanged.carePlan || transferLog.filesChanged.riskAssessment || transferLog.filesChanged.other) && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Files Changed</h3>
-              <div className="bg-white rounded-lg border p-4 text-center">
-                <p className="text-gray-500">No file changes recorded</p>
-              </div>
-            </div>
-          )}
+          </div>
 
           <Separator />
 
           {/* Medication Changes Section */}
-          {transferLog.medicationChanges && (
-            transferLog.medicationChanges.medicationsAdded ||
-            transferLog.medicationChanges.medicationsRemoved ||
-            transferLog.medicationChanges.medicationsModified
-          ) ? (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Medication Changes</h3>
+
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Medication Changes</h3>
-
-              <div className="space-y-4">
-                {/* Medications Added */}
-                {transferLog.medicationChanges.medicationsAdded && (
-                  <div className="bg-white rounded-lg border p-4">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        Medications Added
-                      </Badge>
-                    </div>
-                    {transferLog.medicationChanges.addedMedications ? (
-                      <p className="text-gray-900">{transferLog.medicationChanges.addedMedications}</p>
-                    ) : (
-                      <p className="text-gray-600 italic">No specific medications listed</p>
-                    )}
-                  </div>
+              {/* Medications Added */}
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Badge variant="outline" className={transferLog.medicationChanges?.medicationsAdded ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-50 text-gray-400 border-gray-200"}>
+                    Medications {transferLog.medicationChanges?.medicationsAdded ? "Added" : "Not Added"}
+                  </Badge>
+                </div>
+                {transferLog.medicationChanges?.medicationsAdded && (
+                  <p className={transferLog.medicationChanges.addedMedications ? "text-gray-900" : "text-gray-500 italic"}>
+                    {transferLog.medicationChanges.addedMedications || "No specific medications listed"}
+                  </p>
                 )}
+              </div>
 
-                {/* Medications Removed */}
-                {transferLog.medicationChanges.medicationsRemoved && (
-                  <div className="bg-white rounded-lg border p-4">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                        Medications Removed
-                      </Badge>
-                    </div>
-                    {transferLog.medicationChanges.removedMedications ? (
-                      <p className="text-gray-900">{transferLog.medicationChanges.removedMedications}</p>
-                    ) : (
-                      <p className="text-gray-600 italic">No specific medications listed</p>
-                    )}
-                  </div>
+              {/* Medications Removed */}
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Badge variant="outline" className={transferLog.medicationChanges?.medicationsRemoved ? "bg-red-50 text-red-700 border-red-200" : "bg-gray-50 text-gray-400 border-gray-200"}>
+                    Medications {transferLog.medicationChanges?.medicationsRemoved ? "Removed" : "Not Removed"}
+                  </Badge>
+                </div>
+                {transferLog.medicationChanges?.medicationsRemoved && (
+                  <p className={transferLog.medicationChanges.removedMedications ? "text-gray-900" : "text-gray-500 italic"}>
+                    {transferLog.medicationChanges.removedMedications || "No specific medications listed"}
+                  </p>
                 )}
+              </div>
 
-                {/* Medications Modified */}
-                {transferLog.medicationChanges.medicationsModified && (
-                  <div className="bg-white rounded-lg border p-4">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                        Medications Modified
-                      </Badge>
-                    </div>
-                    {transferLog.medicationChanges.modifiedMedications ? (
-                      <p className="text-gray-900">{transferLog.medicationChanges.modifiedMedications}</p>
-                    ) : (
-                      <p className="text-gray-600 italic">No specific modifications listed</p>
-                    )}
-                  </div>
+              {/* Medications Modified */}
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Badge variant="outline" className={transferLog.medicationChanges?.medicationsModified ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-gray-50 text-gray-400 border-gray-200"}>
+                    Medications {transferLog.medicationChanges?.medicationsModified ? "Modified" : "Not Modified"}
+                  </Badge>
+                </div>
+                {transferLog.medicationChanges?.medicationModified && (
+                  <p className={transferLog.medicationChanges.modifiedMedications ? "text-gray-900" : "text-gray-500 italic"}>
+                    {transferLog.medicationChanges.modifiedMedications || "No specific modifications listed"}
+                  </p>
                 )}
               </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Medication Changes</h3>
-              <div className="bg-white rounded-lg border p-4 text-center">
-                <p className="text-gray-500">No medication changes recorded</p>
-              </div>
-            </div>
-          )}
+          </div>
 
           <Separator />
 

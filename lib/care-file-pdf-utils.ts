@@ -1,8 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
-import { generate } from "@pdfme/generator";
-import { BLANK_PDF, Template } from "@pdfme/common";
 
 interface GenerateCareFilePDFOptions {
     formName: string;
@@ -19,195 +17,16 @@ export const generateCareFilePDF = async ({
     orgLogoUrl,
     careHomeName
 }: GenerateCareFilePDFOptions) => {
-    if (formName.toUpperCase().includes("GENERAL RISK ASSESSMENT")) {
-        type RiskLevelEntry = {
-            area: string;
-            level?: "low" | "medium" | "high";
-            notes?: string;
-        };
-
-        type GeneralRiskAssessmentData = {
-            fullName?: string;
-            dateOfBirth?: string;
-            nhsNumber?: string;
-            roomNumber?: string;
-            dateOfAssessment?: string;
-            assessmentCompletedBy?: string;
-            role?: string;
-            reasonForAssessment?: string[];
-            otherReason?: string;
-            areasOfRisk?: string[];
-            otherArea?: string;
-            riskDescription?: string;
-            riskLevels?: RiskLevelEntry[];
-            controlMeasures?: string;
-            equipmentRequired?: string[];
-            otherEquipment?: string;
-            residentInvolvement?: string[];
-            involvementComments?: string;
-            reviewFrequency?: string[];
-            otherFrequency?: string;
-            nextReviewDate?: string;
-            assessorSignature?: string;
-            signatureDate?: string;
-        };
-
-        const assessment = (data?.assessment_data ?? data ?? {}) as GeneralRiskAssessmentData;
-
-        const displayValue = (value?: string): string => {
-            if (!value) return "Not provided";
-            const trimmed = value.trim();
-            return trimmed.length > 0 ? trimmed : "Not provided";
-        };
-
-        const displayList = (values?: string[]): string => {
-            if (!values || values.length === 0) return "Not selected";
-            return values.join(", ");
-        };
-
-        const formatDateValue = (value?: string): string => {
-            if (!value) return "Not provided";
-            const parsed = new Date(value);
-            if (Number.isNaN(parsed.getTime())) return displayValue(value);
-            return format(parsed, "dd/MM/yyyy");
-        };
-
-        const riskEntries = (assessment.riskLevels ?? []).filter((entry) => Boolean(entry?.area));
-        const riskLevelText = riskEntries.length > 0
-            ? riskEntries
-                .map((entry) => {
-                    const areaLabel = entry.area === "OTHER_AREA"
-                        ? `Other (${displayValue(assessment.otherArea)})`
-                        : entry.area;
-                    const levelLabel = entry.level ? entry.level.toUpperCase() : "NOT SET";
-                    const notesLabel = entry.notes?.trim() ? ` | Notes: ${entry.notes.trim()}` : "";
-                    return `- ${areaLabel}: ${levelLabel}${notesLabel}`;
-                })
-                .join("\n")
-            : "Not specified";
-
-        const sectionA = [
-            `Full Name: ${displayValue(assessment.fullName)}`,
-            `Date of Birth: ${formatDateValue(assessment.dateOfBirth)}`,
-            `Resident / NHS Number: ${displayValue(assessment.nhsNumber)}`,
-            `Room Number: ${displayValue(assessment.roomNumber)}`,
-            `Date of Assessment: ${formatDateValue(assessment.dateOfAssessment)}`
-        ].join("\n");
-
-        const sectionB = [
-            `Assessment Completed By: ${displayValue(assessment.assessmentCompletedBy)}`,
-            `Role: ${displayValue(assessment.role)}`,
-            `Reason for Assessment: ${displayList(assessment.reasonForAssessment)}`,
-            `Other reason: ${displayValue(assessment.otherReason)}`
-        ].join("\n");
-
-        const sectionC = [
-            `Areas of Risk: ${displayList(assessment.areasOfRisk)}`,
-            `Other area: ${displayValue(assessment.otherArea)}`
-        ].join("\n");
-
-        const sectionD = `Description:\n${displayValue(assessment.riskDescription)}`;
-        const sectionF = `Control Measures and Actions:\n${displayValue(assessment.controlMeasures)}`;
-
-        const sectionG = [
-            `Equipment or Support Required: ${displayList(assessment.equipmentRequired)}`,
-            `Other equipment/support: ${displayValue(assessment.otherEquipment)}`
-        ].join("\n");
-
-        const sectionH = [
-            `Resident/Representative Involvement: ${displayList(assessment.residentInvolvement)}`,
-            `Comments: ${displayValue(assessment.involvementComments)}`
-        ].join("\n");
-
-        const sectionI = [
-            `Review Frequency: ${displayList(assessment.reviewFrequency)}`,
-            `Other frequency: ${displayValue(assessment.otherFrequency)}`,
-            `Next Review Date: ${formatDateValue(assessment.nextReviewDate)}`
-        ].join("\n");
-
-        const sectionJ = [
-            `Assessor Signature: ${displayValue(assessment.assessorSignature)}`,
-            `Signature Date: ${formatDateValue(assessment.signatureDate)}`
-        ].join("\n");
-
-        const template: Template = {
-            basePdf: BLANK_PDF,
-            schemas: [
-                [
-                    { name: "title", type: "text", content: "", position: { x: 10, y: 10 }, width: 190, height: 8, fontSize: 16 },
-                    { name: "sectionAHeader", type: "text", content: "", position: { x: 10, y: 22 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionA", type: "text", content: "", position: { x: 10, y: 28 }, width: 190, height: 25, fontSize: 9 },
-                    { name: "sectionBHeader", type: "text", content: "", position: { x: 10, y: 56 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionB", type: "text", content: "", position: { x: 10, y: 62 }, width: 190, height: 26, fontSize: 9 },
-                    { name: "sectionCHeader", type: "text", content: "", position: { x: 10, y: 91 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionC", type: "text", content: "", position: { x: 10, y: 97 }, width: 190, height: 18, fontSize: 9 },
-                    { name: "sectionDHeader", type: "text", content: "", position: { x: 10, y: 118 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionD", type: "text", content: "", position: { x: 10, y: 124 }, width: 190, height: 34, fontSize: 9 },
-                    { name: "sectionEHeader", type: "text", content: "", position: { x: 10, y: 161 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionE", type: "text", content: "", position: { x: 10, y: 167 }, width: 190, height: 110, fontSize: 9 }
-                ],
-                [
-                    { name: "titlePage2", type: "text", content: "", position: { x: 10, y: 10 }, width: 190, height: 8, fontSize: 14 },
-                    { name: "sectionFHeader", type: "text", content: "", position: { x: 10, y: 22 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionF", type: "text", content: "", position: { x: 10, y: 28 }, width: 190, height: 34, fontSize: 9 },
-                    { name: "sectionGHeader", type: "text", content: "", position: { x: 10, y: 65 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionG", type: "text", content: "", position: { x: 10, y: 71 }, width: 190, height: 20, fontSize: 9 },
-                    { name: "sectionHHeader", type: "text", content: "", position: { x: 10, y: 94 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionH", type: "text", content: "", position: { x: 10, y: 100 }, width: 190, height: 28, fontSize: 9 },
-                    { name: "sectionIHeader", type: "text", content: "", position: { x: 10, y: 131 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionI", type: "text", content: "", position: { x: 10, y: 137 }, width: 190, height: 24, fontSize: 9 },
-                    { name: "sectionJHeader", type: "text", content: "", position: { x: 10, y: 164 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionJ", type: "text", content: "", position: { x: 10, y: 170 }, width: 190, height: 20, fontSize: 9 },
-                    { name: "generatedOn", type: "text", content: "", position: { x: 10, y: 285 }, width: 190, height: 6, fontSize: 8 }
-                ]
-            ]
-        };
-
-        const inputs = [
-            {
-                title: "General Risk Assessment",
-                sectionAHeader: "Section A - Resident Information",
-                sectionA,
-                sectionBHeader: "Section B - Assessment Details",
-                sectionB,
-                sectionCHeader: "Section C - Areas of Risk Identified",
-                sectionC,
-                sectionDHeader: "Section D - Description of Identified Risks",
-                sectionD,
-                sectionEHeader: "Section E - Risk Level",
-                sectionE: riskLevelText,
-                titlePage2: "General Risk Assessment (continued)",
-                sectionFHeader: "Section F - Control Measures and Actions",
-                sectionF,
-                sectionGHeader: "Section G - Equipment or Support Required",
-                sectionG,
-                sectionHHeader: "Section H - Resident / Representative Involvement",
-                sectionH,
-                sectionIHeader: "Section I - Review and Monitoring",
-                sectionI,
-                sectionJHeader: "Section J - Signatures",
-                sectionJ,
-                generatedOn: `Generated on ${format(new Date(), "dd/MM/yyyy")}`
-            }
-        ];
-
-        const pdfBytes = await generate({
-            template,
-            inputs
-        });
-
-        const blob = new Blob([pdfBytes], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${resident?.last_name || "Resident"}_General_Risk_Assessment_${format(new Date(), "ddMMyyyy")}.pdf`;
-        link.click();
-        URL.revokeObjectURL(url);
-        return;
-    }
-
-    const doc = new jsPDF();
+    const isLandscape = formName.toUpperCase().includes("FALL RISK ASSESSMENT") || 
+                       formName.toUpperCase().includes("DEPENDENCY ASSESSMENT");
+    
+    const doc = new jsPDF({
+        orientation: isLandscape ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: 'a4'
+    });
     const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
     const margin = 14;
 
     // Helper to load images
@@ -1059,7 +878,7 @@ export const generateCareFilePDF = async ({
     };
 
     const ensureSpace = async (heightNeeded: number, currentY: number) => {
-        if (currentY + heightNeeded > 280) {
+        if (currentY + heightNeeded > pageHeight - margin) {
             doc.addPage();
             await drawHeader();
             return 30; // Return new yPos after header
@@ -1142,7 +961,7 @@ export const generateCareFilePDF = async ({
         };
 
         const ensureAdmissionSpace = async (heightNeeded: number, currentY: number) => {
-            if (currentY + heightNeeded > 280) {
+            if (currentY + heightNeeded > pageHeight - margin) {
                 doc.addPage();
                 await drawAdmissionHeader();
                 return 30;
@@ -1319,7 +1138,7 @@ export const generateCareFilePDF = async ({
 
             autoTable(doc, {
                 startY: yPos,
-                head: [['Date', 'By', 'Mob', 'Dre', 'Hyg', 'Fed', 'Eye', 'Hea', 'Brad', 'Uri', 'Fae', 'Com', 'Soc', 'Beh', 'Tot', 'Lvl']],
+                head: [['Date', 'Completed By', 'Mobility', 'Dressing', 'Hygiene', 'Feeding', 'Eyesight', 'Hearing', 'Pressure Risk', 'Urine Cont.', 'Faeces Cont.', 'Communication', 'Social Dep.', 'Behaviour', 'Total Score', 'Dependency Level']],
                 body: data.history.map((h: any) => {
                     const det = h.assessment_details || {};
                     return [
@@ -1338,7 +1157,7 @@ export const generateCareFilePDF = async ({
                         det.socialDependency || 0,
                         det.behaviour || 0,
                         h.total_score || 0,
-                        h.dependency_level?.[0] || ""
+                        h.dependency_level || ""
                     ];
                 }),
                 theme: 'grid',
@@ -1346,7 +1165,8 @@ export const generateCareFilePDF = async ({
                 styles: { fontSize: 7, cellPadding: 1, halign: 'center' },
                 columnStyles: {
                     0: { halign: 'left', cellWidth: 15 },
-                    1: { halign: 'left', cellWidth: 20 },
+                    1: { halign: 'left', cellWidth: 35 },
+                    15: { cellWidth: 25 }
                 }
             });
             yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -1446,7 +1266,7 @@ export const generateCareFilePDF = async ({
 
             autoTable(doc, {
                 startY: yPos,
-                head: [['Date', 'Age', 'Sex', 'Fall', 'Mob', 'Bal', 'ADLP', 'ADLD', 'Foot', 'Vis', 'B&B', 'Env', 'Soc', 'MedC', 'Meds', 'Safe', 'Ment', 'Tot', 'Risk', 'By']],
+                head: [['Date', 'Age', 'Gender', 'Falls History', 'Mobility', 'Balance', 'Personal ADL', 'Domestic ADL', 'Footwear', 'Vision', 'Bladder/Bowel', 'Environmental', 'Social', 'Medical Cond.', 'Medication', 'Safety Awareness', 'Mental State', 'Total Score', 'Risk Level', 'Completed By']],
                 body: data.history.map((h: any) => {
                     const det = h.assessment_details || {};
                     return [
@@ -1468,18 +1288,18 @@ export const generateCareFilePDF = async ({
                         getPointValue('safetyAwareness', det.safetyAwareness),
                         getPointValue('mentalState', det.mentalState),
                         h.total_score || 0,
-                        h.risk_level?.replace(" Risk", "") || "N/A",
+                        h.risk_level || "N/A",
                         h.completed_by || h.completedBy || "N/A"
                     ];
                 }),
                 theme: 'grid',
                 headStyles: { fillColor: [34, 197, 94] },
-                styles: { fontSize: 6, cellPadding: 1 },
+                styles: { fontSize: 7, cellPadding: 1.5 },
                 columnStyles: {
-                    0: { cellWidth: 12 },
-                    17: { halign: 'center', fontStyle: 'bold', cellWidth: 8 },
-                    18: { halign: 'center', fontStyle: 'bold', cellWidth: 12 },
-                    19: { cellWidth: 15 }
+                    0: { cellWidth: 15 },
+                    17: { halign: 'center', fontStyle: 'bold', cellWidth: 12 },
+                    18: { halign: 'center', fontStyle: 'bold', cellWidth: 18 },
+                    19: { cellWidth: 25 }
                 }
             });
             yPos = (doc as any).lastAutoTable.finalY + 15;
