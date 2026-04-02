@@ -799,7 +799,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
           {activeFile ? (
             <FileViewer file={activeFile} />
           ) : activeView === "initial-assessment" ? (
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto pb-8">
               <InitialWoundAssessmentForm
                 residentId={residentId}
                 woundFolderId={folderId}
@@ -813,7 +813,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
               />
             </div>
           ) : activeView === "assessment" ? (
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto pb-8">
               <WoundAssessmentForm
                 residentId={residentId}
                 woundFolderId={folderId}
@@ -827,7 +827,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
               />
             </div>
           ) : activeView === "evaluation" ? (
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto pb-8">
               <WoundTreatmentEvaluationForm
                 residentId={residentId}
                 woundFolderId={folderId}
@@ -840,7 +840,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
               />
             </div>
           ) : activeView === "photograph" ? (
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto pb-8">
               <PhotographEvaluationForm
                 residentId={residentId}
                 woundFolderId={folderId}
@@ -908,7 +908,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
 
               {/* Right: Entry Form / Observations list */}
               <div className="flex-[2] overflow-hidden bg-slate-50/50">
-                <ScrollArea className="h-full px-4 pt-2 pb-3">
+                <ScrollArea className="h-full px-4 pt-2 pb-8">
                   {bmSelectedRegion ? (
                     <BodyMapEntryForm
                       regionName={bmSelectedRegion.region_name}
@@ -998,7 +998,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
               </div>
             </div>
           ) : activeView === "care-plans" ? (
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin bg-muted/10">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-8 scrollbar-thin bg-muted/10">
               <div className="w-full bg-background rounded-xl border shadow-sm mb-8 overflow-visible">
                 <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/5">
                   <div className="flex items-center gap-3">

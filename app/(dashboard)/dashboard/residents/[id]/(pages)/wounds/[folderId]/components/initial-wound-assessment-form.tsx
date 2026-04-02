@@ -38,11 +38,23 @@ import {
   Save,
   Loader2,
   AlertTriangle,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // --- Zod Schema ---
 const InitialWoundAssessmentSchema = z.object({
@@ -102,17 +114,7 @@ type Props = {
   residentId: string;
   residentName: string;
   residentDOB?: string;
-  assessments?: Array<{
-    id: string;
-    assessment_date: string;
-    assessment_completed_by: string;
-    wound_location: string;
-    type_of_wound: string;
-    evidence_of_infection: boolean;
-    any_pain_from_wound: boolean;
-    pain_severity?: number;
-    created_at: string;
-  }>;
+  assessments?: Array<any>;
   isLoadingAssessments?: boolean;
   onSaved?: () => void;
 };
@@ -129,9 +131,12 @@ export function InitialWoundAssessmentForm({
   const { profile } = useProfile();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Show form if no assessments exist, otherwise show the existing assessment
-  const showNewForm = assessments.length === 0 && !selectedAssessmentId;
+  // Show form if no assessments exist, in edit mode, or no assessment selected
+  const showNewForm = (assessments.length === 0 && !selectedAssessmentId) || isEditMode;
 
   // Auto-select first assessment if it exists
   React.useEffect(() => {
@@ -193,12 +198,55 @@ export function InitialWoundAssessmentForm({
   // Watch for pain
   const anyPainFromWound = form.watch("anyPainFromWound");
 
+  // View selected assessment (define this before useEffect that uses it)
+  const selectedAssessment = assessments.find((a) => a.id === selectedAssessmentId);
+
   // Update assessor name when profile loads
   React.useEffect(() => {
     if (profile?.name && !form.getValues("assessmentCompletedBy")) {
       form.setValue("assessmentCompletedBy", profile.name);
     }
   }, [profile?.name, form]);
+
+  // Populate form when entering edit mode
+  React.useEffect(() => {
+    if (isEditMode && selectedAssessment) {
+      form.reset({
+        assessmentDate: selectedAssessment.assessment_date ? new Date(selectedAssessment.assessment_date) : new Date(),
+        assessmentCompletedBy: selectedAssessment.assessment_completed_by || "",
+        dateWoundOccurred: selectedAssessment.date_wound_occurred ? new Date(selectedAssessment.date_wound_occurred) : undefined,
+        woundLocation: selectedAssessment.wound_location || "",
+        typeOfWound: selectedAssessment.type_of_wound || "",
+        maximumLength: selectedAssessment.maximum_length?.toString() || "",
+        maximumWidth: selectedAssessment.maximum_width?.toString() || "",
+        maximumDepth: selectedAssessment.maximum_depth?.toString() || "",
+        necroticPercentage: selectedAssessment.necrotic_percentage ?? undefined,
+        sloughyPercentage: selectedAssessment.sloughy_percentage ?? undefined,
+        granulationPercentage: selectedAssessment.granulation_percentage ?? undefined,
+        epithelialisationPercentage: selectedAssessment.epithelialisation_percentage ?? undefined,
+        evidenceOfInfection: selectedAssessment.evidence_of_infection ? "yes" : "no",
+        exudateType: selectedAssessment.exudate_type || "",
+        exudateColour: selectedAssessment.exudate_colour || "",
+        exudateVolume: selectedAssessment.exudate_volume || "low",
+        anyMalodourNoted: selectedAssessment.any_malodour_noted ? "yes" : "no",
+        woundMarginColour: selectedAssessment.wound_margin_colour || "",
+        anyOedema: selectedAssessment.any_oedema ? "yes" : "no",
+        anyHeat: selectedAssessment.any_heat ? "yes" : "no",
+        surroundingErythema: selectedAssessment.surrounding_erythema ? "yes" : "no",
+        maxDistanceFromMargin: selectedAssessment.max_distance_from_margin?.toString() || "",
+        conditionOfSurroundingSkin: selectedAssessment.condition_of_surrounding_skin || "",
+        anyPainFromWound: selectedAssessment.any_pain_from_wound ? "yes" : "no",
+        painSeverity: selectedAssessment.pain_severity ?? undefined,
+        painFrequency: selectedAssessment.pain_frequency || "",
+        woundPhotographed: selectedAssessment.wound_photographed ? "yes" : "no",
+        bodyMapCompleted: selectedAssessment.body_map_completed ? "yes" : "no",
+        woundSwabSent: selectedAssessment.wound_swab_sent ? "yes" : "no",
+        bradenReevaluated: selectedAssessment.braden_reevaluated ? "yes" : "no",
+        bradenScore: selectedAssessment.braden_score ?? undefined,
+        mustScore: selectedAssessment.must_score ?? undefined,
+      });
+    }
+  }, [isEditMode, selectedAssessment, form]);
 
   const onSubmit = async (data: InitialWoundAssessmentFormValues) => {
     console.log("=== Form Submission Started ===");
@@ -224,10 +272,10 @@ export function InitialWoundAssessmentForm({
         return;
       }
 
-      console.log("Inserting data into database...");
+      console.log(isEditMode ? "Updating data in database..." : "Inserting data into database...");
 
-      // Save to database
-      const { error: dbError } = await supabase.from("initial_wound_assessments").insert({
+      // Prepare assessment data
+      const assessmentData = {
         wound_folder_id: woundFolderId,
         resident_id: residentId,
         organization_id: profile?.active_organization_id,
@@ -283,7 +331,22 @@ export function InitialWoundAssessmentForm({
 
         // Audit fields
         recorded_by: profile?.id,
-      });
+      };
+
+      // Save to database (insert or update)
+      let dbError;
+      if (isEditMode && selectedAssessmentId) {
+        const { error } = await supabase
+          .from("initial_wound_assessments")
+          .update(assessmentData)
+          .eq("id", selectedAssessmentId);
+        dbError = error;
+      } else {
+        const { error } = await supabase
+          .from("initial_wound_assessments")
+          .insert(assessmentData);
+        dbError = error;
+      }
 
       if (dbError) {
         console.error("=== Database Error ===");
@@ -319,10 +382,10 @@ export function InitialWoundAssessmentForm({
       }
 
       console.log("✓ Successfully saved to database");
-      toast.success("Initial wound assessment saved successfully");
+      toast.success(isEditMode ? "Assessment updated successfully" : "Initial wound assessment saved successfully");
 
-      // Create notification if infection detected
-      if (hasInfection) {
+      // Create notification if infection detected (only on new assessments)
+      if (hasInfection && !isEditMode) {
         await supabase.from("notifications").insert({
           organization_id: profile?.active_organization_id,
           care_home_id: profile?.active_care_home_id,
@@ -333,8 +396,9 @@ export function InitialWoundAssessmentForm({
         });
       }
 
-      // Reset form
+      // Reset form and exit edit mode
       form.reset();
+      setIsEditMode(false);
 
       if (onSaved) onSaved();
 
@@ -360,8 +424,46 @@ export function InitialWoundAssessmentForm({
     }
   };
 
-  // View selected assessment
-  const selectedAssessment = assessments.find((a) => a.id === selectedAssessmentId);
+  // Handle delete assessment
+  const handleDelete = async () => {
+    if (!selectedAssessmentId) return;
+
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("initial_wound_assessments")
+        .delete()
+        .eq("id", selectedAssessmentId);
+
+      if (error) {
+        console.error("Delete error:", error);
+        toast.error("Failed to delete assessment");
+        return;
+      }
+
+      toast.success("Assessment deleted successfully");
+      setSelectedAssessmentId(null);
+      setShowDeleteDialog(false);
+
+      if (onSaved) onSaved();
+    } catch (error) {
+      console.error("Error deleting assessment:", error);
+      toast.error("An error occurred while deleting");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Handle edit button click
+  const handleEdit = () => {
+    setIsEditMode(true);
+  };
+
+  // Handle cancel edit
+  const handleCancelEdit = () => {
+    setIsEditMode(false);
+    form.reset();
+  };
 
   return (
     <ScrollArea className="h-full">
@@ -374,12 +476,34 @@ export function InitialWoundAssessmentForm({
         )}
 
         {/* Selected Assessment Viewer - Show existing assessment */}
-        {!isLoadingAssessments && selectedAssessmentId && selectedAssessment && (
+        {!isLoadingAssessments && selectedAssessmentId && selectedAssessment && !isEditMode && (
           <div className="bg-white border rounded-lg shadow-sm">
-            {/* Header */}
+            {/* Header with Action Buttons */}
             <div className="border-b bg-slate-50 px-6 py-4">
-              <h1 className="text-2xl font-bold text-center border-2 border-black py-2">INITIAL WOUND ASSESSMENT</h1>
-              <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-2xl font-bold text-center flex-1 border-2 border-black py-2">INITIAL WOUND ASSESSMENT</h1>
+                <div className="flex gap-2 ml-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEdit}
+                    className="gap-2"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="font-semibold">Name of Resident:</span> {residentName}
                 </div>
@@ -389,11 +513,12 @@ export function InitialWoundAssessmentForm({
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="p-6 space-y-0">
+              {/* Assessment Info */}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
                   <span className="text-xs font-semibold">Assessment Completed by:</span>
-                  <p className="text-sm mt-1">{selectedAssessment.assessment_completed_by}</p>
+                  <p className="text-sm mt-1">{selectedAssessment.assessment_completed_by || "N/A"}</p>
                 </div>
                 <div>
                   <span className="text-xs font-semibold">Date:</span>
@@ -401,22 +526,210 @@ export function InitialWoundAssessmentForm({
                 </div>
               </div>
 
-              <div className="border-2 border-black p-4 space-y-3">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-semibold">Location:</span> {selectedAssessment.wound_location}
+              {/* WOUND Section */}
+              <div className="border-2 border-black">
+                <div className="bg-slate-100 border-b-2 border-black px-3 py-1">
+                  <div className="grid grid-cols-2">
+                    <div className="font-bold text-sm">WOUND</div>
+                    <div className="font-bold text-sm">DETAILS OF WOUND</div>
                   </div>
-                  <div>
-                    <span className="font-semibold">Type:</span> {selectedAssessment.type_of_wound}
+                </div>
+
+                <div className="divide-y divide-gray-300">
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Date wound occurred/noted</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.date_wound_occurred ? format(new Date(selectedAssessment.date_wound_occurred), "dd/MM/yyyy") : "N/A"}</div>
                   </div>
-                  <div>
-                    <span className="font-semibold">Evidence of Infection:</span> {selectedAssessment.evidence_of_infection ? "Yes" : "No"}
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Wound location</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.wound_location || "N/A"}</div>
                   </div>
-                  {selectedAssessment.any_pain_from_wound && (
-                    <div>
-                      <span className="font-semibold">Pain Severity:</span> {selectedAssessment.pain_severity}/10
-                    </div>
-                  )}
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Type of wound</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.type_of_wound || "N/A"}</div>
+                  </div>
+                </div>
+
+                {/* WOUND SIZE */}
+                <div className="bg-slate-100 border-y-2 border-black px-3 py-1">
+                  <div className="font-bold text-sm text-center">WOUND SIZE (CM)</div>
+                </div>
+
+                <div className="divide-y divide-gray-300">
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Maximum length</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.maximum_length || "N/A"} cm</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Maximum width</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.maximum_width || "N/A"} cm</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Maximum depth</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.maximum_depth || "N/A"} cm</div>
+                  </div>
+                </div>
+
+                {/* WOUND BED */}
+                <div className="bg-slate-100 border-y-2 border-black px-3 py-1">
+                  <div className="font-bold text-sm text-center">WOUND BED (%)</div>
+                </div>
+
+                <div className="divide-y divide-gray-300">
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Necrotic</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.necrotic_percentage ?? 0}%</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Sloughy</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.sloughy_percentage ?? 0}%</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Granulation</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.granulation_percentage ?? 0}%</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Epithelialisation</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.epithelialisation_percentage ?? 0}%</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Evidence of Infection (Y/N)</div>
+                    <div className="px-3 py-1.5 text-xs font-semibold">{selectedAssessment.evidence_of_infection ? "Yes" : "No"}</div>
+                  </div>
+                </div>
+
+                {/* EXUDATE */}
+                <div className="bg-slate-100 border-y-2 border-black px-3 py-1">
+                  <div className="font-bold text-sm text-center">EXUDATE</div>
+                </div>
+
+                <div className="divide-y divide-gray-300">
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Type</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.exudate_type || "N/A"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Colour</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.exudate_colour || "N/A"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Volume (high/mod/low)</div>
+                    <div className="px-3 py-1.5 text-xs capitalize">{selectedAssessment.exudate_volume || "N/A"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Any Malodour noted?(Y/N)</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.any_malodour_noted ? "Yes" : "No"}</div>
+                  </div>
+                </div>
+
+                {/* WOUND MARGIN */}
+                <div className="bg-slate-100 border-y-2 border-black px-3 py-1">
+                  <div className="font-bold text-sm text-center">WOUND MARGIN</div>
+                </div>
+
+                <div className="divide-y divide-gray-300">
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Colour</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.wound_margin_colour || "N/A"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Any Oedema? (Y/N)</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.any_oedema ? "Yes" : "No"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Any Heat? (Y/N)</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.any_heat ? "Yes" : "No"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Is there surrounding erythema? (Y/N)</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.surrounding_erythema ? "Yes" : "No"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Maximum distance from wound margin (cm)</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.max_distance_from_margin || "N/A"} cm</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Condition of surrounding skin</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.condition_of_surrounding_skin || "N/A"}</div>
+                  </div>
+                </div>
+
+                {/* PAIN */}
+                <div className="bg-slate-100 border-y-2 border-black px-3 py-1">
+                  <div className="font-bold text-sm text-center">PAIN</div>
+                </div>
+
+                <div className="divide-y divide-gray-300">
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Any pain from wound?</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.any_pain_from_wound ? "Yes" : "No"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Severity (1-10)</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.pain_severity || "N/A"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Frequency</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.pain_frequency || "N/A"}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Documentation Checklist */}
+              <div className="border-2 border-black mt-6">
+                <div className="divide-y divide-gray-300">
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-2 text-xs font-medium border-r border-gray-300 bg-gray-50"></div>
+                    <div className="px-3 py-2 text-xs font-bold text-center bg-gray-50">COMPLETED</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Wound photographed?</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.wound_photographed ? "Yes" : "No"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Body Map completed?</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.body_map_completed ? "Yes" : "No"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Wound swab sent?</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.wound_swab_sent ? "Yes" : "No"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Braden re-evaluated</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.braden_reevaluated ? "Yes" : "No"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Braden Score</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.braden_score || "N/A"}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">MUST score</div>
+                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.must_score || "N/A"}</div>
+                  </div>
                 </div>
               </div>
 
@@ -430,11 +743,18 @@ export function InitialWoundAssessmentForm({
         )}
 
         {/* New Assessment Form - Plain Document Style */}
-        {!isLoadingAssessments && showNewForm && !selectedAssessmentId && (
+        {!isLoadingAssessments && showNewForm && (
           <div className="bg-white border rounded-lg shadow-sm">
             {/* Header */}
             <div className="border-b bg-slate-50 px-6 py-4">
-             
+              {isEditMode && (
+                <div className="mb-2 flex items-center gap-2">
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                    <Edit className="w-3 h-3 mr-1" />
+                    Edit Mode
+                  </Badge>
+                </div>
+              )}
               <h1 className="text-2xl font-bold text-center border-2 border-black py-2">INITIAL WOUND ASSESSMENT</h1>
               <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                 <div>
@@ -1350,17 +1670,28 @@ export function InitialWoundAssessmentForm({
                 </div>
 
                 {/* Submit Button */}
-                <div className="border-t px-6 py-4 bg-slate-50 flex justify-end">
+                <div className="border-t px-6 py-4 bg-slate-50 flex justify-end gap-3">
+                  {isEditMode && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCancelEdit}
+                      disabled={isSubmitting}
+                      size="lg"
+                    >
+                      Cancel
+                    </Button>
+                  )}
                   <Button type="submit" disabled={isSubmitting} size="lg">
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Saving...
+                        {isEditMode ? "Updating..." : "Saving..."}
                       </>
                     ) : (
                       <>
                         <Save className="w-4 h-4 mr-2" />
-                        Save Initial Assessment
+                        {isEditMode ? "Update Assessment" : "Save Initial Assessment"}
                       </>
                     )}
                   </Button>
@@ -1369,6 +1700,35 @@ export function InitialWoundAssessmentForm({
             </Form>
           </div>
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Initial Assessment?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete this initial wound assessment. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </ScrollArea>
   );
