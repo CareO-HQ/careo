@@ -103,20 +103,20 @@ export function WoundStatusForm({
   const selectedStatusOption = STATUS_OPTIONS.find((opt) => opt.value === status);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Next Review Date */}
-      <div className="space-y-1.5">
-        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Next Review</Label>
+      <div className="space-y-1">
+        <Label className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide">Next Review</Label>
         <Popover>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               className={cn(
-                "h-9 text-xs w-full justify-start text-left font-normal bg-white shadow-sm border-muted-foreground/20",
+                "h-7 text-[11px] w-full justify-start text-left font-normal bg-white shadow-sm border-muted-foreground/20",
                 !nextReviewDate && "text-muted-foreground"
               )}
             >
-              <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+              <CalendarIcon className="mr-1.5 h-3 w-3" />
               {nextReviewDate ? format(nextReviewDate, "dd/MM/yyyy") : "Set date"}
             </Button>
           </PopoverTrigger>
@@ -132,10 +132,10 @@ export function WoundStatusForm({
       </div>
 
       {/* Status Selection */}
-      <div className="space-y-1.5">
-        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Wound Status</Label>
+      <div className="space-y-1">
+        <Label className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide">Status</Label>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="h-9 text-xs bg-white shadow-sm border-muted-foreground/20">
+          <SelectTrigger className="h-7 text-[11px] bg-white shadow-sm border-muted-foreground/20">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -156,17 +156,17 @@ export function WoundStatusForm({
       <Button
         onClick={handleSave}
         disabled={isSaving}
-        className="w-full h-9 text-xs font-semibold shadow-sm"
+        className="w-full h-7 text-[11px] font-medium shadow-sm"
         variant="default"
       >
         {isSaving ? (
           <>
-            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
             Saving...
           </>
         ) : (
           <>
-            <Save className="w-3.5 h-3.5 mr-2" />
+            <Save className="w-3 h-3 mr-1.5" />
             Update Status
           </>
         )}

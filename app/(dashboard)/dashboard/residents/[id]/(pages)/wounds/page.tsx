@@ -682,7 +682,7 @@ export default function WoundsPage({ params }: WoundsPageProps) {
                     <TableHead>Type</TableHead>
                     <TableHead>Stage</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Last Reviewed</TableHead>
+                    <TableHead>Next Review</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -726,15 +726,10 @@ export default function WoundsPage({ params }: WoundsPageProps) {
                           )}
                         </TableCell>
                         <TableCell>
-                          {wound?.last_reviewed_date ? (
-                            <div>
-                              <div className="text-sm">{formatDateForDisplay(wound.last_reviewed_date)}</div>
-                              {wound.last_reviewed_by && (
-                                <div className="text-xs text-gray-500">by {wound.last_reviewed_by}</div>
-                              )}
-                            </div>
+                          {folder?.next_review_date ? (
+                            <div className="text-sm">{formatDateForDisplay(folder.next_review_date)}</div>
                           ) : (
-                            <span className="text-gray-400 text-sm">Not reviewed</span>
+                            <span className="text-gray-400 text-sm">Not set</span>
                           )}
                         </TableCell>
                       </TableRow>

@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { InitialWoundAssessmentForm } from "./components/initial-wound-assessment-form";
 import { WoundAssessmentForm } from "./components/wound-assessment-form";
 import { WoundTreatmentEvaluationForm } from "./components/wound-treatment-evaluation-form";
 import { PhotographEvaluationForm } from "./components/photograph-evaluation-form";
@@ -198,10 +199,14 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   const [resident, setResident] = useState<ResidentData | null>(null);
   const [folder, setFolder] = useState<WoundFolder | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<"assessment" | "evaluation" | "photograph" | "body-map" | "care-plans" | null>(null);
+  const [activeView, setActiveView] = useState<"initial-assessment" | "assessment" | "evaluation" | "photograph" | "body-map" | "care-plans" | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
+
+  // Track initial wound assessments (usually one per wound)
+  const [initialWoundAssessments, setInitialWoundAssessments] = useState<any[]>([]);
+  const [isLoadingInitialAssessments, setIsLoadingInitialAssessments] = useState(false);
 
   // Track wound assessments (multiple allowed)
   const [woundAssessments, setWoundAssessments] = useState<any[]>([]);
@@ -416,6 +421,28 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     }
   };
 
+  // Fetch initial wound assessments
+  const fetchInitialWoundAssessments = useCallback(async () => {
+    if (!folderId) return;
+    setIsLoadingInitialAssessments(true);
+    try {
+      const { data, error } = await supabase
+        .from("initial_wound_assessments")
+        .select("*")
+        .eq("wound_folder_id", folderId)
+        .order("assessment_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setInitialWoundAssessments(data);
+      }
+    } catch (err) {
+      console.error("Error fetching initial wound assessments:", err);
+    } finally {
+      setIsLoadingInitialAssessments(false);
+    }
+  }, [folderId]);
+
   // Fetch wound assessments
   const fetchWoundAssessments = useCallback(async () => {
     if (!folderId) return;
@@ -565,12 +592,13 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
         if (!error) setResident(data as ResidentData);
       });
 
-    // Fetch wound assessments, treatment evaluations, and photograph evaluations
+    // Fetch initial assessments, wound assessments, treatment evaluations, and photograph evaluations
+    fetchInitialWoundAssessments();
     fetchWoundAssessments();
     fetchTreatmentEvaluations();
     fetchPhotographEvaluations();
     fetchActiveCarePlans();
-  }, [residentId, fetchWoundAssessments, fetchTreatmentEvaluations, fetchPhotographEvaluations, fetchActiveCarePlans]);
+  }, [residentId, fetchInitialWoundAssessments, fetchWoundAssessments, fetchTreatmentEvaluations, fetchPhotographEvaluations, fetchActiveCarePlans]);
 
   const fetchFolder = useCallback(async () => {
     if (!folderId) return;
@@ -634,6 +662,11 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     }
   };
 
+  const handleInitialAssessmentClick = () => {
+    setActiveFileId(null);
+    setActiveView("initial-assessment");
+  };
+
   const handleAssessmentClick = () => {
     setActiveFileId(null);
     setActiveView("assessment");
@@ -693,9 +726,9 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   // Calculate progress status
   const progressHasBodyMap = bodyMapEntryCount > 0;
   const progressHasPhotograph = photographEvaluations.length > 0;
-  const progressHasInitialAssessment = woundAssessments.length > 0;
+  const progressHasInitialAssessment = initialWoundAssessments.length > 0;
   const progressHasCarePlan = carePlanCount > 0;
-  const progressHasOngoingAssessment = woundAssessments.length > 1; // More than one assessment
+  const progressHasOngoingAssessment = woundAssessments.length > 0;
   const progressHasEvaluation = folder?.next_review_date ? true : false;
   const progressIsHealed = folder?.status === "healed";
 
@@ -754,6 +787,20 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
         <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {activeFile ? (
             <FileViewer file={activeFile} />
+          ) : activeView === "initial-assessment" ? (
+            <div className="flex-1 overflow-auto">
+              <InitialWoundAssessmentForm
+                residentId={residentId}
+                woundFolderId={folderId}
+                residentName={fullName}
+                residentDOB={resident?.date_of_birth}
+                assessments={initialWoundAssessments}
+                isLoadingAssessments={isLoadingInitialAssessments}
+                onSaved={() => {
+                  fetchInitialWoundAssessments();
+                }}
+              />
+            </div>
           ) : activeView === "assessment" ? (
             <div className="flex-1 overflow-auto">
               <WoundAssessmentForm
@@ -1017,12 +1064,12 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
           <div className={`transition-opacity duration-300 ${isSidebarCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"} flex flex-col gap-6`}>
             {/* Status section - Moved to top for visibility */}
             <div>
-              <div className="flex items-center justify-between mb-1.5 px-1.5">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+              <div className="flex items-center justify-between mb-1 px-1">
+                <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide">
                   Folder Status
                 </p>
               </div>
-              <div className="px-1.5">
+              <div className="px-1">
                 <WoundStatusForm
                   folderId={folderId}
                   currentStatus={folder?.status}
@@ -1034,6 +1081,44 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
 
             <Separator className="bg-muted/50" />
 
+            {/* Body Map section */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5 px-1">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+                  Body Map
+                </p>
+              </div>
+              <button
+                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${activeView === "body-map"
+                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                  : "hover:bg-muted/60 text-foreground"
+                  }`}
+                onClick={handleBodyMapClick}
+              >
+                {hasBodyMapData && bodyMapEntryCount > 0 ? (
+                  <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                ) : (
+                  <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                    Body Map
+                  </p>
+                  {hasBodyMapData && bodyMapEntryCount > 0 ? (
+                    <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                      {bodyMapEntryCount} {bodyMapEntryCount === 1 ? "observation" : "observations"}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">
+                      Click to start
+                    </p>
+                  )}
+                </div>
+              </button>
+            </div>
+
+            <Separator className="bg-muted/50" />
+
             {/* Assessment section */}
             <div>
               <div className="flex items-center justify-between mb-1.5 px-1.5">
@@ -1041,6 +1126,35 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                   Assessment
                 </p>
               </div>
+
+              {/* Initial Wound Assessment */}
+              <button
+                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer mb-1 ${activeView === "initial-assessment"
+                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                  : "hover:bg-muted/60 text-foreground"
+                  }`}
+                onClick={handleInitialAssessmentClick}
+              >
+                {initialWoundAssessments.length > 0 ? (
+                  <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                ) : (
+                  <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                    Initial Assessment
+                  </p>
+                  {initialWoundAssessments.length > 0 ? (
+                    <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                      Completed
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">
+                      Click to start
+                    </p>
+                  )}
+                </div>
+              </button>
 
               {/* Wound Assessment */}
               <button
@@ -1120,42 +1234,6 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                   {photographEvaluations.length > 0 ? (
                     <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
                       {photographEvaluations.length} {photographEvaluations.length === 1 ? "evaluation" : "evaluations"}
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-muted-foreground">
-                      Click to start
-                    </p>
-                  )}
-                </div>
-              </button>
-            </div>
-
-            {/* Body Map section */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5 px-1">
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
-                  Body Map
-                </p>
-              </div>
-              <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${activeView === "body-map"
-                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                  : "hover:bg-muted/60 text-foreground"
-                  }`}
-                onClick={handleBodyMapClick}
-              >
-                {hasBodyMapData && bodyMapEntryCount > 0 ? (
-                  <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
-                ) : (
-                  <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
-                )}
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
-                    Body Map
-                  </p>
-                  {hasBodyMapData && bodyMapEntryCount > 0 ? (
-                    <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
-                      {bodyMapEntryCount} {bodyMapEntryCount === 1 ? "observation" : "observations"}
                     </p>
                   ) : (
                     <p className="text-[10px] text-muted-foreground">

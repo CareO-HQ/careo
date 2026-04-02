@@ -10,7 +10,6 @@ import { useProfile } from "@/hooks/use-profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Form,
   FormControl,
@@ -28,40 +27,27 @@ import {
 import {
   CalendarIcon,
   Upload,
-  Camera,
   Save,
-  Plus,
-  X,
-  Image as ImageIcon,
   Loader2,
-  Trash2,
+  Image as ImageIcon,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 // --- Zod Schema ---
 const PhotographEvaluationSchema = z.object({
   photographDate: z.date(),
-  photographTime: z.string().min(1, "Time is required"),
   siteOfWound: z.string().min(1, "Site of wound is required"),
-  lengthCm: z.string().optional(),
-  widthCm: z.string().optional(),
-  depthCm: z.string().optional(),
+  leftRight: z.string().optional(),
+  actualPosition: z.string().optional(),
+  state: z.string().optional(),
+  innerOuter: z.string().optional(),
+  actualMeasurement: z.string().optional(),
   rgnSignature: z.string().min(1, "RGN signature is required"),
-  comment: z.string().optional(),
+  comments: z.string().optional(),
 });
 
 type PhotographEvaluationFormValues = z.infer<typeof PhotographEvaluationSchema>;
@@ -70,7 +56,15 @@ type Props = {
   woundFolderId: string;
   residentId: string;
   residentName: string;
-  evaluations?: any[];
+  evaluations?: Array<{
+    id: string;
+    photograph_date: string;
+    photograph_url: string;
+    site_of_wound: string;
+    rgn_signature: string;
+    comment?: string;
+    created_at: string;
+  }>;
   isLoadingEvaluations?: boolean;
   onSaved?: () => void;
 };
@@ -87,25 +81,36 @@ export function PhotographEvaluationForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [showNewForm, setShowNewForm] = useState(false);
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [evaluationToDelete, setEvaluationToDelete] = useState<{ id: string; url: string } | null>(null);
+
+  // Auto-select first evaluation if it exists
+  React.useEffect(() => {
+    if (evaluations.length > 0 && !selectedEvaluationId) {
+      setSelectedEvaluationId(evaluations[0].id);
+    }
+  }, [evaluations, selectedEvaluationId]);
 
   const form = useForm<PhotographEvaluationFormValues>({
     resolver: zodResolver(PhotographEvaluationSchema),
     defaultValues: {
       photographDate: new Date(),
-      photographTime: new Date().toTimeString().slice(0, 5),
       siteOfWound: "",
-      lengthCm: "",
-      widthCm: "",
-      depthCm: "",
+      leftRight: "",
+      actualPosition: "",
+      state: "",
+      innerOuter: "",
+      actualMeasurement: "",
       rgnSignature: profile?.name || "",
-      comment: "",
+      comments: "",
     },
   });
+
+  // Update RGN signature when profile loads
+  React.useEffect(() => {
+    if (profile?.name && !form.getValues("rgnSignature")) {
+      form.setValue("rgnSignature", profile.name);
+    }
+  }, [profile?.name, form]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -152,12 +157,15 @@ export function PhotographEvaluationForm({
     setIsSubmitting(true);
 
     try {
+      console.log("=== Photograph Evaluation Submission ===");
+      console.log("Form Data:", values);
+
       // Upload photograph to storage
       const fileExt = photoFile.name.split(".").pop();
       const fileName = `${woundFolderId}/${Date.now()}.${fileExt}`;
       const filePath = `wound-photographs/${fileName}`;
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("wound-photos")
         .upload(filePath, photoFile, {
           cacheControl: "3600",
@@ -175,6 +183,14 @@ export function PhotographEvaluationForm({
         .from("wound-photos")
         .getPublicUrl(filePath);
 
+      // Build site info
+      const siteInfo = [
+        values.leftRight,
+        values.actualPosition,
+        values.state,
+        values.innerOuter
+      ].filter(Boolean).join(" | ");
+
       // Save evaluation to database
       const { error: dbError } = await supabase
         .from("wound_photograph_evaluations")
@@ -183,44 +199,34 @@ export function PhotographEvaluationForm({
           resident_id: residentId,
           organization_id: profile.active_organization_id,
           photograph_date: format(values.photographDate, "yyyy-MM-dd"),
-          photograph_time: values.photographTime,
+          photograph_time: new Date().toTimeString().slice(0, 5),
           photograph_url: publicUrl,
-          site_of_wound: values.siteOfWound,
-          length_cm: values.lengthCm ? parseFloat(values.lengthCm) : null,
-          width_cm: values.widthCm ? parseFloat(values.widthCm) : null,
-          depth_cm: values.depthCm ? parseFloat(values.depthCm) : null,
+          site_of_wound: `${values.siteOfWound}${siteInfo ? ` (${siteInfo})` : ""}`,
+          length_cm: values.actualMeasurement ? parseFloat(values.actualMeasurement.split("x")[0]) : null,
+          width_cm: values.actualMeasurement && values.actualMeasurement.includes("x")
+            ? parseFloat(values.actualMeasurement.split("x")[1])
+            : null,
           rgn_signature: values.rgnSignature,
           rgn_user_id: profile.id,
-          comment: values.comment || null,
+          comment: values.comments || null,
           created_by: profile.id,
         });
 
       if (dbError) {
         console.error("Database error:", dbError);
-        toast.error("Failed to save evaluation");
+        toast.error(`Failed to save: ${dbError.message}`);
         return;
       }
 
+      console.log("✓ Successfully saved photograph evaluation");
       toast.success("Photograph evaluation saved successfully");
 
       // Reset form
-      form.reset({
-        photographDate: new Date(),
-        photographTime: new Date().toTimeString().slice(0, 5),
-        siteOfWound: "",
-        lengthCm: "",
-        widthCm: "",
-        depthCm: "",
-        rgnSignature: profile?.name || "",
-        comment: "",
-      });
+      form.reset();
       handleRemovePhoto();
-      setShowNewForm(false);
 
       // Callback to parent
-      if (onSaved) {
-        onSaved();
-      }
+      if (onSaved) onSaved();
     } catch (error) {
       console.error("Error saving evaluation:", error);
       toast.error("An unexpected error occurred");
@@ -229,502 +235,425 @@ export function PhotographEvaluationForm({
     }
   };
 
-  const handleDeleteClick = (evaluationId: string, photographUrl: string) => {
-    setEvaluationToDelete({ id: evaluationId, url: photographUrl });
-    setDeleteDialogOpen(true);
-  };
+  // View selected evaluation
+  const selectedEvaluation = evaluations.find((e) => e.id === selectedEvaluationId);
 
-  const handleDeleteConfirm = async () => {
-    if (!evaluationToDelete) return;
-
-    setDeletingId(evaluationToDelete.id);
-
-    try {
-      // Extract file path from URL
-      const urlParts = evaluationToDelete.url.split("/");
-      const fileName = urlParts[urlParts.length - 1];
-      const folderPath = urlParts[urlParts.length - 2];
-      const filePath = `wound-photographs/${folderPath}/${fileName}`;
-
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from("wound-photos")
-        .remove([filePath]);
-
-      if (storageError) {
-        console.warn("Storage deletion warning:", storageError);
-        // Continue even if storage deletion fails
-      }
-
-      // Delete from database
-      const { error: dbError } = await supabase
-        .from("wound_photograph_evaluations")
-        .delete()
-        .eq("id", evaluationToDelete.id);
-
-      if (dbError) {
-        console.error("Database error:", dbError);
-        toast.error("Failed to delete evaluation");
-        return;
-      }
-
-      toast.success("Photograph evaluation deleted successfully");
-
-      // Callback to refresh
-      if (onSaved) {
-        onSaved();
-      }
-    } catch (error) {
-      console.error("Error deleting evaluation:", error);
-      toast.error("An unexpected error occurred");
-    } finally {
-      setDeletingId(null);
-      setDeleteDialogOpen(false);
-      setEvaluationToDelete(null);
-    }
-  };
-
-  const selectedEvaluation = selectedEvaluationId
-    ? evaluations.find((e) => e.id === selectedEvaluationId)
-    : null;
+  // Determine what to show
+  const showNewForm = evaluations.length === 0 && !selectedEvaluationId;
 
   return (
-    <div className="h-full flex flex-col p-4 space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <Camera className="w-4 h-4 text-blue-600" />
-          <h3 className="text-sm font-semibold">Photograph Evaluations</h3>
-        </div>
-        {!showNewForm && (
-          <Button onClick={() => setShowNewForm(true)} size="sm" className="h-7 text-xs">
-            <Plus className="w-3 h-3 mr-1" />
-            New
-          </Button>
+    <ScrollArea className="h-full">
+      <div className="max-w-6xl mx-auto p-6">
+        {/* Loading state */}
+        {isLoadingEvaluations && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
         )}
-      </div>
 
-      {/* New Evaluation Form */}
-      {showNewForm && (
-        <Card className="border border-blue-200 flex-shrink-0">
-          <CardHeader className="bg-blue-50 py-2 px-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">New Evaluation</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0"
-                onClick={() => {
-                  setShowNewForm(false);
-                  form.reset();
-                  handleRemovePhoto();
-                }}
-              >
-                <X className="w-3 h-3" />
-              </Button>
+        {/* Selected Evaluation Viewer */}
+        {!isLoadingEvaluations && selectedEvaluationId && selectedEvaluation && (
+          <div className="bg-white border rounded-lg shadow-sm">
+            {/* Header */}
+            <div className="border-b bg-slate-50 px-6 py-4">
+              <h1 className="text-2xl font-bold text-center">WOUND PHOTOGRAPHIC EVALUATION</h1>
+              <div className="mt-2 text-sm text-center text-muted-foreground">
+                <span className="font-semibold">Resident:</span> {residentName}
+              </div>
             </div>
-          </CardHeader>
-          <CardContent className="p-3">
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-                {/* Photograph Upload */}
-                <div className="space-y-1">
-                  <Label className="text-xs">Photograph *</Label>
-                  {!photoPreview ? (
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handlePhotoChange}
-                        className="hidden"
-                        id="photo-upload"
-                      />
-                      <label htmlFor="photo-upload" className="cursor-pointer">
-                        <Camera className="w-8 h-8 mx-auto text-gray-400 mb-1" />
-                        <p className="text-xs text-gray-600">Click to upload</p>
-                        <p className="text-[10px] text-gray-400">PNG, JPG up to 10MB</p>
-                      </label>
-                    </div>
-                  ) : (
-                    <div className="relative border border-blue-200 rounded-lg p-1">
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Insert Photograph Section */}
+                <div className="border-2 border-black">
+                  <div className="bg-slate-100 border-b-2 border-black px-3 py-2">
+                    <div className="font-bold text-sm">Insert Photograph</div>
+                  </div>
+                  <div className="p-4 flex items-center justify-center min-h-[300px]">
+                    {selectedEvaluation.photograph_url ? (
                       <img
-                        src={photoPreview}
-                        alt="Preview"
-                        className="rounded object-cover mx-auto w-full h-32"
+                        src={selectedEvaluation.photograph_url}
+                        alt="Wound photograph"
+                        className="max-w-full max-h-[400px] object-contain"
                       />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={handleRemovePhoto}
-                        className="absolute top-2 right-2 h-6 w-6 p-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Date and Time */}
-                <div className="grid grid-cols-2 gap-2">
-                  <FormField
-                    control={form.control}
-                    name="photographDate"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel className="text-xs">Date *</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className={cn(
-                                  "h-8 text-xs pl-2 text-left font-normal w-full",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "dd/MM/yy")
-                                ) : (
-                                  <span>Date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-3 w-3 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) =>
-                                date > new Date() || date < new Date("1900-01-01")
-                              }
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
+                    ) : (
+                      <div className="text-center text-muted-foreground">
+                        <ImageIcon className="w-16 h-16 mx-auto mb-2 opacity-30" />
+                        <p className="text-sm">No photograph available</p>
+                      </div>
                     )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="photographTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">Time *</FormLabel>
-                        <FormControl>
-                          <Input type="time" className="h-8 text-xs" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Site of Wound */}
-                <FormField
-                  control={form.control}
-                  name="siteOfWound"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">Site of Wound *</FormLabel>
-                      <FormControl>
-                        <Input className="h-8 text-xs" placeholder="e.g., Left heel" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Actual Measurements */}
-                <div className="space-y-1">
-                  <Label className="text-xs">Measurements (cm)</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <FormField
-                      control={form.control}
-                      name="lengthCm"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px]">Length</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              placeholder="0.0"
-                              className="h-7 text-xs"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="widthCm"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px]">Width</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              placeholder="0.0"
-                              className="h-7 text-xs"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="depthCm"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px]">Depth</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              placeholder="0.0"
-                              className="h-7 text-xs"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                   </div>
                 </div>
 
-                {/* RGN Signature */}
-                <FormField
-                  control={form.control}
-                  name="rgnSignature"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">RGN Signature *</FormLabel>
-                      <FormControl>
-                        <Input className="h-8 text-xs" placeholder="Your name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Evaluation Details */}
+                <div className="border-2 border-black">
+                  <div className="divide-y divide-gray-300">
+                    <div className="px-3 py-2 bg-slate-100 border-b-2 border-black">
+                      <div className="font-bold text-sm">Evaluation Details</div>
+                    </div>
+                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                      <div className="px-3 py-2 text-xs font-medium">Date Photograph taken</div>
+                      <div className="px-3 py-2 text-sm">
+                        {selectedEvaluation.photograph_date
+                          ? format(new Date(selectedEvaluation.photograph_date), "dd/MM/yyyy")
+                          : "N/A"}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                      <div className="px-3 py-2 text-xs font-medium">Site of Wound</div>
+                      <div className="px-3 py-2 text-sm">{selectedEvaluation.site_of_wound}</div>
+                    </div>
+                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                      <div className="px-3 py-2 text-xs font-medium">RGN Signature</div>
+                      <div className="px-3 py-2 text-sm">{selectedEvaluation.rgn_signature}</div>
+                    </div>
+                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                      <div className="px-3 py-2 text-xs font-medium">Comments</div>
+                      <div className="px-3 py-2 text-sm">{selectedEvaluation.comment || "None"}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                {/* Comment */}
-                <FormField
-                  control={form.control}
-                  name="comment"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">Comment</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Additional notes..."
-                          rows={2}
-                          className="text-xs"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <div className="mt-6 flex justify-between">
+                <Badge variant="secondary" className="text-xs">
+                  Recorded: {selectedEvaluation.created_at
+                    ? format(new Date(selectedEvaluation.created_at), "dd MMM yyyy HH:mm")
+                    : "Unknown"}
+                </Badge>
+                {evaluations.length > 1 && (
+                  <div className="text-xs text-muted-foreground">
+                    Showing 1 of {evaluations.length} evaluations
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* New Evaluation Form */}
+        {!isLoadingEvaluations && showNewForm && (
+          <div className="bg-white border rounded-lg shadow-sm">
+            {/* Header */}
+            <div className="border-b bg-slate-50 px-6 py-4">
+              <h1 className="text-2xl font-bold text-center">WOUND PHOTOGRAPHIC EVALUATION</h1>
+              <div className="mt-2 text-sm text-center text-muted-foreground">
+                <span className="font-semibold">Resident:</span> {residentName}
+              </div>
+            </div>
+
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)}>
+                <div className="p-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Insert Photograph Section */}
+                    <div className="border-2 border-black">
+                      <div className="bg-slate-100 border-b-2 border-black px-3 py-2">
+                        <div className="font-bold text-sm">Insert Photograph</div>
+                      </div>
+                      <div className="p-4">
+                        {photoPreview ? (
+                          <div className="relative">
+                            <img
+                              src={photoPreview}
+                              alt="Preview"
+                              className="w-full max-h-[400px] object-contain border-2 border-gray-300"
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute top-2 right-2"
+                              onClick={handleRemovePhoto}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
+                            <ImageIcon className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-30" />
+                            <label htmlFor="photo-upload" className="cursor-pointer">
+                              <div className="flex flex-col items-center">
+                                <Upload className="w-8 h-8 mb-2 text-primary" />
+                                <span className="text-sm font-medium text-primary">
+                                  Click to upload photograph
+                                </span>
+                                <span className="text-xs text-muted-foreground mt-1">
+                                  JPG, PNG or GIF (max 10MB)
+                                </span>
+                              </div>
+                              <input
+                                id="photo-upload"
+                                type="file"
+                                accept="image/*"
+                                onChange={handlePhotoChange}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Form Fields */}
+                    <div className="border-2 border-black">
+                      <div className="divide-y divide-gray-300">
+                        <div className="grid grid-cols-2 divide-x divide-gray-300">
+                          <div className="px-3 py-2 text-xs font-medium border-r border-gray-300 bg-slate-50">
+                            Date Photograph taken
+                          </div>
+                          <div className="px-3 py-2">
+                            <FormField
+                              control={form.control}
+                              name="photographDate"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <FormControl>
+                                        <Button
+                                          variant="ghost"
+                                          className={cn(
+                                            "h-6 text-xs w-full justify-start text-left font-normal p-0 hover:bg-transparent",
+                                            !field.value && "text-muted-foreground"
+                                          )}
+                                        >
+                                          {field.value ? format(field.value, "dd/MM/yyyy") : <span>Select date</span>}
+                                          <CalendarIcon className="ml-auto h-3 w-3 opacity-50" />
+                                        </Button>
+                                      </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={field.onChange}
+                                        disabled={(date) => date > new Date()}
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="px-3 py-2 bg-slate-50 font-bold text-xs">Site of Wound</div>
+
+                        <div className="grid grid-cols-2 divide-x divide-gray-300">
+                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                            Left/Right
+                          </div>
+                          <div className="px-3 py-1.5">
+                            <FormField
+                              control={form.control}
+                              name="leftRight"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                      placeholder="e.g., Left"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 divide-x divide-gray-300">
+                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                            Actual Position
+                          </div>
+                          <div className="px-3 py-1.5">
+                            <FormField
+                              control={form.control}
+                              name="actualPosition"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                      placeholder="e.g., Heel"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 divide-x divide-gray-300">
+                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">State</div>
+                          <div className="px-3 py-1.5">
+                            <FormField
+                              control={form.control}
+                              name="state"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                      placeholder="e.g., Grade 2"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 divide-x divide-gray-300">
+                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                            Inner/Outer
+                          </div>
+                          <div className="px-3 py-1.5">
+                            <FormField
+                              control={form.control}
+                              name="innerOuter"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                      placeholder="e.g., Inner"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 divide-x divide-gray-300">
+                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                            Wound Location *
+                          </div>
+                          <div className="px-3 py-1.5">
+                            <FormField
+                              control={form.control}
+                              name="siteOfWound"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                      placeholder="e.g., Right Elbow"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 divide-x divide-gray-300">
+                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                            Actual Measurement
+                          </div>
+                          <div className="px-3 py-1.5">
+                            <FormField
+                              control={form.control}
+                              name="actualMeasurement"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                      placeholder="e.g., 2 x 1.5 cm"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 divide-x divide-gray-300">
+                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                            RGN Signature *
+                          </div>
+                          <div className="px-3 py-1.5">
+                            <FormField
+                              control={form.control}
+                              name="rgnSignature"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                      placeholder="Your name"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 divide-x divide-gray-300">
+                          <div className="px-3 py-2 text-xs font-medium border-r border-gray-300">Comments</div>
+                          <div className="px-3 py-2">
+                            <FormField
+                              control={form.control}
+                              name="comments"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Textarea
+                                      className="min-h-[80px] text-xs border-0 p-0 focus-visible:ring-0 resize-none"
+                                      placeholder="Additional notes..."
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Submit Button */}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => {
-                      setShowNewForm(false);
-                      form.reset();
-                      handleRemovePhoto();
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" size="sm" className="h-7 text-xs" disabled={isSubmitting || !photoFile}>
+                <div className="border-t px-6 py-4 bg-slate-50 flex justify-end">
+                  <Button type="submit" disabled={isSubmitting} size="lg">
                     {isSubmitting ? (
                       <>
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         Saving...
                       </>
                     ) : (
                       <>
-                        <Save className="w-3 h-3 mr-1" />
-                        Save
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Evaluation
                       </>
                     )}
                   </Button>
                 </div>
               </form>
             </Form>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Evaluations List */}
-      <div className="flex-1 min-h-0 flex flex-col border rounded-lg overflow-hidden">
-        <div className="bg-muted/30 px-3 py-2 border-b flex-shrink-0">
-          <h4 className="text-xs font-semibold">Previous Evaluations ({evaluations.length})</h4>
-        </div>
-        <div className="flex-1 overflow-auto p-3">
-          {isLoadingEvaluations ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-            </div>
-          ) : evaluations.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <ImageIcon className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-              <p className="text-xs">No evaluations yet</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {evaluations.map((evaluation) => (
-                <div
-                  key={evaluation.id}
-                  className={cn(
-                    "border rounded-lg p-2 hover:bg-gray-50 transition-colors relative group",
-                    selectedEvaluationId === evaluation.id && "ring-1 ring-blue-500"
-                  )}
-                >
-                  <div className="flex gap-2 cursor-pointer" onClick={() => setSelectedEvaluationId(evaluation.id)}>
-                    {/* Thumbnail */}
-                    <div className="flex-shrink-0">
-                      <img
-                        src={evaluation.signedUrl || evaluation.photograph_url}
-                        alt="Wound"
-                        className="rounded object-cover border w-16 h-16"
-                      />
-                    </div>
-
-                    {/* Details */}
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-start justify-between gap-1">
-                        <p className="text-xs font-semibold truncate">{evaluation.site_of_wound}</p>
-                        <Badge variant="outline" className="text-[10px] h-4 flex-shrink-0">{evaluation.rgn_signature}</Badge>
-                      </div>
-                      <p className="text-[10px] text-gray-500">
-                        {format(new Date(evaluation.photograph_date), "dd MMM yyyy")} {evaluation.photograph_time}
-                      </p>
-
-                      {(evaluation.length_cm || evaluation.width_cm || evaluation.depth_cm) && (
-                        <p className="text-[10px] text-gray-600">
-                          {evaluation.length_cm && `L:${evaluation.length_cm} `}
-                          {evaluation.width_cm && `W:${evaluation.width_cm} `}
-                          {evaluation.depth_cm && `D:${evaluation.depth_cm}cm`}
-                        </p>
-                      )}
-
-                      {evaluation.comment && (
-                        <p className="text-[10px] text-gray-600 italic truncate">{evaluation.comment}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Delete Button */}
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="absolute bottom-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteClick(evaluation.id, evaluation.photograph_url);
-                    }}
-                    disabled={deletingId === evaluation.id}
-                  >
-                    {deletingId === evaluation.id ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-3 h-3" />
-                    )}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Full Image View Dialog */}
-      {selectedEvaluation && (
-        <div
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedEvaluationId(null)}
-        >
-          <div className="max-w-4xl w-full bg-white rounded-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-4 border-b flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold">{selectedEvaluation.site_of_wound}</h3>
-                <p className="text-sm text-gray-500">
-                  {format(new Date(selectedEvaluation.photograph_date), "dd MMM yyyy")} at{" "}
-                  {selectedEvaluation.photograph_time}
-                </p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedEvaluationId(null)}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="p-4">
-              <img
-                src={selectedEvaluation.signedUrl || selectedEvaluation.photograph_url}
-                alt="Wound photograph"
-                className="rounded-lg object-contain mx-auto max-h-[70vh] w-full"
-              />
-              <div className="mt-4 space-y-2">
-                {(selectedEvaluation.length_cm || selectedEvaluation.width_cm || selectedEvaluation.depth_cm) && (
-                  <p className="text-sm">
-                    <strong>Measurements:</strong>{" "}
-                    {selectedEvaluation.length_cm && `Length: ${selectedEvaluation.length_cm}cm, `}
-                    {selectedEvaluation.width_cm && `Width: ${selectedEvaluation.width_cm}cm, `}
-                    {selectedEvaluation.depth_cm && `Depth: ${selectedEvaluation.depth_cm}cm`}
-                  </p>
-                )}
-                <p className="text-sm">
-                  <strong>Recorded by:</strong> {selectedEvaluation.rgn_signature}
-                </p>
-                {selectedEvaluation.comment && (
-                  <p className="text-sm">
-                    <strong>Comment:</strong> {selectedEvaluation.comment}
-                  </p>
-                )}
-              </div>
-            </div>
           </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Photograph Evaluation</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this photograph evaluation? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+        )}
+      </div>
+    </ScrollArea>
   );
 }
