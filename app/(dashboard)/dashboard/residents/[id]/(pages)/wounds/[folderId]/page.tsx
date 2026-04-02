@@ -1167,7 +1167,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 </div>
               </button>
 
-              {/* Wound Assessment */}
+              {/* Ongoing Wound Assessment */}
               <button
                 className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer mb-1 ${activeView === "assessment"
                   ? "bg-primary/10 text-primary ring-1 ring-primary/20"
@@ -1182,7 +1182,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 )}
                 <div className="min-w-0">
                   <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
-                    Wound Assessment
+                    Ongoing Wound Assessment
                   </p>
                   {woundAssessments.length > 0 ? (
                     <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">

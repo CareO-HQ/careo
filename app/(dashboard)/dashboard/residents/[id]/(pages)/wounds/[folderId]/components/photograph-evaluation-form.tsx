@@ -373,258 +373,257 @@ export function PhotographEvaluationForm({
 
         {/* New Evaluation Form (only for creating new, not editing) */}
         {!isLoadingEvaluations && showNewForm && !editingEvaluationId && (
-          <div className="bg-white border rounded-lg shadow-sm">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200/60 overflow-hidden">
             {/* Header */}
-            <div className="border-b bg-slate-50 px-6 py-4">
-              <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold">
-                  {editingEvaluationId ? "EDIT" : "NEW"} WOUND PHOTOGRAPHIC EVALUATION
-                </h1>
-                {editingEvaluationId && (
-                  <Badge variant="secondary">Editing</Badge>
-                )}
-              </div>
-              <div className="mt-2 text-sm text-muted-foreground">
-                <span className="font-semibold">Resident:</span> {residentName}
+            <div className="bg-gradient-to-r from-slate-50 to-gray-50 px-8 py-6 border-b border-gray-200/60">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
+                    New Wound Evaluation
+                  </h1>
+                  <p className="text-sm text-gray-600 mt-1">
+                    <span className="font-medium">Resident:</span> {residentName}
+                  </p>
+                </div>
               </div>
             </div>
 
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)}>
-                <div className="p-6">
-                  {/* Single border around both sections */}
-                  <div className="border-2 border-black">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x-2 lg:divide-black">
-                      {/* Insert Photograph Section */}
-                      <div>
-                        <div className="bg-slate-100 border-b-2 border-black px-3 py-2">
-                          <div className="font-bold text-sm">Insert Photograph</div>
-                        </div>
-                        <div className="p-4">
-                          {photoPreview ? (
-                            <div className="space-y-3">
-                              <div className="relative">
-                                <img
-                                  src={photoPreview}
-                                  alt="Preview"
-                                  className="w-full max-h-[400px] object-contain border-2 border-gray-300"
-                                />
-                                {editingEvaluationId && !photoFile && (
-                                  <Badge className="absolute top-2 left-2 bg-blue-500">
-                                    Current Photo
-                                  </Badge>
-                                )}
-                                {photoFile && (
-                                  <Badge className="absolute top-2 left-2 bg-green-500">
-                                    New Photo
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex gap-2">
-                                <label htmlFor="photo-change" className="flex-1">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full"
-                                    asChild
-                                  >
-                                    <span>
-                                      <Upload className="w-4 h-4 mr-2" />
-                                      {editingEvaluationId ? "Change Photo" : "Change"}
-                                    </span>
-                                  </Button>
-                                  <input
-                                    id="photo-change"
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handlePhotoChange}
-                                    className="hidden"
-                                  />
-                                </label>
-                                {!editingEvaluationId && (
-                                  <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={handleRemovePhoto}
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </Button>
-                                )}
-                              </div>
+                <div className="p-8">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Photograph Section */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-5 bg-blue-500 rounded-full"></div>
+                        <h3 className="text-base font-semibold text-gray-900">Photograph</h3>
+                      </div>
+                      <div className="">
+                        {photoPreview ? (
+                          <div className="space-y-3">
+                            <div className="relative rounded-lg overflow-hidden bg-gray-50 border border-gray-200">
+                              <img
+                                src={photoPreview}
+                                alt="Preview"
+                                className="w-full max-h-[400px] object-contain"
+                              />
+                              {editingEvaluationId && !photoFile && (
+                                <Badge className="absolute top-3 left-3 bg-blue-500 shadow-sm">
+                                  Current Photo
+                                </Badge>
+                              )}
+                              {photoFile && (
+                                <Badge className="absolute top-3 left-3 bg-emerald-500 shadow-sm">
+                                  New Photo
+                                </Badge>
+                              )}
                             </div>
-                          ) : (
-                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
-                              <ImageIcon className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-30" />
-                              <label htmlFor="photo-upload" className="cursor-pointer">
-                                <div className="flex flex-col items-center">
-                                  <Upload className="w-8 h-8 mb-2 text-primary" />
-                                  <span className="text-sm font-medium text-primary">
-                                    Click to upload photograph
+                            <div className="flex gap-2">
+                              <label htmlFor="photo-change" className="flex-1">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full border-gray-300 hover:bg-gray-50"
+                                  asChild
+                                >
+                                  <span>
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    {editingEvaluationId ? "Change Photo" : "Change"}
                                   </span>
-                                  <span className="text-xs text-muted-foreground mt-1">
-                                    JPG, PNG or GIF (max 10MB)
-                                  </span>
-                                </div>
+                                </Button>
                                 <input
-                                  id="photo-upload"
+                                  id="photo-change"
                                   type="file"
                                   accept="image/*"
                                   onChange={handlePhotoChange}
                                   className="hidden"
                                 />
                               </label>
+                              {!editingEvaluationId && (
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={handleRemovePhoto}
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        ) : (
+                          <div className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center min-h-[350px] flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                            <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-4">
+                              <ImageIcon className="w-8 h-8 text-blue-500" />
+                            </div>
+                            <label htmlFor="photo-upload" className="cursor-pointer">
+                              <div className="flex flex-col items-center">
+                                <span className="text-sm font-semibold text-gray-900 mb-1">
+                                  Upload wound photograph
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  JPG, PNG or GIF (max 10MB)
+                                </span>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="mt-4"
+                                  asChild
+                                >
+                                  <span>
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    Choose file
+                                  </span>
+                                </Button>
+                              </div>
+                              <input
+                                id="photo-upload"
+                                type="file"
+                                accept="image/*"
+                                onChange={handlePhotoChange}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Form Fields */}
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-5 bg-blue-500 rounded-full"></div>
+                        <h3 className="text-base font-semibold text-gray-900">Evaluation Details</h3>
                       </div>
 
-                      {/* Form Fields */}
-                      <div>
-                      <div className="divide-y divide-gray-300">
-                        <div className="grid grid-cols-2 divide-x divide-gray-300">
-                          <div className="px-3 py-2 text-xs font-medium border-r border-gray-300 bg-slate-50">
-                            Date Photograph taken
-                          </div>
-                          <div className="px-3 py-2">
-                            <FormField
-                              control={form.control}
-                              name="photographDate"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <FormControl>
-                                        <Button
-                                          variant="ghost"
-                                          className={cn(
-                                            "h-6 text-xs w-full justify-start text-left font-normal p-0 hover:bg-transparent",
-                                            !field.value && "text-muted-foreground"
-                                          )}
-                                        >
-                                          {field.value ? format(field.value, "dd/MM/yyyy") : <span>Select date</span>}
-                                          <CalendarIcon className="ml-auto h-3 w-3 opacity-50" />
-                                        </Button>
-                                      </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <Calendar
-                                        mode="single"
-                                        selected={field.value}
-                                        onSelect={field.onChange}
-                                        disabled={(date) => date > new Date()}
+                      <div className="space-y-4">
+                        {/* Date Field */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-700">Date Photograph Taken</label>
+                          <FormField
+                            control={form.control}
+                            name="photographDate"
+                            render={({ field }) => (
+                              <FormItem>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <FormControl>
+                                      <Button
+                                        variant="outline"
+                                        className={cn(
+                                          "w-full justify-start text-left font-normal h-10 border-gray-300",
+                                          !field.value && "text-muted-foreground"
+                                        )}
+                                      >
+                                        <CalendarIcon className="mr-2 h-4 w-4 text-gray-500" />
+                                        {field.value ? format(field.value, "dd/MM/yyyy") : <span>Select date</span>}
+                                      </Button>
+                                    </FormControl>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                      mode="single"
+                                      selected={field.value}
+                                      onSelect={field.onChange}
+                                      disabled={(date) => date > new Date()}
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        {/* Site of Wound Section */}
+                        <div className="space-y-3 pt-2">
+                          <h4 className="text-sm font-semibold text-gray-900">Site of Wound</h4>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-gray-600">Left/Right</label>
+                              <FormField
+                                control={form.control}
+                                name="leftRight"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Input
+                                        className="h-9 border-gray-300"
+                                        placeholder="e.g., Left"
+                                        {...field}
                                       />
-                                    </PopoverContent>
-                                  </Popover>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        </div>
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
 
-                        <div className="px-3 py-2 bg-slate-50 font-bold text-xs">Site of Wound</div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-gray-600">Actual Position</label>
+                              <FormField
+                                control={form.control}
+                                name="actualPosition"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Input
+                                        className="h-9 border-gray-300"
+                                        placeholder="e.g., Heel"
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
 
-                        <div className="grid grid-cols-2 divide-x divide-gray-300">
-                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                            Left/Right
-                          </div>
-                          <div className="px-3 py-1.5">
-                            <FormField
-                              control={form.control}
-                              name="leftRight"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                      placeholder="e.g., Left"
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-gray-600">State</label>
+                              <FormField
+                                control={form.control}
+                                name="state"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Input
+                                        className="h-9 border-gray-300"
+                                        placeholder="e.g., Grade 2"
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
 
-                        <div className="grid grid-cols-2 divide-x divide-gray-300">
-                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                            Actual Position
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-gray-600">Inner/Outer</label>
+                              <FormField
+                                control={form.control}
+                                name="innerOuter"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Input
+                                        className="h-9 border-gray-300"
+                                        placeholder="e.g., Inner"
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
                           </div>
-                          <div className="px-3 py-1.5">
-                            <FormField
-                              control={form.control}
-                              name="actualPosition"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                      placeholder="e.g., Heel"
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 divide-x divide-gray-300">
-                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">State</div>
-                          <div className="px-3 py-1.5">
-                            <FormField
-                              control={form.control}
-                              name="state"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                      placeholder="e.g., Grade 2"
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 divide-x divide-gray-300">
-                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                            Inner/Outer
-                          </div>
-                          <div className="px-3 py-1.5">
-                            <FormField
-                              control={form.control}
-                              name="innerOuter"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                      placeholder="e.g., Inner"
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 divide-x divide-gray-300">
-                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                            Wound Location *
-                          </div>
-                          <div className="px-3 py-1.5">
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-gray-600">Wound Location <span className="text-red-500">*</span></label>
                             <FormField
                               control={form.control}
                               name="siteOfWound"
@@ -632,7 +631,7 @@ export function PhotographEvaluationForm({
                                 <FormItem>
                                   <FormControl>
                                     <Input
-                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                      className="h-9 border-gray-300"
                                       placeholder="e.g., Right Elbow"
                                       {...field}
                                     />
@@ -644,91 +643,84 @@ export function PhotographEvaluationForm({
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 divide-x divide-gray-300">
-                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                            Actual Measurement
-                          </div>
-                          <div className="px-3 py-1.5">
-                            <FormField
-                              control={form.control}
-                              name="actualMeasurement"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                      placeholder="e.g., 2 x 1.5 cm"
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
+                        {/* Measurement */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-gray-600">Actual Measurement</label>
+                          <FormField
+                            control={form.control}
+                            name="actualMeasurement"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input
+                                    className="h-9 border-gray-300"
+                                    placeholder="e.g., 2 x 1.5 cm"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
 
-                        <div className="grid grid-cols-2 divide-x divide-gray-300">
-                          <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                            RGN Signature *
-                          </div>
-                          <div className="px-3 py-1.5">
-                            <FormField
-                              control={form.control}
-                              name="rgnSignature"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                      placeholder="Your name"
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
+                        {/* RGN Signature */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-gray-600">RGN Signature <span className="text-red-500">*</span></label>
+                          <FormField
+                            control={form.control}
+                            name="rgnSignature"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input
+                                    className="h-9 border-gray-300"
+                                    placeholder="Your name"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
                                 </FormItem>
                               )}
                             />
                           </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 divide-x divide-gray-300">
-                          <div className="px-3 py-2 text-xs font-medium border-r border-gray-300">Comments</div>
-                          <div className="px-3 py-2">
-                            <FormField
-                              control={form.control}
-                              name="comments"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Textarea
-                                      className="min-h-[80px] text-xs border-0 p-0 focus-visible:ring-0 resize-none"
-                                      placeholder="Additional notes..."
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
+                        {/* Comments */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-gray-600">Comments</label>
+                          <FormField
+                            control={form.control}
+                            name="comments"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Textarea
+                                    className="min-h-[100px] border-gray-300 resize-none"
+                                    placeholder="Additional notes or observations..."
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
-                      </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Submit Button */}
-                <div className="border-t px-6 py-4 bg-slate-50 flex justify-between items-center">
+                <div className="border-t border-gray-200/60 px-8 py-5 bg-gray-50/50 flex justify-between items-center">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={handleCancelEdit}
+                    className="border-gray-300"
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isSubmitting} size="lg">
+                  <Button type="submit" disabled={isSubmitting} className="px-6">
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />

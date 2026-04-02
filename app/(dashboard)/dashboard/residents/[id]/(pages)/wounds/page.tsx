@@ -221,8 +221,7 @@ export default function WoundsPage({ params }: WoundsPageProps) {
       filtered = filtered.filter(wound =>
         wound.wound_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         wound.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        wound.wound_type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        wound.stage?.toLowerCase().includes(searchQuery.toLowerCase())
+        wound.wound_type?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -680,7 +679,6 @@ export default function WoundsPage({ params }: WoundsPageProps) {
                     <TableHead>Wound</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead>Stage</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Next Review</TableHead>
                   </TableRow>
@@ -704,15 +702,6 @@ export default function WoundsPage({ params }: WoundsPageProps) {
                         </TableCell>
                         <TableCell>{wound?.location || "To be specified"}</TableCell>
                         <TableCell>{folder.wound_type}</TableCell>
-                        <TableCell>
-                          {wound?.stage ? (
-                            <Badge variant="outline" className="text-xs">
-                              {wound.stage}
-                            </Badge>
-                          ) : (
-                            <span className="text-gray-400 text-sm">-</span>
-                          )}
-                        </TableCell>
                         <TableCell>
                           {wound ? (
                             <Badge className={`${getStatusColor(wound.status)} border-0 text-xs`}>
@@ -920,10 +909,6 @@ export default function WoundsPage({ params }: WoundsPageProps) {
                   <div>
                     <p className="text-sm text-gray-500">Type</p>
                     <p className="font-medium">{selectedWound.wound_type}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Stage</p>
-                    <p className="font-medium">{selectedWound.stage || "N/A"}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Status</p>
