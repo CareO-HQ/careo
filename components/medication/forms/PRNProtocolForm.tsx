@@ -24,10 +24,10 @@ import { supabase } from "@/lib/supabase";
 import { PRNProtocolSchema } from "@/schemas/residents/medication/prnProtocolSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { CalendarIcon, CheckCircle2, Loader2, Pencil, Save, Printer } from "lucide-react";
+import { CalendarIcon, CheckCircle2, Loader2, Pencil, Save, Printer, FileText, Trash2 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -51,6 +51,20 @@ interface PRNProtocolFormProps {
   userId: string;
   userName: string;
   onSaved: () => void;
+  selectedId?: string | null;
+  isAddingNew?: boolean;
+}
+
+interface ProtocolRecord {
+  id: string;
+  resident_id: string;
+  organization_id: string;
+  status: string;
+  assessment_data: Record<string, any>;
+  assessment_date: string;
+  completed_by: string;
+  created_at: string;
+  version_number: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -72,10 +86,12 @@ function PRNProtocolDocumentView({
   data,
   orgLogoUrl,
   onEdit,
+  onBack,
 }: {
   data: Record<string, unknown>;
   orgLogoUrl?: string | null;
   onEdit: () => void;
+  onBack: () => void;
 }) {
   const handlePrintPDF = async () => {
     const doc = new jsPDF();
@@ -214,6 +230,9 @@ function PRNProtocolDocumentView({
             <Pencil className="w-3 h-3" />
             Edit
           </Button>
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onBack}>
+             Back to List
+          </Button>
         </div>
       </div>
 
@@ -332,7 +351,96 @@ function PRNProtocolDocumentView({
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── List View (Optional/Fallback) ─────────────────────────────────────────────
+
+function PRNProtocolListView({
+  protocols,
+  onView,
+  onAdd,
+  onArchive,
+}: {
+  protocols: ProtocolRecord[];
+  onView: (id: string) => void;
+  onAdd: () => void;
+  onArchive: (id: string) => void;
+}) {
+  return (
+    <div className="flex flex-col flex-1 min-h-0 text-foreground">
+      <div className="px-6 py-3 border-b flex items-center justify-between flex-shrink-0">
+        <div>
+          <h2 className="text-sm font-semibold">PRN Protocols</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Manage PRN protocol forms for this resident
+          </p>
+        </div>
+        <Button onClick={onAdd} size="sm" className="h-8 gap-1.5">
+          <CalendarIcon className="w-4 h-4" />
+          Add PRN Protocol
+        </Button>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="px-6 py-6 max-w-4xl mx-auto">
+          {protocols.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-lg bg-muted/5">
+              <FileText className="w-10 h-10 text-muted-foreground mb-3 opacity-20" />
+              <h3 className="text-sm font-medium">No PRN protocols found</h3>
+              <p className="text-xs text-muted-foreground mt-1 mb-4">
+                Get started by adding the first protocol document.
+              </p>
+              <Button onClick={onAdd} variant="outline" size="sm">
+                Add PRN Protocol
+              </Button>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {protocols.map((protocol) => {
+                const data = protocol.assessment_data;
+                return (
+                  <div
+                    key={protocol.id}
+                    onClick={() => onView(protocol.id)}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <FileText className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">
+                          {data.nameOfMedication || "Unnamed Medication"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Completed by {protocol.completed_by} · {safeDate(protocol.assessment_date)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onArchive(protocol.id);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                      <Pencil className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────────
 
 export default function PRNProtocolForm({
   residentId,
@@ -342,8 +450,12 @@ export default function PRNProtocolForm({
   userId,
   userName,
   onSaved,
+  selectedId = null,
+  isAddingNew = false,
 }: PRNProtocolFormProps) {
-  const [existingData, setExistingData] = useState<Record<string, unknown> | undefined>(undefined);
+  const [protocols, setProtocols] = useState<ProtocolRecord[]>([]);
+  const [selectedProtocolId, setSelectedProtocolId] = useState<string | null>(selectedId);
+  const [isAdding, setIsAdding] = useState(isAddingNew);
   const [loadingExisting, setLoadingExisting] = useState(true);
   const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -353,6 +465,16 @@ export default function PRNProtocolForm({
   const [reviewDateOpen, setReviewDateOpen] = useState(false);
   const [dateCompletedOpen, setDateCompletedOpen] = useState(false);
   const [countersignedDateOpen, setCountersignedDateOpen] = useState(false);
+
+  // Sync props to internal state
+  useEffect(() => {
+    setSelectedProtocolId(selectedId);
+    if (!selectedId && !isAddingNew) {
+      setIsAdding(false);
+    } else {
+      setIsAdding(isAddingNew);
+    }
+  }, [selectedId, isAddingNew]);
 
   const residentFullName = `${resident.first_name ?? ""} ${resident.last_name ?? ""}`.trim();
 
@@ -364,6 +486,7 @@ export default function PRNProtocolForm({
       teamId,
       organizationId,
       userId,
+      protocolLabel: "PRN Protocol",
       homeName: resident.care_homes?.name || "",
       roomNo: resident.room_number || "",
       serviceUsersName: residentFullName,
@@ -389,27 +512,22 @@ export default function PRNProtocolForm({
     },
   });
 
-  // Load existing data
-  useEffect(() => {
+  const fetchProtocols = useCallback(async () => {
     if (!residentId) return;
-    supabase
+    setLoadingExisting(true);
+    const { data } = await supabase
       .from("prn_protocols")
       .select("*")
       .eq("resident_id", residentId)
       .neq("status", "archived")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          setExistingData(data as Record<string, unknown>);
-          const ad = (data as Record<string, unknown>).assessment_data as Record<string, unknown> | undefined;
-          if (ad) {
-            form.reset({ residentId, teamId, organizationId, userId, ...ad } as z.infer<typeof PRNProtocolSchema>);
-          }
-        }
-        setLoadingExisting(false);
-      });
+      .order("created_at", { ascending: false });
+    if (data) setProtocols(data as ProtocolRecord[]);
+    setLoadingExisting(false);
+  }, [residentId]);
+
+  // Load existing data
+  useEffect(() => {
+    fetchProtocols();
 
     if (organizationId) {
       supabase
@@ -421,7 +539,46 @@ export default function PRNProtocolForm({
           if (data?.logo_url) setOrgLogoUrl(data.logo_url);
         });
     }
-  }, [residentId, organizationId]);
+  }, [residentId, organizationId, fetchProtocols]);
+
+  const selectedProtocol = protocols.find(p => p.id === selectedProtocolId);
+
+  useEffect(() => {
+    if (isEditing && selectedProtocol) {
+      const ad = selectedProtocol.assessment_data;
+      form.reset({ residentId, teamId, organizationId, userId, ...ad } as z.infer<typeof PRNProtocolSchema>);
+    } else if (isAdding) {
+      form.reset({
+        residentId,
+        teamId,
+        organizationId,
+        userId,
+        protocolLabel: "PRN Protocol",
+        homeName: resident.care_homes?.name || "",
+        roomNo: resident.room_number || "",
+        serviceUsersName: residentFullName,
+        dob: resident.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now(),
+        nameOfMedication: "",
+        form: "",
+        routeOfAdministration: "",
+        strength: "",
+        nameOfPrescriber: "",
+        dosageCircumstances: "",
+        frequencyOfDoses: "",
+        minimumTimeInterval: "",
+        maximumDose24Hours: "",
+        purposeOfAdministration: "",
+        expectedOutcome: "",
+        otherMedicinesAwareness: "",
+        reviewDate: Date.now() + (30 * 24 * 60 * 60 * 1000),
+        specialInstructions: "",
+        nameOfPersonCompleting: userName,
+        dateCompleted: Date.now(),
+        countersigned: "",
+        countersignedDate: undefined,
+      });
+    }
+  }, [isEditing, selectedProtocol, isAdding, resident, residentFullName, teamId, organizationId, userId, userName, form, residentId]);
 
   function onSubmit(values: z.infer<typeof PRNProtocolSchema>) {
     startTransition(async () => {
@@ -438,28 +595,32 @@ export default function PRNProtocolForm({
         await submitAssessmentWithVersioning(
           "prn_protocols",
           payload,
-          existingData as { id?: string; version_number?: number } | undefined,
-          !!existingData
+          selectedProtocol ? { id: selectedProtocol.id, version_number: selectedProtocol.version_number } : undefined,
+          !!selectedProtocol
         );
-        toast.success(existingData ? "PRN protocol updated successfully" : "PRN protocol submitted successfully");
+        toast.success(selectedProtocol ? "PRN protocol updated successfully" : "PRN protocol submitted successfully");
         
-        // Refresh local state
-        const { data } = await supabase
-          .from("prn_protocols")
-          .select("*")
-          .eq("resident_id", residentId)
-          .neq("status", "archived")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-        if (data) setExistingData(data as Record<string, unknown>);
+        await fetchProtocols();
         setIsEditing(false);
+        setIsAdding(false);
+        setSelectedProtocolId(null);
         onSaved();
       } catch (error) {
         toast.error("Error: " + (error as Error).message);
       }
     });
   }
+
+  const handleArchive = async (id: string) => {
+    if (!confirm("Are you sure you want to archive this protocol?")) return;
+    try {
+      await supabase.from("prn_protocols").update({ status: "archived" }).eq("id", id);
+      toast.success("Protocol archived");
+      fetchProtocols();
+    } catch (e) {
+      toast.error("Failed to archive protocol");
+    }
+  };
 
   if (loadingExisting) {
     return (
@@ -469,47 +630,91 @@ export default function PRNProtocolForm({
     );
   }
 
-  if (existingData && !isEditing) {
-    const ad = (existingData.assessment_data as Record<string, unknown>) ?? existingData;
-    return <PRNProtocolDocumentView data={ad} orgLogoUrl={orgLogoUrl} onEdit={() => setIsEditing(true)} />;
+  // Viewing a completed protocol
+  if (selectedProtocol && !isEditing) {
+    return (
+      <PRNProtocolDocumentView 
+        data={selectedProtocol.assessment_data} 
+        orgLogoUrl={orgLogoUrl} 
+        onEdit={() => setIsEditing(true)} 
+        onBack={() => {
+          setSelectedProtocolId(null);
+          setIsEditing(false);
+        }}
+      />
+    );
   }
 
-  return (
-    <div className="flex flex-col flex-1 min-h-0 text-foreground">
-      {/* Header */}
-      <div className="px-6 py-3 border-b flex items-center justify-between flex-shrink-0">
-        <div>
-          <h2 className="text-sm font-semibold">PRN Protocol Form</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {existingData ? "Editing protocol" : "New protocol"}
-          </p>
+  // Not adding, not editing, no selection
+  if (!isAdding && !isEditing && !selectedProtocolId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-8">
+        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+          <FileText className="w-5 h-5 text-muted-foreground" />
         </div>
-        <div className="flex items-center gap-2">
-          {existingData && (
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setIsEditing(false)}>
+        <p className="text-sm text-muted-foreground">
+          Select a PRN Protocol from the sidebar to view or click &quot;+&quot; to add a new one.
+        </p>
+      </div>
+    );
+  }
+
+  // Form View (Add/Edit)
+  return (
+    <Form {...form}>
+      <div className="flex flex-col flex-1 min-h-0 text-foreground">
+        {/* Header */}
+        <div className="px-6 py-3 border-b flex items-center justify-between flex-shrink-0">
+          <div>
+            <h2 className="text-sm font-semibold">PRN Protocol Form</h2>
+            <FormField
+              control={form.control}
+              name="protocolLabel"
+              render={({ field }) => (
+                <FormItem className="space-y-0">
+                  <FormControl>
+                    <Input 
+                      {...field}
+                      className="h-6 w-64 p-0 text-xs font-medium text-muted-foreground bg-transparent border-none focus-visible:ring-0 hover:bg-muted/50 transition-colors"
+                      placeholder="Enter name (e.g. Paracetamol Protocol)"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-7 px-2 text-xs" 
+              onClick={() => {
+                setIsAdding(false);
+                setIsEditing(false);
+                setSelectedProtocolId(null);
+              }}
+            >
               Cancel
             </Button>
-          )}
-          <Button
-            variant="default"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={form.handleSubmit(onSubmit)}
-            disabled={isPending}
-          >
-            {isPending ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-            ) : (
-              <Save className="w-3.5 h-3.5 mr-1" />
-            )}
-            {existingData ? "Save Changes" : "Submit Protocol"}
-          </Button>
+            <Button
+              variant="default"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={form.handleSubmit(onSubmit)}
+              disabled={isPending}
+            >
+              {isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+              ) : (
+                <Save className="w-3.5 h-3.5 mr-1" />
+              )}
+              {selectedProtocol ? "Save Changes" : "Submit Protocol"}
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <ScrollArea className="flex-1">
-        <div className="px-6 py-6 max-w-4xl mx-auto">
-          <Form {...form}>
+        <ScrollArea className="flex-1">
+          <div className="px-6 py-6 max-w-4xl mx-auto">
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
               {/* Header Section */}
@@ -752,9 +957,9 @@ export default function PRNProtocolForm({
               </div>
 
             </form>
-          </Form>
-        </div>
-      </ScrollArea>
-    </div>
+          </div>
+        </ScrollArea>
+      </div>
+    </Form>
   );
 }

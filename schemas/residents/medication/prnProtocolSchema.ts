@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const PRNProtocolSchema = z.object({
+  protocolLabel: z.string().optional(),
   residentId: z.string(),
   teamId: z.string(),
   organizationId: z.string(),

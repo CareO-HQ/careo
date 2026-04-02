@@ -148,6 +148,7 @@ export default function CreateResidentMedication({
             </DialogHeader>
             <CreateMedicationForm
               residentId={residentId}
+              residentName={residentName}
               teamId={teamId}
               organizationId={organizationId}
               gpName={gpName}

@@ -17,8 +17,16 @@ export const generateCareFilePDF = async ({
     orgLogoUrl,
     careHomeName
 }: GenerateCareFilePDFOptions) => {
-    const doc = new jsPDF();
+    const isLandscape = formName.toUpperCase().includes("FALL RISK ASSESSMENT") || 
+                       formName.toUpperCase().includes("DEPENDENCY ASSESSMENT");
+    
+    const doc = new jsPDF({
+        orientation: isLandscape ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: 'a4'
+    });
     const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
     const margin = 14;
 
     // Helper to load images
@@ -870,7 +878,7 @@ export const generateCareFilePDF = async ({
     };
 
     const ensureSpace = async (heightNeeded: number, currentY: number) => {
-        if (currentY + heightNeeded > 280) {
+        if (currentY + heightNeeded > pageHeight - margin) {
             doc.addPage();
             await drawHeader();
             return 30; // Return new yPos after header
@@ -953,7 +961,7 @@ export const generateCareFilePDF = async ({
         };
 
         const ensureAdmissionSpace = async (heightNeeded: number, currentY: number) => {
-            if (currentY + heightNeeded > 280) {
+            if (currentY + heightNeeded > pageHeight - margin) {
                 doc.addPage();
                 await drawAdmissionHeader();
                 return 30;
@@ -1130,7 +1138,7 @@ export const generateCareFilePDF = async ({
 
             autoTable(doc, {
                 startY: yPos,
-                head: [['Date', 'By', 'Mob', 'Dre', 'Hyg', 'Fed', 'Eye', 'Hea', 'Brad', 'Uri', 'Fae', 'Com', 'Soc', 'Beh', 'Tot', 'Lvl']],
+                head: [['Date', 'Completed By', 'Mobility', 'Dressing', 'Hygiene', 'Feeding', 'Eyesight', 'Hearing', 'Pressure Risk', 'Urine Cont.', 'Faeces Cont.', 'Communication', 'Social Dep.', 'Behaviour', 'Total Score', 'Dependency Level']],
                 body: data.history.map((h: any) => {
                     const det = h.assessment_details || {};
                     return [
@@ -1149,7 +1157,7 @@ export const generateCareFilePDF = async ({
                         det.socialDependency || 0,
                         det.behaviour || 0,
                         h.total_score || 0,
-                        h.dependency_level?.[0] || ""
+                        h.dependency_level || ""
                     ];
                 }),
                 theme: 'grid',
@@ -1157,7 +1165,8 @@ export const generateCareFilePDF = async ({
                 styles: { fontSize: 7, cellPadding: 1, halign: 'center' },
                 columnStyles: {
                     0: { halign: 'left', cellWidth: 15 },
-                    1: { halign: 'left', cellWidth: 20 },
+                    1: { halign: 'left', cellWidth: 35 },
+                    15: { cellWidth: 25 }
                 }
             });
             yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -1257,7 +1266,7 @@ export const generateCareFilePDF = async ({
 
             autoTable(doc, {
                 startY: yPos,
-                head: [['Date', 'Age', 'Sex', 'Fall', 'Mob', 'Bal', 'ADLP', 'ADLD', 'Foot', 'Vis', 'B&B', 'Env', 'Soc', 'MedC', 'Meds', 'Safe', 'Ment', 'Tot', 'Risk', 'By']],
+                head: [['Date', 'Age', 'Gender', 'Falls History', 'Mobility', 'Balance', 'Personal ADL', 'Domestic ADL', 'Footwear', 'Vision', 'Bladder/Bowel', 'Environmental', 'Social', 'Medical Cond.', 'Medication', 'Safety Awareness', 'Mental State', 'Total Score', 'Risk Level', 'Completed By']],
                 body: data.history.map((h: any) => {
                     const det = h.assessment_details || {};
                     return [
@@ -1279,18 +1288,18 @@ export const generateCareFilePDF = async ({
                         getPointValue('safetyAwareness', det.safetyAwareness),
                         getPointValue('mentalState', det.mentalState),
                         h.total_score || 0,
-                        h.risk_level?.replace(" Risk", "") || "N/A",
+                        h.risk_level || "N/A",
                         h.completed_by || h.completedBy || "N/A"
                     ];
                 }),
                 theme: 'grid',
                 headStyles: { fillColor: [34, 197, 94] },
-                styles: { fontSize: 6, cellPadding: 1 },
+                styles: { fontSize: 7, cellPadding: 1.5 },
                 columnStyles: {
-                    0: { cellWidth: 12 },
-                    17: { halign: 'center', fontStyle: 'bold', cellWidth: 8 },
-                    18: { halign: 'center', fontStyle: 'bold', cellWidth: 12 },
-                    19: { cellWidth: 15 }
+                    0: { cellWidth: 15 },
+                    17: { halign: 'center', fontStyle: 'bold', cellWidth: 12 },
+                    18: { halign: 'center', fontStyle: 'bold', cellWidth: 18 },
+                    19: { cellWidth: 25 }
                 }
             });
             yPos = (doc as any).lastAutoTable.finalY + 15;

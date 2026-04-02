@@ -62,6 +62,7 @@ import { HospitalPassportInlineForm } from "./hospital-passport-inline-form";
 import { ViewPassportInline } from "./view-passport-inline";
 import { TransferLogInlineForm } from "./transfer-log-inline-form";
 import { ViewTransferLogInline } from "./view-transfer-log-inline";
+import { HospitalPassportCard } from "./hospital-passport-card";
 import { hospitalTransferService } from "@/lib/hospital-transfer-service";
 import { BodyMapWorkspace } from "@/components/body-map/BodyMapWorkspace";
 import { BodyMapData } from "@/types/body-map";
@@ -107,6 +108,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeItem, setActiveItem] = useState<{ type: 'passport' | 'transfer-log' | 'body-map' | 'kardex', id: string | 'new', data?: any } | null>(null);
   const [isEditingPassport, setIsEditingPassport] = useState(false);
+  const [isViewingFullPassport, setIsViewingFullPassport] = useState(false);
   const [isEditingTransferLog, setIsEditingTransferLog] = useState(false);
   const [editingTransferLog, setEditingTransferLog] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -211,15 +213,22 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   };
 
   const handleEditSubmit = async (data: HospitalPassportFormData) => {
-    if (!activeItem?.data?._id) return;
-    const updatingToast = toast.loading("Updating passport...");
+    if (!activeOrganizationId || !profile?.id) return;
+    const savingToast = toast.loading("Creating new passport version...");
     try {
-      await hospitalTransferService.updatePassport(activeItem.data._id, data);
-      toast.success("Passport updated", { id: updatingToast });
+      // Any "Edit" now technically creates a new version while archiving the old one
+      await hospitalTransferService.createPassport({
+        ...data,
+        residentId: id,
+        organizationId: activeOrganizationId,
+        createdBy: profile.id
+      });
+      toast.success("Passport version updated", { id: savingToast });
       setIsEditingPassport(false);
+      setActiveItem(null); // Return to list/placeholder or maybe select the new one? Null is safer.
       refreshData();
     } catch (error) {
-      toast.error("Failed to update passport", { id: updatingToast });
+      toast.error("Failed to create new version", { id: savingToast });
     }
   };
 
@@ -424,19 +433,32 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                 {activeItem.id === 'new' || isEditingPassport ? (
                   <HospitalPassportInlineForm
                     resident={resident}
+                    profile={profile}
                     onSubmit={isEditingPassport ? handleEditSubmit : handleSubmit}
                     onCancel={() => { setIsEditingPassport(false); if(activeItem.id === 'new') setActiveItem(null); }}
                     initialData={isEditingPassport ? activeItem.data : undefined}
                     isEditing={isEditingPassport}
                   />
-                ) : (
+                ) : isViewingFullPassport ? (
                   <ViewPassportInline
                     passport={activeItem.data}
                     resident={resident}
                     onEdit={() => setIsEditingPassport(true)}
                     onDelete={() => handleDeletePassport(activeItem.data)}
                     onPrint={() => handlePrintPassport(activeItem.data)}
+                    onBack={() => setIsViewingFullPassport(false)}
                   />
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center py-12">
+                     <HospitalPassportCard
+                       passport={activeItem.data}
+                       resident={resident}
+                       onView={() => setIsViewingFullPassport(true)}
+                       onEdit={() => setIsEditingPassport(true)}
+                       onPrint={() => handlePrintPassport(activeItem.data)}
+                       onDelete={() => handleDeletePassport(activeItem.data)}
+                     />
+                  </div>
                 )}
               </div>
             </div>
@@ -448,7 +470,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                        <div className="p-3 bg-primary/10 rounded-2xl">
                          <ClipboardList className="w-6 h-6 text-primary" />
                        </div>
-                       <h2 className="text-xl font-bold">{activeItem.id === 'new' ? 'Add Transfer Log' : 'Transfer Log Details'}</h2>
+                        <h2 className="text-xl font-bold">
+                          {activeItem.id === 'new' ? 'Add Transfer Log' : (activeItem.data?.label || 'Transfer Log Details')}
+                        </h2>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => setActiveItem(null)}><X className="w-5 h-5" /></Button>
                  </div>
@@ -495,14 +519,44 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-               <div className="w-24 h-24 rounded-[2.5rem] bg-background border shadow-xl shadow-primary/5 flex items-center justify-center mb-6">
-                 <Ambulance className="w-10 h-10 text-primary/40" />
-               </div>
-               <h3 className="text-2xl font-bold mb-2">Hospital transfer records</h3>
-               <p className="max-w-md text-muted-foreground leading-relaxed">
-                 Select a hospital passport, transfer log, or clinical record from the sidebar to begin documenting.
-               </p>
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-muted/5 animate-in fade-in duration-500">
+               {(() => {
+                 const recentPassport = hospitalPassports.find(p => !p.isArchived);
+                 if (recentPassport) {
+                   return (
+                     <div className="flex flex-col items-center gap-8">
+                       <div className="space-y-2">
+                         <h3 className="text-2xl font-bold tracking-tight">Active documentation</h3>
+                         <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+                           The most recent clinical passport is ready for oversight or transfer.
+                         </p>
+                       </div>
+                       <HospitalPassportCard
+                         passport={recentPassport}
+                         resident={resident}
+                         onView={() => setActiveItem({ type: 'passport', id: recentPassport._id, data: recentPassport })}
+                         onEdit={() => {
+                           setIsEditingPassport(true);
+                           setActiveItem({ type: 'passport', id: recentPassport._id, data: recentPassport });
+                         }}
+                         onPrint={() => handlePrintPassport(recentPassport)}
+                         onDelete={() => handleDeletePassport(recentPassport)}
+                       />
+                     </div>
+                   );
+                 }
+                 return (
+                   <div className="flex flex-col items-center justify-center">
+                     <div className="w-20 h-20 rounded-3xl bg-background border shadow-sm flex items-center justify-center mb-6">
+                       <Ambulance className="w-8 h-8 text-primary/40" />
+                     </div>
+                     <h3 className="text-xl font-bold mb-2">Hospital transfer records</h3>
+                     <p className="max-w-xs text-muted-foreground leading-relaxed text-sm">
+                       Select a clinical record from the sidebar or click <Plus className="inline w-3 h-3 text-primary" /> to begin documenting.
+                     </p>
+                   </div>
+                 );
+               })()}
             </div>
           )}
         </main>
@@ -512,37 +566,47 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
           <div className="flex flex-col gap-6">
             {/* Hospital Passport */}
             <section>
-              <div className="flex items-center justify-between px-1 mb-2">
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Hospital Passports</p>
-                <Button variant="ghost" size="icon" className="h-5 w-5 text-primary" onClick={() => { setIsEditingPassport(false); setActiveItem({ type: 'passport', id: 'new' }); }}><Plus className="h-3 w-3" /></Button>
-              </div>
+              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1 mb-2">Hospital Passport</p>
               <div className="flex flex-col gap-1">
-                {hospitalPassports.length > 0 ? (
-                  hospitalPassports.map(p => (
-                    <div key={p._id} className="group relative">
+                {(() => {
+                  const activePassport = hospitalPassports.find(p => !p.isArchived);
+                  return (
+                    <div className="group relative">
                       <button 
-                        onClick={() => { setIsEditingPassport(false); setActiveItem({ type: 'passport', id: p._id, data: p }); }} 
-                        className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeItem?.id === p._id ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-muted/60 text-foreground"}`}
+                        onClick={() => { 
+                          if (activePassport) {
+                            setIsEditingPassport(false);
+                            setIsViewingFullPassport(false);
+                            setActiveItem({ type: 'passport', id: activePassport._id, data: activePassport }); 
+                          } else {
+                            setIsEditingPassport(false); 
+                            setIsViewingFullPassport(false);
+                            setActiveItem({ type: 'passport', id: 'new' });
+                          }
+                        }} 
+                        className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeItem?.type === 'passport' ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-muted/60 text-foreground"}`}
                       >
-                        <CircleDashed className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeItem?.id === p._id ? "text-primary" : "text-muted-foreground/70"}`} />
+                        <CircleDashed className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeItem?.type === 'passport' ? "text-primary" : "text-muted-foreground/70"}`} />
                         <div className="min-w-0 pr-6">
-                          <p className="text-xs font-semibold leading-tight">Hospital Passport</p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(p.created_at)}</p>
+                          <p className="text-xs font-semibold leading-tight">
+                            {activePassport ? "View Passport" : "Create Passport"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {activePassport ? `Updated ${formatDate(activePassport.updatedAt)}` : "Record missing"}
+                          </p>
                         </div>
                       </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setPassportToDelete(p); setShowDeletePassportDialog(true); }}
-                        className="absolute right-2 top-1.5 p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {activePassport && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setPassportToDelete(activePassport); setShowDeletePassportDialog(true); }}
+                          className="absolute right-2 top-1.5 p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
-                  ))
-                ) : (
-                  <div className="px-2 py-3 border border-dashed rounded-lg text-center">
-                    <p className="text-[10px] text-muted-foreground italic">No passports found</p>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             </section>
 
@@ -562,7 +626,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                       >
                         <CircleDashed className={`h-4 w-4 flex-shrink-0 mt-0.5 ${activeItem?.id === log._id ? "text-primary" : "text-muted-foreground/70"}`} />
                         <div className="min-w-0 pr-6">
-                          <p className="text-xs font-semibold leading-tight truncate">{log.hospitalName}</p>
+                          <p className="text-xs font-semibold leading-tight truncate">
+                            {log.label || (log.hospitalName || "Hospital Transfer")}
+                          </p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(log.date)}</p>
                         </div>
                       </button>

@@ -146,7 +146,7 @@ export function CreateResidentForm({
   }, [editMode, residentData]);
 
   const form = useForm<FormType>({
-    resolver: zodResolver(CreateResidentSchema),
+    resolver: zodResolver(CreateResidentSchema) as any,
     mode: "onChange",
     defaultValues: getDefaultValues(),
   });
@@ -779,6 +779,9 @@ export function CreateResidentForm({
                             <SelectItem value="Fully Dependent">
                               Fully Dependent
                             </SelectItem>
+                            <SelectItem value="Prompt Needed">
+                              Prompt Needed
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -815,6 +818,9 @@ export function CreateResidentForm({
                             </SelectItem>
                             <SelectItem value="Fully Dependent">
                               Fully Dependent
+                            </SelectItem>
+                            <SelectItem value="Prompt Needed">
+                              Prompt Needed
                             </SelectItem>
                           </SelectContent>
                         </Select>
@@ -853,6 +859,9 @@ export function CreateResidentForm({
                             <SelectItem value="Fully Dependent">
                               Fully Dependent
                             </SelectItem>
+                            <SelectItem value="Prompt Needed">
+                              Prompt Needed
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -889,6 +898,9 @@ export function CreateResidentForm({
                             </SelectItem>
                             <SelectItem value="Fully Dependent">
                               Fully Dependent
+                            </SelectItem>
+                            <SelectItem value="Prompt Needed">
+                              Prompt Needed
                             </SelectItem>
                           </SelectContent>
                         </Select>

@@ -1,7 +1,8 @@
 import React from "react";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle, Printer, Edit, Trash2, ChevronLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ViewPassportInlineProps {
   passport: any;
@@ -9,9 +10,10 @@ interface ViewPassportInlineProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onPrint?: () => void;
+  onBack?: () => void;
 }
 
-export function ViewPassportInline({ passport, resident, onEdit, onDelete, onPrint }: ViewPassportInlineProps) {
+export function ViewPassportInline({ passport, resident, onEdit, onDelete, onPrint, onBack }: ViewPassportInlineProps) {
   if (!passport) return null;
 
   const formatDateTime = (dateValue: string | number | Date) => {
@@ -57,7 +59,13 @@ export function ViewPassportInline({ passport, resident, onEdit, onDelete, onPri
   };
 
   return (
-    <div className="w-full space-y-8">
+    <div className="w-full space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+      {onBack && (
+        <Button variant="ghost" size="sm" onClick={onBack} className="-ml-3 text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Back to summary
+        </Button>
+      )}
       {/* Header Section */}
       <div className="flex items-start space-x-4 pb-6 border-b">
         <Avatar className="w-16 h-16 flex-shrink-0 border-2 border-primary/20">
@@ -75,8 +83,26 @@ export function ViewPassportInline({ passport, resident, onEdit, onDelete, onPri
           <h3 className="text-xl font-bold text-foreground">{passport.generalDetails.personName}</h3>
           <div className="flex flex-col space-y-1 mt-2 text-sm text-muted-foreground">
             <span>Generated on {formatDateTime(passport.createdAt)}</span>
-            <span>Room {resident?.roomNumber || 'N/A'} • NHS: {passport.generalDetails.nhsNumber}</span>
           </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={onEdit} className="h-9 px-3 border-neutral-200 shadow-sm hover:bg-neutral-50 transition-all">
+            <Edit className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
+            <span className="font-medium text-xs">Edit</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={onPrint} className="h-9 px-3 border-neutral-200 shadow-sm hover:bg-neutral-50 transition-all">
+            <Printer className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
+            <span className="font-medium text-xs">Print</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={onDelete} 
+            className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/5 hover:border-destructive/30 border-neutral-200 shadow-sm transition-all"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
         </div>
       </div>
 
@@ -187,12 +213,22 @@ export function ViewPassportInline({ passport, resident, onEdit, onDelete, onPri
       {/* Sign-off */}
       <div className="space-y-4">
         <h4 className="text-lg font-semibold text-foreground">Sign-off</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <InfoRow label="Completed By" value={passport.signOff.printedName} />
-          <InfoRow label="Designation" value={passport.signOff.designation} />
-          <InfoRow label="Contact Phone" value={passport.signOff.contactPhone} />
-          <InfoRow label="Date Completed" value={formatDate(passport.signOff.completedDate)} />
-        </div>
+        {passport.signOff ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4 pr-4">
+            <InfoRow label="Completed By" value={passport.signOff.printedName} />
+            <InfoRow label="Designation" value={passport.signOff.designation} />
+            <InfoRow label="Contact Phone" value={passport.signOff.contactPhone} />
+            <InfoRow label="Date Completed" value={formatDate(passport.signOff.completedDate)} />
+            <div className="md:col-span-2 mt-2">
+              <dt className="text-sm font-medium text-muted-foreground">Electronic Signature:</dt>
+              <dd className="mt-2 p-3 bg-muted/40 border border-dashed rounded-lg text-sm text-foreground italic font-medium">
+                {passport.signOff.signature || "Not signed"}
+              </dd>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">Sign-off information not available</p>
+        )}
       </div>
     </div>
   );

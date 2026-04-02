@@ -32,11 +32,14 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
-import { CalendarIcon } from "lucide-react";
 import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { Plus, Trash2, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { CalendarIcon } from "lucide-react";
+
 import { useProfile } from "@/hooks/use-profile";
 import { InteractiveBodyMap } from "@/components/body-map/InteractiveBodyMap";
 import { BODY_REGIONS } from "@/lib/config/body-regions";
@@ -45,6 +48,7 @@ import type { BodyRegion } from "@/types/body-map";
 
 export default function CreateMedicationForm({
   residentId,
+  residentName,
   teamId,
   organizationId,
   gpName,
@@ -52,6 +56,7 @@ export default function CreateMedicationForm({
   onSuccess
 }: {
   residentId: string;
+  residentName?: string;
   teamId?: string;
   organizationId?: string;
   gpName?: string;
@@ -60,6 +65,8 @@ export default function CreateMedicationForm({
 }) {
   const { profile } = useProfile();
   const [isLoading, startTransition] = useTransition();
+  const [residentData, setResidentData] = useState<any>(null);
+
   const [step, setStep] = useState(initialType ? 1 : 0);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
   const [medicationType, setMedicationType] = useState<"Scheduled" | "PRN (As Needed)" | "Topical" | "Supplement" | null>(initialType || null);
@@ -87,7 +94,25 @@ export default function CreateMedicationForm({
       minIntervalHours: undefined,
       maxDailyDose: undefined,
       maxDailyDoseUnit: undefined,
-      bodyRegions: []
+      bodyRegions: [],
+      prnProtocols: []
+    }
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "prnProtocols"
+  });
+
+  // Fetch resident data for PRN protocols
+  useState(() => {
+    if (residentId) {
+      supabase
+        .from("residents")
+        .select("*, care_homes(name)")
+        .eq("id", residentId)
+        .single()
+        .then(({ data }) => setResidentData(data));
     }
   });
 
@@ -138,6 +163,33 @@ export default function CreateMedicationForm({
 
         if (error) throw error;
 
+        // Save PRN Protocols if any
+        if (newMedication && values.prnProtocols && values.prnProtocols.length > 0) {
+          const protocolsToInsert = values.prnProtocols.map(p => ({
+            resident_id: residentId,
+            organization_id: organizationId,
+            status: "completed",
+            assessment_data: {
+              ...p,
+              homeName: p.homeName || residentData?.care_homes?.name || "",
+              roomNo: p.roomNo || residentData?.room_number || "",
+              serviceUsersName: p.serviceUsersName || residentName || `${residentData?.first_name} ${residentData?.last_name}` || "",
+              dob: p.dob || (residentData?.date_of_birth ? new Date(residentData.date_of_birth).getTime() : Date.now()),
+              submittedAt: new Date().toISOString()
+            },
+            assessment_date: format(new Date(), "yyyy-MM-dd"),
+            completed_by: profile?.name || "System",
+            created_by: profile?.id,
+            medication_id: newMedication.id
+          }));
+
+          const { error: protocolsError } = await supabase.from("prn_protocols").insert(protocolsToInsert);
+          if (protocolsError) {
+            console.error("Error creating PRN protocols:", protocolsError);
+            toast.error("Medication created but failed to save PRN protocols");
+          }
+        }
+
         // Generate intakes for today if applicable
         if (newMedication && values.scheduleType !== "PRN (As Needed)" && values.times && values.times.length > 0) {
           const { getUKTodayDate } = await import("@/lib/date-utils");
@@ -182,6 +234,7 @@ export default function CreateMedicationForm({
         }
 
         toast.success("Medication created successfully");
+
         onSuccess();
       } catch (error) {
         console.error("Error creating medication:", error);
@@ -208,13 +261,8 @@ export default function CreateMedicationForm({
       return;
     }
 
-    // Skip time selection step if medication is PRN
-    const scheduleType = form.getValues("scheduleType");
-    if (scheduleType === "PRN (As Needed)") {
-      setStep(3); // Skip to step 3
-    } else {
-      setStep(2); // Go to time selection
-    }
+    // Go to step 2 (either Times or PRN Protocols)
+    setStep(2);
   };
 
   const handleSecondStep = async () => {
@@ -745,13 +793,158 @@ export default function CreateMedicationForm({
               {/* Skip time selection for PRN medications */}
               {scheduleType === "PRN (As Needed)" ? (
                 <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm font-medium text-blue-900">PRN Medication</p>
-                    <p className="text-xs text-blue-700 mt-1">
-                      PRN medications are administered as needed. No scheduled times required.
-                    </p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">PRN Protocols</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() => {
+                            const values = form.getValues();
+                            append({
+                              protocolLabel: `Protocol ${fields.length + 1}`,
+                              residentId: residentId,
+                              teamId: teamId || "",
+                              organizationId: organizationId || "",
+                              userId: profile?.id || "",
+                              homeName: residentData?.care_homes?.name || "",
+                              roomNo: residentData?.room_number || "",
+                              serviceUsersName: residentName || `${residentData?.first_name} ${residentData?.last_name}` || "",
+                              dob: residentData?.date_of_birth ? new Date(residentData.date_of_birth).getTime() : Date.now(),
+                              nameOfMedication: values.name || "",
+                              form: values.dosageForm || "",
+                              routeOfAdministration: values.route || "",
+                              strength: values.strength || "",
+                              nameOfPrescriber: values.prescriberName || "",
+                              dosageCircumstances: "",
+                              frequencyOfDoses: values.frequency || "As Needed (PRN)",
+                              minimumTimeInterval: values.minIntervalHours ? `${values.minIntervalHours} hours` : "",
+                              maximumDose24Hours: values.maxDailyDose ? `${values.maxDailyDose} ${values.maxDailyDoseUnit || ""}` : "",
+                              purposeOfAdministration: "",
+                              expectedOutcome: "",
+                              otherMedicinesAwareness: "",
+                              reviewDate: Date.now() + (30 * 24 * 60 * 60 * 1000),
+                              specialInstructions: values.instructions || "",
+                              nameOfPersonCompleting: profile?.name || "",
+                              dateCompleted: Date.now(),
+                            });
+                          }}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add PRN Protocol
+                    </Button>
                   </div>
-                  <div className="flex justify-between">
+
+                  {fields.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center border-2 border-dashed rounded-lg bg-muted/5">
+                      <FileText className="w-8 h-8 text-muted-foreground mb-2 opacity-20" />
+                      <p className="text-sm text-muted-foreground">No protocols added yet.</p>
+                      <p className="text-xs text-muted-foreground/60">Click the button above to add a PRN protocol.</p>
+                    </div>
+                  ) : (
+                    <Accordion type="multiple" className="w-full space-y-2">
+                      {fields.map((field, index) => (
+                        <AccordionItem value={field.id} key={field.id} className="border rounded-lg bg-card">
+                          <div className="px-4 py-2 flex items-center justify-between group">
+                              <AccordionTrigger className="hover:no-underline py-0 flex-1">
+                                <div className="group flex items-start gap-2.5 px-0 py-1 text-left transition-all w-full">
+                                  <FileText className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-500" />
+                                  <div className="min-w-0">
+                                    <FormField
+                                      control={form.control}
+                                      name={`prnProtocols.${index}.protocolLabel`}
+                                      render={({ field: labelField }) => (
+                                        <FormItem className="space-y-0 text-left pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+                                          <FormControl>
+                                            <Input
+                                              {...labelField}
+                                              className="h-6 w-64 p-0 font-semibold text-xs bg-transparent border-none focus-visible:ring-0 hover:bg-muted/50 transition-colors"
+                                              placeholder="Protocol Name"
+                                            />
+                                          </FormControl>
+                                        </FormItem>
+                                      )}
+                                    />
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">Click to expand and edit protocol details</p>
+                                  </div>
+                                </div>
+                              </AccordionTrigger>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => remove(index)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <AccordionContent className="px-4 pb-4 space-y-4">
+                            <div className="grid grid-cols-2 gap-4 pt-2">
+                              <FormField
+                                control={form.control}
+                                name={`prnProtocols.${index}.dosageCircumstances`}
+                                render={({ field }) => (
+                                  <FormItem className="col-span-2">
+                                    <FormLabel className="text-xs">Dosage Circumstances</FormLabel>
+                                    <FormControl><Textarea {...field} placeholder="e.g. When experiencing mild pain..." className="min-h-[80px]" /></FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`prnProtocols.${index}.maximumDose24Hours`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">Max Dose in 24h</FormLabel>
+                                    <FormControl><Input {...field} /></FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`prnProtocols.${index}.minimumTimeInterval`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">Min Interval</FormLabel>
+                                    <FormControl><Input {...field} /></FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`prnProtocols.${index}.purposeOfAdministration`}
+                                render={({ field }) => (
+                                  <FormItem className="col-span-2">
+                                    <FormLabel className="text-xs">Purpose</FormLabel>
+                                    <FormControl><Textarea {...field} placeholder="e.g. For relief of mild symptoms" className="min-h-[60px]" /></FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`prnProtocols.${index}.expectedOutcome`}
+                                render={({ field }) => (
+                                  <FormItem className="col-span-2">
+                                    <FormLabel className="text-xs">Expected Outcome</FormLabel>
+                                    <FormControl><Textarea {...field} placeholder="e.g. Reduction in pain level" className="min-h-[60px]" /></FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                  )}
+
+                  <div className="flex justify-between pt-4 border-t">
                     <Button
                       type="button"
                       variant="ghost"
@@ -760,7 +953,12 @@ export default function CreateMedicationForm({
                     >
                       Back
                     </Button>
-                    <Button type="button" onClick={handleSecondStep} size="sm" className="px-6">
+                    <Button
+                      type="button"
+                      onClick={() => setStep(3)}
+                      size="sm"
+                      className="px-6"
+                    >
                       Continue
                     </Button>
                   </div>

@@ -30,10 +30,10 @@ export const CreateResidentSchema = z.object({
     )
     .optional(),
   dependencies: z.object({
-    mobility: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Mobility level is required" }),
-    eating: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Eating level is required" }),
-    dressing: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Dressing level is required" }),
-    toileting: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent"], { message: "Toileting level is required" }),
+    mobility: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent", "Prompt Needed"], { message: "Mobility level is required" }),
+    eating: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent", "Prompt Needed"], { message: "Eating level is required" }),
+    dressing: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent", "Prompt Needed"], { message: "Dressing level is required" }),
+    toileting: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent", "Prompt Needed"], { message: "Toileting level is required" }),
   }),
   emergencyContacts: z
     .array(

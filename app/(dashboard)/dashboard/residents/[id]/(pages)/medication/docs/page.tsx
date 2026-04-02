@@ -6,9 +6,11 @@ import UploadFileModal from "@/components/residents/carefile/folders/UploadFileM
 import { useProfile } from "@/hooks/use-profile";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { supabase } from "@/lib/supabase";
-import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
+import { format } from "date-fns";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,7 +41,6 @@ const SIDEBAR_SECTIONS: { title: string; forms: { key: MedicationFormKey; label:
   {
     title: "Forms",
     forms: [
-      { key: "prn-protocol", label: "PRN Protocol" },
       { key: "bm-chart", label: "Blood Monitoring Chart (BM)" },
     ],
   },
@@ -154,7 +155,9 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
   const [activeFormKey, setActiveFormKey] = useState<MedicationFormKey | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [prnProtocols, setPrnProtocols] = useState<any[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
+  const [protocolsLoading, setProtocolsLoading] = useState(false);
 
   const activeFile = uploadedFiles.find((f) => f.id === activeFileId) ?? null;
 
@@ -190,13 +193,38 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
     setFilesLoading(false);
   }, [residentId]);
 
+  const fetchPrnProtocols = useCallback(async () => {
+    if (!residentId) return;
+    setProtocolsLoading(true);
+    const { data, error } = await supabase
+      .from("prn_protocols")
+      .select("*")
+      .eq("resident_id", residentId)
+      .neq("status", "archived")
+      .order("created_at", { ascending: false });
+    if (!error && data) setPrnProtocols(data);
+    setProtocolsLoading(false);
+  }, [residentId]);
+
   useEffect(() => {
     fetchUploadedFiles();
-  }, [fetchUploadedFiles]);
+    fetchPrnProtocols();
+  }, [fetchUploadedFiles, fetchPrnProtocols]);
 
   const handleFormClick = (key: MedicationFormKey) => {
     setActiveFileId(null);
     setActiveFormKey((prev) => (prev === key ? null : key));
+  };
+
+  const handleProtocolClick = (id: string) => {
+    setActiveFileId(null);
+    setActiveFormKey(null);
+    setActiveFormKey(id as any); // Use a synthetic key or just handle activeProtocolId
+    // Better: 
+    // setActiveFormKey(null);
+    // setActiveFileId(null);
+    // But then I need a way to track which protocol is active.
+    // I'll repurpose activeFileId or just use activeFormKey as "prn-protocol-[id]"
   };
 
   const handleDeleteFile = async (file: UploadedFile, e: React.MouseEvent) => {
@@ -251,12 +279,18 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
           <span className="text-muted-foreground">Medication</span>
           <span className="text-muted-foreground">/</span>
           <span className="font-medium">Documents</span>
-          {activeFormKey && (
+          {activeFormKey && !activeFormKey.startsWith("prn-protocol") && (
             <>
               <span className="text-muted-foreground">/</span>
               <span className="text-muted-foreground">
-                {ALL_SIDEBAR_FORMS.find((f) => f.key === activeFormKey)?.label}
+                {ALL_SIDEBAR_FORMS.find((f) => f.key === activeFormKey)?.label || activeFormKey}
               </span>
+            </>
+          )}
+          {activeFormKey?.startsWith("prn-protocol-") && (
+            <>
+              <span className="text-muted-foreground">/</span>
+              <span className="text-muted-foreground">PRN Protocol</span>
             </>
           )}
           {activeFile && (
@@ -282,8 +316,22 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
               organizationId={profile?.active_organization_id ?? ""}
               userId={profile?.id ?? ""}
               userName={profile?.name || profile?.email || ""}
+              isAddingNew={true}
               onSaved={() => {
-                // Optional refresh logic
+                fetchPrnProtocols();
+              }}
+            />
+          ) : activeFormKey?.startsWith("prn-protocol-") && resident ? (
+             <PRNProtocolForm
+              residentId={residentId}
+              resident={resident}
+              teamId={activeTeamId ?? ""}
+              organizationId={profile?.active_organization_id ?? ""}
+              userId={profile?.id ?? ""}
+              userName={profile?.name || profile?.email || ""}
+              selectedId={activeFormKey.replace("prn-protocol-", "")}
+              onSaved={() => {
+                fetchPrnProtocols();
               }}
             />
           ) : activeFormKey === "bm-chart" && resident ? (
@@ -308,12 +356,75 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
         </main>
 
         {/* Right Sidebar */}
-        <aside className="w-[200px] flex-shrink-0 border-l bg-background h-full p-3 overflow-y-auto">
-          <div className="flex flex-col gap-4">
+        <aside className="w-[220px] flex-shrink-0 border-l bg-background h-full p-3 overflow-y-auto">
+          <div className="flex flex-col gap-5">
+            
+            {/* PRN Protocols Section */}
+            <div>
+              <div className="flex items-center justify-between mb-2 px-1.5">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+                  PRN Protocols
+                </p>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-5 w-5"
+                  onClick={() => {
+                    setActiveFileId(null);
+                    setActiveFormKey("prn-protocol");
+                  }}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+
+              {protocolsLoading ? (
+                 <div className="flex items-center justify-center py-3">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                </div>
+              ) : prnProtocols.length === 0 ? (
+                <div className="mx-1 px-3 py-6 border border-dashed rounded-lg flex flex-col items-center justify-center text-center bg-muted/5">
+                  <p className="text-[10px] text-muted-foreground italic">No prn protocols yet</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-0.5">
+                   {prnProtocols.map((protocol) => {
+                    const protocolId = protocol.id;
+                    const isActive = activeFormKey === `prn-protocol-${protocolId}`;
+                    const data = protocol.assessment_data || {};
+                    
+                    return (
+                      <button
+                        key={protocolId}
+                        onClick={() => {
+                          setActiveFileId(null);
+                          setActiveFormKey(`prn-protocol-${protocolId}` as any);
+                        }}
+                        className={`w-full text-left flex items-start gap-2.5 px-2 py-2 rounded-lg transition-all ${isActive
+                          ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                          : "hover:bg-muted/60 text-foreground"
+                        }`}
+                      >
+                        <FileText className={`h-4 w-4 flex-shrink-0 mt-0.5 ${isActive ? "text-primary" : "text-blue-500"}`} />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold leading-tight truncate">
+                            {data.protocolLabel || data.nameOfMedication || "PRN Protocol"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {protocol.assessment_date ? format(new Date(protocol.assessment_date), "dd/MM/yyyy") : "No date"}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Forms sections */}
             {SIDEBAR_SECTIONS.map(({ title, forms }) => (
               <div key={title}>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 px-1.5">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1.5">
                   {title}
                 </p>
                 <div className="flex flex-col gap-0.5">
@@ -324,14 +435,14 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
                       <button
                         key={key}
                         onClick={() => handleFormClick(key)}
-                        className={`w-full text-left flex items-start gap-2 px-1.5 py-2 rounded-md transition-colors ${isActive
-                          ? "bg-primary/10 text-primary"
+                        className={`w-full text-left flex items-start gap-2.5 px-2 py-2 rounded-lg transition-all ${isActive
+                          ? "bg-primary/10 text-primary ring-1 ring-primary/20"
                           : "hover:bg-muted/60 text-foreground"
-                          }`}
+                        }`}
                       >
-                        <FileText className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                        <FileText className="h-4 w-4 flex-shrink-0 mt-0.5 text-orange-500" />
                         <div className="min-w-0">
-                          <p className="text-xs font-medium leading-snug">{label}</p>
+                          <p className="text-xs font-semibold leading-tight">{label}</p>
                         </div>
                       </button>
                     );
@@ -342,8 +453,8 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
 
             {/* Documents section */}
             <div>
-              <div className="flex items-center justify-between mb-1.5 px-1.5">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+              <div className="flex items-center justify-between mb-2 px-1.5">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
                   Documents
                 </p>
                 <UploadFileModal
@@ -359,9 +470,9 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                 </div>
               ) : uploadedFiles.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground px-1.5 py-1">
-                  No documents uploaded
-                </p>
+                <div className="mx-1 px-3 py-6 border border-dashed rounded-lg flex flex-col items-center justify-center text-center bg-muted/5">
+                  <p className="text-[10px] text-muted-foreground italic">No uploads found</p>
+                </div>
               ) : (
                 <div className="flex flex-col gap-0.5">
                   {uploadedFiles.map((file) => {
@@ -369,19 +480,19 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
                     return (
                       <div
                         key={file.id}
-                        className={`group flex items-start gap-1.5 px-1.5 py-2 rounded-md transition-colors ${isActive
-                          ? "bg-primary/10 text-primary"
+                        className={`group flex items-start gap-1.5 px-1.5 py-1.5 rounded-lg transition-all ${isActive
+                          ? "bg-primary/10 text-primary ring-1 ring-primary/20"
                           : "hover:bg-muted/60 text-foreground"
                           }`}
                       >
                         <button
                           onClick={() => handleFileClick(file.id)}
-                          className="flex items-start gap-1.5 flex-1 min-w-0 text-left"
+                          className="flex items-start gap-2 flex-1 min-w-0 text-left"
                         >
                           <Paperclip className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
                           <div className="min-w-0">
-                            <p className="text-xs font-medium leading-snug truncate">{file.name}</p>
-                            <p className="text-[10px] text-muted-foreground">
+                            <p className="text-xs font-semibold leading-tight truncate">{file.name}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
                               {(file.file_size / 1024).toFixed(0)} KB
                             </p>
                           </div>

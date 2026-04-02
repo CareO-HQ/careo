@@ -48,14 +48,14 @@ export const HospitalPassportSchema = z.object({
 
     // Communication & Aids
     communicationIssues: z.string().optional(),
-    hearingAid: z.boolean(),
-    glasses: z.boolean(),
+    hearingAid: z.boolean().default(false),
+    glasses: z.boolean().default(false),
     otherAids: z.string().optional(),
 
     // Mobility
     mobilityAssistance: z.enum(["independent", "minimum", "full"]),
     mobilityAids: z.string().optional(),
-    historyOfFalls: z.boolean(),
+    historyOfFalls: z.boolean().default(false),
     dateOfLastFall: z.string().optional(),
 
     // Toileting
@@ -65,15 +65,15 @@ export const HospitalPassportSchema = z.object({
     // Nutrition
     nutritionalAssistance: z.enum(["independent", "minimum", "full"]),
     dietType: z.string().optional(),
-    swallowingDifficulties: z.boolean(),
-    enteralNutrition: z.boolean(),
+    swallowingDifficulties: z.boolean().default(false),
+    enteralNutrition: z.boolean().default(false),
     mustScore: z.string().optional(),
 
     // Personal Care
     personalHygieneAssistance: z.enum(["independent", "minimum", "full"]),
-    topDentures: z.boolean(),
-    bottomDentures: z.boolean(),
-    denturesAccompanying: z.boolean(),
+    topDentures: z.boolean().default(false),
+    bottomDentures: z.boolean().default(false),
+    denturesAccompanying: z.boolean().default(false),
   }),
 
   // Skin, Medication & Attachments
@@ -84,7 +84,7 @@ export const HospitalPassportSchema = z.object({
     skinStateOnTransfer: z.string().min(1, "Skin state is required"),
     currentSkinCareRegime: z.string().optional(),
     pressureRelievingEquipment: z.string().optional(),
-    knownToTVN: z.boolean(),
+    knownToTVN: z.boolean().default(false),
     tvnName: z.string().optional(),
 
     // Medication
@@ -94,12 +94,12 @@ export const HospitalPassportSchema = z.object({
 
     // Attachments
     attachments: z.object({
-      currentMedications: z.boolean(),
-      bodyMap: z.boolean(),
-      observations: z.boolean(),
-      dnacprForm: z.boolean(),
-      enteralFeedingRegime: z.boolean(),
-      other: z.boolean(),
+      currentMedications: z.boolean().default(false),
+      bodyMap: z.boolean().default(false),
+      observations: z.boolean().default(false),
+      dnacprForm: z.boolean().default(false),
+      enteralFeedingRegime: z.boolean().default(false),
+      other: z.boolean().default(false),
       otherSpecify: z.string().optional(),
     }),
   }),

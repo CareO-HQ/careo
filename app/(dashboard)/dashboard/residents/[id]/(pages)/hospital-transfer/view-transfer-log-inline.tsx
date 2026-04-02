@@ -54,7 +54,9 @@ export function ViewTransferLogInline({
       {/* ── Transfer Details ── */}
       <section className="space-y-5">
         <div>
-          <h3 className="text-base font-semibold text-foreground">Transfer Details</h3>
+          <h3 className="text-base font-semibold text-foreground">
+            {log.label || "Transfer Details"}
+          </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             Information about the hospital transfer
           </p>
@@ -74,70 +76,52 @@ export function ViewTransferLogInline({
         <Field label="Follow-up Actions" value={log.followUp} />
       </section>
 
-      {/* ── Files Changed (optional) ── */}
-      {(files.carePlan || files.riskAssessment || files.other) && (
-        <>
-          <div className="border-t" />
-          <section className="space-y-4">
-            <div>
-              <h3 className="text-base font-semibold text-foreground">Files Changed</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Documents updated as a result of this transfer
-              </p>
-            </div>
+      {/* ── Files Changed ── */}
+      <div className="border-t" />
+      <section className="space-y-4">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">Files Changed</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Documents updated as a result of this transfer
+          </p>
+        </div>
 
-            <div className="rounded-xl border border-input bg-muted/20 px-4 py-3 space-y-1">
-              {files.carePlan !== undefined && (
-                <CheckItem label="Care Plan Updated" checked={!!files.carePlan} />
-              )}
-              {files.riskAssessment !== undefined && (
-                <CheckItem label="Risk Assessment Updated" checked={!!files.riskAssessment} />
-              )}
-            </div>
+        <div className="rounded-xl border border-input bg-muted/20 px-4 py-3 space-y-1">
+          <CheckItem label="Care Plan Updated" checked={!!files.carePlan} />
+          <CheckItem label="Risk Assessment Updated" checked={!!files.riskAssessment} />
+        </div>
 
-            {files.other && (
-              <Field label="Other Files Changed" value={files.other} />
-            )}
-          </section>
-        </>
-      )}
+        {files.other && (
+          <Field label="Other Files Changed" value={files.other} />
+        )}
+      </section>
 
-      {/* ── Medication Changes (optional) ── */}
-      {(meds.medicationsAdded || meds.medicationsRemoved || meds.medicationsModified) && (
-        <>
-          <div className="border-t" />
-          <section className="space-y-4">
-            <div>
-              <h3 className="text-base font-semibold text-foreground">Medication Changes</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Any changes to medications resulting from this transfer
-              </p>
-            </div>
+      {/* ── Medication Changes ── */}
+      <div className="border-t" />
+      <section className="space-y-4">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">Medication Changes</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Any changes to medications resulting from this transfer
+          </p>
+        </div>
 
-            <div className="rounded-xl border border-input bg-muted/20 px-4 py-3 space-y-1">
-              {meds.medicationsAdded !== undefined && (
-                <CheckItem label="Medications Added" checked={!!meds.medicationsAdded} />
-              )}
-              {meds.medicationsRemoved !== undefined && (
-                <CheckItem label="Medications Removed" checked={!!meds.medicationsRemoved} />
-              )}
-              {meds.medicationsModified !== undefined && (
-                <CheckItem label="Medications Modified" checked={!!meds.medicationsModified} />
-              )}
-            </div>
+        <div className="rounded-xl border border-input bg-muted/20 px-4 py-3 space-y-1">
+          <CheckItem label="Medications Added" checked={!!meds.medicationsAdded} />
+          <CheckItem label="Medications Removed" checked={!!meds.medicationsRemoved} />
+          <CheckItem label="Medications Modified" checked={!!meds.medicationsModified} />
+        </div>
 
-            {meds.medicationsAdded && meds.addedMedications && (
-              <Field label="Added Medications" value={meds.addedMedications} />
-            )}
-            {meds.medicationsRemoved && meds.removedMedications && (
-              <Field label="Removed Medications" value={meds.removedMedications} />
-            )}
-            {meds.medicationsModified && meds.modifiedMedications && (
-              <Field label="Modified Medications" value={meds.modifiedMedications} />
-            )}
-          </section>
-        </>
-      )}
+        {meds.medicationsAdded && (
+          <Field label="Added Medications" value={meds.addedMedications} />
+        )}
+        {meds.medicationsRemoved && (
+          <Field label="Removed Medications" value={meds.removedMedications} />
+        )}
+        {meds.medicationsModified && (
+          <Field label="Modified Medications" value={meds.modifiedMedications} />
+        )}
+      </section>
 
       {/* ── Actions ── */}
       <div className="flex justify-end gap-3 pt-6 border-t">

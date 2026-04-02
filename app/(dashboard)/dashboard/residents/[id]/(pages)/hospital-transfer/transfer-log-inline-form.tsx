@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
 const TransferLogSchema = z.object({
+  label: z.string().optional(),
   date: z.string().min(1, "Date is required"),
   time: z.string().optional(),
   hospitalName: z.string().min(1, "Hospital name is required"),
@@ -34,18 +35,25 @@ const TransferLogSchema = z.object({
   outcome: z.string().optional(),
   followUp: z.string().optional(),
   filesChanged: z.object({
-    carePlan: z.boolean(),
-    riskAssessment: z.boolean(),
+    carePlan: z.boolean().default(false),
+    riskAssessment: z.boolean().default(false),
     other: z.string().optional(),
-  }).optional(),
+  }).optional().default({ carePlan: false, riskAssessment: false, other: "" }),
   medicationChanges: z.object({
-    medicationsAdded: z.boolean(),
+    medicationsAdded: z.boolean().default(false),
     addedMedications: z.string().optional(),
-    medicationsRemoved: z.boolean(),
+    medicationsRemoved: z.boolean().default(false),
     removedMedications: z.string().optional(),
-    medicationsModified: z.boolean(),
+    medicationsModified: z.boolean().default(false),
     modifiedMedications: z.string().optional(),
-  }).optional(),
+  }).optional().default({
+    medicationsAdded: false,
+    addedMedications: "",
+    medicationsRemoved: false,
+    removedMedications: "",
+    medicationsModified: false,
+    modifiedMedications: "",
+  }),
 });
 
 interface TransferLogInlineFormProps {
@@ -62,8 +70,9 @@ export function TransferLogInlineForm({
   isEditing = false,
 }: TransferLogInlineFormProps) {
   const form = useForm<any>({
-    resolver: zodResolver(TransferLogSchema),
+    resolver: zodResolver(TransferLogSchema) as any,
     defaultValues: initialData || {
+      label: "",
       date: new Date().toISOString().split('T')[0],
       time: new Date().toTimeString().split(' ')[0].substring(0, 5),
       hospitalName: "",
@@ -95,11 +104,23 @@ export function TransferLogInlineForm({
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="bg-white border border-neutral-200/60 rounded-xl shadow-sm p-5 sm:p-6 space-y-6">
         {/* Transfer Details Section */}
         <div className="space-y-5">
-          <div>
-            <h3 className="text-base font-semibold text-neutral-900">Transfer Details</h3>
-            <p className="text-xs text-neutral-500 mt-1">
-              Enter information about the hospital transfer
-            </p>
+          <div className="mb-2">
+            <FormField
+              control={form.control}
+              name="label"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Transfer Log Name (e.g., A&E Admission)"
+                      className="text-xl font-bold text-neutral-900 border-none px-0 h-auto bg-transparent focus-visible:ring-0 placeholder:text-neutral-300 transition-all hover:bg-neutral-50/50 rounded-lg focus:bg-transparent"
+                    />
+                  </FormControl>
+                  <p className="text-[11px] text-neutral-400 mt-0.5 ml-0.5">Click to rename this record</p>
+                </FormItem>
+              )}
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

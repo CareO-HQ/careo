@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Clock, Ambulance, ClipboardList, FolderOpen, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { hospitalTransferService } from "@/lib/hospital-transfer-service";
@@ -198,9 +199,18 @@ export default function HospitalTransferRecordsPage({ params }: RecordsPageProps
                             <Ambulance className="w-5 h-5 text-primary" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-lg leading-tight">Hospital Passport</h3>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-lg leading-tight">Hospital Passport</h3>
+                              {passport.isArchived ? (
+                                <Badge variant="secondary" className="bg-muted text-muted-foreground border-none text-[10px] uppercase tracking-wider font-bold h-5">Archived</Badge>
+                              ) : (
+                                <Badge className="bg-primary/10 text-primary border-none text-[10px] uppercase tracking-wider font-bold h-5 hover:bg-primary/20">Current</Badge>
+                              )}
+                            </div>
                             <p className="text-sm text-muted-foreground mt-0.5">
-                              Created on {formatDate(passport.createdAt || passport._creationTime)}
+                              {passport.isArchived 
+                                ? `Archived on ${formatDate(passport.archivedAt || passport.updatedAt)}` 
+                                : `Created on ${formatDate(passport.createdAt || passport._creationTime)}`}
                             </p>
                           </div>
                         </div>

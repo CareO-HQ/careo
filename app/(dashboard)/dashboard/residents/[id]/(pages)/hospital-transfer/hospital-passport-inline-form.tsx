@@ -59,6 +59,7 @@ const FormLabelRequired = ({ children, required = false }: { children: React.Rea
 
 interface HospitalPassportInlineFormProps {
   resident: any;
+  profile?: any;
   onSubmit: (data: HospitalPassportFormData) => void;
   onCancel: () => void;
   initialData?: any;
@@ -67,6 +68,7 @@ interface HospitalPassportInlineFormProps {
 
 export function HospitalPassportInlineForm({
   resident,
+  profile,
   onSubmit,
   onCancel,
   initialData,
@@ -76,81 +78,111 @@ export function HospitalPassportInlineForm({
   const totalSteps = 13;
 
   const form = useForm<HospitalPassportFormData>({
-    resolver: zodResolver(HospitalPassportSchema),
-    defaultValues: initialData || {
+    resolver: zodResolver(HospitalPassportSchema) as any,
+    values: {
       generalDetails: {
-        personName: `${resident?.firstName || ""} ${resident?.lastName || ""}`.trim(),
-        knownAs: "",
-        dateOfBirth: resident?.dateOfBirth || "",
-        nhsNumber: resident?.nhsHealthNumber || "",
-        religion: "",
-        weightOnTransfer: "",
-        careType: "residential",
-        transferDateTime: new Date().toISOString().slice(0, 16),
-        accompaniedBy: "",
-        englishFirstLanguage: "yes",
-        firstLanguage: "",
-        careHomeName: "",
-        careHomePhone: "",
-        careHomeAddress: "",
-        hospitalName: "",
-        hospitalPhone: "",
-        hospitalAddress: "",
-        nextOfKinName: resident?.contacts?.find((c: any) => c.is_next_of_kin)?.name || "",
-        nextOfKinPhone: resident?.contacts?.find((c: any) => c.is_next_of_kin)?.phone || "",
-        nextOfKinAddress: "",
-        gpName: resident?.gpName || "",
-        gpPhone: resident?.gpPhone || "",
-        gpAddress: resident?.gpAddress || "",
-        careManagerName: "",
-        careManagerPhone: "",
-        careManagerAddress: "",
+        personName: initialData?.generalDetails?.personName || `${resident?.firstName || ""} ${resident?.lastName || ""}`.trim() || resident?.name || "",
+        knownAs: initialData?.generalDetails?.knownAs || resident?.firstName || resident?.knownAs || "",
+        dateOfBirth: initialData?.generalDetails?.dateOfBirth || resident?.dateOfBirth || resident?.dob || "",
+        nhsNumber: initialData?.generalDetails?.nhsNumber || resident?.nhsHealthNumber || resident?.nhsNumber || "",
+        religion: initialData?.generalDetails?.religion || resident?.religion || "",
+        weightOnTransfer: initialData?.generalDetails?.weightOnTransfer || "",
+        careType: (initialData?.generalDetails?.careType as any) || "residential",
+        transferDateTime: initialData?.generalDetails?.transferDateTime || new Date().toISOString().slice(0, 16),
+        accompaniedBy: initialData?.generalDetails?.accompaniedBy || "",
+        englishFirstLanguage: (initialData?.generalDetails?.englishFirstLanguage as any) || "yes",
+        firstLanguage: initialData?.generalDetails?.firstLanguage || "",
+        careHomeName: initialData?.generalDetails?.careHomeName || "CareO-HQ",
+        careHomeAddress: initialData?.generalDetails?.careHomeAddress || "123 Care Lane, London, UK",
+        careHomePhone: initialData?.generalDetails?.careHomePhone || "0123456789",
+        hospitalName: initialData?.generalDetails?.hospitalName || "",
+        hospitalAddress: initialData?.generalDetails?.hospitalAddress || "",
+        hospitalPhone: initialData?.generalDetails?.hospitalPhone || "",
+        nextOfKinName: initialData?.generalDetails?.nextOfKinName 
+          || resident?.emergencyContacts?.find((c: any) => c.isPrimary)?.name 
+          || resident?.nextOfKinName || "",
+        nextOfKinAddress: initialData?.generalDetails?.nextOfKinAddress 
+          || resident?.emergencyContacts?.find((c: any) => c.isPrimary)?.address 
+          || resident?.nextOfKinAddress || "",
+        nextOfKinPhone: initialData?.generalDetails?.nextOfKinPhone 
+          || resident?.emergencyContacts?.find((c: any) => c.isPrimary)?.phoneNumber 
+          || resident?.nextOfKinPhone || "",
+        gpName: initialData?.generalDetails?.gpName || resident?.gpName || "",
+        gpAddress: initialData?.generalDetails?.gpAddress || resident?.gpAddress || "",
+        gpPhone: initialData?.generalDetails?.gpPhone || resident?.gpPhone || "",
+        careManagerName: initialData?.generalDetails?.careManagerName || resident?.careManagerName || "",
+        careManagerAddress: initialData?.generalDetails?.careManagerAddress || resident?.careManagerAddress || "",
+        careManagerPhone: initialData?.generalDetails?.careManagerPhone || resident?.careManagerPhone || "",
       },
       medicalCareNeeds: {
-        situation: "",
-        background: "",
-        assessment: "",
-        recommendations: "",
-        pastMedicalHistory: "",
-        knownAllergies: "",
-        historyOfConfusion: "no",
-        learningDisabilityMentalHealth: "",
-        communicationIssues: "",
-        hearingAid: false,
-        glasses: false,
-        otherAids: "",
-        mobilityAssistance: "independent",
-        continenceNeeds: "independent",
-        skinIntegrityNotes: "",
-        pressureUlcerRisk: "low",
-        hasExistingPressureUlcers: false,
-        existingPressureUlcersDetails: "",
-        nutritionalNeeds: "",
-        requiresFeedingAssistance: false,
-        swallowingIssues: false,
-        painManagement: "",
-        endOfLifeCareStatus: "no",
-        dnarStatus: "no",
-        advanceDirectiveStatus: "no",
-        additionalNotes: "",
+        situation: initialData?.medicalCareNeeds?.situation || "",
+        background: initialData?.medicalCareNeeds?.background || "",
+        assessment: initialData?.medicalCareNeeds?.assessment || "",
+        recommendations: initialData?.medicalCareNeeds?.recommendations || "",
+        pastMedicalHistory: initialData?.medicalCareNeeds?.pastMedicalHistory 
+          || (Array.isArray(resident?.health_conditions) 
+              ? resident.health_conditions.map((hc: any) => typeof hc === 'string' ? hc : hc.condition).join(", ") 
+              : resident?.medical_history || ""),
+        knownAllergies: initialData?.medicalCareNeeds?.knownAllergies || resident?.allergies || "",
+        historyOfConfusion: (initialData?.medicalCareNeeds?.historyOfConfusion as any) || "no",
+        learningDisabilityMentalHealth: initialData?.medicalCareNeeds?.learningDisabilityMentalHealth || "",
+        communicationIssues: initialData?.medicalCareNeeds?.communicationIssues || "",
+        hearingAid: !!(initialData?.medicalCareNeeds?.hearingAid ?? false),
+        glasses: !!(initialData?.medicalCareNeeds?.glasses ?? false),
+        otherAids: initialData?.medicalCareNeeds?.otherAids || "",
+        mobilityAssistance: (initialData?.medicalCareNeeds?.mobilityAssistance as any) || "independent",
+        mobilityAids: initialData?.medicalCareNeeds?.mobilityAids || "",
+        historyOfFalls: !!(initialData?.medicalCareNeeds?.historyOfFalls ?? false),
+        dateOfLastFall: initialData?.medicalCareNeeds?.dateOfLastFall || "",
+        toiletingAssistance: (initialData?.medicalCareNeeds?.toiletingAssistance as any) || "independent",
+        continenceStatus: (initialData?.medicalCareNeeds?.continenceStatus as any) || "continent",
+        nutritionalAssistance: (initialData?.medicalCareNeeds?.nutritionalAssistance as any) || "independent",
+        dietType: initialData?.medicalCareNeeds?.dietType || "",
+        swallowingDifficulties: !!(initialData?.medicalCareNeeds?.swallowingDifficulties ?? false),
+        enteralNutrition: !!(initialData?.medicalCareNeeds?.enteralNutrition ?? false),
+        mustScore: initialData?.medicalCareNeeds?.mustScore || "",
+        personalHygieneAssistance: (initialData?.medicalCareNeeds?.personalHygieneAssistance as any) || "independent",
+        topDentures: !!(initialData?.medicalCareNeeds?.topDentures ?? false),
+        bottomDentures: !!(initialData?.medicalCareNeeds?.bottomDentures ?? false),
+        denturesAccompanying: !!(initialData?.medicalCareNeeds?.denturesAccompanying ?? false),
+      },
+      skinMedicationAttachments: {
+        skinIntegrityAssistance: (initialData?.skinMedicationAttachments?.skinIntegrityAssistance as any) || "independent",
+        bradenScore: initialData?.skinMedicationAttachments?.bradenScore || "",
+        skinStateOnTransfer: initialData?.skinMedicationAttachments?.skinStateOnTransfer || "",
+        currentSkinCareRegime: initialData?.skinMedicationAttachments?.currentSkinCareRegime || "",
+        pressureRelievingEquipment: initialData?.skinMedicationAttachments?.pressureRelievingEquipment || "",
+        knownToTVN: !!(initialData?.skinMedicationAttachments?.knownToTVN ?? false),
+        tvnName: initialData?.skinMedicationAttachments?.tvnName || "",
+        currentMedicationRegime: initialData?.skinMedicationAttachments?.currentMedicationRegime || "",
+        lastMedicationDateTime: initialData?.skinMedicationAttachments?.lastMedicationDateTime || new Date().toISOString().slice(0, 16),
+        lastMealDrinkDateTime: initialData?.skinMedicationAttachments?.lastMealDrinkDateTime || "",
+        attachments: {
+          currentMedications: !!(initialData?.skinMedicationAttachments?.attachments?.currentMedications ?? false),
+          bodyMap: !!(initialData?.skinMedicationAttachments?.attachments?.bodyMap ?? false),
+          observations: !!(initialData?.skinMedicationAttachments?.attachments?.observations ?? false),
+          dnacprForm: !!(initialData?.skinMedicationAttachments?.attachments?.dnacprForm ?? false),
+          enteralFeedingRegime: !!(initialData?.skinMedicationAttachments?.attachments?.enteralFeedingRegime ?? false),
+          other: !!(initialData?.skinMedicationAttachments?.attachments?.other ?? false),
+          otherSpecify: initialData?.skinMedicationAttachments?.attachments?.otherSpecify || "",
+        },
       },
       signOff: {
-        printedName: "",
-        signature: "",
-        completedDate: new Date().toISOString().split('T')[0],
-      }
-    }
+        signature: initialData?.signOff?.signature || profile?.name || "",
+        printedName: initialData?.signOff?.printedName || profile?.name || "",
+        designation: initialData?.signOff?.designation || profile?.designation || profile?.role || "",
+        contactPhone: initialData?.signOff?.contactPhone || profile?.phone || "",
+        completedDate: initialData?.signOff?.completedDate || format(new Date(), "yyyy-MM-dd"),
+      },
+    } as any,
   });
-
+  
   const prevStep = () => { if (currentStep > 1) setCurrentStep(currentStep - 1); };
-  const handleNextStep = async () => {
-    // We could add step-specific validation here if needed
-    if (currentStep < totalSteps) setCurrentStep(currentStep + 1);
-  };
+  const nextStep = () => { if (currentStep < totalSteps) setCurrentStep(currentStep + 1); };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+    <Form {...(form as any)}>
+      <form onSubmit={form.handleSubmit(onSubmit) as any} className="space-y-8">
         <div className="space-y-8">
           {/* Section 1: Person in Care Information */}
           <div className="space-y-6">
@@ -161,7 +193,7 @@ export function HospitalPassportInlineForm({
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
-                    control={form.control}
+                    control={form.control as any}
                     name="generalDetails.personName"
                     render={({ field }) => (
                       <FormItem>
@@ -174,7 +206,7 @@ export function HospitalPassportInlineForm({
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={form.control as any}
                     name="generalDetails.knownAs"
                     render={({ field }) => (
                       <FormItem>
@@ -187,7 +219,7 @@ export function HospitalPassportInlineForm({
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={form.control as any}
                     name="generalDetails.dateOfBirth"
                     render={({ field }) => (
                       <FormItem>
@@ -200,7 +232,7 @@ export function HospitalPassportInlineForm({
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={form.control as any}
                     name="generalDetails.nhsNumber"
                     render={({ field }) => (
                       <FormItem>
@@ -213,7 +245,7 @@ export function HospitalPassportInlineForm({
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={form.control as any}
                     name="generalDetails.religion"
                     render={({ field }) => (
                       <FormItem>
@@ -225,7 +257,7 @@ export function HospitalPassportInlineForm({
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={form.control as any}
                     name="generalDetails.weightOnTransfer"
                     render={({ field }) => (
                       <FormItem>
@@ -237,7 +269,7 @@ export function HospitalPassportInlineForm({
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={form.control as any}
                     name="generalDetails.careType"
                     render={({ field }) => (
                       <FormItem>
@@ -259,7 +291,7 @@ export function HospitalPassportInlineForm({
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={form.control as any}
                     name="generalDetails.transferDateTime"
                     render={({ field }) => {
                       const dateTimeValue = field.value || '';
@@ -336,7 +368,7 @@ export function HospitalPassportInlineForm({
                     }}
                   />
                   <FormField
-                    control={form.control}
+                    control={form.control as any}
                     name="generalDetails.accompaniedBy"
                     render={({ field }) => (
                       <FormItem>
@@ -348,7 +380,7 @@ export function HospitalPassportInlineForm({
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={form.control as any}
                     name="generalDetails.englishFirstLanguage"
                     render={({ field }) => (
                       <FormItem>
@@ -369,7 +401,7 @@ export function HospitalPassportInlineForm({
                   />
                   {form.watch("generalDetails.englishFirstLanguage") === "no" && (
                     <FormField
-                      control={form.control}
+                      control={form.control as any}
                       name="generalDetails.firstLanguage"
                       render={({ field }) => (
                         <FormItem>
@@ -397,7 +429,7 @@ export function HospitalPassportInlineForm({
                     <h4 className="font-medium my-5">Care Home Details</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="generalDetails.careHomeName"
                         render={({ field }) => (
                           <FormItem>
@@ -410,7 +442,7 @@ export function HospitalPassportInlineForm({
                         )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="generalDetails.careHomePhone"
                         render={({ field }) => (
                           <FormItem>
@@ -424,7 +456,7 @@ export function HospitalPassportInlineForm({
                       />
                     </div>
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="generalDetails.careHomeAddress"
                           render={({ field }) => (
                             <FormItem className="mt-4">
@@ -451,7 +483,7 @@ export function HospitalPassportInlineForm({
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="generalDetails.hospitalName"
                           render={({ field }) => (
                             <FormItem>
@@ -464,7 +496,7 @@ export function HospitalPassportInlineForm({
                           )}
                         />
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="generalDetails.hospitalPhone"
                           render={({ field }) => (
                             <FormItem>
@@ -477,7 +509,7 @@ export function HospitalPassportInlineForm({
                         />
                       </div>
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="generalDetails.hospitalAddress"
                         render={({ field }) => (
                           <FormItem className="mt-4">
@@ -505,7 +537,7 @@ export function HospitalPassportInlineForm({
                         <h4 className="font-medium my-5">Next of Kin/Representative</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
-                            control={form.control}
+                            control={form.control as any}
                             name="generalDetails.nextOfKinName"
                             render={({ field }) => (
                               <FormItem>
@@ -518,7 +550,7 @@ export function HospitalPassportInlineForm({
                           )}
                           />
                           <FormField
-                            control={form.control}
+                            control={form.control as any}
                             name="generalDetails.nextOfKinPhone"
                             render={({ field }) => (
                               <FormItem>
@@ -532,7 +564,7 @@ export function HospitalPassportInlineForm({
                           />
                         </div>
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="generalDetails.nextOfKinAddress"
                           render={({ field }) => (
                             <FormItem className="mt-4">
@@ -561,7 +593,7 @@ export function HospitalPassportInlineForm({
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
-                            control={form.control}
+                            control={form.control as any}
                             name="generalDetails.gpName"
                             render={({ field }) => (
                               <FormItem>
@@ -574,7 +606,7 @@ export function HospitalPassportInlineForm({
                           )}
                           />
                           <FormField
-                            control={form.control}
+                            control={form.control as any}
                             name="generalDetails.gpPhone"
                             render={({ field }) => (
                               <FormItem>
@@ -588,7 +620,7 @@ export function HospitalPassportInlineForm({
                           />
                         </div>
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="generalDetails.gpAddress"
                           render={({ field }) => (
                             <FormItem className="mt-4">
@@ -606,7 +638,7 @@ export function HospitalPassportInlineForm({
                         <h4 className="font-medium my-5 mt-10"></h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField
-                            control={form.control}
+                            control={form.control as any}
                             name="generalDetails.careManagerName"
                             render={({ field }) => (
                               <FormItem>
@@ -618,7 +650,7 @@ export function HospitalPassportInlineForm({
                           )}
                           />
                           <FormField
-                            control={form.control}
+                            control={form.control as any}
                             name="generalDetails.careManagerPhone"
                             render={({ field }) => (
                               <FormItem>
@@ -631,7 +663,7 @@ export function HospitalPassportInlineForm({
                           />
                         </div>
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="generalDetails.careManagerAddress"
                           render={({ field }) => (
                             <FormItem className="mt-4">
@@ -654,7 +686,7 @@ export function HospitalPassportInlineForm({
                     <h3 className="font-medium  mb-4">Reason for Transfer</h3>
                     <div className="space-y-4">
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.situation"
                         render={({ field }) => (
                           <FormItem>
@@ -671,7 +703,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.background"
                         render={({ field }) => (
                           <FormItem>
@@ -688,7 +720,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.assessment"
                         render={({ field }) => (
                           <FormItem>
@@ -705,7 +737,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.recommendations"
                         render={({ field }) => (
                           <FormItem>
@@ -732,7 +764,7 @@ export function HospitalPassportInlineForm({
                     <h3 className="font-medium  mb-4">Medical History</h3>
                     <div className="space-y-4">
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.pastMedicalHistory"
                         render={({ field }) => (
                           <FormItem>
@@ -749,7 +781,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.knownAllergies"
                         render={({ field }) => (
                           <FormItem>
@@ -764,7 +796,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.historyOfConfusion"
                         render={({ field }) => (
                           <FormItem>
@@ -785,7 +817,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.learningDisabilityMentalHealth"
                         render={({ field }) => (
                           <FormItem>
@@ -807,7 +839,7 @@ export function HospitalPassportInlineForm({
                     <h3 className="font-medium mb-4">Communication & Mobility</h3>
                     <div className="space-y-4">
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.communicationIssues"
                         render={({ field }) => (
                           <FormItem>
@@ -820,7 +852,7 @@ export function HospitalPassportInlineForm({
                       />
                       <div className="grid grid-cols-3 gap-4">
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="medicalCareNeeds.hearingAid"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-center space-x-2">
@@ -835,7 +867,7 @@ export function HospitalPassportInlineForm({
                         )}
                         />
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="medicalCareNeeds.glasses"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-center space-x-2">
@@ -850,7 +882,7 @@ export function HospitalPassportInlineForm({
                         )}
                         />
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="medicalCareNeeds.otherAids"
                           render={({ field }) => (
                             <FormItem>
@@ -862,7 +894,7 @@ export function HospitalPassportInlineForm({
                         />
                       </div>
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.mobilityAssistance"
                         render={({ field }) => (
                           <FormItem>
@@ -883,7 +915,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.mobilityAids"
                         render={({ field }) => (
                           <FormItem>
@@ -896,7 +928,7 @@ export function HospitalPassportInlineForm({
                       />
                       <div className="grid grid-cols-2 gap-4">
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="medicalCareNeeds.historyOfFalls"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-center space-x-2">
@@ -912,7 +944,7 @@ export function HospitalPassportInlineForm({
                         />
                         {form.watch("medicalCareNeeds.historyOfFalls") && (
                           <FormField
-                            control={form.control}
+                            control={form.control as any}
                             name="medicalCareNeeds.dateOfLastFall"
                             render={({ field }) => (
                               <FormItem className="flex flex-col">
@@ -975,7 +1007,7 @@ export function HospitalPassportInlineForm({
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="medicalCareNeeds.toiletingAssistance"
                           render={({ field }) => (
                             <FormItem>
@@ -996,7 +1028,7 @@ export function HospitalPassportInlineForm({
                         )}
                         />
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="medicalCareNeeds.continenceStatus"
                           render={({ field }) => (
                             <FormItem>
@@ -1020,7 +1052,7 @@ export function HospitalPassportInlineForm({
                         />
                       </div>
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.nutritionalAssistance"
                         render={({ field }) => (
                           <FormItem>
@@ -1041,7 +1073,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.dietType"
                         render={({ field }) => (
                           <FormItem>
@@ -1054,7 +1086,7 @@ export function HospitalPassportInlineForm({
                       />
                       <div className="grid grid-cols-2 gap-4">
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="medicalCareNeeds.swallowingDifficulties"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-center space-x-2">
@@ -1069,7 +1101,7 @@ export function HospitalPassportInlineForm({
                         )}
                         />
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="medicalCareNeeds.enteralNutrition"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-center space-x-2">
@@ -1085,7 +1117,7 @@ export function HospitalPassportInlineForm({
                         />
                       </div>
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.mustScore"
                         render={({ field }) => (
                           <FormItem>
@@ -1097,7 +1129,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="medicalCareNeeds.personalHygieneAssistance"
                         render={({ field }) => (
                           <FormItem>
@@ -1119,7 +1151,7 @@ export function HospitalPassportInlineForm({
                       />
                       <div className="grid grid-cols-3 gap-4">
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="medicalCareNeeds.topDentures"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-center space-x-2">
@@ -1134,7 +1166,7 @@ export function HospitalPassportInlineForm({
                         )}
                         />
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="medicalCareNeeds.bottomDentures"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-center space-x-2">
@@ -1149,7 +1181,7 @@ export function HospitalPassportInlineForm({
                         )}
                         />
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="medicalCareNeeds.denturesAccompanying"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-center space-x-2">
@@ -1175,7 +1207,7 @@ export function HospitalPassportInlineForm({
                     <h3 className="font-medium  mb-4">Skin Care</h3>
                     <div className="space-y-4">
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.skinIntegrityAssistance"
                         render={({ field }) => (
                           <FormItem>
@@ -1196,7 +1228,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.bradenScore"
                         render={({ field }) => (
                           <FormItem>
@@ -1208,7 +1240,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.skinStateOnTransfer"
                         render={({ field }) => (
                           <FormItem>
@@ -1224,7 +1256,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.currentSkinCareRegime"
                         render={({ field }) => (
                           <FormItem>
@@ -1236,7 +1268,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.pressureRelievingEquipment"
                         render={({ field }) => (
                           <FormItem>
@@ -1249,7 +1281,7 @@ export function HospitalPassportInlineForm({
                       />
                       <div className="grid grid-cols-2 gap-4">
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="skinMedicationAttachments.knownToTVN"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-center space-x-2">
@@ -1265,7 +1297,7 @@ export function HospitalPassportInlineForm({
                         />
                         {form.watch("skinMedicationAttachments.knownToTVN") && (
                           <FormField
-                            control={form.control}
+                            control={form.control as any}
                             name="skinMedicationAttachments.tvnName"
                             render={({ field }) => (
                               <FormItem>
@@ -1291,7 +1323,7 @@ export function HospitalPassportInlineForm({
                     </h3>
                     <div className="space-y-4">
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.currentMedicationRegime"
                         render={({ field }) => (
                           <FormItem>
@@ -1308,7 +1340,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.lastMedicationDateTime"
                         render={({ field }) => {
                           // Parse the datetime-local value to get date and time parts
@@ -1386,7 +1418,7 @@ export function HospitalPassportInlineForm({
                         }}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.lastMealDrinkDateTime"
                         render={({ field }) => {
                           // Parse the datetime-local value to get date and time parts
@@ -1475,7 +1507,7 @@ export function HospitalPassportInlineForm({
                     </h3>
                     <div className="space-y-2">
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.attachments.currentMedications"
                         render={({ field }) => (
                           <FormItem className="flex flex-row items-center space-x-2">
@@ -1490,7 +1522,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.attachments.bodyMap"
                         render={({ field }) => (
                           <FormItem className="flex flex-row items-center space-x-2">
@@ -1505,7 +1537,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.attachments.observations"
                         render={({ field }) => (
                           <FormItem className="flex flex-row items-center space-x-2">
@@ -1520,7 +1552,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.attachments.dnacprForm"
                         render={({ field }) => (
                           <FormItem className="flex flex-row items-center space-x-2">
@@ -1535,7 +1567,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="skinMedicationAttachments.attachments.enteralFeedingRegime"
                         render={({ field }) => (
                           <FormItem className="flex flex-row items-center space-x-2">
@@ -1551,7 +1583,7 @@ export function HospitalPassportInlineForm({
                       />
                       <div className="flex items-start space-x-2">
                         <FormField
-                          control={form.control}
+                          control={form.control as any}
                           name="skinMedicationAttachments.attachments.other"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-center space-x-2">
@@ -1567,7 +1599,7 @@ export function HospitalPassportInlineForm({
                         />
                         {form.watch("skinMedicationAttachments.attachments.other") && (
                           <FormField
-                            control={form.control}
+                            control={form.control as any}
                             name="skinMedicationAttachments.attachments.otherSpecify"
                             render={({ field }) => (
                               <FormItem className="flex-1">
@@ -1592,20 +1624,24 @@ export function HospitalPassportInlineForm({
                     </h3>
                     <div className="space-y-4">
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="signOff.printedName"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabelRequired required>Printed Name of Person Completing Form</FormLabelRequired>
-                            <FormControl>
-                              <Input {...field} readOnly className="bg-gray-50 text-gray-700" />
-                            </FormControl>
+                             <FormControl>
+                               <Input 
+                                 {...field} 
+                                 readOnly={!!field.value} 
+                                 className={cn(field.value && "bg-gray-50 text-gray-700")} 
+                               />
+                             </FormControl>
                             <FormMessage />
                           </FormItem>
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="signOff.designation"
                         render={({ field }) => (
                           <FormItem>
@@ -1618,7 +1654,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="signOff.contactPhone"
                         render={({ field }) => (
                           <FormItem>
@@ -1631,7 +1667,7 @@ export function HospitalPassportInlineForm({
                       )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="signOff.completedDate"
                         render={({ field }) => (
                           <FormItem className="flex flex-col">
@@ -1682,19 +1718,19 @@ export function HospitalPassportInlineForm({
                         )}
                       />
                       <FormField
-                        control={form.control}
+                        control={form.control as any}
                         name="signOff.signature"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabelRequired required>Signature</FormLabelRequired>
-                            <FormControl>
-                              <Textarea
-                                {...field}
-                                className="min-h-[80px] bg-gray-50 text-gray-700"
-                                placeholder="Type your full name as electronic signature"
-                                readOnly
-                              />
-                            </FormControl>
+                             <FormControl>
+                               <Textarea
+                                 {...field}
+                                 className={cn("min-h-[80px]", !!initialData?.signOff?.signature && "bg-gray-50 text-gray-700")}
+                                 placeholder="Type your full name as electronic signature"
+                                 readOnly={!!initialData?.signOff?.signature}
+                               />
+                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}

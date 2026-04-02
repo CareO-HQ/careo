@@ -395,15 +395,26 @@ function ViewPassportDialogComponent({
           {/* Sign-off Section */}
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Sign-off</h3>
-            <div className="border rounded-lg p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoRow label="Signature" value={passport.signOff.signature} />
-                <InfoRow label="Printed Name" value={passport.signOff.printedName} />
-                <InfoRow label="Designation" value={passport.signOff.designation} />
-                <InfoRow label="Contact Phone" value={passport.signOff.contactPhone} />
-                <InfoRow label="Completed Date" value={formatDate(passport.signOff.completedDate)} />
+            {passport.signOff ? (
+              <div className="border rounded-lg p-5 bg-gray-50/30">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                  <InfoRow label="Completed By" value={passport.signOff.printedName} />
+                  <InfoRow label="Designation" value={passport.signOff.designation} />
+                  <InfoRow label="Contact Phone" value={passport.signOff.contactPhone} />
+                  <InfoRow label="Completed Date" value={formatDate(passport.signOff.completedDate)} />
+                  <div className="md:col-span-2 mt-2">
+                    <dt className="text-sm font-medium text-gray-700">Electronic Signature:</dt>
+                    <dd className="mt-2 p-3 bg-white border border-dashed border-gray-300 rounded-lg text-sm text-gray-900 italic font-medium">
+                      {passport.signOff.signature || "Not signed"}
+                    </dd>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="border border-dashed rounded-lg p-6 text-center">
+                <p className="text-sm text-gray-500 italic">Sign-off information not provided for this record</p>
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>
