@@ -1149,8 +1149,17 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           <DialogContent>
             <DialogHeader><DialogTitle>Set Frequency</DialogTitle></DialogHeader>
             <div className="flex flex-col gap-2 py-4">
-              {["15", "30", "60", "120", "180", "240", "300", "360"].map(freq => (
-                <Button key={freq} variant={selectedFrequency === freq ? "default" : "outline"} onClick={() => setSelectedFrequency(freq)}>Every {freq} min</Button>
+              {[
+                { value: "15", label: "Every 15 min" },
+                { value: "30", label: "Every 30 min" },
+                { value: "60", label: "Every hour" },
+                { value: "120", label: "Every 2 hours" },
+                { value: "180", label: "Every 3 hours" },
+                { value: "240", label: "Every 4 hours" },
+                { value: "300", label: "Every 5 hours" },
+                { value: "360", label: "Every 6 hours" }
+              ].map(freq => (
+                <Button key={freq.value} variant={selectedFrequency === freq.value ? "default" : "outline"} onClick={() => setSelectedFrequency(freq.value)}>{freq.label}</Button>
               ))}
             </div>
             <div className="flex justify-end gap-2">
