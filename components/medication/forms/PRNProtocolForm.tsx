@@ -87,11 +87,13 @@ function PRNProtocolDocumentView({
   orgLogoUrl,
   onEdit,
   onBack,
+  onDelete,
 }: {
   data: Record<string, unknown>;
   orgLogoUrl?: string | null;
   onEdit: () => void;
   onBack: () => void;
+  onDelete?: () => void;
 }) {
   const handlePrintPDF = async () => {
     const doc = new jsPDF();
@@ -230,6 +232,12 @@ function PRNProtocolDocumentView({
             <Pencil className="w-3 h-3" />
             Edit
           </Button>
+          {onDelete && (
+            <Button variant="destructive" size="sm" className="h-7 px-2 text-xs gap-1" onClick={onDelete}>
+              <Trash2 className="w-3 h-3" />
+              Delete
+            </Button>
+          )}
           <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onBack}>
              Back to List
           </Button>
@@ -622,6 +630,22 @@ export default function PRNProtocolForm({
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this protocol? This action cannot be undone.")) return;
+    try {
+      const { error } = await supabase.from("prn_protocols").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Protocol deleted successfully");
+      await fetchProtocols();
+      setIsEditing(false);
+      setIsAdding(false);
+      setSelectedProtocolId(null);
+      onSaved();
+    } catch (e) {
+      toast.error("Failed to delete protocol: " + (e as Error).message);
+    }
+  };
+
   if (loadingExisting) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -637,6 +661,7 @@ export default function PRNProtocolForm({
         data={selectedProtocol.assessment_data} 
         orgLogoUrl={orgLogoUrl} 
         onEdit={() => setIsEditing(true)} 
+        onDelete={() => handleDelete(selectedProtocol.id)}
         onBack={() => {
           setSelectedProtocolId(null);
           setIsEditing(false);
@@ -684,6 +709,19 @@ export default function PRNProtocolForm({
             />
           </div>
           <div className="flex items-center gap-2">
+            {selectedProtocol && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="h-7 px-2 text-xs gap-1"
+                onClick={() => handleDelete(selectedProtocol.id)}
+                disabled={isPending}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </Button>
+            )}
             <Button 
               variant="ghost" 
               size="sm" 
