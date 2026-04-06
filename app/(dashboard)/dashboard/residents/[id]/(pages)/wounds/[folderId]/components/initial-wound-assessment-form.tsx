@@ -114,6 +114,7 @@ type Props = {
   residentId: string;
   residentName: string;
   residentDOB?: string;
+  woundNumber?: number;
   assessments?: Array<any>;
   isLoadingAssessments?: boolean;
   onSaved?: () => void;
@@ -124,6 +125,7 @@ export function InitialWoundAssessmentForm({
   residentId,
   residentName,
   residentDOB,
+  woundNumber,
   assessments = [],
   isLoadingAssessments = false,
   onSaved,
@@ -481,7 +483,14 @@ export function InitialWoundAssessmentForm({
             {/* Header with Action Buttons */}
             <div className="border-b bg-slate-50 px-6 py-4">
               <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-bold text-center flex-1 border-2 border-black py-2">INITIAL WOUND ASSESSMENT</h1>
+                <div className="flex items-center gap-3 flex-1">
+                  <h1 className="text-2xl font-bold text-center flex-1 border-2 border-black py-2">INITIAL WOUND ASSESSMENT</h1>
+                  {woundNumber && (
+                    <Badge variant="outline" className="font-mono font-semibold text-base">
+                      Wound #{woundNumber}
+                    </Badge>
+                  )}
+                </div>
                 <div className="flex gap-2 ml-4">
                   <Button
                     variant="outline"
@@ -755,7 +764,14 @@ export function InitialWoundAssessmentForm({
                   </Badge>
                 </div>
               )}
-              <h1 className="text-2xl font-bold text-center border-2 border-black py-2">INITIAL WOUND ASSESSMENT</h1>
+              <div className="flex items-center justify-center gap-3">
+                <h1 className="text-2xl font-bold text-center border-2 border-black py-2 flex-1">INITIAL WOUND ASSESSMENT</h1>
+                {woundNumber && (
+                  <Badge variant="outline" className="font-mono font-semibold text-base">
+                    Wound #{woundNumber}
+                  </Badge>
+                )}
+              </div>
               <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="font-semibold">Name of Resident:</span> {residentName}

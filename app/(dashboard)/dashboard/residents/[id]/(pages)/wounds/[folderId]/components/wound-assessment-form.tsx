@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useProfile } from "@/hooks/use-profile";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -87,12 +88,19 @@ type Props = {
   woundFolderId: string;
   residentId: string;
   residentName: string;
+  residentDOB?: string;
+  woundNumber?: number;
+  assessments?: any[];
+  isLoadingAssessments?: boolean;
+  onSaved?: () => void;
 };
 
 export function WoundAssessmentForm({
   woundFolderId,
   residentId,
   residentName,
+  residentDOB,
+  woundNumber,
 }: Props) {
   const { profile } = useProfile();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -100,7 +108,6 @@ export function WoundAssessmentForm({
   const [isLoading, setIsLoading] = useState(true);
   const [previousSheets, setPreviousSheets] = useState<any[][]>([]);
   const [showPreviousSheets, setShowPreviousSheets] = useState(false);
-  const formHeaderRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<WoundAssessmentFormValues>({
     resolver: zodResolver(WoundAssessmentSchema),
@@ -351,12 +358,7 @@ export function WoundAssessmentForm({
       // Mark this assessment as saved
       setSavedAssessments(prev => new Set(prev).add(index));
 
-      await fetchAssessments();
-
-      // Scroll to top to show the latest assessment
-      setTimeout(() => {
-        formHeaderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
+      fetchAssessments();
     } catch (error) {
       console.error("Error saving assessment:", error);
       toast.error("An unexpected error occurred");
@@ -388,11 +390,6 @@ export function WoundAssessmentForm({
         const sheets: any[][] = [];
         for (let i = 0; i < data.length; i += 5) {
           sheets.push(data.slice(i, i + 5));
-        }
-        console.log("Created sheets:", sheets.length, "Total assessments:", data.length);
-        console.log("First sheet dates:", sheets[0]?.map(a => a.assessment_date));
-        if (sheets.length > 1) {
-          console.log("Second sheet dates:", sheets[1]?.map(a => a.assessment_date));
         }
         setPreviousSheets(sheets);
       }
@@ -450,11 +447,6 @@ export function WoundAssessmentForm({
       setSavedAssessments(new Set());
 
       toast.success("New assessment sheet created");
-
-      // Scroll to top to show the new assessment form
-      setTimeout(() => {
-        formHeaderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
     } catch (error) {
       console.error("Error creating new sheet:", error);
       toast.error("Failed to create new sheet");
@@ -472,24 +464,19 @@ export function WoundAssessmentForm({
   return (
     <ScrollArea className="h-full">
       <div className="max-w-full mx-auto p-6">
-        <style>{`
-          /* Keep disabled form fields dark and readable */
-          .wound-assessment-form input:disabled {
-            opacity: 1 !important;
-            color: inherit !important;
-            -webkit-text-fill-color: currentColor !important;
-          }
-
-          .wound-assessment-form button:disabled {
-            opacity: 1 !important;
-          }
-        `}</style>
-        <div className="wound-assessment-form bg-white border-2 border-gray-300">
+        <div className="bg-white border-2 border-gray-300">
           {/* Header */}
-          <div ref={formHeaderRef} className="border-b-2 border-gray-300 p-4 bg-gray-50">
-            <h1 className="text-xl font-bold text-center mb-2">
-              Ongoing Wound Assessment (Appendix H)
-            </h1>
+          <div className="border-b-2 border-gray-300 p-4 bg-gray-50">
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <h1 className="text-xl font-bold text-center">
+                Ongoing Wound Assessment (Appendix H)
+              </h1>
+              {woundNumber && (
+                <Badge variant="outline" className="font-mono font-semibold text-base">
+                  Wound #{woundNumber}
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-center text-gray-600">
               Complete on initial assessment and at every dressing change
               thereafter
@@ -538,6 +525,9 @@ export function WoundAssessmentForm({
                 {[1, 2, 3, 4, 5].map((num, idx) => (
                   <div key={num} className="p-2 text-center font-bold text-xs">
                     Assessment {num}
+                    {savedAssessments.has(idx) && (
+                      <span className="ml-1 text-green-600">✓ Saved</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -557,15 +547,13 @@ export function WoundAssessmentForm({
                         render={({ field }) => (
                           <FormItem>
                             <Popover>
-                              <PopoverTrigger asChild disabled={savedAssessments.has(index)}>
+                              <PopoverTrigger asChild>
                                 <FormControl>
                                   <Button
                                     variant="ghost"
-                                    disabled={savedAssessments.has(index)}
                                     className={cn(
                                       "h-7 text-xs w-full justify-start p-1",
-                                      !field.value && "text-muted-foreground",
-                                      savedAssessments.has(index) && "cursor-not-allowed"
+                                      !field.value && "text-muted-foreground"
                                     )}
                                   >
                                     {field.value ? (
@@ -610,7 +598,6 @@ export function WoundAssessmentForm({
                               <Input
                                 className="h-7 text-xs border-0 p-1"
                                 placeholder="Enter wound number"
-                                disabled={savedAssessments.has(index)}
                                 {...field}
                               />
                             </FormControl>
@@ -641,7 +628,6 @@ export function WoundAssessmentForm({
                               <Checkbox
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
-                                disabled={savedAssessments.has(index)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -668,7 +654,6 @@ export function WoundAssessmentForm({
                               <Checkbox
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
-                                disabled={savedAssessments.has(index)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -693,7 +678,6 @@ export function WoundAssessmentForm({
                               <Checkbox
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
-                                disabled={savedAssessments.has(index)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -725,7 +709,6 @@ export function WoundAssessmentForm({
                                 placeholder="e.g., 2.5"
                                 type="number"
                                 step="0.1"
-                                disabled={savedAssessments.has(index)}
                                 {...field}
                               />
                             </FormControl>
@@ -753,7 +736,6 @@ export function WoundAssessmentForm({
                                 placeholder="e.g., 1.5"
                                 type="number"
                                 step="0.1"
-                                disabled={savedAssessments.has(index)}
                                 {...field}
                               />
                             </FormControl>
@@ -781,7 +763,6 @@ export function WoundAssessmentForm({
                                 placeholder="e.g., 0.5"
                                 type="number"
                                 step="0.1"
-                                disabled={savedAssessments.has(index)}
                                 {...field}
                               />
                             </FormControl>
@@ -809,7 +790,6 @@ export function WoundAssessmentForm({
                               <Checkbox
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
-                                disabled={savedAssessments.has(index)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -831,15 +811,13 @@ export function WoundAssessmentForm({
                         render={({ field }) => (
                           <FormItem>
                             <Popover>
-                              <PopoverTrigger asChild disabled={savedAssessments.has(index)}>
+                              <PopoverTrigger asChild>
                                 <FormControl>
                                   <Button
                                     variant="ghost"
-                                    disabled={savedAssessments.has(index)}
                                     className={cn(
                                       "h-7 text-xs w-full justify-start p-1",
-                                      !field.value && "text-muted-foreground",
-                                      savedAssessments.has(index) && "cursor-not-allowed"
+                                      !field.value && "text-muted-foreground"
                                     )}
                                   >
                                     {field.value ? (
@@ -899,7 +877,6 @@ export function WoundAssessmentForm({
                                 <Checkbox
                                   checked={field.value}
                                   onCheckedChange={field.onChange}
-                                  disabled={savedAssessments.has(index)}
                                 />
                               </FormControl>
                               <FormMessage />
@@ -941,7 +918,6 @@ export function WoundAssessmentForm({
                                 <Checkbox
                                   checked={field.value}
                                   onCheckedChange={field.onChange}
-                                  disabled={savedAssessments.has(index)}
                                 />
                               </FormControl>
                               <FormMessage />
@@ -984,7 +960,6 @@ export function WoundAssessmentForm({
                                 <Checkbox
                                   checked={field.value}
                                   onCheckedChange={field.onChange}
-                                  disabled={savedAssessments.has(index)}
                                 />
                               </FormControl>
                               <FormMessage />
@@ -1030,7 +1005,6 @@ export function WoundAssessmentForm({
                                 <Checkbox
                                   checked={field.value}
                                   onCheckedChange={field.onChange}
-                                  disabled={savedAssessments.has(index)}
                                 />
                               </FormControl>
                               <FormMessage />
@@ -1074,7 +1048,6 @@ export function WoundAssessmentForm({
                                 <Checkbox
                                   checked={field.value}
                                   onCheckedChange={field.onChange}
-                                  disabled={savedAssessments.has(index)}
                                 />
                               </FormControl>
                               <FormMessage />
@@ -1102,7 +1075,6 @@ export function WoundAssessmentForm({
                               <Input
                                 className="h-7 text-xs border-0 p-1"
                                 placeholder="Initials"
-                                disabled={savedAssessments.has(index)}
                                 {...field}
                               />
                             </FormControl>
@@ -1130,7 +1102,6 @@ export function WoundAssessmentForm({
                               <Checkbox
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
-                                disabled={savedAssessments.has(index)}
                               />
                             </FormControl>
                             <FormMessage />
@@ -1154,15 +1125,13 @@ export function WoundAssessmentForm({
                         render={({ field }) => (
                           <FormItem>
                             <Popover>
-                              <PopoverTrigger asChild disabled={savedAssessments.has(index)}>
+                              <PopoverTrigger asChild>
                                 <FormControl>
                                   <Button
                                     variant="ghost"
-                                    disabled={savedAssessments.has(index)}
                                     className={cn(
                                       "h-7 text-xs w-full justify-start p-1",
-                                      !field.value && "text-muted-foreground",
-                                      savedAssessments.has(index) && "cursor-not-allowed"
+                                      !field.value && "text-muted-foreground"
                                     )}
                                   >
                                     {field.value ? (
@@ -1280,14 +1249,12 @@ export function WoundAssessmentForm({
                     const dateRange = sheet.length > 0
                       ? `${format(new Date(sheet[sheet.length - 1].assessment_date), "dd/MM/yyyy")} - ${format(new Date(sheet[0].assessment_date), "dd/MM/yyyy")}`
                       : "";
-                    const isNewest = sheetIndex === 0;
 
                     return (
                       <div key={sheetIndex} className="bg-white border-2 border-gray-300 rounded-lg overflow-hidden">
                         <div className="bg-gray-100 border-b-2 border-gray-300 p-3">
                           <h3 className="font-bold text-sm">
                             Assessment Sheet #{sheetNumber}
-                            {isNewest && <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Most Recent</span>}
                             {dateRange && (
                               <span className="ml-2 text-gray-600 font-normal">
                                 ({dateRange})

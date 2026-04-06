@@ -155,7 +155,7 @@ export default function WoundsPage({ params }: WoundsPageProps) {
             .from("wound_folders")
             .select("*")
             .eq("resident_id", residentId)
-            .order("created_at", { ascending: false });
+            .order("wound_number", { ascending: true });
 
           if (foldersError) {
             console.warn("Wound folders table may not exist yet. Please apply the migration:", foldersError);
@@ -676,6 +676,7 @@ export default function WoundsPage({ params }: WoundsPageProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-20">#</TableHead>
                     <TableHead>Wound</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead>Type</TableHead>
@@ -695,9 +696,23 @@ export default function WoundsPage({ params }: WoundsPageProps) {
                         onClick={() => router.push(`/dashboard/residents/${residentId}/wounds/${folder.id}`)}
                       >
                         <TableCell>
+                          <div className="flex items-center justify-center">
+                            <Badge variant="outline" className="font-mono font-semibold text-base px-3 py-1">
+                              #{folder.wound_number || '?'}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-2">
                             <Folder className="w-4 h-4 text-blue-600" />
-                            <span className="font-medium text-blue-900">{folder.name}</span>
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="font-mono text-xs bg-blue-100 text-blue-800">
+                                  Wound #{folder.wound_number || '?'}
+                                </Badge>
+                                <span className="font-medium text-blue-900">{folder.name}</span>
+                              </div>
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell>{wound?.location || "To be specified"}</TableCell>

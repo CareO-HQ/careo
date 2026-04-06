@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { useProfile } from "@/hooks/use-profile";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
@@ -38,6 +39,7 @@ type WoundTreatmentEvaluationFormProps = {
   residentName?: string;
   residentDOB?: string;
   roomNumber?: string;
+  woundNumber?: number;
   evaluations?: WoundTreatmentEvaluation[];
   onSaved?: () => void;
 };
@@ -48,6 +50,7 @@ export function WoundTreatmentEvaluationForm({
   residentName,
   residentDOB,
   roomNumber,
+  woundNumber,
   onSaved,
 }: WoundTreatmentEvaluationFormProps) {
   const { profile } = useProfile();
@@ -190,9 +193,16 @@ export function WoundTreatmentEvaluationForm({
         <div className="treatment-eval-form bg-white border-2 border-gray-300">
           {/* Header */}
           <div className="border-b-2 border-gray-300 p-4 bg-gray-50">
-            <h1 className="text-xl font-bold text-center mb-3">
-              Wound Treatment and Evaluation of Care
-            </h1>
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <h1 className="text-xl font-bold text-center">
+                Wound Treatment and Evaluation of Care
+              </h1>
+              {woundNumber && (
+                <Badge variant="outline" className="font-mono font-semibold text-base">
+                  Wound #{woundNumber}
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-center text-gray-600 mb-3">
               (To be completed when treatment or dressing type / regime / changed / Please record clearly)
             </p>
@@ -229,7 +239,7 @@ export function WoundTreatmentEvaluationForm({
               <tbody>
                 {/* New Entry Row - Only show when adding */}
                 {showNewEntry && (
-                  <tr className="bg-yellow-50">
+                  <tr>
                     <td className="border-2 border-gray-300 p-1">
                       <Popover>
                         <PopoverTrigger asChild>

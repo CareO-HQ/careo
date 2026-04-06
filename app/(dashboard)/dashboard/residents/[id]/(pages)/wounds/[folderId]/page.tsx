@@ -805,6 +805,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 woundFolderId={folderId}
                 residentName={fullName}
                 residentDOB={resident?.date_of_birth}
+                woundNumber={folder?.wound_number}
                 assessments={initialWoundAssessments}
                 isLoadingAssessments={isLoadingInitialAssessments}
                 onSaved={() => {
@@ -819,6 +820,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 woundFolderId={folderId}
                 residentName={fullName}
                 residentDOB={resident?.date_of_birth}
+                woundNumber={folder?.wound_number}
                 assessments={woundAssessments}
                 isLoadingAssessments={isLoadingAssessments}
                 onSaved={() => {
@@ -833,6 +835,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 woundFolderId={folderId}
                 residentName={fullName}
                 residentDOB={resident?.date_of_birth}
+                woundNumber={folder?.wound_number}
                 evaluations={treatmentEvaluations}
                 onSaved={() => {
                   fetchTreatmentEvaluations();
@@ -845,6 +848,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 residentId={residentId}
                 woundFolderId={folderId}
                 residentName={fullName}
+                woundNumber={folder?.wound_number}
                 evaluations={photographEvaluations}
                 isLoadingEvaluations={isLoadingPhotographs}
                 onSaved={() => {

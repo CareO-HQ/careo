@@ -58,6 +58,7 @@ type Props = {
   woundFolderId: string;
   residentId: string;
   residentName: string;
+  woundNumber?: number;
   evaluations?: Array<{
     id: string;
     photograph_date: string;
@@ -78,6 +79,7 @@ export function PhotographEvaluationForm({
   woundFolderId,
   residentId,
   residentName,
+  woundNumber,
   evaluations = [],
   isLoadingEvaluations = false,
   onSaved,
@@ -761,6 +763,11 @@ export function PhotographEvaluationForm({
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-3">
                           <h2 className="text-xl font-bold">WOUND PHOTOGRAPHIC EVALUATION</h2>
+                          {woundNumber && (
+                            <Badge variant="outline" className="font-mono font-semibold text-base">
+                              Wound #{woundNumber}
+                            </Badge>
+                          )}
                           <Badge variant="secondary" className="text-xs">
                             Evaluation #{evaluations.length - index}
                           </Badge>
@@ -871,7 +878,14 @@ export function PhotographEvaluationForm({
                     {/* Edit View - Inline Form */}
                     <div className="border-b bg-slate-50 px-6 py-4">
                       <div className="flex justify-between items-center">
-                        <h2 className="text-xl font-bold">EDIT WOUND PHOTOGRAPHIC EVALUATION</h2>
+                        <div className="flex items-center gap-3">
+                          <h2 className="text-xl font-bold">EDIT WOUND PHOTOGRAPHIC EVALUATION</h2>
+                          {woundNumber && (
+                            <Badge variant="outline" className="font-mono font-semibold text-base">
+                              Wound #{woundNumber}
+                            </Badge>
+                          )}
+                        </div>
                         <Badge variant="secondary">Editing</Badge>
                       </div>
                       <div className="mt-2 text-sm text-muted-foreground">
