@@ -79,12 +79,20 @@ export function MedicationMarSheet({
   // Get status badge style
   const getStatusBadgeStyle = (status: string) => {
     switch (status) {
-      case "given":
+      case "taken":
         return "bg-green-100 text-green-800 border-green-300";
       case "refused":
         return "bg-red-100 text-red-800 border-red-300";
-      case "missed":
-        return "bg-amber-100 text-amber-800 border-amber-300";
+      case "hospitalised":
+        return "bg-blue-100 text-blue-800 border-blue-300";
+      case "social_leave":
+        return "bg-orange-100 text-orange-800 border-orange-300";
+      case "refused_destroyed":
+        return "bg-red-50 text-red-700 border-red-200";
+      case "not_required":
+        return "bg-gray-100 text-gray-700 border-gray-300";
+      case "made_available":
+        return "bg-purple-100 text-purple-800 border-purple-300";
       default:
         return "bg-gray-50 text-gray-600 border-gray-200";
     }
@@ -93,14 +101,58 @@ export function MedicationMarSheet({
   // Get status symbol
   const getStatusSymbol = (status: string) => {
     switch (status) {
-      case "given":
-        return "✓";
+      case "taken":
+        return "T";
       case "refused":
         return "R";
-      case "missed":
+      case "hospitalised":
+        return "C";
+      case "social_leave":
+        return "D";
+      case "refused_destroyed":
+        return "E";
+      case "not_required":
+        return "NR";
+      case "made_available":
         return "M";
       default:
         return "";
+    }
+  };
+
+  // Get status full text for tooltip
+  const getStatusFullText = (status: string) => {
+    switch (status) {
+      case "taken":
+        return "When a medication is consumed by a service user";
+      case "refused":
+        return "When a service user refuses a medication";
+      case "hospitalised":
+        return "If the service user has been hospitalised";
+      case "social_leave":
+        return "If the service user is on social leave";
+      case "refused_destroyed":
+        return "If the service user refused the medication and the medication was then destroyed";
+      case "not_required":
+        return "If the service user no longer requires the medication";
+      case "made_available":
+        return "If the medication was made available for the service user to take";
+      default:
+        return "";
+    }
+  };
+
+  // Get status simplified text
+  const getStatusSimplifiedText = (status: string) => {
+    switch (status) {
+      case "taken": return "Taken";
+      case "refused": return "Refused";
+      case "hospitalised": return "Hospitalised";
+      case "social_leave": return "Social leave";
+      case "refused_destroyed": return "Refused and destroyed";
+      case "not_required": return "Not required";
+      case "made_available": return "Made available";
+      default: return status;
     }
   };
 
@@ -282,16 +334,20 @@ export function MedicationMarSheet({
                               'bg-gray-100'
                             : 'bg-white'
                         }`}
-                        title={hasRecord ? `${medication.name} - ${formatTimeDisplay(time)} - ${status.toUpperCase()}\nStaff: ${admin.administered_by?.name || "Unknown"}\nDate: ${day}/${month}/${year}` : `Day ${day} - No administration`}
+                        title={hasRecord ? `${medication.name} - ${formatTimeDisplay(time)} - ${getStatusSimplifiedText(status)}\n${getStatusFullText(status)}\nStaff: ${admin.administered_by?.name || "Unknown"}${admin.witness?.name ? `\nWitness: ${admin.witness.name}` : ""}\nDate: ${day}/${month}/${year}` : `Day ${day} - No administration`}
                       >
                         {hasRecord ? (
                           <div className="flex flex-col items-center justify-center h-full">
-                            <span className={`font-bold text-base leading-none ${
-                              status === 'given' ? 'text-green-700' :
-                              status === 'refused' ? 'text-red-700' :
-                              status === 'missed' ? 'text-amber-700' :
-                              'text-gray-700'
-                            }`}>
+                            <span className={`font-bold ${status === 'not_required' ? 'text-sm' : 'text-base'} leading-none ${
+                                status === 'taken' ? 'text-green-700' :
+                                status === 'refused' ? 'text-red-700' :
+                                status === 'hospitalised' ? 'text-blue-700' :
+                                status === 'social_leave' ? 'text-orange-700' :
+                                status === 'refused_destroyed' ? 'text-red-700' :
+                                status === 'not_required' ? 'text-gray-700' :
+                                status === 'made_available' ? 'text-purple-700' :
+                                'text-gray-700'
+                              }`}>
                               {getStatusSymbol(status)}
                             </span>
                             {admin.administered_by && (
@@ -316,32 +372,61 @@ export function MedicationMarSheet({
         <h3 className="font-bold text-sm mb-3 uppercase text-gray-900 border-b-2 border-black pb-2">
           Administration Codes
         </h3>
-        <div className="grid grid-cols-3 gap-4 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[11px]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 border-2 border-green-600 bg-green-50 flex items-center justify-center font-bold text-lg text-green-700">
-              ✓
+            <div className="w-8 h-8 border-2 border-green-600 bg-green-50 flex items-center justify-center font-bold text-base text-green-700" title={getStatusFullText("taken")}>
+              T
             </div>
             <div>
-              <div className="font-bold text-gray-900">Given</div>
-              <div className="text-xs text-gray-600">Medication administered</div>
+              <div className="font-bold text-gray-900">Taken</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 border-2 border-red-600 bg-red-50 flex items-center justify-center font-bold text-lg text-red-700">
+            <div className="w-8 h-8 border-2 border-red-600 bg-red-50 flex items-center justify-center font-bold text-base text-red-700" title={getStatusFullText("refused")}>
               R
             </div>
             <div>
               <div className="font-bold text-gray-900">Refused</div>
-              <div className="text-xs text-gray-600">Patient refused</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 border-2 border-amber-600 bg-amber-50 flex items-center justify-center font-bold text-lg text-amber-700">
+            <div className="w-8 h-8 border-2 border-blue-600 bg-blue-50 flex items-center justify-center font-bold text-base text-blue-700" title={getStatusFullText("hospitalised")}>
+              C
+            </div>
+            <div>
+              <div className="font-bold text-gray-900">Hospitalised</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border-2 border-orange-600 bg-orange-50 flex items-center justify-center font-bold text-base text-orange-700" title={getStatusFullText("social_leave")}>
+              D
+            </div>
+            <div>
+              <div className="font-bold text-gray-900">Social leave</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border-2 border-red-600 bg-red-50 flex items-center justify-center font-bold text-base text-red-700" title={getStatusFullText("refused_destroyed")}>
+              E
+            </div>
+            <div>
+              <div className="font-bold text-gray-900">Refused/Destroyed</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border-2 border-gray-600 bg-gray-50 flex items-center justify-center font-bold text-sm text-gray-700" title={getStatusFullText("not_required")}>
+              NR
+            </div>
+            <div>
+              <div className="font-bold text-gray-900">Not Required</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border-2 border-purple-600 bg-purple-50 flex items-center justify-center font-bold text-base text-purple-700" title={getStatusFullText("made_available")}>
               M
             </div>
             <div>
-              <div className="font-bold text-gray-900">Missed</div>
-              <div className="text-xs text-gray-600">Dose missed</div>
+              <div className="font-bold text-gray-900">Made Available</div>
             </div>
           </div>
         </div>

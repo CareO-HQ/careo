@@ -57,7 +57,7 @@ interface Medication {
 }
 
 export const createMedicationColumns = (
-  createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string, witnessId?: string) => Promise<any>,
+  createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string, witnessId?: string, status?: string, prnReason?: string, prnOutcome?: string) => Promise<any>,
   showAdministrateButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },
@@ -266,10 +266,14 @@ export const createMedicationColumns = (
             const AdministrateDialog = () => {
               const [isOpen, setIsOpen] = useState(false);
               const [notes, setNotes] = useState("");
+              const [prnReason, setPrnReason] = useState("");
+              const [prnOutcome, setPrnOutcome] = useState("");
               const [witnessedBy, setWitnessedBy] = useState("");
               const [time, setTime] = useState<Date>(new Date());
               const [units, setUnits] = useState<number | "">(1);
-              const [applicationStatus, setApplicationStatus] = useState<"applied" | "refused" | "missed">("applied");
+              const [applicationStatus, setApplicationStatus] = useState<
+    "taken" | "refused" | "not_required" | "hospitalised" | "social_leave" | "refused_destroyed" | "made_available"
+  >("taken");
 
               const administeredForMedication = administeredTimesToday[medication.id] || [];
 
@@ -351,6 +355,11 @@ export const createMedicationColumns = (
                   }
                 }
 
+                if (isPRN && !prnReason) {
+                  toast.error("Please enter the purpose of administration");
+                  return;
+                }
+
                 try {
                   // For topical medications (both simplified and full), use 1 as quantity and add status to notes
                   const quantity = isTopical ? 1 : (typeof units === "number" ? units : parseFloat(units));
@@ -364,7 +373,10 @@ export const createMedicationColumns = (
                     format(time, "HH:mm"),
                     quantity,
                     administrationNotes,
-                    witnessedBy
+                    witnessedBy,
+                    applicationStatus,
+                    prnReason,
+                    prnOutcome
                   );
 
                   toast.success(isTopical
@@ -373,10 +385,12 @@ export const createMedicationColumns = (
                   );
                   setIsOpen(false);
                   setNotes("");
+                  setPrnReason("");
+                  setPrnOutcome("");
                   setWitnessedBy("");
                   setTime(new Date());
                   setUnits(1);
-                  setApplicationStatus("applied");
+                  setApplicationStatus("taken");
                 } catch (error) {
                   console.error("Error administering medication:", error);
                   toast.error(
@@ -598,19 +612,23 @@ export const createMedicationColumns = (
 
                           <div className="space-y-2">
                             <Label htmlFor="applicationStatus">
-                              Application Status <span className="text-red-500">*</span>
+                              Administration Status <span className="text-red-500">*</span>
                             </Label>
                             <Select
                               value={applicationStatus}
-                              onValueChange={(value: "applied" | "refused" | "missed") => setApplicationStatus(value)}
+                              onValueChange={(value: "taken" | "refused" | "hospitalised" | "social_leave" | "refused_destroyed" | "not_required" | "made_available") => setApplicationStatus(value)}
                             >
                               <SelectTrigger id="applicationStatus">
                                 <SelectValue placeholder="Select status" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="applied">Applied</SelectItem>
-                                <SelectItem value="refused">Refused</SelectItem>
-                                <SelectItem value="missed">Missed</SelectItem>
+                                <SelectItem value="taken">T Taken</SelectItem>
+                                <SelectItem value="refused">R Refused</SelectItem>
+                                <SelectItem value="refused_destroyed">E Refused/Destroyed</SelectItem>
+                                <SelectItem value="hospitalised">C Hospitalised</SelectItem>
+                                <SelectItem value="social_leave">D Social leave</SelectItem>
+                                <SelectItem value="not_required">NR Not required</SelectItem>
+                                <SelectItem value="made_available">M Made available</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -681,15 +699,19 @@ export const createMedicationColumns = (
                               </Label>
                               <Select
                                 value={applicationStatus}
-                                onValueChange={(value: "applied" | "refused" | "missed") => setApplicationStatus(value)}
+                                onValueChange={(value: "taken" | "refused" | "hospitalised" | "social_leave" | "refused_destroyed" | "not_required" | "made_available") => setApplicationStatus(value)}
                               >
                                 <SelectTrigger id="applicationStatus" className="h-8">
                                   <SelectValue placeholder="Select status" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="applied">✓ Applied</SelectItem>
-                                  <SelectItem value="refused">✗ Refused</SelectItem>
-                                  <SelectItem value="missed">⊘ Missed</SelectItem>
+                                  <SelectItem value="taken">T Taken</SelectItem>
+                                  <SelectItem value="refused">R Refused</SelectItem>
+                                  <SelectItem value="refused_destroyed">E Refused/Destroyed</SelectItem>
+                                  <SelectItem value="hospitalised">C Hospitalised</SelectItem>
+                                  <SelectItem value="social_leave">D Social leave</SelectItem>
+                                  <SelectItem value="not_required">NR Not required</SelectItem>
+                                  <SelectItem value="made_available">M Made available</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -799,6 +821,34 @@ export const createMedicationColumns = (
                                 className="text-sm"
                               />
                             </div>
+
+                            <div className="space-y-1 col-span-2">
+                              <Label htmlFor="prnReason" className="text-xs text-muted-foreground">
+                                Purpose of administration <span className="text-red-500">*</span>
+                              </Label>
+                              <Textarea
+                                id="prnReason"
+                                placeholder="e.g., Headache, Persistent pain..."
+                                value={prnReason}
+                                onChange={(e) => setPrnReason(e.target.value)}
+                                rows={2}
+                                className="text-sm"
+                              />
+                            </div>
+
+                            <div className="space-y-1 col-span-2">
+                              <Label htmlFor="prnOutcome" className="text-xs text-muted-foreground">
+                                Patient response/outcome of administration
+                              </Label>
+                              <Textarea
+                                id="prnOutcome"
+                                placeholder="e.g., Pain relieved, Patient resting..."
+                                value={prnOutcome}
+                                onChange={(e) => setPrnOutcome(e.target.value)}
+                                rows={2}
+                                className="text-sm"
+                              />
+                            </div>
                           </div>
                         </>
                       ) : null}
@@ -810,10 +860,12 @@ export const createMedicationColumns = (
                         onClick={() => {
                           setIsOpen(false);
                           setNotes("");
+                          setPrnReason("");
+                          setPrnOutcome("");
                           setWitnessedBy("");
                           setTime(new Date());
                           setUnits(1);
-                          setApplicationStatus("applied");
+                          setApplicationStatus("taken");
                         }}
                       >
                         Cancel
@@ -839,7 +891,7 @@ export const createMedicationColumns = (
   ];
 
 export const createTopicalMedicationColumns = (
-  createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string) => Promise<any>,
+  createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string, witnessId?: string, status?: string) => Promise<any>,
   showAdministrateButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },

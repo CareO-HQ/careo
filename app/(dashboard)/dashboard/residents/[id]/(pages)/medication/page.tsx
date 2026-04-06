@@ -418,7 +418,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     ));
   };
 
-  const updateMedicationIntakeStatus = async (intakeId: string, state: "given" | "refused" | "missed") => {
+  const updateMedicationIntakeStatus = async (
+    intakeId: string,
+    state: "taken" | "refused" | "hospitalised" | "social_leave" | "refused_destroyed" | "not_required" | "made_available" | "given" | "missed"
+  ) => {
     const now = new Date().toISOString();
     const { error } = await supabase
       .from("medication_intakes")
@@ -451,44 +454,66 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
   const handleUpdateMedicationIntakeStatus = async (args: {
     intakeId: string;
-    state: "scheduled" | "dispensed" | "administered" | "refused" | "missed" | "skipped";
+    state: any;
   }) => {
-    let mappedState: "given" | "refused" | "missed";
-    if (args.state === "administered" || args.state === "dispensed") {
-      mappedState = "given";
-    } else if (args.state === "refused") {
-      mappedState = "refused";
-    } else if (args.state === "missed") {
-      mappedState = "missed";
-    } else {
-      return null;
+    // If it's one of our new statuses, pass it through directly
+    const validStatuses = [
+      "taken", "refused", "hospitalised", "social_leave", 
+      "refused_destroyed", "not_required", "made_available",
+      "administered", "dispensed", "given", "missed", "skipped"
+    ];
+
+    if (!validStatuses.includes(args.state)) return null;
+
+    let mappedState = args.state;
+    // Map legacy/internal states to "taken" or its equivalents if needed
+    if (args.state === "administered" || args.state === "dispensed" || args.state === "given") {
+      mappedState = "taken";
     }
+
     return await updateMedicationIntakeStatus(args.intakeId, mappedState);
   };
 
-  const createAndAdministerMedicationIntake = async (medicationId: string, residentId: string, time: string, quantity: number = 1, notes?: string, witnessId?: string) => {
+  const createAndAdministerMedicationIntake = async (
+    medicationId: string, 
+    residentId: string, 
+    time: string, 
+    quantity: number = 1, 
+    notes?: string, 
+    witnessId?: string,
+    status: string = "taken",
+    prnReason?: string,
+    prnOutcome?: string
+  ) => {
     // First, check the medication schedule type and current stock
     const { data: medication } = await supabase
       .from("medications")
-      .select("schedule_type, total_count")
+      .select("schedule_type, total_count, dosage_form, name, strength, strength_unit")
       .eq("id", medicationId)
       .single();
 
-    const isTopical = medication?.schedule_type === "Topical";
+    const isTopical = medication?.schedule_type === "Topical" || medication?.dosage_form?.toLowerCase().includes('cream') || medication?.dosage_form?.toLowerCase().includes('ointment');
     const isPRN = medication?.schedule_type === "PRN (As Needed)";
     const currentStock = medication?.total_count ?? 0;
     const newStock = Math.max(0, currentStock - quantity);
 
     // Update medication stock count
-    const { error: stockError } = await supabase
-      .from("medications")
-      .update({ total_count: newStock })
-      .eq("id", medicationId);
+    // Only subtract stock if status is 'taken' or 'given'
+    if (status === "taken" || status === "given") {
+      const { error: stockError } = await supabase
+        .from("medications")
+        .update({ total_count: newStock })
+        .eq("id", medicationId);
 
-    if (stockError) {
-      console.error("Error updating medication stock:", stockError);
-      // We continue even if stock update fails, but log it
+      if (stockError) {
+        console.error("Error updating medication stock:", stockError);
+      }
     }
+
+    // Construct administration timestamp based on provided time
+    const administrationTimestamp = time 
+      ? fromZonedTime(`${getUKTodayDate()}T${time}:00`, UK_TIMEZONE).toISOString()
+      : new Date().toISOString();
 
     // Save to medication_intakes table
     const { data, error } = await supabase
@@ -496,16 +521,14 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       .insert({
         medication_id: medicationId,
         resident_id: residentId,
-        scheduled_time: (isTopical && time) 
-          ? fromZonedTime(`${getUKTodayDate()}T${time}:00`, UK_TIMEZONE).toISOString()
-          : new Date().toISOString(),
-        status: "given",
+        scheduled_time: administrationTimestamp,
+        status: status,
         quantity: quantity,
         comment: notes,
         administered_by_id: profile?.id,
-        administered_at: new Date().toISOString(),
+        administered_at: administrationTimestamp,
         witness_id: witnessId || null,
-        witness_at: witnessId ? new Date().toISOString() : null,
+        witness_at: witnessId ? administrationTimestamp : null,
         organization_id: profile?.active_organization_id,
         care_home_id: profile?.active_care_home_id
       })
@@ -521,7 +544,6 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
         // Get or create the appropriate eMAR sheet
         const sheetType = isTopical ? 'topical' : 'prn';
-        console.log('Creating eMAR sheet for:', { sheetType, residentId });
         const { data: emarSheet, error: sheetError } = await supabase
           .rpc('get_or_create_emar_sheet', {
             p_resident_id: residentId,
@@ -532,9 +554,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
         if (sheetError) {
           console.error('Error creating/fetching eMAR sheet:', sheetError);
-          toast.error(`Failed to create eMAR sheet: ${sheetError.message}`);
         } else if (emarSheet) {
-          console.log('eMAR sheet created/found:', emarSheet);
           // Save to emar_administrations table
           const { error: emarError } = await supabase
             .from("emar_administrations")
@@ -543,34 +563,32 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               medication_id: medicationId,
               administration_date: administrationDate,
               scheduled_time: time,
-              administered_at: new Date().toISOString(),
+              administered_at: administrationTimestamp,
               administered_by: profile?.id,
-              status: "given",
+              status: status,
               quantity: quantity,
               notes: notes,
+              prn_reason: prnReason,
+              prn_outcome: prnOutcome,
+              prn_dose_administered: prnReason ? `${quantity} x ${medication?.strength || ''}${medication?.strength_unit || ''}` : null,
               witness_id: witnessId || null,
-              witness_at: witnessId ? new Date().toISOString() : null,
+              witness_at: witnessId ? administrationTimestamp : null,
               organization_id: profile?.active_organization_id,
               care_home_id: profile?.active_care_home_id,
             });
 
           if (emarError) {
             console.error('Error saving to eMAR administrations:', emarError);
-            toast.error(`Failed to save to eMAR: ${emarError.message}`);
-          } else {
-            console.log('Successfully saved to eMAR administrations');
-            toast.success(`${isTopical ? 'Topical' : 'PRN'} medication recorded in eMAR`);
           }
         }
       } catch (emarIntegrationError) {
-        // Don't fail the whole operation if eMAR save fails
         console.error('Error integrating with eMAR:', emarIntegrationError);
       }
     }
 
     // Optimistic updates for all medication states
     const updateMedState = (prev: any[]) => prev.map(m =>
-      m.id === medicationId ? { ...m, total_count: newStock } : m
+      m.id === medicationId ? { ...m, total_count: (status === "taken" || status === "given") ? newStock : m.total_count } : m
     );
 
     setPrnOrTopicalMedications(updateMedState);
@@ -647,29 +665,41 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       acc[date].push(i);
       return acc;
     }, {});
-    const getStatus = (i: any) => i.status || i.state || "scheduled";
-    return Object.entries(grouped).map(([date, intakes]) => {
-      const arr = intakes as any[];
-      return {
-        date,
-        dateObj: new Date(date),
-        intakes: arr,
-        totalCount: arr.length,
-        administeredCount: arr.filter((i) => ["administered", "given"].includes(getStatus(i))).length,
-        givenCount: arr.filter((i) => getStatus(i) === "given").length,
-        missedCount: arr.filter((i) => getStatus(i) === "missed").length,
-        refusedCount: arr.filter((i) => getStatus(i) === "refused").length,
-        skippedCount: arr.filter((i) => getStatus(i) === "skipped").length,
-      } as GroupedIntake;
-    }).sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime());
+      const getStatus = (i: any) => i.status || i.state || "scheduled";
+      return Object.entries(grouped).map(([date, intakes]) => {
+        const arr = intakes as any[];
+        return {
+          date,
+          dateObj: new Date(date),
+          intakes: arr,
+          totalCount: arr.length,
+          administeredCount: arr.filter((i) => ["administered", "given", "taken", "made_available"].includes(getStatus(i))).length,
+          givenCount: arr.filter((i) => ["taken"].includes(getStatus(i))).length,
+          missedCount: arr.filter((i) => ["missed", "not_required"].includes(getStatus(i))).length,
+          refusedCount: arr.filter((i) => ["refused", "refused_destroyed"].includes(getStatus(i))).length,
+          skippedCount: arr.filter((i) => ["skipped", "hospitalised", "social_leave"].includes(getStatus(i))).length,
+        } as GroupedIntake;
+      }).sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime());
   }, [historyAllIntakes, historyDateRange]);
 
   const getStateBadgeStyle = (status: string) => {
     switch (status) {
-      case "given": case "administered": return "bg-green-100 text-green-800";
-      case "missed": return "bg-red-100 text-red-800";
-      case "refused": return "bg-orange-100 text-orange-800";
-      default: return "bg-gray-100 text-gray-800";
+      case "taken":
+        return "bg-green-100 text-green-800";
+      case "missed":
+      case "refused_destroyed":
+        return "bg-red-100 text-red-800";
+      case "refused":
+      case "not_required":
+        return "bg-orange-100 text-orange-800";
+      case "hospitalised":
+        return "bg-blue-100 text-blue-800";
+      case "social_leave":
+        return "bg-amber-100 text-amber-800";
+      case "made_available":
+        return "bg-purple-100 text-purple-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -799,7 +829,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const administeredTimesToday = useMemo(() => {
     const map: Record<string, string[]> = {};
     selectedDateIntakes.forEach(intake => {
-      if (intake.status === 'given' || intake.status === 'administered') {
+      if (intake.status === 'taken') {
         const time = formatTimestampToUKTime(intake.scheduled_time);
         if (!map[intake.medication_id]) map[intake.medication_id] = [];
         if (!map[intake.medication_id].includes(time)) {
@@ -1145,7 +1175,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
                           const { error } = await supabase
                             .from("medication_intakes")
                             .update({
-                              status: 'given',
+                              status: 'taken',
                               administered_by_id: profile?.id,
                               administered_at: now
                             })
@@ -1158,7 +1188,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
                             if (intakeIds.includes(intake.id)) {
                               return {
                                 ...intake,
-                                status: 'given',
+                                status: 'taken',
                                 administered_by_id: profile?.id,
                                 administered_at: now
                               };

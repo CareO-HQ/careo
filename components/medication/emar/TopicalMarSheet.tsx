@@ -101,24 +101,99 @@ export function TopicalMarSheet({
     return resident.allergies.join(", ");
   };
 
-  // Extract status from notes
-  const getStatusFromNotes = (notes: string | null) => {
-    if (!notes) return "Applied";
-    const statusMatch = notes.match(/Status:\s*(Applied|Refused|Missed)/i);
-    return statusMatch ? statusMatch[1] : "Applied";
+  // Extract status from notes or use admin status
+  const getStatusFromAdmin = (admin: any) => {
+    if (admin.status && admin.status !== 'scheduled') return admin.status;
+    if (!admin.notes) return "taken";
+    const statusMatch = admin.notes.match(/Status:\s*(Applied|Taken|Refused|Missed|Omitted|Not required)/i);
+    const textStatus = statusMatch ? statusMatch[1].toLowerCase() : "taken";
+    
+    // Map old text statuses to new enum values
+    if (textStatus === 'applied') return 'taken';
+    if (textStatus === 'missed' || textStatus === 'omitted') return 'not_required';
+    return textStatus;
   };
 
   // Get badge color based on status
   const getStatusBadgeColor = (status: string) => {
     switch (status.toLowerCase()) {
+      case "taken":
       case "applied":
         return "bg-green-100 text-green-800 border-green-300";
       case "refused":
+      case "refused_destroyed":
         return "bg-red-100 text-red-800 border-red-300";
-      case "missed":
-        return "bg-amber-100 text-amber-800 border-amber-300";
+      case "hospitalised":
+        return "bg-blue-100 text-blue-800 border-blue-300";
+      case "social_leave":
+        return "bg-orange-100 text-orange-800 border-orange-300";
+      case "not_required":
+        return "bg-gray-100 text-gray-700 border-gray-300";
+      case "made_available":
+        return "bg-purple-100 text-purple-800 border-purple-300";
       default:
         return "bg-gray-100 text-gray-800 border-gray-300";
+    }
+  };
+
+  // Get status symbol
+  const getStatusSymbol = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "taken":
+      case "applied":
+        return "T";
+      case "refused":
+        return "R";
+      case "hospitalised":
+        return "C";
+      case "social_leave":
+        return "D";
+      case "refused_destroyed":
+        return "E";
+      case "not_required":
+        return "NR";
+      case "made_available":
+        return "M";
+      default:
+        return "";
+    }
+  };
+
+  // Get status full text
+  const getStatusFullText = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "taken":
+      case "applied":
+        return "When a medication is consumed by a service user";
+      case "refused":
+        return "When a service user refuses a medication";
+      case "hospitalised":
+        return "If the service user has been hospitalised";
+      case "social_leave":
+        return "If the service user is on social leave";
+      case "refused_destroyed":
+        return "If the service user refused the medication and the medication was then destroyed";
+      case "not_required":
+        return "If the service user no longer requires the medication";
+      case "made_available":
+        return "If the medication was made available for the service user to take";
+      default:
+        return "";
+    }
+  };
+
+  // Get status simplified text
+  const getStatusSimplifiedText = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "taken":
+      case "applied": return "Taken";
+      case "refused": return "Refused";
+      case "hospitalised": return "Hospitalised";
+      case "social_leave": return "Social leave";
+      case "refused_destroyed": return "Refused and destroyed";
+      case "not_required": return "Not required";
+      case "made_available": return "Made available";
+      default: return status;
     }
   };
 
@@ -261,7 +336,7 @@ export function TopicalMarSheet({
                   {days.map((day) => {
                     const admin = getAdministrationForCell(medication.id, day, time);
                     const hasRecord = !!admin;
-                    const status = admin ? getStatusFromNotes(admin.notes) : "";
+                    const status = admin ? getStatusFromAdmin(admin) : "";
 
                     return (
                       <td
@@ -275,17 +350,21 @@ export function TopicalMarSheet({
                             : 'bg-white'
                         } ${hasRecord ? 'cursor-pointer hover:opacity-80' : ''}`}
                         onClick={() => hasRecord && handleCellClick(medication, day, admin)}
-                        title={hasRecord ? `${medication.name} - ${time} - ${status.toUpperCase()}\nStaff: ${admin.administered_by?.name || "Unknown"}\nDate: ${day}/${month}/${year}` : `Day ${day} - No application`}
+                        title={hasRecord ? `${medication.name} - ${time} - ${getStatusSimplifiedText(status)}\n${getStatusFullText(status)}\nStaff: ${admin.administered_by?.name || "Unknown"}\nDate: ${day}/${month}/${year}` : `Day ${day} - No application`}
                       >
                         {hasRecord ? (
                           <div className="flex flex-col items-center justify-center h-full">
-                            <span className={`font-bold text-base leading-none ${
-                              status.toLowerCase() === 'applied' ? 'text-green-700' :
-                              status.toLowerCase() === 'refused' ? 'text-red-700' :
-                              status.toLowerCase() === 'missed' ? 'text-amber-700' :
-                              'text-gray-700'
-                            }`}>
-                              {status.charAt(0).toUpperCase()}
+                            <span className={`font-bold ${status === 'not_required' ? 'text-sm' : 'text-base'} leading-none ${
+                                status.toLowerCase() === 'taken' || status.toLowerCase() === 'applied' ? 'text-green-700' :
+                                status.toLowerCase() === 'refused' ? 'text-red-700' :
+                                status.toLowerCase() === 'hospitalised' ? 'text-blue-700' :
+                                status.toLowerCase() === 'social_leave' ? 'text-orange-700' :
+                                status.toLowerCase() === 'refused_destroyed' ? 'text-red-700' :
+                                status.toLowerCase() === 'not_required' ? 'text-gray-700' :
+                                status.toLowerCase() === 'made_available' ? 'text-purple-700' :
+                                'text-gray-700'
+                              }`}>
+                              {getStatusSymbol(status)}
                             </span>
                             {admin.administered_by && (
                               <span className="text-[7px] font-bold text-gray-800 leading-tight mt-0.5">
@@ -304,6 +383,71 @@ export function TopicalMarSheet({
         </table>
       </div>
 
+      {/* Administration Key */}
+      <div className="mt-6 border-2 border-black p-4 bg-white print:break-inside-avoid">
+        <h3 className="font-bold text-sm mb-3 uppercase text-gray-900 border-b-2 border-black pb-2">
+          Administration Codes
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[11px]">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border-2 border-green-600 bg-green-50 flex items-center justify-center font-bold text-base text-green-700" title={getStatusFullText("taken")}>
+              T
+            </div>
+            <div>
+              <div className="font-bold text-gray-900">Taken</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border-2 border-red-600 bg-red-50 flex items-center justify-center font-bold text-base text-red-700" title={getStatusFullText("refused")}>
+              R
+            </div>
+            <div>
+              <div className="font-bold text-gray-900">Refused</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border-2 border-blue-600 bg-blue-50 flex items-center justify-center font-bold text-base text-blue-700" title={getStatusFullText("hospitalised")}>
+              C
+            </div>
+            <div>
+              <div className="font-bold text-gray-900">Hospitalised</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border-2 border-orange-600 bg-orange-50 flex items-center justify-center font-bold text-base text-orange-700" title={getStatusFullText("social_leave")}>
+              D
+            </div>
+            <div>
+              <div className="font-bold text-gray-900">Social leave</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border-2 border-red-600 bg-red-50 flex items-center justify-center font-bold text-base text-red-700" title={getStatusFullText("refused_destroyed")}>
+              E
+            </div>
+            <div>
+              <div className="font-bold text-gray-900">Refused/Destroyed</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border-2 border-gray-600 bg-gray-50 flex items-center justify-center font-bold text-sm text-gray-700" title={getStatusFullText("not_required")}>
+              NR
+            </div>
+            <div>
+              <div className="font-bold text-gray-900">Not Required</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border-2 border-purple-600 bg-purple-50 flex items-center justify-center font-bold text-base text-purple-700" title={getStatusFullText("made_available")}>
+              M
+            </div>
+            <div>
+              <div className="font-bold text-gray-900">Made Available</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
 
       {/* Read-Only Details Modal */}
       {selectedCell && (
@@ -320,7 +464,7 @@ export function TopicalMarSheet({
 
             <div className="space-y-4 mt-4">
               {selectedCell.administrations.map((admin, index) => {
-                const status = getStatusFromNotes(admin.notes);
+                const status = getStatusFromAdmin(admin);
                 return (
                   <div key={admin.id || index} className="border rounded-lg p-4 bg-gray-50">
                     <div className="grid grid-cols-2 gap-3">
@@ -331,7 +475,7 @@ export function TopicalMarSheet({
                       <div>
                         <p className="text-xs font-semibold text-gray-600 uppercase">Status</p>
                         <Badge className={`mt-1 ${getStatusBadgeColor(status)}`}>
-                          {status}
+                          {getStatusSimplifiedText(status)}
                         </Badge>
                       </div>
                       <div className="col-span-2">

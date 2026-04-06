@@ -19,8 +19,7 @@ import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2 } from "lucide-react";
-import { SignaturePad } from "./SignaturePad";
+import { Plus, Trash2, Pencil, X } from "lucide-react";
 
 interface PrnAdministrationModalProps {
   isOpen: boolean;
@@ -32,6 +31,7 @@ interface PrnAdministrationModalProps {
   sheetId: string;
   existingRecords: any[];
   onSuccess: () => void;
+  allowAdd?: boolean;
 }
 
 export function PrnAdministrationModal({
@@ -44,6 +44,7 @@ export function PrnAdministrationModal({
   sheetId,
   existingRecords,
   onSuccess,
+  allowAdd = true,
 }: PrnAdministrationModalProps) {
   const { profile } = useProfile();
   const [reason, setReason] = useState("");
@@ -54,9 +55,17 @@ export function PrnAdministrationModal({
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [signature, setSignature] = useState("");
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
 
   const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
   const displayDate = format(new Date(year, month - 1, date), "EEEE, MMMM d, yyyy");
+
+  // Prefill signature with current user's name
+  useEffect(() => {
+    if (profile?.name && !signature && !editingRecordId) {
+      setSignature(profile.name);
+    }
+  }, [profile, signature, editingRecordId]);
 
   // Handle adding a new PRN administration
   const handleAddAdministration = async () => {
@@ -89,31 +98,49 @@ export function PrnAdministrationModal({
     setIsSaving(true);
 
     try {
-      const administrationData = {
-        emar_sheet_id: sheetId,
-        medication_id: medication.id,
-        administration_date: dateStr,
-        scheduled_time: null, // PRN has no scheduled time
-        status: "given",
-        administered_at: new Date().toISOString(),
-        administered_by: profile.id,
-        administered_signature: signature,
-        prn_reason: reason,
-        prn_dose_administered: doseAdministered,
-        prn_outcome: outcome,
-        notes: notes || null,
-        quantity: 1,
-        organization_id: profile.active_organization_id,
-        care_home_id: profile.active_care_home_id,
-      };
+      if (editingRecordId) {
+        // Update existing record
+        const { error } = await supabase
+          .from("emar_administrations")
+          .update({
+            prn_reason: reason,
+            prn_dose_administered: doseAdministered,
+            prn_outcome: outcome,
+            notes: notes || null,
+            administered_signature: signature,
+            administered_by: profile.id, // Attributed to the person recording the outcome
+          })
+          .eq("id", editingRecordId);
 
-      const { error } = await supabase
-        .from("emar_administrations")
-        .insert(administrationData);
+        if (error) throw error;
+        toast.success("PRN administration updated");
+      } else {
+        // Insert new record
+        const administrationData = {
+          emar_sheet_id: sheetId,
+          medication_id: medication.id,
+          administration_date: dateStr,
+          scheduled_time: null, // PRN has no scheduled time
+          status: "taken",
+          administered_at: new Date().toISOString(),
+          administered_by: profile.id,
+          administered_signature: signature,
+          prn_reason: reason,
+          prn_dose_administered: doseAdministered,
+          prn_outcome: outcome,
+          notes: notes || null,
+          quantity: 1,
+          organization_id: profile.active_organization_id,
+          care_home_id: profile.active_care_home_id,
+        };
 
-      if (error) throw error;
+        const { error } = await supabase
+          .from("emar_administrations")
+          .insert(administrationData);
 
-      toast.success("PRN administration recorded");
+        if (error) throw error;
+        toast.success("PRN administration recorded");
+      }
 
       // Reset form
       setReason("");
@@ -121,6 +148,7 @@ export function PrnAdministrationModal({
       setOutcome("");
       setNotes("");
       setSignature("");
+      setEditingRecordId(null);
 
       onSuccess();
     } catch (error: any) {
@@ -151,6 +179,33 @@ export function PrnAdministrationModal({
       console.error("Error deleting administration:", error);
       toast.error(error.message || "Failed to delete administration");
     }
+  };
+
+  // Handle edit click
+  const handleEditClick = (record: any) => {
+    setEditingRecordId(record.id);
+    setReason(record.prn_reason || "");
+    const recordDose = record.prn_dose_administered;
+    const medDose = `${medication.strength || ""} ${medication.strength_unit || medication.strengthUnit || ""}`.trim();
+    setDoseAdministered(recordDose || medDose || "As prescribed");
+    setOutcome(record.prn_outcome || "");
+    setNotes(record.notes || "");
+    setSignature(profile?.name || ""); // Prefill signature with the person editing
+    
+    // Scroll to form
+    const formElement = document.getElementById("prn-form");
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingRecordId(null);
+    setReason("");
+    setDoseAdministered(`${medication.strength} ${medication.strength_unit}`);
+    setOutcome("");
+    setNotes("");
+    setSignature("");
   };
 
   return (
@@ -231,14 +286,24 @@ export function PrnAdministrationModal({
                           {format(new Date(record.administered_at), "dd/MM/yyyy HH:mm")}
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => handleDeleteAdministration(record.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8 w-8"
+                          onClick={() => handleEditClick(record)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8"
+                          onClick={() => handleDeleteAdministration(record.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -248,101 +313,169 @@ export function PrnAdministrationModal({
           )}
 
           {/* New Administration Form */}
-          <div className="space-y-4">
-            <h3 className="font-semibold flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Record New Administration
-            </h3>
+          {/* New Administration Form - only show if allowAdd is true */}
+          {allowAdd && (
+            <div className="space-y-4" id="prn-form">
+              <h3 className="font-semibold flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  {editingRecordId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  {editingRecordId ? "Edit Administration" : "Record New Administration"}
+                </span>
+                {editingRecordId && (
+                  <Button variant="ghost" size="sm" onClick={cancelEdit} className="text-gray-500">
+                    <X className="h-4 w-4 mr-1" />
+                    Cancel Edit
+                  </Button>
+                )}
+              </h3>
 
-            {/* Reason */}
-            <div className="space-y-2">
-              <Label htmlFor="reason" className="font-semibold">
-                Reason for PRN *
-              </Label>
-              <Textarea
-                id="reason"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="e.g., Resident complaining of pain (8/10), restless and uncomfortable..."
-                rows={2}
-              />
-              <p className="text-xs text-gray-600">
-                Document the symptoms or circumstances requiring PRN medication
-              </p>
-            </div>
+              {/* Reason */}
+              <div className="space-y-2">
+                <Label htmlFor="reason" className="font-semibold">
+                  Reason for PRN *
+                </Label>
+                <Textarea
+                  id="reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="e.g., Resident complaining of pain (8/10), restless and uncomfortable..."
+                  rows={2}
+                />
+                <p className="text-xs text-gray-600">
+                  Document the symptoms or circumstances requiring PRN medication
+                </p>
+              </div>
 
-            {/* Dose Administered */}
-            <div className="space-y-2">
-              <Label htmlFor="dose" className="font-semibold">
-                Dose Administered *
-              </Label>
-              <Input
-                id="dose"
-                value={doseAdministered}
-                onChange={(e) => setDoseAdministered(e.target.value)}
-                placeholder="e.g., 500mg, 1 tablet"
-              />
-            </div>
+              {/* Dose Administered */}
+              <div className="space-y-2">
+                <Label htmlFor="dose" className="font-semibold">
+                  Dose Administered *
+                </Label>
+                <Input
+                  id="dose"
+                  value={doseAdministered}
+                  onChange={(e) => setDoseAdministered(e.target.value)}
+                  placeholder="e.g., 500mg, 1 tablet"
+                />
+              </div>
 
-            {/* Outcome */}
-            <div className="space-y-2">
-              <Label htmlFor="outcome" className="font-semibold">
-                Outcome/Effectiveness *
-              </Label>
-              <Textarea
-                id="outcome"
-                value={outcome}
-                onChange={(e) => setOutcome(e.target.value)}
-                placeholder="e.g., Pain reduced to 3/10 after 30 minutes, resident settled and comfortable..."
-                rows={2}
-              />
-              <p className="text-xs text-gray-600">
-                Record the effectiveness and any observed changes after 15-30 minutes
-              </p>
-            </div>
+              {/* Outcome */}
+              <div className="space-y-2">
+                <Label htmlFor="outcome" className="font-semibold">
+                  Outcome/Effectiveness *
+                </Label>
+                <Textarea
+                  id="outcome"
+                  value={outcome}
+                  onChange={(e) => setOutcome(e.target.value)}
+                  placeholder="e.g., Pain reduced to 3/10 after 30 minutes, resident settled and comfortable..."
+                  rows={2}
+                />
+                <p className="text-xs text-gray-600">
+                  Record the effectiveness and any observed changes after 15-30 minutes
+                </p>
+              </div>
 
-            {/* Additional Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes" className="font-semibold">
-                Additional Notes (Optional)
-              </Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any additional observations or context..."
-                rows={2}
-              />
-            </div>
+              {/* Additional Notes */}
+              <div className="space-y-2">
+                <Label htmlFor="notes" className="font-semibold">
+                  Additional Notes (Optional)
+                </Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Any additional observations or context..."
+                  rows={2}
+                />
+              </div>
 
-            {/* Signature */}
-            <div className="space-y-2">
-              <Label className="font-semibold">Your Signature *</Label>
-              <SignaturePad
-                value={signature}
-                onChange={setSignature}
-                userName={profile?.name || ""}
-              />
-            </div>
+              {/* Signature */}
+              <div className="space-y-2">
+                <Label htmlFor="signature" className="font-semibold">Signature *</Label>
+                <Input
+                  id="signature"
+                  value={signature}
+                  onChange={(e) => setSignature(e.target.value)}
+                  placeholder="Enter your name to sign"
+                />
+              </div>
 
-            {/* Administered By Info */}
-            <div className="p-3 bg-blue-50 rounded-lg text-sm">
-              <span className="text-gray-700">Administered by:</span>{" "}
-              <span className="font-semibold">{profile?.name || "Unknown"}</span>
-              <span className="text-gray-600 ml-2">
-                {format(new Date(), "dd/MM/yyyy HH:mm")}
-              </span>
+              {/* Administered By Info */}
+              <div className="p-3 bg-blue-50 rounded-lg text-sm">
+                <span className="text-gray-700">Administered by:</span>{" "}
+                <span className="font-semibold">{profile?.name || "Unknown"}</span>
+                <span className="text-gray-600 ml-2">
+                  {format(new Date(), "dd/MM/yyyy HH:mm")}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* If allowAdd is false but we are editing, we primarily care about adding/editing the outcome */}
+          {!allowAdd && editingRecordId && (
+            <div className="space-y-4" id="prn-form">
+              <h3 className="font-semibold flex items-center justify-between">
+                <span className="flex items-center gap-2 text-blue-700">
+                  <Plus className="h-4 w-4" />
+                  Add/Edit Outcome
+                </span>
+                <Button variant="ghost" size="sm" onClick={cancelEdit} className="text-gray-500">
+                  <X className="h-4 w-4 mr-1" />
+                  Cancel
+                </Button>
+              </h3>
+
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-md space-y-2">
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Reason Given</p>
+                  <p className="text-sm">{reason}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Dose Given</p>
+                  <p className="text-sm">{doseAdministered}</p>
+                </div>
+              </div>
+
+              {/* Outcome */}
+              <div className="space-y-2">
+                <Label htmlFor="outcome" className="font-semibold flex items-center gap-2">
+                  Outcome/Effectiveness <span className="text-red-500">*</span>
+                </Label>
+                <Textarea
+                  id="outcome"
+                  value={outcome}
+                  onChange={(e) => setOutcome(e.target.value)}
+                  placeholder="Record the effectiveness... e.g., Resident settled, pain improved..."
+                  rows={4}
+                  autoFocus
+                />
+              </div>
+
+              {/* Signature */}
+              <div className="space-y-2">
+                <Label htmlFor="outcome-signature" className="font-semibold">Signature *</Label>
+                <p className="text-[10px] text-muted-foreground italic mb-1">Please enter your name to sign this outcome</p>
+                <Input
+                  id="outcome-signature"
+                  value={signature}
+                  onChange={(e) => setSignature(e.target.value)}
+                  placeholder="Enter your name to sign"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isSaving}>
-            {existingRecords.length > 0 ? "Done" : "Cancel"}
+            {(editingRecordId || !allowAdd) ? "Cancel" : (existingRecords.length > 0 ? "Done" : "Cancel")}
           </Button>
-          <Button onClick={handleAddAdministration} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Add Administration"}
-          </Button>
+          {(allowAdd || editingRecordId) && (
+            <Button onClick={handleAddAdministration} disabled={isSaving}>
+              {isSaving ? "Saving..." : (editingRecordId && !allowAdd ? "Save Outcome" : (editingRecordId ? "Update Administration" : "Add Administration"))}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
