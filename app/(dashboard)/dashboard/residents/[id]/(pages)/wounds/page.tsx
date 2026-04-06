@@ -155,7 +155,7 @@ export default function WoundsPage({ params }: WoundsPageProps) {
             .from("wound_folders")
             .select("*")
             .eq("resident_id", residentId)
-            .order("wound_number", { ascending: true });
+            .order("created_at", { ascending: false });
 
           if (foldersError) {
             console.warn("Wound folders table may not exist yet. Please apply the migration:", foldersError);

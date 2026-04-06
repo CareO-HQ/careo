@@ -786,8 +786,9 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
       {/* Progress Tracker */}
       <WoundProgressTracker
         hasBodyMap={progressHasBodyMap}
+        hasInitialAssessment={progressHasInitialAssessment}
         hasPhotograph={progressHasPhotograph}
-        hasAssessment={progressHasInitialAssessment}
+        hasOngoingAssessment={progressHasOngoingAssessment}
         hasEvaluation={progressHasEvaluation}
         hasCarePlan={progressHasCarePlan}
       />
@@ -825,6 +826,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 isLoadingAssessments={isLoadingAssessments}
                 onSaved={() => {
                   fetchWoundAssessments();
+                  fetchFolder(); // Refresh folder to update next review date
                 }}
               />
             </div>
@@ -862,6 +864,15 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
               <div className="flex-[3] px-4 pt-2 pb-3 overflow-auto bg-white border-r flex flex-col">
                 <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setActiveView(null)}
+                      title="Close body map"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </Button>
                     <MapIcon className="w-4 h-4 text-purple-600" />
                     <span className="text-sm font-semibold">Wound Body Map</span>
                     {hasBodyMapData && (

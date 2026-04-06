@@ -359,15 +359,18 @@ export function PhotographEvaluationForm({
           </div>
         )}
 
-        {/* New Evaluation Button */}
+        {/* New Evaluation Button with Evaluation Count */}
         {!isLoadingEvaluations && evaluations.length > 0 && !showNewForm && (
-          <div className="flex justify-center">
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-gray-600">
+              {evaluations.length} {evaluations.length === 1 ? "evaluation" : "evaluations"} recorded
+            </div>
             <Button
               onClick={() => setShowNewForm(true)}
-              size="lg"
+              size="sm"
               className="gap-2"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               New Evaluation
             </Button>
           </div>
@@ -744,13 +747,6 @@ export function PhotographEvaluationForm({
         {/* Existing Evaluations List */}
         {!isLoadingEvaluations && evaluations.length > 0 && (
           <div className="space-y-6">
-            {!showNewForm && evaluations.length > 0 && (
-              <div className="text-center text-sm text-muted-foreground">
-                <h3 className="font-semibold text-foreground mb-2">Previous Evaluations</h3>
-                <p>{evaluations.length} {evaluations.length === 1 ? "evaluation" : "evaluations"} recorded</p>
-              </div>
-            )}
-
             {evaluations.map((evaluation, index) => {
               const isEditing = editingEvaluationId === evaluation.id;
 
