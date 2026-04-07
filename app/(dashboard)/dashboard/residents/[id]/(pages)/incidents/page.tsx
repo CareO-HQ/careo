@@ -632,11 +632,9 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Folder Name</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Severity</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Injured Person</TableHead>
                       <TableHead>Reported By</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -645,6 +643,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                     {/* Incident Folders */}
                     {incidentFolders.map((folder) => {
                       const isFall = folder.folder_type === "fall";
+                      const incident = allIncidents.find((inc) => inc.folder_id === folder.id);
                       return (
                         <TableRow
                           key={folder.id}
@@ -654,14 +653,65 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                             } cursor-pointer`}
                           onClick={() => router.push(`/dashboard/residents/${residentId}/incidents/${folder.id}`)}
                         >
-                          <TableCell colSpan={7}>
+                          <TableCell>
                             <div className="flex items-center gap-3 py-1">
                               <Folder className={`w-5 h-5 ${isFall ? "text-red-600" : "text-blue-600"}`} />
-                              <span className={`font-medium ${isFall ? "text-red-900" : "text-blue-900"}`}>{folder.name}</span>
-                              <Badge variant="outline" className={`ml-auto text-xs ${isFall ? "border-red-200 text-red-700 bg-red-50" : ""}`}>
-                                {isFall ? "Fall Record" : "Incident Folder"}
-                              </Badge>
+                              <div className="flex flex-col">
+                                <span className={`font-medium ${isFall ? "text-red-900" : "text-blue-900"}`}>{folder.name}</span>
+                                <span className={`text-xs ${isFall ? "text-red-700" : "text-blue-700"}`}>
+                                  {isFall ? "Fall Record" : "Incident Folder"}
+                                </span>
+                              </div>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            {incident?.incident_types?.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {incident.incident_types.map((type: string, index: number) => (
+                                  <Badge
+                                    key={index}
+                                    className="text-xs bg-blue-100 text-blue-800 border-0"
+                                  >
+                                    {getTypeIcon(type)}
+                                    <span className="ml-1">{type.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</span>
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {incident?.incident_level ? (
+                              <Badge className={`text-xs border-0 ${getSeverityColor(incident.incident_level)}`}>
+                                {getSeverityIcon(incident.incident_level)}
+                                <span className="ml-1">
+                                  {incident.incident_level?.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
+                                </span>
+                              </Badge>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {incident?.completed_by_full_name ? (
+                              <div className="flex items-center space-x-2">
+                                <User className="w-4 h-4 text-gray-400" />
+                                <div className="text-sm">
+                                  <p className="font-medium">{incident.completed_by_full_name}</p>
+                                  {incident.completed_by_job_title && (
+                                    <p className="text-gray-500">{incident.completed_by_job_title}</p>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm">
+                              <Eye className="w-4 h-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );

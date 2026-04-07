@@ -274,7 +274,7 @@ export function SimpleIncidentForm({
 
   // Format role into a readable job title
   const formatRoleAsJobTitle = (role?: string) => {
-    if (!role) return "";
+    if (!role || role === "member") return "";
     const roleTitleMap: Record<string, string> = {
       saas_admin: "System Administrator",
       owner: "Owner",

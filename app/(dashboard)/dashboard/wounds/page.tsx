@@ -40,6 +40,9 @@ type Wound = {
     image_url: string | null;
     room_number?: string;
   };
+  wound_folder?: {
+    next_review_date: string | null;
+  };
 };
 
 export default function WoundsPage() {
@@ -65,22 +68,18 @@ export default function WoundsPage() {
         .from("wounds")
         .select(`
           *,
-          resident:residents(id, first_name, last_name, image_url, room_number)
+          resident:residents(id, first_name, last_name, image_url, room_number),
+          wound_folder:wound_folders(next_review_date)
         `)
         .neq("status", "healed"); // Exclude healed wounds
 
-      // Filtering logic:
-      // 1. If manager/owner/admin, filter by organization_id AND active_care_home_id if selected
-      // 2. Otherwise, filter by team_id
-      const isPowerUser = userRole === "manager" || userRole === "owner" || userRole === "saas_admin";
-
-      if (isPowerUser) {
-        query = query.eq("organization_id", activeOrganizationId);
-        if (activeCareHomeId) {
-          query = query.eq("care_home_id", activeCareHomeId);
-        }
-      } else if (activeTeamId) {
+      // Multi-tenant filtering hierarchy:
+      if (activeTeamId) {
         query = query.eq("team_id", activeTeamId);
+      } else if (activeCareHomeId) {
+        query = query.eq("care_home_id", activeCareHomeId);
+      } else if (activeOrganizationId) {
+        query = query.eq("organization_id", activeOrganizationId);
       }
 
       query = query.order("date_identified", { ascending: false });
@@ -269,11 +268,17 @@ export default function WoundsPage() {
                   </div>
 
                   {/* Date */}
-                  <div className="pt-1.5 border-t border-gray-100">
+                  <div className="pt-1.5 border-t border-gray-100 space-y-1">
                     <div className="flex items-center gap-1 text-[10px] text-gray-500">
                       <Calendar className="w-3 h-3" />
                       <span>{format(new Date(wound.date_identified), "MMM d, yyyy")}</span>
                     </div>
+                    {wound.wound_folder?.next_review_date && (
+                      <div className="flex items-center gap-1 text-[10px] font-medium text-blue-600">
+                        <Calendar className="w-3 h-3" />
+                        <span>Review: {format(new Date(wound.wound_folder.next_review_date), "MMM d, yyyy")}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
