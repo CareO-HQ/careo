@@ -32,8 +32,8 @@ export function InteractiveBodyMap({
     };
 
     return (
-        <div className="flex flex-col items-center space-y-4 w-full h-full max-h-[850px]">
-            <div className="relative border rounded-xl bg-white w-full max-w-[850px] aspect-[577/515] shadow-sm overflow-hidden">
+        <div className="flex flex-col items-center space-y-4 w-full">
+            <div className="relative border rounded-lg bg-white w-full max-w-[700px] aspect-[577/515]">
                 {/* Body Map Template Image */}
                 <div className="absolute inset-0">
                     <img
@@ -73,13 +73,13 @@ export function InteractiveBodyMap({
                             onMouseEnter={() => setHoveredRegion(region.region_id)}
                             onMouseLeave={() => setHoveredRegion(null)}
                         >
-                            {/* Hover Tooltip - Quick View */}
+                            {/* Hover Tooltip/Detail View - Smart Positioning */}
                             {isHovered && regionEntries.length > 0 && (
                                 <div className={cn(
                                     "absolute left-1/2 -translate-x-1/2 w-48 bg-slate-900 text-white p-2 rounded shadow-xl text-[10px] z-[100] pointer-events-none animate-in fade-in",
                                     region.y < 30
-                                        ? "top-full mt-2"
-                                        : "bottom-full mb-2"
+                                        ? "top-full mt-2 slide-in-from-top-1"
+                                        : "bottom-full mb-2 slide-in-from-bottom-1"
                                 )}>
                                     <div className="font-bold border-b border-white/20 pb-1 mb-1">
                                         {region.region_name}
@@ -89,11 +89,16 @@ export function InteractiveBodyMap({
                                             <div className="flex justify-between items-center">
                                                 <span className="capitalize">{entry.condition_type}</span>
                                             </div>
-                                            <div className="text-white/70 italic line-clamp-1">
+                                            <div className="text-white/70 italic line-clamp-2">
                                                 {entry.notes || "No notes"}
                                             </div>
                                         </div>
                                     ))}
+                                    {/* Arrow */}
+                                    <div className={cn(
+                                        "absolute left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45",
+                                        region.y < 30 ? "-top-1" : "-bottom-1"
+                                    )} />
                                 </div>
                             )}
                         </div>

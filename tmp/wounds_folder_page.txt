@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import UploadFileModal from "@/components/residents/carefile/folders/UploadFileModal";
 import { useActiveTeam } from "@/hooks/use-active-team";
@@ -819,6 +819,11 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 woundFolderId={folderId}
                 residentName={fullName}
                 residentDOB={resident?.date_of_birth}
+                assessments={woundAssessments}
+                isLoadingAssessments={isLoadingAssessments}
+                onSaved={() => {
+                  fetchWoundAssessments();
+                }}
               />
             </div>
           ) : activeView === "evaluation" ? (
@@ -840,7 +845,6 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 residentId={residentId}
                 woundFolderId={folderId}
                 residentName={fullName}
-                residentDOB={resident?.date_of_birth}
                 evaluations={photographEvaluations}
                 isLoadingEvaluations={isLoadingPhotographs}
                 onSaved={() => {

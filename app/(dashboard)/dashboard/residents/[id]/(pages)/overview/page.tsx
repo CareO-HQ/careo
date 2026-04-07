@@ -219,7 +219,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
     );
   }
 
-  const fullName = [resident.first_name, resident.middle_name, resident.last_name].filter(Boolean).join(" ");
+  const fullName = [resident.first_name, resident.last_name].filter(Boolean).join(" ");
   const initials =
     `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
 

@@ -1,0 +1,13 @@
+app/(dashboard)/dashboard/residents/[id]/(pages)/wounds/[folderId]/components/initial-wound-assessment-form.tsx
+app/(dashboard)/dashboard/residents/[id]/(pages)/wounds/[folderId]/components/photograph-evaluation-form.tsx
+app/(dashboard)/dashboard/residents/[id]/(pages)/wounds/[folderId]/components/wound-assessment-form.tsx
+app/(dashboard)/dashboard/residents/[id]/(pages)/wounds/[folderId]/components/wound-status-form.tsx
+app/(dashboard)/dashboard/residents/[id]/(pages)/wounds/[folderId]/components/wound-treatment-evaluation-form.tsx
+app/(dashboard)/dashboard/residents/[id]/(pages)/wounds/[folderId]/page.tsx
+app/(dashboard)/dashboard/residents/[id]/(pages)/wounds/page.tsx
+app/(dashboard)/dashboard/residents/[id]/page.tsx
+app/(dashboard)/dashboard/wounds/page.tsx
+components/body-map/BodyMapDialog.tsx
+components/body-map/InteractiveBodyMap.tsx
+supabase/migrations/20260402000000_create_initial_wound_assessments_table.sql
+supabase/migrations/20260402000001_update_wound_assessments_to_checkboxes.sql
