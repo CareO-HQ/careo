@@ -19,194 +19,10 @@ export const generateCareFilePDF = async ({
     orgLogoUrl,
     careHomeName
 }: GenerateCareFilePDFOptions) => {
-    if (formName.toUpperCase().includes("GENERAL RISK ASSESSMENT")) {
-        type RiskLevelEntry = {
-            area: string;
-            level?: "low" | "medium" | "high";
-            notes?: string;
-        };
 
-        type GeneralRiskAssessmentData = {
-            fullName?: string;
-            dateOfBirth?: string;
-            nhsNumber?: string;
-            roomNumber?: string;
-            dateOfAssessment?: string;
-            assessmentCompletedBy?: string;
-            role?: string;
-            reasonForAssessment?: string[];
-            otherReason?: string;
-            areasOfRisk?: string[];
-            otherArea?: string;
-            riskDescription?: string;
-            riskLevels?: RiskLevelEntry[];
-            controlMeasures?: string;
-            equipmentRequired?: string[];
-            otherEquipment?: string;
-            residentInvolvement?: string[];
-            involvementComments?: string;
-            reviewFrequency?: string[];
-            otherFrequency?: string;
-            nextReviewDate?: string;
-            assessorSignature?: string;
-            signatureDate?: string;
-        };
 
-        const assessment = (data?.assessment_data ?? data ?? {}) as GeneralRiskAssessmentData;
-
-        const displayValue = (value?: string): string => {
-            if (!value) return "Not provided";
-            const trimmed = value.trim();
-            return trimmed.length > 0 ? trimmed : "Not provided";
-        };
-
-        const displayList = (values?: string[]): string => {
-            if (!values || values.length === 0) return "Not selected";
-            return values.join(", ");
-        };
-
-        const formatDateValue = (value?: string): string => {
-            if (!value) return "Not provided";
-            const parsed = new Date(value);
-            if (Number.isNaN(parsed.getTime())) return displayValue(value);
-            return format(parsed, "dd/MM/yyyy");
-        };
-
-        const riskEntries = (assessment.riskLevels ?? []).filter((entry) => Boolean(entry?.area));
-        const riskLevelText = riskEntries.length > 0
-            ? riskEntries
-                .map((entry) => {
-                    const areaLabel = entry.area === "OTHER_AREA"
-                        ? `Other (${displayValue(assessment.otherArea)})`
-                        : entry.area;
-                    const levelLabel = entry.level ? entry.level.toUpperCase() : "NOT SET";
-                    const notesLabel = entry.notes?.trim() ? ` | Notes: ${entry.notes.trim()}` : "";
-                    return `- ${areaLabel}: ${levelLabel}${notesLabel}`;
-                })
-                .join("\n")
-            : "Not specified";
-
-        const sectionA = [
-            `Full Name: ${displayValue(assessment.fullName)}`,
-            `Date of Birth: ${formatDateValue(assessment.dateOfBirth)}`,
-            `Resident / NHS Number: ${displayValue(assessment.nhsNumber)}`,
-            `Room Number: ${displayValue(assessment.roomNumber)}`,
-            `Date of Assessment: ${formatDateValue(assessment.dateOfAssessment)}`
-        ].join("\n");
-
-        const sectionB = [
-            `Assessment Completed By: ${displayValue(assessment.assessmentCompletedBy)}`,
-            `Role: ${displayValue(assessment.role)}`,
-            `Reason for Assessment: ${displayList(assessment.reasonForAssessment)}`,
-            `Other reason: ${displayValue(assessment.otherReason)}`
-        ].join("\n");
-
-        const sectionC = [
-            `Areas of Risk: ${displayList(assessment.areasOfRisk)}`,
-            `Other area: ${displayValue(assessment.otherArea)}`
-        ].join("\n");
-
-        const sectionD = `Description:\n${displayValue(assessment.riskDescription)}`;
-        const sectionF = `Control Measures and Actions:\n${displayValue(assessment.controlMeasures)}`;
-
-        const sectionG = [
-            `Equipment or Support Required: ${displayList(assessment.equipmentRequired)}`,
-            `Other equipment/support: ${displayValue(assessment.otherEquipment)}`
-        ].join("\n");
-
-        const sectionH = [
-            `Resident/Representative Involvement: ${displayList(assessment.residentInvolvement)}`,
-            `Comments: ${displayValue(assessment.involvementComments)}`
-        ].join("\n");
-
-        const sectionI = [
-            `Review Frequency: ${displayList(assessment.reviewFrequency)}`,
-            `Other frequency: ${displayValue(assessment.otherFrequency)}`,
-            `Next Review Date: ${formatDateValue(assessment.nextReviewDate)}`
-        ].join("\n");
-
-        const sectionJ = [
-            `Assessor Signature: ${displayValue(assessment.assessorSignature)}`,
-            `Signature Date: ${formatDateValue(assessment.signatureDate)}`
-        ].join("\n");
-
-        const template: Template = {
-            basePdf: BLANK_PDF,
-            schemas: [
-                [
-                    { name: "title", type: "text", content: "", position: { x: 10, y: 10 }, width: 190, height: 8, fontSize: 16 },
-                    { name: "sectionAHeader", type: "text", content: "", position: { x: 10, y: 22 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionA", type: "text", content: "", position: { x: 10, y: 28 }, width: 190, height: 25, fontSize: 9 },
-                    { name: "sectionBHeader", type: "text", content: "", position: { x: 10, y: 56 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionB", type: "text", content: "", position: { x: 10, y: 62 }, width: 190, height: 26, fontSize: 9 },
-                    { name: "sectionCHeader", type: "text", content: "", position: { x: 10, y: 91 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionC", type: "text", content: "", position: { x: 10, y: 97 }, width: 190, height: 18, fontSize: 9 },
-                    { name: "sectionDHeader", type: "text", content: "", position: { x: 10, y: 118 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionD", type: "text", content: "", position: { x: 10, y: 124 }, width: 190, height: 34, fontSize: 9 },
-                    { name: "sectionEHeader", type: "text", content: "", position: { x: 10, y: 161 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionE", type: "text", content: "", position: { x: 10, y: 167 }, width: 190, height: 110, fontSize: 9 }
-                ],
-                [
-                    { name: "titlePage2", type: "text", content: "", position: { x: 10, y: 10 }, width: 190, height: 8, fontSize: 14 },
-                    { name: "sectionFHeader", type: "text", content: "", position: { x: 10, y: 22 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionF", type: "text", content: "", position: { x: 10, y: 28 }, width: 190, height: 34, fontSize: 9 },
-                    { name: "sectionGHeader", type: "text", content: "", position: { x: 10, y: 65 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionG", type: "text", content: "", position: { x: 10, y: 71 }, width: 190, height: 20, fontSize: 9 },
-                    { name: "sectionHHeader", type: "text", content: "", position: { x: 10, y: 94 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionH", type: "text", content: "", position: { x: 10, y: 100 }, width: 190, height: 28, fontSize: 9 },
-                    { name: "sectionIHeader", type: "text", content: "", position: { x: 10, y: 131 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionI", type: "text", content: "", position: { x: 10, y: 137 }, width: 190, height: 24, fontSize: 9 },
-                    { name: "sectionJHeader", type: "text", content: "", position: { x: 10, y: 164 }, width: 190, height: 6, fontSize: 11 },
-                    { name: "sectionJ", type: "text", content: "", position: { x: 10, y: 170 }, width: 190, height: 20, fontSize: 9 },
-                    { name: "generatedOn", type: "text", content: "", position: { x: 10, y: 285 }, width: 190, height: 6, fontSize: 8 }
-                ]
-            ]
-        };
-
-        const inputs = [
-            {
-                title: "General Risk Assessment",
-                sectionAHeader: "Section A - Resident Information",
-                sectionA,
-                sectionBHeader: "Section B - Assessment Details",
-                sectionB,
-                sectionCHeader: "Section C - Areas of Risk Identified",
-                sectionC,
-                sectionDHeader: "Section D - Description of Identified Risks",
-                sectionD,
-                sectionEHeader: "Section E - Risk Level",
-                sectionE: riskLevelText,
-                titlePage2: "General Risk Assessment (continued)",
-                sectionFHeader: "Section F - Control Measures and Actions",
-                sectionF,
-                sectionGHeader: "Section G - Equipment or Support Required",
-                sectionG,
-                sectionHHeader: "Section H - Resident / Representative Involvement",
-                sectionH,
-                sectionIHeader: "Section I - Review and Monitoring",
-                sectionI,
-                sectionJHeader: "Section J - Signatures",
-                sectionJ,
-                generatedOn: `Generated on ${format(new Date(), "dd/MM/yyyy")}`
-            }
-        ];
-
-        const pdfBytes = await generate({
-            template,
-            inputs
-        });
-
-        const blob = new Blob([pdfBytes], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${resident?.last_name || "Resident"}_General_Risk_Assessment_${format(new Date(), "ddMMyyyy")}.pdf`;
-        link.click();
-        URL.revokeObjectURL(url);
-        return;
-    }
-
-    const doc = new jsPDF();
+    const isDependencyAssessment = formName.toUpperCase().includes("DEPENDENCY ASSESSMENT");
+    const doc = new jsPDF({ orientation: isDependencyAssessment ? "landscape" : "portrait" });
     const pageWidth = doc.internal.pageSize.width;
     const margin = 14;
 
@@ -893,21 +709,23 @@ export const generateCareFilePDF = async ({
 
 
     // --- PDF Layout Helpers ---
-    const drawHeader = async () => {
+    const drawHeader = async (titleOverride?: string) => {
         const headerHeight = 22;
         doc.setFillColor(255, 255, 255);
         doc.rect(0, 0, pageWidth, headerHeight, 'F');
         doc.setFillColor(34, 197, 94); // #22c55e green
         doc.rect(0, headerHeight - 2, pageWidth, 1, 'F');
         doc.setTextColor(31, 41, 55);
+        
+        const displayTitle = titleOverride || formName;
         // Reduce font size for long form names to prevent logo overlap
-        if (formName.toUpperCase().includes("INFECTION PREVENTION")) {
+        if (displayTitle.toUpperCase().includes("INFECTION PREVENTION")) {
             doc.setFontSize(13);
         } else {
             doc.setFontSize(16);
         }
         doc.setFont("helvetica", "bold");
-        doc.text(formName.toUpperCase(), margin, 14);
+        doc.text(displayTitle.toUpperCase(), margin, 14);
 
         if (orgLogoUrl) {
             try {
@@ -1658,6 +1476,147 @@ export const generateCareFilePDF = async ({
         return;
     }
 
+    // --- General Risk Assessment Specialized Layout ---
+    if (formName.toUpperCase().includes("GENERAL RISK ASSESSMENT")) {
+        const assessment = (data?.assessment_data ?? data ?? {});
+
+        const drawGeneralRiskHeader = async () => {
+            await drawHeader();
+        };
+
+        const ensureGeneralRiskSpace = async (heightNeeded: number, currentY: number) => {
+            if (currentY + heightNeeded > 280) {
+                doc.addPage();
+                await drawGeneralRiskHeader();
+                return 30;
+            }
+            return currentY;
+        };
+
+        const renderYesNoList = async (label: string, selectedOptions: string[] | undefined, allOptions: readonly string[], y: number) => {
+            y = await addSectionTitle(label, y);
+            for (const option of allOptions) {
+                const isSelected = selectedOptions?.includes(option);
+                // The user wants: "Option Label: Yes" or "Option Label: No"
+                y = await addField(option, isSelected ? "Yes" : "No", margin, y, pageWidth - margin * 2);
+            }
+            return y;
+        };
+
+        let yPos = 30;
+        await drawGeneralRiskHeader();
+
+        const cpWidth = (pageWidth - margin * 2) / 2 - 5;
+        const cpCol2 = margin + (pageWidth - margin * 2) / 2;
+
+        // Section A — Resident Information
+        yPos = await addSectionTitle("SECTION A — RESIDENT INFORMATION", yPos);
+        yPos = await ensureGeneralRiskSpace(40, yPos);
+        const rowResY = yPos;
+        let yRes1 = await addField("Full Name", assessment.fullName || (resident ? `${resident.first_name} ${resident.last_name}` : "N/A"), margin, rowResY, cpWidth, true);
+        const dobVal = assessment.dateOfBirth || (resident ? resident.date_of_birth : "");
+        yRes1 = await addField("Date of Birth", dobVal ? format(new Date(dobVal), "dd/MM/yyyy") : "N/A", margin, yRes1 + 1, cpWidth, true);
+        yRes1 = await addField("Resident / NHS Number", assessment.nhsNumber || (resident ? resident.nhs_health_number : "N/A"), margin, yRes1 + 1, cpWidth, true);
+
+        let yRes2 = await addField("Room Number", assessment.roomNumber || (resident ? resident.room_number : "N/A"), cpCol2, rowResY, cpWidth, true);
+        yRes2 = await addField("Date of Assessment", assessment.dateOfAssessment ? format(new Date(assessment.dateOfAssessment), "dd/MM/yyyy") : "N/A", cpCol2, yRes2 + 1, cpWidth, true);
+        yPos = Math.max(yRes1, yRes2);
+
+        // Section B — Assessment Details
+        yPos = await addSectionTitle("SECTION B — ASSESSMENT DETAILS", yPos + 2);
+        yPos = await ensureGeneralRiskSpace(20, yPos);
+        const rowAssY = yPos;
+        let yAss1 = await addField("Assessment Completed By", assessment.assessmentCompletedBy || "N/A", margin, rowAssY, cpWidth, true);
+        let yAss2 = await addField("Role", assessment.role || "N/A", cpCol2, rowAssY, cpWidth, true);
+        yPos = Math.max(yAss1, yAss2);
+
+        const reasonOptions = ["New admission", "Change in condition", "Routine review", "Incident or accident"] as const;
+        yPos = await renderYesNoList("Reason for Assessment", assessment.reasonForAssessment, reasonOptions, yPos + 2);
+        if (assessment.otherReason) {
+            yPos = await addField("Other Reason", assessment.otherReason, margin, yPos, pageWidth - margin * 2);
+        }
+
+        // Section C — Areas of Risk Identified
+        const areasOptions = [
+            "Falls and mobility", "Skin integrity / pressure ulcers", "Nutrition and hydration",
+            "Medication management", "Behavioural or cognitive risks", "Infection control",
+            "Manual handling needs", "Environmental hazards", "Wandering or absconding",
+            "Choking or swallowing difficulties"
+        ] as const;
+        yPos = await renderYesNoList("SECTION C — AREAS OF RISK IDENTIFIED", assessment.areasOfRisk, areasOptions, yPos + 2);
+        if (assessment.otherArea) {
+            yPos = await addField("Other Area", assessment.otherArea, margin, yPos, pageWidth - margin * 2);
+        }
+
+        // Section D — Description of Identified Risks
+        yPos = await addSectionTitle("SECTION D — DESCRIPTION OF IDENTIFIED RISKS", yPos + 2);
+        yPos = await addField("Risk Description", assessment.riskDescription || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // Section E — Risk Level
+        yPos = await addSectionTitle("SECTION E — RISK LEVEL", yPos + 2);
+        const riskLevels = (assessment.riskLevels || []) as any[];
+        if (riskLevels.length > 0) {
+            const tableBody = riskLevels.map(rl => [
+                rl.area === "OTHER_AREA" ? `Other (${assessment.otherArea || ""})` : rl.area,
+                rl.level ? rl.level.toUpperCase() : "N/A",
+                rl.notes || "N/A"
+            ]);
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Area', 'Level', 'Notes']],
+                body: tableBody,
+                theme: 'grid',
+                headStyles: { fillColor: [34, 197, 94] },
+                margin: { left: margin, right: margin }
+            });
+            yPos = (doc as any).lastAutoTable.finalY + 5;
+        } else {
+            yPos = await addField("Risk Levels", "No specific risk levels provided", margin, yPos, pageWidth - margin * 2);
+        }
+
+        // Section F — Control Measures and Actions
+        yPos = await addSectionTitle("SECTION F — CONTROL MEASURES AND ACTIONS", yPos + 2);
+        yPos = await addField("Control Measures", assessment.controlMeasures || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // Section G — Equipment or Support Required
+        const equipOptions = [
+            "Walking aid", "Pressure-relieving mattress or cushion", "Bed rails",
+            "Sensor mats or alarms", "Specialist diet or thickened fluids", "Increased supervision"
+        ] as const;
+        yPos = await renderYesNoList("SECTION G — EQUIPMENT OR SUPPORT REQUIRED", assessment.equipmentRequired, equipOptions, yPos + 2);
+        if (assessment.otherEquipment) {
+            yPos = await addField("Other Equipment", assessment.otherEquipment, margin, yPos, pageWidth - margin * 2);
+        }
+
+        // Section H — Resident / Representative Involvement
+        const involvementOptions = [
+            "Resident involved in assessment", "Family or representative involved", "Resident unable to participate"
+        ] as const;
+        yPos = await renderYesNoList("SECTION H — RESIDENT / REPRESENTATIVE INVOLVEMENT", assessment.residentInvolvement, involvementOptions, yPos + 2);
+        if (assessment.involvementComments) {
+            yPos = await addField("Comments", assessment.involvementComments, margin, yPos, pageWidth - margin * 2);
+        }
+
+        // Section I — Review and Monitoring
+        const freqOptions = ["Weekly", "Monthly", "Quarterly", "After any incident"] as const;
+        yPos = await renderYesNoList("SECTION I — REVIEW AND MONITORING", assessment.reviewFrequency, freqOptions, yPos + 2);
+        if (assessment.otherFrequency) {
+            yPos = await addField("Other Frequency", assessment.otherFrequency, margin, yPos, pageWidth - margin * 2);
+        }
+        yPos = await addField("Next Review Date", assessment.nextReviewDate ? format(new Date(assessment.nextReviewDate), "dd/MM/yyyy") : "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // Section J — Signatures
+        yPos = await addSectionTitle("SECTION J — SIGNATURES", yPos + 2);
+        yPos = await ensureGeneralRiskSpace(30, yPos);
+        const rowSigY = yPos;
+        let ySig1 = await addField("Assessor Signature", assessment.assessorSignature || "N/A", margin, rowSigY, cpWidth, true);
+        let ySig2 = await addField("Date", assessment.signatureDate ? format(new Date(assessment.signatureDate), "dd/MM/yyyy") : "N/A", cpCol2, rowSigY, cpWidth, true);
+        yPos = Math.max(ySig1, ySig2);
+
+        doc.save(`${resident?.last_name || "Resident"}_General_Risk_Assessment_${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
     if (formName.toUpperCase().includes("ADMISSION ASSESSMENT")) {
         const assessmentData = assessmentDataForSpecialized;
 
@@ -1821,7 +1780,7 @@ export const generateCareFilePDF = async ({
 
 
     // --- Dependency Assessment Specialized Layout ---
-    if (formName.toUpperCase().includes("DEPENDENCY ASSESSMENT")) {
+    if (isDependencyAssessment) {
         // Resident info section
         yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
         const col2 = margin + (pageWidth - margin * 2) / 2;
@@ -1847,11 +1806,28 @@ export const generateCareFilePDF = async ({
 
             autoTable(doc, {
                 startY: yPos,
-                head: [['Date', 'By', 'Mob', 'Dre', 'Hyg', 'Fed', 'Eye', 'Hea', 'Brad', 'Uri', 'Fae', 'Com', 'Soc', 'Beh', 'Tot', 'Lvl']],
+                head: [[
+                    'Date',
+                    'Completed By',
+                    'Mobility',
+                    'Dressing',
+                    'Personal Hygiene',
+                    'Feeding',
+                    'Eyesight',
+                    'Hearing',
+                    'Pressure Sore Risk',
+                    'Continence (Urine)',
+                    'Continence (Faeces)',
+                    'Communication',
+                    'Social Dependency',
+                    'Behaviour',
+                    'Total Score',
+                    'Dependency Level'
+                ]],
                 body: data.history.map((h: any) => {
                     const det = h.assessment_details || {};
                     return [
-                        format(new Date(h.assessment_date), "dd/MM/yy"),
+                        format(new Date(h.assessment_date), "dd/MM/yyyy"),
                         h.completed_by || h.completedBy || "N/A",
                         det.mobility || 0,
                         det.dressing || 0,
@@ -1866,15 +1842,35 @@ export const generateCareFilePDF = async ({
                         det.socialDependency || 0,
                         det.behaviour || 0,
                         h.total_score || 0,
-                        h.dependency_level?.[0] || ""
+                        h.dependency_level || "N/A"
                     ];
                 }),
                 theme: 'grid',
                 headStyles: { fillColor: [34, 197, 94] },
-                styles: { fontSize: 7, cellPadding: 1, halign: 'center' },
+                styles: {
+                    fontSize: 6,
+                    cellPadding: 1.5,
+                    halign: 'center',
+                    valign: 'middle',
+                    overflow: 'linebreak'
+                },
                 columnStyles: {
-                    0: { halign: 'left', cellWidth: 15 },
-                    1: { halign: 'left', cellWidth: 20 },
+                    0: { halign: 'left', cellWidth: 16 },
+                    1: { halign: 'left', cellWidth: 22 },
+                    2: { cellWidth: 10 },
+                    3: { cellWidth: 10 },
+                    4: { cellWidth: 13 },
+                    5: { cellWidth: 10 },
+                    6: { cellWidth: 10 },
+                    7: { cellWidth: 10 },
+                    8: { cellWidth: 14 },
+                    9: { cellWidth: 14 },
+                    10: { cellWidth: 14 },
+                    11: { cellWidth: 12 },
+                    12: { cellWidth: 14 },
+                    13: { cellWidth: 12 },
+                    14: { cellWidth: 11 },
+                    15: { halign: 'left', cellWidth: 18 },
                 }
             });
             yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -2359,20 +2355,23 @@ export const generateCareFilePDF = async ({
         return;
     }
 
-    // --- Resident Info Section ---
-    yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
+    const isPEEPForm = formName.toUpperCase().includes("PEEP");
     const col2 = margin + (pageWidth - margin * 2) / 2;
     const colWidth = (pageWidth - margin * 2) / 2 - 5;
 
-    let y1 = await addField("Full Name", [resident?.first_name, resident?.middle_name, resident?.last_name].filter(Boolean).join(" "), margin, yPos, colWidth);
-    const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
-    const formattedDob = dobValue ? new Date(dobValue).toLocaleDateString('en-GB') : "N/A";
-    y1 = await addField("Date of Birth", formattedDob, margin, y1, colWidth);
+    // --- Resident Info Section ---
+    if (!isPEEPForm) {
+        yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
+        let y1 = await addField("Full Name", [resident?.first_name, resident?.middle_name, resident?.last_name].filter(Boolean).join(" "), margin, yPos, colWidth);
+        const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
+        const formattedDob = dobValue ? new Date(dobValue).toLocaleDateString('en-GB') : "N/A";
+        y1 = await addField("Date of Birth", formattedDob, margin, y1, colWidth);
 
-    let y2 = await addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
-    y2 = await addField("Date Generated", new Date().toLocaleDateString('en-GB'), col2, y2, colWidth);
+        let y2 = await addField("Care Home", careHomeName || "N/A", col2, yPos, colWidth);
+        y2 = await addField("Date Generated", new Date().toLocaleDateString('en-GB'), col2, y2, colWidth);
 
-    yPos = Math.max(y1, y2) + 5;
+        yPos = Math.max(y1, y2) + 5;
+    }
 
     // --- Form Data Rendering ---
     const SKIP_KEYS = new Set([
@@ -2406,7 +2405,9 @@ export const generateCareFilePDF = async ({
             .trim();
     };
 
-    yPos = await addSectionTitle("FORM DETAILS", yPos);
+    if (!isPEEPForm) {
+        yPos = await addSectionTitle("FORM DETAILS", yPos);
+    }
     const renderData = async (obj: any, startY: number, startX: number, depth: number = 0): Promise<number> => {
         // Specialized layout for Smoking Risk Assessment
         if (formName.toUpperCase().includes("SMOKING RISK ASSESSMENT")) {
@@ -3151,99 +3152,217 @@ export const generateCareFilePDF = async ({
         return;
     }
 
-    yPos = await renderData(data, yPos, margin);
+    // --- PEEP (Personal Emergency Evacuation Plan) Specialized Layout ---
+    if (formName.toUpperCase().includes("PEEP")) {
+        const assessmentData = assessmentDataForSpecialized;
 
-    // Specialized narrative layout for Consent and Risk Assessment for Restraints
-    if (formName.toUpperCase().includes("CONSENT AND RISK ASSESSMENT FOR RESTRAINTS")) {
-        const fullWidth = pageWidth - margin * 2;
-        const assessmentData = data.assessment_data || data;
-        const consentType = assessmentData.consentType;
-
-        const restraintsPreferenceText = (pref?: string | null): string => {
-            if (!pref) return "";
-            const map: Record<string, string> = {
-                PREFER_USE: "I prefer that restraint is used.",
-                DO_NOT_WANT_USE: "I do not want any form of restraint used.",
-                WOULD_HAVE_PREFERRED: "would have preferred",
-                WOULD_NOT_HAVE_PREFERRED: "not preferred"
-            };
-            return map[pref] || "";
+        const drawPEEPHeader = async () => {
+            await drawHeader("PEEP");
         };
 
-        yPos = await addSectionTitle("Consent Statement", yPos + 5);
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(17, 24, 39);
+        const ensurePEEPSpace = async (heightNeeded: number, currentY: number) => {
+            if (currentY + heightNeeded > 280) {
+                doc.addPage();
+                await drawPEEPHeader();
+                return 30;
+            }
+            return currentY;
+        };
 
-        if (consentType === "ABLE_TO_CONSENT" && assessmentData.ableToConsent) {
-            const able = assessmentData.ableToConsent;
-            const nameText = able.name || "";
-            const riskText = able.riskOf || "";
-            const preferenceSentence = restraintsPreferenceText(able.preference);
+        let yPos = 30;
+        await drawPEEPHeader();
 
-            const mainSentenceParts = [
-                "I",
-                nameText,
-                "understand that I may be at risk of",
-                riskText
-            ].filter(Boolean);
+        const cpWidth = (pageWidth - margin * 2) / 2 - 5;
+        const cpCol2 = margin + (pageWidth - margin * 2) / 2;
+        const addPEEPSectionAField = (label: string, value: unknown, x: number, y: number, width: number) => {
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(107, 114, 128);
+            doc.text(label.toUpperCase(), x, y);
 
-            const mainSentence = `${mainSentenceParts.join(" ")}.`;
-            const combinedText = preferenceSentence
-                ? `${mainSentence} ${preferenceSentence}`
-                : mainSentence;
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(17, 24, 39);
+            const splitValue = doc.splitTextToSize(formatValue(value), width);
+            doc.text(splitValue, x, y + 6);
+            return y + 6 + (splitValue.length * 5);
+        };
 
-            const lines = doc.splitTextToSize(combinedText, fullWidth);
-            doc.text(lines, margin, yPos);
-            yPos += lines.length * 5 + 4;
+        // Section A: Resident & Facility Details
+        yPos = await addSectionTitle("SECTION A: RESIDENT & FACILITY DETAILS", yPos);
+        yPos = await ensurePEEPSpace(40, yPos);
+        // Use strict row-based placement so fields never overlap between lines when printed.
+        const rowResY = yPos;
+        const dobVal = assessmentData.residentDateOfBirth || (resident ? resident.date_of_birth : "");
+        const generatedDate = format(new Date(), "dd/MM/yyyy");
 
-            const cpWidth = (pageWidth - margin * 2) / 2 - 5;
-            yPos = await ensureSpace(25, yPos);
-            const rowSigY1 = yPos;
-            const sigY1 = await addField("Signature Of Person", able.personSignature, margin, rowSigY1, cpWidth, true);
-            const sigY2 = await addField("Date", able.personSignatureDate, col2, rowSigY1, cpWidth, true);
-            
-            const rowSigY2 = Math.max(sigY1, sigY2) + 2;
-            const sigY3 = await addField("Signature Of Member", able.memberSignature, margin, rowSigY2, cpWidth, true);
-            const sigY4 = await addField("Date", able.memberSignatureDate, col2, rowSigY2, cpWidth, true);
-            yPos = Math.max(sigY3, sigY4) + 4;
-        } else if (consentType === "UNABLE_TO_CONSENT" && assessmentData.discussionWithRelative) {
-            const rel = assessmentData.discussionWithRelative;
-            const relName = rel.relativeName || "";
-            const issueText = rel.issueOf || "";
-            const residentName = rel.residentName || "";
-            const preferencePhrase = restraintsPreferenceText(rel.preference);
-            const restraintUsed = rel.restraintUsed || "";
+        const row1Left = addPEEPSectionAField(
+            "Resident Name",
+            assessmentData.residentName || (resident ? `${resident.first_name} ${resident.last_name}` : "N/A"),
+            margin,
+            rowResY,
+            cpWidth
+        );
+        const row1Right = addPEEPSectionAField(
+            "Care Home Name",
+            assessmentData.facilityName || careHomeName || "N/A",
+            cpCol2,
+            rowResY,
+            cpWidth
+        );
+        yPos = Math.max(row1Left, row1Right) + 3;
 
-            const mainSentenceParts = [
-                "I",
-                relName,
-                "(nearest relative) have discussed the issue of",
-                issueText,
-                "with the professionals concerned and feel that",
-                residentName,
-                preferencePhrase,
-                "to have",
-                restraintUsed,
-                "used."
-            ].filter(Boolean);
+        const row2Left = addPEEPSectionAField(
+            "Date of Birth",
+            dobVal ? format(new Date(dobVal), "dd/MM/yyyy") : "N/A",
+            margin,
+            yPos,
+            cpWidth
+        );
+        const row2Right = addPEEPSectionAField(
+            "Bedroom Number",
+            assessmentData.bedroomNumber || (resident ? resident.room_number : "N/A"),
+            cpCol2,
+            yPos,
+            cpWidth
+        );
+        yPos = Math.max(row2Left, row2Right) + 3;
 
-            const mainSentence = mainSentenceParts.join(" ");
-            const lines = doc.splitTextToSize(mainSentence, fullWidth);
-            doc.text(lines, margin, yPos);
-            yPos += lines.length * 5 + 4;
+        const row3Left = addPEEPSectionAField("Unit", assessmentData.unit || "N/A", margin, yPos, cpWidth);
+        const row3Right = addPEEPSectionAField("Date Generated", generatedDate, cpCol2, yPos, cpWidth);
+        yPos = Math.max(row3Left, row3Right);
 
-            const cpWidth = (pageWidth - margin * 2) / 2 - 5;
-            yPos = await ensureSpace(25, yPos);
-            const rowSigY1 = yPos;
-            const sigY1 = await addField("Signature Of Person", rel.personSignature, margin, rowSigY1, cpWidth, true);
-            const sigY2 = await addField("Date", rel.personSignatureDate, col2, rowSigY1, cpWidth, true);
-            
-            const rowSigY2 = Math.max(sigY1, sigY2) + 2;
-            const sigY3 = await addField("Signature Of Member", rel.memberSignature, margin, rowSigY2, cpWidth, true);
-            const sigY4 = await addField("Date", rel.memberSignatureDate, col2, rowSigY2, cpWidth, true);
-            yPos = Math.max(sigY3, sigY4) + 4;
+        // Section B: Awareness of Procedure
+        yPos = await addSectionTitle("SECTION B: AWARENESS OF PROCEDURE", yPos + 2);
+        const informedBy = assessmentData.informedBy || {};
+        yPos = await addField("Alarm System", informedBy.alarmSystem ?? "N/A", margin, yPos, cpWidth);
+        yPos = await addField("Visual Alarm", informedBy.visualAlarm ?? "N/A", margin, yPos, cpWidth);
+        yPos = await addField("Pager Device / Vibrating Pad", informedBy.pagerDevice ?? "N/A", margin, yPos, cpWidth);
+        yPos = await addField("Other Informed Method", informedBy.other ?? "N/A", margin, yPos, cpWidth);
+        if (informedBy.otherDetails || informedBy.other) {
+            yPos = await addField("Other Details", informedBy.otherDetails || "N/A", margin, yPos, pageWidth - margin * 2);
         }
+
+        // Section C: Assistance & Equipment
+        yPos = await addSectionTitle("SECTION C: ASSISTANCE & EQUIPMENT", yPos + 2);
+        yPos = await addField("Designated Assistance", assessmentData.designatedAssistance || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Equipment Required", assessmentData.equipmentRequired || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // Section D: Personalised Evacuation Procedure
+        yPos = await addSectionTitle("SECTION D: PERSONALISED EVACUATION PROCEDURE", yPos + 2);
+        if (assessmentData.steps && Array.isArray(assessmentData.steps) && assessmentData.steps.length > 0) {
+            for (const step of assessmentData.steps) {
+                yPos = await addField(step.name || "Step", step.description || "N/A", margin, yPos, pageWidth - margin * 2);
+                yPos += 2;
+            }
+        } else {
+            yPos = await addField("Step Details", "N/A", margin, yPos, pageWidth - margin * 2);
+        }
+
+        // Section E: Fire Hazards in Area / Room
+        yPos = await addSectionTitle("SECTION E: FIRE HAZARDS IN AREA / ROOM", yPos + 2);
+        const hazards = assessmentData.hazards || {};
+        yPos = await addField("Oxygen Cylinders in use", hazards.oxygenCylinders ?? "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Soft Furnishings are Fire Retardant", hazards.furnishingsFireRetardant ?? "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Does the person smoke?", hazards.doesPersonSmoke ?? "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // Section F: Monitoring and Review / Signatures
+        yPos = await addSectionTitle("SECTION F: MONITORING AND REVIEW / SIGNATURES", yPos + 2);
+        yPos = await ensurePEEPSpace(40, yPos);
+        const rowSignY = yPos;
+        
+        let ySign1 = await addField("Manager Signature", assessmentData.managerSignature || "N/A", margin, rowSignY, cpWidth, true);
+        ySign1 = await addField("Date (Manager)", assessmentData.managerSignatureDate ? format(new Date(assessmentData.managerSignatureDate), "dd/MM/yyyy") : "N/A", margin, ySign1 + 1, cpWidth, true);
+
+        let ySign2 = await addField("Person in Care Signature", assessmentData.personInCareSignature || "N/A", cpCol2, rowSignY, cpWidth, true);
+        ySign2 = await addField("Date (Person)", assessmentData.personInCareSignatureDate ? format(new Date(assessmentData.personInCareSignatureDate), "dd/MM/yyyy") : "N/A", cpCol2, ySign2 + 1, cpWidth, true);
+        
+        yPos = Math.max(ySign1, ySign2);
+
+        doc.save(`PEEP-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    const isRestraintsConsentForm = formName.toUpperCase().includes("CONSENT AND RISK ASSESSMENT FOR RESTRAINTS");
+    if (!isRestraintsConsentForm) {
+        yPos = await renderData(data, yPos, margin);
+    }
+
+    // Specialized fixed-field layout for Consent and Risk Assessment for Restraints
+    if (isRestraintsConsentForm) {
+        const assessmentData = data.assessment_data || data;
+        const selectedRestraints: string[] = Array.isArray(assessmentData.selectedRestraints)
+            ? assessmentData.selectedRestraints
+            : [];
+        const consentType = assessmentData.consentType;
+        const ableToConsent = assessmentData.ableToConsent || {};
+        const discussionWithRelative = assessmentData.discussionWithRelative || {};
+        const fullWidth = pageWidth - margin * 2;
+        const cpWidth = (pageWidth - margin * 2) / 2 - 5;
+
+        const toDisplay = (value: unknown): string => {
+            if (value === null || value === undefined) return "N/A";
+            if (typeof value === "string") return value.trim() ? value : "N/A";
+            return String(value);
+        };
+        const yesNo = (condition: boolean): string => condition ? "Yes" : "No";
+
+        const restraintOptions = [
+            "Wheelchair lap belt",
+            "Specialised chair with no lap belt",
+            "Specialised chair with lap belt",
+            "Alarm mat",
+            "Crash mat",
+            "Bed rails",
+            "Door alarms",
+            "Chemical restraint"
+        ];
+
+        yPos = await addSectionTitle("Type of Restraint considered/required", yPos + 2);
+        for (const option of restraintOptions) {
+            yPos = await addField(option, yesNo(selectedRestraints.includes(option)), margin, yPos, fullWidth);
+        }
+
+        yPos = await addSectionTitle("Consent Status", yPos + 2);
+        yPos = await addField("Resident is able to consent", yesNo(consentType === "ABLE_TO_CONSENT"), margin, yPos, fullWidth);
+        yPos = await addField("Resident is unable to consent (Relative/Staff Discussion)", yesNo(consentType === "UNABLE_TO_CONSENT"), margin, yPos, fullWidth);
+
+        yPos = await addSectionTitle("Persons who are able to Consent", yPos + 2);
+        yPos = await addField("Name", toDisplay(ableToConsent.name), margin, yPos, fullWidth);
+        yPos = await addField("Risk Of", toDisplay(ableToConsent.riskOf), margin, yPos, fullWidth);
+        yPos = await addField("I prefer that restraint is used", yesNo(ableToConsent.preference === "PREFER_USE"), margin, yPos, fullWidth);
+        yPos = await addField("I do not want any form of restraint used", yesNo(ableToConsent.preference === "DO_NOT_WANT_USE"), margin, yPos, fullWidth);
+        const ableSigRowY = yPos;
+        const ableSigY1 = await addField("Signature Of Person", toDisplay(ableToConsent.personSignature), margin, ableSigRowY, cpWidth, true);
+        const ableSigY2 = await addField("Date", toDisplay(ableToConsent.personSignatureDate), col2, ableSigRowY, cpWidth, true);
+        yPos = Math.max(ableSigY1, ableSigY2) + 2;
+        const ableMemberRowY = yPos;
+        const ableMemberY1 = await addField("Signature Of Member", toDisplay(ableToConsent.memberSignature), margin, ableMemberRowY, cpWidth, true);
+        const ableMemberY2 = await addField("Date", toDisplay(ableToConsent.memberSignatureDate), col2, ableMemberRowY, cpWidth, true);
+        yPos = Math.max(ableMemberY1, ableMemberY2) + 2;
+
+        yPos = await addSectionTitle("Discussion with Relative (NOK)", yPos + 2);
+        yPos = await addField("Relative Name", toDisplay(discussionWithRelative.relativeName), margin, yPos, fullWidth);
+        yPos = await addField("Issue Of", toDisplay(discussionWithRelative.issueOf), margin, yPos, fullWidth);
+        yPos = await addField("Resident Name", toDisplay(discussionWithRelative.residentName), margin, yPos, fullWidth);
+        yPos = await addField("Would have preferred", yesNo(discussionWithRelative.preference === "WOULD_HAVE_PREFERRED"), margin, yPos, fullWidth);
+        yPos = await addField("Would not have preferred", yesNo(discussionWithRelative.preference === "WOULD_NOT_HAVE_PREFERRED"), margin, yPos, fullWidth);
+        yPos = await addField("Restraint Used", toDisplay(discussionWithRelative.restraintUsed), margin, yPos, fullWidth);
+        const relSigRowY = yPos;
+        const relSigY1 = await addField("Signature Of Person", toDisplay(discussionWithRelative.personSignature), margin, relSigRowY, cpWidth, true);
+        const relSigY2 = await addField("Date", toDisplay(discussionWithRelative.personSignatureDate), col2, relSigRowY, cpWidth, true);
+        yPos = Math.max(relSigY1, relSigY2) + 2;
+        const relMemberRowY = yPos;
+        const relMemberY1 = await addField("Signature Of Member", toDisplay(discussionWithRelative.memberSignature), margin, relMemberRowY, cpWidth, true);
+        const relMemberY2 = await addField("Date", toDisplay(discussionWithRelative.memberSignatureDate), col2, relMemberRowY, cpWidth, true);
+        yPos = Math.max(relMemberY1, relMemberY2) + 2;
+
+        yPos = await addSectionTitle("System Fields", yPos + 2);
+        const systemRowY = yPos;
+        const systemY1 = await addField("Assessment Date", toDisplay(assessmentData.assessmentDate), margin, systemRowY, cpWidth, true);
+        const systemY2 = await addField("Completed By", toDisplay(assessmentData.completedBy || data.completed_by), col2, systemRowY, cpWidth, true);
+        yPos = Math.max(systemY1, systemY2) + 2;
+        yPos = await addField("Status", toDisplay(assessmentData.status), margin, yPos, fullWidth);
     }
 
     // Footer
