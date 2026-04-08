@@ -423,15 +423,15 @@ export default function ChokingRiskAssessmentDialog({
                 <TableRow className="bg-muted/50">
                   <TableHead className="whitespace-nowrap">Date</TableHead>
                   <TableHead className="whitespace-nowrap">Completed By</TableHead>
-                  <TableHead className="text-center">Respiratory (Score)</TableHead>
+                  <TableHead className="text-center">Respiratory Risks (Score)</TableHead>
                   <TableHead className="text-center">At Risk Groups (Score)</TableHead>
-                  <TableHead className="text-center">Physical (Score)</TableHead>
-                  <TableHead className="text-center">Behaviours (Score)</TableHead>
-                  <TableHead className="text-center">Eating Risks (Score)</TableHead>
-                  <TableHead className="text-center">Recognition (Score)</TableHead>
-                  <TableHead className="text-center">Medication (Score)</TableHead>
-                  <TableHead className="text-center font-bold">Total Score</TableHead>
-                  <TableHead className="text-right">Level</TableHead>
+                  <TableHead className="text-center">Physical Risks (Score)</TableHead>
+                  <TableHead className="text-center">Eating Behaviours Risks (Score)</TableHead>
+                  <TableHead className="text-center">Risks Associated with Eating (Score)</TableHead>
+                  <TableHead className="text-center">Food Recognition (Score)</TableHead>
+                  <TableHead className="text-center">Medication Affecting Swallowing (Score)</TableHead>
+                  <TableHead className="text-center font-bold">Total Risk Score</TableHead>
+                  <TableHead className="text-right">Risk Level</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

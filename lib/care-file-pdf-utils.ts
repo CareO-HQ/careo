@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import { generate } from "@pdfme/generator";
 import { BLANK_PDF, Template } from "@pdfme/common";
+import { BODY_REGIONS } from "@/lib/config/body-regions";
 
 interface GenerateCareFilePDFOptions {
     formName: string;
@@ -11,6 +12,15 @@ interface GenerateCareFilePDFOptions {
     orgLogoUrl?: string;
     careHomeName?: string;
 }
+
+const toSafeFilePart = (value: string | undefined): string => {
+    if (!value) return "document";
+    const sanitized = value
+        .replace(/[^a-zA-Z0-9-_]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+    return sanitized || "document";
+};
 
 export const generateCareFilePDF = async ({
     formName,
@@ -21,8 +31,10 @@ export const generateCareFilePDF = async ({
 }: GenerateCareFilePDFOptions) => {
 
 
-    const isDependencyAssessment = formName.toUpperCase().includes("DEPENDENCY ASSESSMENT");
-    const doc = new jsPDF({ orientation: isDependencyAssessment ? "landscape" : "portrait" });
+    const upperFormName = formName.toUpperCase();
+    const isDependencyAssessment = upperFormName.includes("DEPENDENCY ASSESSMENT");
+    const isFallRiskAssessment = upperFormName.includes("FALL RISK ASSESSMENT");
+    const doc = new jsPDF({ orientation: isDependencyAssessment || isFallRiskAssessment ? "landscape" : "portrait" });
     const pageWidth = doc.internal.pageSize.width;
     const margin = 14;
 
@@ -1617,6 +1629,99 @@ export const generateCareFilePDF = async ({
         return;
     }
 
+    // --- Abbey Pain Tool Specialized Layout ---
+    if (formName.toUpperCase().includes("ABBEY PAIN TOOL")) {
+        const assessment = (data?.assessment_data ?? data ?? {});
+        const col2 = margin + (pageWidth - margin * 2) / 2;
+        const colWidth = (pageWidth - margin * 2) / 2 - 5;
+
+        const getScoreLabel = (score: unknown): string => {
+            const numeric = typeof score === "number" ? score : Number(score ?? 0);
+            if (numeric === 0) return "Absent (0)";
+            if (numeric === 1) return "Mild (1)";
+            if (numeric === 2) return "Moderate (2)";
+            if (numeric === 3) return "Severe (3)";
+            return `N/A (${String(score ?? "N/A")})`;
+        };
+
+        const formatDateValue = (value: unknown): string => {
+            if (!value) return "N/A";
+            const dateValue = new Date(value as string | number | Date);
+            if (Number.isNaN(dateValue.getTime())) return "N/A";
+            return format(dateValue, "dd/MM/yyyy");
+        };
+
+        // 1. Resident Information
+        yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
+        yPos = await ensureSpace(25, yPos);
+        const rowResidentY = yPos;
+        let yLeft = await addField(
+            "Full Name",
+            [resident?.first_name, resident?.middle_name, resident?.last_name].filter(Boolean).join(" "),
+            margin,
+            rowResidentY,
+            colWidth,
+            true
+        );
+        const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
+        yLeft = await addField("Date of Birth", dobValue ? format(new Date(dobValue), "dd/MM/yyyy") : "N/A", margin, yLeft + 1, colWidth, true);
+        yLeft = await addField("NHS Number", resident?.nhs_health_number || resident?.nhsHealthNumber || "N/A", margin, yLeft + 1, colWidth, true);
+
+        let yRight = await addField("Care Home", careHomeName || "N/A", col2, rowResidentY, colWidth, true);
+        yRight = await addField("Room Number", resident?.room_number || resident?.roomNumber || "N/A", col2, yRight + 1, colWidth, true);
+        yRight = await addField("Date Generated", format(new Date(), "dd/MM/yyyy"), col2, yRight + 1, colWidth, true);
+        yPos = Math.max(yLeft, yRight) + 6;
+
+        // 2. Past assessment history table, when provided
+        if (Array.isArray(data.history) && data.history.length > 0) {
+            yPos = await addSectionTitle("PAST ASSESSMENTS HISTORY", yPos);
+            const historyRows = data.history.map((entry: Record<string, unknown>) => {
+                const entryAssessment = (entry.assessment_data ?? entry) as Record<string, unknown>;
+                const entryDate = entryAssessment.assessmentDate ?? entry.assessment_date ?? entry.created_at;
+                return [
+                    formatDateValue(entryDate),
+                    String(entryAssessment.completedByName ?? entry.completed_by ?? entry.completedBy ?? "N/A"),
+                    String(entryAssessment.completedByDesignation ?? "N/A"),
+                    String(entryAssessment.completedBySignature ?? "N/A"),
+                    getScoreLabel(entryAssessment.vocalization),
+                    getScoreLabel(entryAssessment.facialExpression),
+                    getScoreLabel(entryAssessment.bodyLanguage),
+                    getScoreLabel(entryAssessment.physiologicalChanges),
+                    getScoreLabel(entryAssessment.physicalChanges),
+                    String(entryAssessment.typeOfPain ?? "N/A"),
+                    String(entryAssessment.totalScore ?? 0),
+                    String(entryAssessment.painClassification ?? "N/A")
+                ];
+            });
+
+            autoTable(doc, {
+                startY: yPos,
+                head: [[
+                    "Assessment Date",
+                    "Completed By",
+                    "Completed By Designation",
+                    "Completed By Signature",
+                    "Vocalization Score",
+                    "Facial Expression Score",
+                    "Body Language Score",
+                    "Physiological Changes Score",
+                    "Physical Changes Score",
+                    "Type of Pain",
+                    "Total Score",
+                    "Pain Classification"
+                ]],
+                body: historyRows,
+                theme: "grid",
+                headStyles: { fillColor: [34, 197, 94] },
+                styles: { fontSize: 7, cellPadding: 1.2, overflow: "linebreak" },
+                margin: { left: margin, right: margin }
+            });
+        }
+
+        doc.save(`${resident?.last_name || "Resident"}_Abbey_Pain_Tool_${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
     if (formName.toUpperCase().includes("ADMISSION ASSESSMENT")) {
         const assessmentData = assessmentDataForSpecialized;
 
@@ -1970,7 +2075,28 @@ export const generateCareFilePDF = async ({
 
             autoTable(doc, {
                 startY: yPos,
-                head: [['Date', 'Age', 'Sex', 'Fall', 'Mob', 'Bal', 'ADLP', 'ADLD', 'Foot', 'Vis', 'B&B', 'Env', 'Soc', 'MedC', 'Meds', 'Safe', 'Ment', 'Tot', 'Risk', 'By']],
+                head: [[
+                    'Date of Assessment',
+                    'Age',
+                    'Gender',
+                    'History of Falls',
+                    'Present Level of Mobility',
+                    'Balance (Can Resident Stand Unsupported)',
+                    'Activities of Daily Living (Personal)',
+                    'Activities of Daily Living (Domestic)',
+                    'Footwear',
+                    'Vision Problems',
+                    'Bladder & Bowel Movement',
+                    'Resident Environmental Risks',
+                    'Social Risks',
+                    'Medical Conditions',
+                    'Medicines',
+                    'Safety Awareness',
+                    'Mental State',
+                    'Total Score',
+                    'Risk Level',
+                    'Completed By'
+                ]],
                 body: data.history.map((h: any) => {
                     const det = h.assessment_details || {};
                     return [
@@ -1997,13 +2123,13 @@ export const generateCareFilePDF = async ({
                     ];
                 }),
                 theme: 'grid',
-                headStyles: { fillColor: [34, 197, 94] },
-                styles: { fontSize: 6, cellPadding: 1 },
+                headStyles: { fillColor: [34, 197, 94], fontSize: 7, valign: 'middle' },
+                styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
                 columnStyles: {
-                    0: { cellWidth: 12 },
-                    17: { halign: 'center', fontStyle: 'bold', cellWidth: 8 },
-                    18: { halign: 'center', fontStyle: 'bold', cellWidth: 12 },
-                    19: { cellWidth: 15 }
+                    0: { cellWidth: 18 },
+                    17: { halign: 'center', fontStyle: 'bold', cellWidth: 10 },
+                    18: { halign: 'center', fontStyle: 'bold', cellWidth: 14 },
+                    19: { cellWidth: 20 }
                 }
             });
             yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -2117,7 +2243,19 @@ export const generateCareFilePDF = async ({
 
             autoTable(doc, {
                 startY: yPos,
-                head: [['Date', 'Completed By', 'Resp', 'At Risk', 'Phys', 'Behavr', 'Eating', 'Recogn', 'Med', 'Total', 'Level']],
+                head: [[
+                    'Assessment Date',
+                    'Completed By',
+                    'Respiratory Risks Score',
+                    'At Risk Groups Score',
+                    'Physical Risks Score',
+                    'Eating Behaviours Risks Score',
+                    'Risks Associated with Eating Score',
+                    'Food Recognition Score',
+                    'Medication Affecting Swallowing Score',
+                    'Total Risk Score',
+                    'Risk Level'
+                ]],
                 body: data.history.map((h: any) => {
                     const f = h.risk_factors || {};
                     const resp = calcSectionScore(f, { weakCough: 10, chestInfections: 10, breathingDifficulties: 10, knownToAspirate: 10, chokingHistory: 10, gurgledVoice: 10 });
@@ -2132,7 +2270,7 @@ export const generateCareFilePDF = async ({
                         h.completed_by || h.completedBy || "N/A",
                         resp, atRisk, phys, behav, eating, recogn, med,
                         h.total_score || 0,
-                        h.risk_level?.replace(" Risk", "") || "N/A"
+                        h.risk_level || "N/A"
                     ];
                 }),
                 theme: 'grid',
@@ -2187,6 +2325,67 @@ export const generateCareFilePDF = async ({
         return;
     }
 
+    // --- Diet Notification Specialized Layout (jsPDF) ---
+    if (formName.toUpperCase().includes("DIET NOTIFICATION")) {
+        const assessmentData = data.assessment_data || data;
+        const dietaryPreferences = assessmentData.dietary_preferences || {};
+        const foodConsistency = assessmentData.food_consistency || {};
+        const fluidConsistency = assessmentData.fluid_consistency || {};
+        const kitchenReview = assessmentData.kitchen_review || {};
+
+        const toDate = (value: unknown) => {
+            if (!value) return "N/A";
+            const date = new Date(value as string | number | Date);
+            if (Number.isNaN(date.getTime())) return "N/A";
+            return format(date, "dd/MM/yyyy");
+        };
+        const yesNo = (value: unknown) => (value === true ? "Yes" : "No");
+
+        yPos = await addSectionTitle("ADMINISTRATIVE INFORMATION", yPos);
+        yPos = await addField("Resident Name", assessmentData.residentName || [resident?.first_name, resident?.last_name].filter(Boolean).join(" ") || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Room Number", assessmentData.roomNumber || assessmentData.bedroomNumber || resident?.room_number || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Completed By", assessmentData.completed_by || assessmentData.completedBy || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Print Name", assessmentData.print_name || assessmentData.printName || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Job Role", assessmentData.job_role || assessmentData.jobRole || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Signature", assessmentData.signature || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        yPos = await addSectionTitle("DIETARY PREFERENCES & RISKS", yPos + 2);
+        yPos = await addField("Likes / Favourite Foods", dietaryPreferences.likesFavouriteFoods || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Dislikes", dietaryPreferences.dislikes || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Foods To Be Avoided", dietaryPreferences.foodsToBeAvoided || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Choking Risk", assessmentData.choking_risk || assessmentData.chokingRiskAssessment || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        yPos = await addSectionTitle("MEAL & FLUID SPECIFICATIONS", yPos + 2);
+        yPos = await addField("Preferred Meal Size", assessmentData.preferred_meal_size || assessmentData.preferredMealSize || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Diet Type", dietaryPreferences.dietType || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Food Allergy Or Intolerance", dietaryPreferences.foodAllergyOrIntolerance || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        yPos = await addSectionTitle("FOOD & FLUID CONSISTENCY", yPos + 2);
+        yPos = await addField("FOOD CONSISTENCY", "", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Level 7 Regular", yesNo(foodConsistency.level7Regular), margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Level 7 Easy Chew", yesNo(foodConsistency.level7EasyChew), margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Level 6 Soft & Bite Sized", yesNo(foodConsistency.level6SoftBiteSized), margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Level 5 Minced & Moist", yesNo(foodConsistency.level5MincedMoist), margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Level 4 Pureed", yesNo(foodConsistency.level4Pureed), margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Level 3 Liquidised", yesNo(foodConsistency.level3Liquidised), margin, yPos, pageWidth - margin * 2);
+
+        yPos = await addField("FLUID CONSISTENCY", "", margin, yPos + 1, pageWidth - margin * 2);
+        yPos = await addField("Level 4 Extremely Thick", yesNo(fluidConsistency.level4ExtremelyThick), margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Level 3 Moderately Thick", yesNo(fluidConsistency.level3ModeratelyThick), margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Level 2 Mildly Thick", yesNo(fluidConsistency.level2MildlyThick), margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Level 1 Slightly Thick", yesNo(fluidConsistency.level1SlightlyThick), margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Level 0 Thin", yesNo(fluidConsistency.level0Thin), margin, yPos, pageWidth - margin * 2);
+
+        yPos = await addSectionTitle("KITCHEN REVIEW", yPos + 2);
+        yPos = await addField("Reviewer Print Name", kitchenReview.reviewerPrintName || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Reviewer Job Title", kitchenReview.reviewerJobTitle || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Reviewer Signature", kitchenReview.reviewerSignature || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Reviewer Date", toDate(kitchenReview.reviewerDate), margin, yPos, pageWidth - margin * 2);
+
+        doc.save(`Diet-Notification-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
     // --- Oral Assessment Specialized Layout ---
     if (formName.toUpperCase().includes("ORAL ASSESSMENT")) {
         const col2 = margin + (pageWidth - margin * 2) / 2;
@@ -2237,37 +2436,45 @@ export const generateCareFilePDF = async ({
         const s = data.symptoms || {};
         yPos = await addSectionTitle("EXAMINATION FINDINGS & SYMPTOMS", yPos);
 
+        const cr = data.care_recommendations || {};
+        const careText = (value: unknown) => {
+            if (typeof value !== "string") return "N/A";
+            const trimmed = value.trim();
+            return trimmed.length > 0 ? trimmed : "N/A";
+        };
+
         const examRows = [
-            ["Lips: Dry/Cracked", ef.lipsDryCracked ? "Yes" : "No"],
-            ["Tongue: Dry/Cracked", ef.tongueDryCracked ? "Yes" : "No"],
-            ["Tongue: Ulceration/Soreness", ef.tongueUlceration ? "Yes" : "No"],
-            ["Saliva: Dry Mouth", ef.dryMouth ? "Yes" : "No"],
-            ["Dentures: Top", ef.hasTopDenture ? "Yes" : "No"],
-            ["Dentures: Lower", ef.hasLowerDenture ? "Yes" : "No"],
-            ["Dentures & Natural Teeth", ef.hasDenturesAndNaturalTeeth ? "Yes" : "No"],
-            ["Teeth: Natural", ef.hasNaturalTeeth ? "Yes" : "No"],
-            ["Teeth: Plaque/Debris", ef.evidencePlaqueDebris ? "Yes" : "No"],
-            ["Pain: When eating/drinking", s.painWhenEating ? "Yes" : "No"],
-            ["Gums: Soreness/Ulceration", s.gumsUlceration ? "Yes" : "No"],
-            ["Swallowing: Difficulty", s.difficultySwallowing ? "Yes" : "No"],
-            ["Nutrition: Poor intake", s.poorFluidDietaryIntake ? "Yes" : "No"],
-            ["Dehydrated", s.dehydrated ? "Yes" : "No"],
-            ["Speech: Dry mouth", s.speechDifficultyDryMouth ? "Yes" : "No"],
-            ["Speech: Dentures slipping", s.speechDifficultyDenturesSlipping ? "Yes" : "No"],
-            ["Dexterity: Toothbrushing difficulty", s.dexterityProblems ? "Yes" : "No"],
-            ["Cognitive: Memory loss/confusion", s.cognitiveImpairment ? "Yes" : "No"],
+            ["Lips: Dry/Cracked", ef.lipsDryCracked ? "Yes" : "No", careText(cr.lipsDryCrackedCare)],
+            ["Tongue: Dry/Cracked", ef.tongueDryCracked ? "Yes" : "No", careText(cr.tongueDryCrackedCare)],
+            ["Tongue: Ulceration/Soreness", ef.tongueUlceration ? "Yes" : "No", careText(cr.tongueUlcerationCare)],
+            ["Saliva: Dry Mouth", ef.dryMouth ? "Yes" : "No", careText(cr.dryMouthCare)],
+            ["Dentures: Top", ef.hasTopDenture ? "Yes" : "No", careText(cr.topDentureCare)],
+            ["Dentures: Lower", ef.hasLowerDenture ? "Yes" : "No", careText(cr.lowerDentureCare)],
+            ["Dentures & Natural Teeth", ef.hasDenturesAndNaturalTeeth ? "Yes" : "No", careText(cr.denturesAndNaturalTeethCare)],
+            ["Teeth: Natural", ef.hasNaturalTeeth ? "Yes" : "No", careText(cr.naturalTeethCare)],
+            ["Teeth: Plaque/Debris", ef.evidencePlaqueDebris ? "Yes" : "No", careText(cr.plaqueDebrisCare)],
+            ["Pain: When eating/drinking", s.painWhenEating ? "Yes" : "No", careText(cr.painWhenEatingCare)],
+            ["Gums: Soreness/Ulceration", s.gumsUlceration ? "Yes" : "No", careText(cr.gumsUlcerationCare)],
+            ["Swallowing: Difficulty", s.difficultySwallowing ? "Yes" : "No", careText(cr.difficultySwallowingCare)],
+            ["Nutrition: Poor intake", s.poorFluidDietaryIntake ? "Yes" : "No", careText(cr.poorFluidDietaryIntakeCare)],
+            ["Dehydrated", s.dehydrated ? "Yes" : "No", careText(cr.dehydratedCare)],
+            ["Speech: Dry mouth", s.speechDifficultyDryMouth ? "Yes" : "No", careText(cr.speechDifficultyDryMouthCare)],
+            ["Speech: Dentures slipping", s.speechDifficultyDenturesSlipping ? "Yes" : "No", careText(cr.speechDifficultyDenturesSlippingCare)],
+            ["Dexterity: Toothbrushing difficulty", s.dexterityProblems ? "Yes" : "No", careText(cr.dexterityProblemsCare)],
+            ["Cognitive: Memory loss/confusion", s.cognitiveImpairment ? "Yes" : "No", careText(cr.cognitiveImpairmentCare)],
         ];
 
         autoTable(doc, {
             startY: yPos,
-            head: [['Field / Symptom', 'Status']],
+            head: [['Field / Symptom', 'Status', 'Suggested Care']],
             body: examRows,
             theme: 'grid',
             headStyles: { fillColor: [34, 197, 94] },
             styles: { fontSize: 8 },
             columnStyles: {
-                0: { cellWidth: 'auto' },
-                1: { cellWidth: 30, halign: 'center' }
+                0: { cellWidth: 72 },
+                1: { cellWidth: 22, halign: 'center' },
+                2: { cellWidth: 'auto' }
             }
         });
 
@@ -2356,11 +2563,18 @@ export const generateCareFilePDF = async ({
     }
 
     const isPEEPForm = formName.toUpperCase().includes("PEEP");
+    const isPersonalProfileForm = formName.toUpperCase().includes("PERSONAL PROFILE");
+    const isMovingHandlingForm =
+        formName.toUpperCase().includes("MOVING") && formName.toUpperCase().includes("HANDLING");
+    const isNutritionAssessmentForm =
+        formName.toUpperCase().includes("NUTRITIONAL ASSESSMENT") ||
+        formName.toUpperCase().includes("NUTRITION ASSESSMENT") ||
+        (formName.toUpperCase().includes("NUTRITION") && formName.toUpperCase().includes("ASSESSMENT"));
     const col2 = margin + (pageWidth - margin * 2) / 2;
     const colWidth = (pageWidth - margin * 2) / 2 - 5;
 
     // --- Resident Info Section ---
-    if (!isPEEPForm) {
+    if (!isPEEPForm && !isPersonalProfileForm && !isMovingHandlingForm && !isNutritionAssessmentForm) {
         yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
         let y1 = await addField("Full Name", [resident?.first_name, resident?.middle_name, resident?.last_name].filter(Boolean).join(" "), margin, yPos, colWidth);
         const dobValue = resident?.date_of_birth || resident?.dateOfBirth;
@@ -2405,7 +2619,36 @@ export const generateCareFilePDF = async ({
             .trim();
     };
 
-    if (!isPEEPForm) {
+    const isResidentHandlingProfileForm = formName.toUpperCase().includes("RESIDENT HANDLING PROFILE");
+
+    const formatResidentHandlingDate = (value: unknown): string => {
+        if (value === null || value === undefined || value === "") return "N/A";
+
+        if (typeof value === "string") {
+            const trimmed = value.trim();
+            if (/^\d{13}$/.test(trimmed) || /^\d{10}$/.test(trimmed)) {
+                const numeric = Number(trimmed);
+                const normalized = trimmed.length === 10 ? numeric * 1000 : numeric;
+                const parsed = new Date(normalized);
+                return Number.isNaN(parsed.getTime()) ? "N/A" : format(parsed, "dd/MM/yyyy");
+            }
+            if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+                const [yearStr, monthStr, dayStr] = trimmed.split("-");
+                return `${dayStr}/${monthStr}/${yearStr}`;
+            }
+        }
+
+        if (typeof value === "number" && Number.isFinite(value)) {
+            const normalized = value < 1e12 ? value * 1000 : value;
+            const parsed = new Date(normalized);
+            return Number.isNaN(parsed.getTime()) ? "N/A" : format(parsed, "dd/MM/yyyy");
+        }
+
+        const parsed = new Date(value as string | number | Date);
+        return Number.isNaN(parsed.getTime()) ? "N/A" : format(parsed, "dd/MM/yyyy");
+    };
+
+    if (!isPEEPForm && !isMovingHandlingForm && !isNutritionAssessmentForm) {
         yPos = await addSectionTitle("FORM DETAILS", yPos);
     }
     const renderData = async (obj: any, startY: number, startX: number, depth: number = 0): Promise<number> => {
@@ -2568,6 +2811,199 @@ export const generateCareFilePDF = async ({
 
         const consentType = data.consentType || data.assessment_data?.consentType;
         const isRestraintsForm = formName.toUpperCase().includes("CONSENT AND RISK ASSESSMENT FOR RESTRAINTS");
+        const isBedRailsRiskAssessmentForm =
+            formName.toUpperCase().includes("BEDRAIL RISK ASSESSMENT") ||
+            formName.toUpperCase().includes("BED RAIL RISK ASSESSMENT") ||
+            formName.toUpperCase().includes("RISK ASSESSMENT FOR USE OF BED RAILS");
+
+        if (isBedRailsRiskAssessmentForm) {
+            const valueFromPath = (source: Record<string, unknown>, path: string): unknown => {
+                return path.split(".").reduce<unknown>((acc, part) => {
+                    if (acc && typeof acc === "object" && part in (acc as Record<string, unknown>)) {
+                        return (acc as Record<string, unknown>)[part];
+                    }
+                    return undefined;
+                }, source);
+            };
+
+            const toYesNo = (value: unknown): string => {
+                if (value === true || value === "YES" || value === "Yes") return "Yes";
+                if (value === false || value === "NO" || value === "No") return "No";
+                return "No";
+            };
+
+            const toText = (value: unknown): string => {
+                if (value === null || value === undefined) return "Not provided";
+                if (typeof value === "string") return value.trim() ? value : "Not provided";
+                return String(value);
+            };
+            const toDateText = (value: unknown): string => {
+                if (value === null || value === undefined || value === "") return "Not provided";
+                const parsed = new Date(value as string | number | Date);
+                return Number.isNaN(parsed.getTime()) ? "Not provided" : format(parsed, "dd/MM/yyyy");
+            };
+
+            const residentFullName = [resident?.first_name, resident?.middle_name, resident?.last_name]
+                .filter(Boolean)
+                .join(" ")
+                .trim();
+            const bedRailsSource = {
+                ...(data as Record<string, unknown>),
+                ...(assessmentDataForSpecialized as Record<string, unknown>),
+                ...(obj as Record<string, unknown>),
+                residentName: (obj as Record<string, unknown>)?.residentName
+                    ?? (assessmentDataForSpecialized as Record<string, unknown>)?.residentName
+                    ?? (data as Record<string, unknown>)?.residentName
+                    ?? residentFullName,
+                dateOfBirth: (obj as Record<string, unknown>)?.dateOfBirth
+                    ?? (assessmentDataForSpecialized as Record<string, unknown>)?.dateOfBirth
+                    ?? (data as Record<string, unknown>)?.dateOfBirth
+                    ?? resident?.date_of_birth
+                    ?? resident?.dateOfBirth,
+                careHomeName: (obj as Record<string, unknown>)?.careHomeName
+                    ?? (assessmentDataForSpecialized as Record<string, unknown>)?.careHomeName
+                    ?? (data as Record<string, unknown>)?.careHomeName
+                    ?? (data as Record<string, unknown>)?.care_home_name
+                    ?? careHomeName,
+                bedroomNumber: (obj as Record<string, unknown>)?.bedroomNumber
+                    ?? (assessmentDataForSpecialized as Record<string, unknown>)?.bedroomNumber
+                    ?? (data as Record<string, unknown>)?.bedroomNumber
+                    ?? (data as Record<string, unknown>)?.bedroom_number
+                    ?? resident?.room_number
+                    ?? resident?.roomNumber,
+            } as Record<string, unknown>;
+            const prettifyEnum = (value: unknown): string => {
+                if (value === null || value === undefined) return "Not provided";
+                const text = String(value).trim();
+                if (!text) return "Not provided";
+                return text.replace(/_/g, " ").replace(/\s+/g, " ").toUpperCase();
+            };
+            const firstDefined = (paths: string[]): unknown => {
+                for (const path of paths) {
+                    const value = valueFromPath(bedRailsSource, path);
+                    if (value !== undefined && value !== null && value !== "") {
+                        return value;
+                    }
+                }
+                return undefined;
+            };
+
+            const sectionFieldMap: Array<{ section: string; fields: Array<{ label: string; paths: string[]; type?: "yesno" | "text" | "date" | "enum" }> }> = [
+                {
+                    section: "ADMINISTRATIVE DETAILS",
+                    fields: [
+                        { label: "Resident Name", paths: ["residentName", "assessment_data.residentName"], type: "text" },
+                        { label: "Bedroom Number", paths: ["bedroomNumber", "bedroom_number", "assessment_data.bedroomNumber", "assessment_data.bedroom_number"], type: "text" },
+                        { label: "Date of Birth", paths: ["dateOfBirth", "assessment_data.dateOfBirth"], type: "date" },
+                        { label: "Date of Assessment", paths: ["assessment_date", "assessmentDate", "assessment_data.assessmentDate", "assessment_data.assessment_date"], type: "date" },
+                        { label: "Assessment Completed By", paths: ["completed_by", "completedBy", "assessment_data.completed_by", "assessment_data.completedBy"], type: "text" },
+                        { label: "Job Role", paths: ["jobRole", "job_role", "assessment_data.jobRole", "assessment_data.job_role"], type: "text" },
+                        { label: "Care Home", paths: ["careHomeName", "care_home_name", "assessment_data.careHomeName", "assessment_data.care_home_name"], type: "text" },
+                        { label: "Date Generated", paths: ["created_at", "assessment_data.created_at"], type: "date" },
+                    ],
+                },
+                {
+                    section: "TRIAL & RATIONALE",
+                    fields: [
+                        { label: "Alternative Equipment Considered/Trialled", paths: ["alternatives_considered.considered", "alternativeEquipmentConsidered", "assessment_data.alternativeEquipmentConsidered"], type: "text" },
+                        { label: "Reasons Why Alternatives Have Not Been Successful", paths: ["alternatives_considered.reasons", "reasonsAlternativesNotSuccessful", "assessment_data.reasonsAlternativesNotSuccessful"], type: "text" },
+                    ],
+                },
+                {
+                    section: "EXCLUSION CRITERIA (WHEN RAILS CANNOT BE USED)",
+                    fields: [
+                        { label: "Resident with capacity refuses", paths: ["risks_identified.residentRefuses", "assessment_data.risks_identified.residentRefuses"], type: "yesno" },
+                        { label: "Risk of climbing over rails", paths: ["risks_identified.climbingRisk", "assessment_data.risks_identified.climbingRisk"], type: "yesno" },
+                        { label: "Risk of head/limb entrapment", paths: ["risks_identified.entrapmentRisk", "assessment_data.risks_identified.entrapmentRisk"], type: "yesno" },
+                        { label: "Abnormally small body size", paths: ["risks_identified.abnormalBodySize", "assessment_data.risks_identified.abnormalBodySize"], type: "yesno" },
+                        { label: "Used for restraint of violent movement", paths: ["risks_identified.restraintPurpose", "assessment_data.risks_identified.restraintPurpose"], type: "yesno" },
+                        { label: "Used solely to prevent leaving bed", paths: ["risks_identified.freedomLimitation", "assessment_data.risks_identified.freedomLimitation"], type: "yesno" },
+                        { label: "Any Exclusion Criteria Checked", paths: ["anyExclusionChecked", "assessment_data.anyExclusionChecked"], type: "yesno" },
+                    ],
+                },
+                {
+                    section: "BENEFITS & AUTHORIZATION (WHEN RAILS CAN BE USED)",
+                    fields: [
+                        { label: "Resident with capacity requests", paths: ["benefits_identified.residentRequests", "assessment_data.benefits_identified.residentRequests"], type: "yesno" },
+                        { label: "MDT meeting understands risks", paths: ["benefits_identified.mdtMeetingCompleted", "assessment_data.benefits_identified.mdtMeetingCompleted"], type: "yesno" },
+                        { label: "Falling risk outweighs rail risk", paths: ["benefits_identified.riskOutweighsBenefit", "assessment_data.benefits_identified.riskOutweighsBenefit"], type: "yesno" },
+                        { label: "All other alternatives unsuccessful", paths: ["benefits_identified.alternativesExplored", "assessment_data.benefits_identified.alternativesExplored"], type: "yesno" },
+                        { label: "Best interest decision (if no capacity)", paths: ["benefits_identified.bestInterestDecision", "assessment_data.benefits_identified.bestInterestDecision"], type: "yesno" },
+                        { label: "Has the reason for using bed rails been explained to the Resident?", paths: ["decision.reasonExplainedToResident", "reasonExplainedToResident", "assessment_data.decision.reasonExplainedToResident"], type: "yesno" },
+                    ],
+                },
+                {
+                    section: "EQUIPMENT CONFIGURATION",
+                    fields: [
+                        { label: "Type of Bed", paths: ["decision.typeOfBed", "typeOfBed", "assessment_data.decision.typeOfBed"], type: "enum" },
+                        { label: "Type of Mattress", paths: ["decision.typeOfMattress", "typeOfMattress", "assessment_data.decision.typeOfMattress"], type: "enum" },
+                        { label: "Type of Bedrails", paths: ["decision.typeOfBedrails", "typeOfBedrails", "assessment_data.decision.typeOfBedrails"], type: "enum" },
+                        { label: "Has Extended Height Bed Rails", paths: ["decision.hasExtendedHeightRails", "hasExtendedHeightRails", "assessment_data.decision.hasExtendedHeightRails"], type: "yesno" },
+                        { label: "Obtained consent from Resident or consulted NOK?", paths: ["decision.consentObtained", "consentObtained", "assessment_data.decision.consentObtained"], type: "yesno" },
+                        { label: "Have you completed a care plan?", paths: ["decision.carePlanCompleted", "carePlanCompleted", "assessment_data.decision.carePlanCompleted"], type: "yesno" },
+                    ],
+                },
+                {
+                    section: "SAFETY CHECKLIST (ENTRAPMENT RISK)",
+                    fields: [
+                        { label: "Gap between lower bar and top of mattress?", paths: ["decision.safetyChecklist.gapBetweenRailAndMattress", "safetyChecklist.gapBetweenRailAndMattress", "assessment_data.decision.safetyChecklist.gapBetweenRailAndMattress"], type: "yesno" },
+                        { label: "Does mattress compress easily at edge?", paths: ["decision.safetyChecklist.mattressCompressesEasily", "safetyChecklist.mattressCompressesEasily", "assessment_data.decision.safetyChecklist.mattressCompressesEasily"], type: "yesno" },
+                        { label: "Gap greater than 60mm between rail and headboard/wall?", paths: ["decision.safetyChecklist.gapMoreThan60mm", "safetyChecklist.gapMoreThan60mm", "assessment_data.decision.safetyChecklist.gapMoreThan60mm"], type: "yesno" },
+                        { label: "Is the bed rail insecure?", paths: ["decision.safetyChecklist.bedRailInsecure", "safetyChecklist.bedRailInsecure", "assessment_data.decision.safetyChecklist.bedRailInsecure"], type: "yesno" },
+                        { label: "Is the bed positioned against a wall?", paths: ["decision.safetyChecklist.bedAgainstWall", "safetyChecklist.bedAgainstWall", "assessment_data.decision.safetyChecklist.bedAgainstWall"], type: "yesno" },
+                        { label: "Any Safety Check Failed", paths: ["decision.anySafetyCheckFailed", "anySafetyCheckFailed", "assessment_data.decision.anySafetyCheckFailed"], type: "yesno" },
+                    ],
+                },
+                {
+                    section: "EXTENDED HEIGHT BED RAILS",
+                    fields: [
+                        { label: "Is the extended bed rail positioned as far to the head of the bed as possible with a gap of less than 60mm?", paths: ["decision.extendedHeightChecks.positionedCorrectly", "extendedHeightChecks.positionedCorrectly", "assessment_data.decision.extendedHeightChecks.positionedCorrectly"], type: "yesno" },
+                        { label: "Is the extended height bed rail securely fastened to the integrated bed rail?", paths: ["decision.extendedHeightChecks.securelyFastened", "extendedHeightChecks.securelyFastened", "assessment_data.decision.extendedHeightChecks.securelyFastened"], type: "yesno" },
+                        { label: "Are the correct bumpers installed?", paths: ["decision.extendedHeightChecks.correctBumpersInstalled", "extendedHeightChecks.correctBumpersInstalled", "assessment_data.decision.extendedHeightChecks.correctBumpersInstalled"], type: "yesno" },
+                        { label: "Does the mattress come below the plimsoll line on the bumper?", paths: ["decision.extendedHeightChecks.mattressBelowPlimsollLine", "extendedHeightChecks.mattressBelowPlimsollLine", "assessment_data.decision.extendedHeightChecks.mattressBelowPlimsollLine"], type: "yesno" },
+                        { label: "Have staff been trained how to attach and remove the extended bed rail?", paths: ["decision.extendedHeightChecks.staffTrained", "extendedHeightChecks.staffTrained", "assessment_data.decision.extendedHeightChecks.staffTrained"], type: "yesno" },
+                        { label: "Has the bed and bed rails been checked for any signs of damage or wear and tear?", paths: ["decision.extendedHeightChecks.checkedForDamage", "extendedHeightChecks.checkedForDamage", "assessment_data.decision.extendedHeightChecks.checkedForDamage"], type: "yesno" },
+                    ],
+                },
+                {
+                    section: "GENERAL & SIGN-OFF",
+                    fields: [
+                        { label: "Digital Signature (Assessor)", paths: ["signatureOfAssessor", "assessment_data.signatureOfAssessor", "completed_by", "completedBy"], type: "text" },
+                        { label: "Signature Date", paths: ["signatureDate", "assessment_data.signatureDate", "assessment_date", "assessmentDate"], type: "date" },
+                        { label: "Version Number", paths: ["version_number", "version", "assessment_data.version_number", "assessment_data.version"], type: "text" },
+                    ],
+                },
+            ];
+
+            const fullWidth = pageWidth - margin * 2;
+
+            for (const section of sectionFieldMap) {
+                if (localX !== margin) { localY = maxY + 2; localX = margin; }
+                localY = await addSectionTitle(section.section, localY);
+
+                for (const field of section.fields) {
+                    const rawValue = firstDefined(field.paths);
+                    let renderedValue = "";
+
+                    if (field.type === "yesno") {
+                        renderedValue = toYesNo(rawValue);
+                    } else if (field.type === "date") {
+                        renderedValue = toDateText(rawValue);
+                    } else if (field.type === "enum") {
+                        renderedValue = prettifyEnum(rawValue);
+                    } else {
+                        renderedValue = toText(rawValue);
+                    }
+
+                    const fieldY = await addField(field.label, renderedValue, margin, localY, fullWidth);
+                    maxY = Math.max(maxY, fieldY);
+                    localY = fieldY + 1;
+                    maxY = localY;
+                }
+            }
+
+            return maxY;
+        }
 
         const entries = Object.entries(obj).filter(([k, v]) => {
             if (SKIP_KEYS.has(k) || isEmptyValue(v)) return false;
@@ -2608,7 +3044,16 @@ export const generateCareFilePDF = async ({
                     maxY = Math.max(maxY, localY);
                 }
             } else {
-                const fieldY = await addField(formatFieldKey(key), value, localX, localY, cWidth, true);
+                const normalizedLabel =
+                    isResidentHandlingProfileForm && key === "nStaff"
+                        ? "Number of staff required"
+                        : formatFieldKey(key);
+                const normalizedValue =
+                    isResidentHandlingProfileForm && key.toLowerCase().includes("date")
+                        ? formatResidentHandlingDate(value)
+                        : value;
+
+                const fieldY = await addField(normalizedLabel, normalizedValue, localX, localY, cWidth, true);
                 maxY = Math.max(maxY, fieldY);
 
                 if (localX === margin) {
@@ -3152,6 +3597,333 @@ export const generateCareFilePDF = async ({
         return;
     }
 
+    // --- Pain Assessment Specialized Layout ---
+    if (formName.toUpperCase().includes("PAIN ASSESSMENT")) {
+        const source = assessmentDataForSpecialized as Record<string, unknown>;
+        const nestedAssessmentEntries =
+            source.assessment_entries &&
+            typeof source.assessment_entries === "object" &&
+            !Array.isArray(source.assessment_entries)
+                ? (source.assessment_entries as Record<string, unknown>)
+                : null;
+        const painData = (nestedAssessmentEntries ?? source) as Record<string, unknown>;
+        const bodyMapRaw = painData.bodyMapMarkers ?? painData.body_map_markers;
+        const bodyMapMarkers: Record<string, unknown>[] = Array.isArray(bodyMapRaw) ? (bodyMapRaw as Record<string, unknown>[]) : [];
+        const fullWidth = pageWidth - margin * 2;
+        const sectionLabelWidth = 52;
+        const sectionValueWidth = fullWidth - sectionLabelWidth;
+
+        const toText = (value: unknown): string => {
+            if (typeof value === "boolean") return value ? "Yes" : "No";
+            if (value === null || value === undefined) return "N/A";
+            if (typeof value === "string") return value.trim() ? value : "N/A";
+            if (typeof value === "number") return String(value);
+            if (value instanceof Date) return format(value, "dd/MM/yyyy");
+            return formatValue(value);
+        };
+        const toYesNo = (value: unknown): string => (value === true ? "Yes" : "No");
+        const getFormField = (key: string): unknown => {
+            if (painData[key] !== undefined && painData[key] !== null) return painData[key];
+            if (source[key] !== undefined && source[key] !== null) return source[key];
+            if (data?.[key] !== undefined && data?.[key] !== null) return data[key];
+            return undefined;
+        };
+        const formatDateOnly = (value: unknown): string => {
+            if (value === null || value === undefined || value === "") return "N/A";
+            const dateObj = value instanceof Date ? value : new Date(value as string | number);
+            if (Number.isNaN(dateObj.getTime())) return toText(value);
+            return format(dateObj, "dd/MM/yyyy");
+        };
+
+        // Header table matching form view.
+        const tableTopY = yPos;
+        const headerHeight = 7;
+        const valueHeight = 10;
+        const colWidth = fullWidth / 3;
+        const residentName = toText(
+            getFormField("residentName") ?? [resident?.first_name, resident?.middle_name, resident?.last_name].filter(Boolean).join(" ")
+        );
+        const roomNumber = toText(getFormField("roomNumber") ?? getFormField("bedroomNumber") ?? resident?.room_number ?? resident?.roomNumber);
+        const dob = formatDateOnly(getFormField("dateOfBirth") ?? resident?.date_of_birth ?? resident?.dateOfBirth);
+
+        doc.setFillColor(241, 245, 249);
+        doc.setDrawColor(203, 213, 225);
+        for (let i = 0; i < 3; i += 1) {
+            doc.rect(margin + i * colWidth, tableTopY, colWidth, headerHeight, "FD");
+        }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(55, 65, 81);
+        doc.text("RESIDENTS NAME", margin + 2, tableTopY + 4.5);
+        doc.text("BEDROOM NUMBER", margin + colWidth + 2, tableTopY + 4.5);
+        doc.text("DATE OF BIRTH", margin + colWidth * 2 + 2, tableTopY + 4.5);
+
+        for (let i = 0; i < 3; i += 1) {
+            doc.rect(margin + i * colWidth, tableTopY + headerHeight, colWidth, valueHeight, "S");
+        }
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(17, 24, 39);
+        doc.text(doc.splitTextToSize(residentName, colWidth - 4), margin + 2, tableTopY + headerHeight + 4.5);
+        doc.text(doc.splitTextToSize(roomNumber, colWidth - 4), margin + colWidth + 2, tableTopY + headerHeight + 4.5);
+        doc.text(doc.splitTextToSize(dob, colWidth - 4), margin + colWidth * 2 + 2, tableTopY + headerHeight + 4.5);
+        yPos = tableTopY + headerHeight + valueHeight + 8;
+
+        // Main title matching form.
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.setTextColor(17, 24, 39);
+        doc.text("PAIN ASSESSMENT RECORD", pageWidth / 2, yPos, { align: "center" });
+        yPos += 6;
+
+        // Body map rendering with highlighted regions.
+        const mapWidth = 150;
+        const mapHeight = (mapWidth * 515) / 577;
+        const mapX = (pageWidth - mapWidth) / 2;
+        const mapY = yPos;
+        doc.setDrawColor(203, 213, 225);
+        doc.rect(mapX, mapY, mapWidth, mapHeight);
+        try {
+            const img = await loadImage("/images/body_template_without_rectangular_boxes.png");
+            doc.addImage(img, "PNG", mapX, mapY, mapWidth, mapHeight);
+        } catch (e) {
+            console.warn("Pain Assessment body map image failed to load", e);
+        }
+
+        for (const marker of bodyMapMarkers) {
+            const regionId = String(marker.region_id ?? "");
+            const region = BODY_REGIONS.find((r) => r.region_id === regionId);
+            if (!region) continue;
+            const rectX = mapX + (region.x * mapWidth) / 100;
+            const rectY = mapY + (region.y * mapHeight) / 100;
+            const rectW = (region.width * mapWidth) / 100;
+            const rectH = (region.height * mapHeight) / 100;
+            doc.setFillColor(216, 180, 254);
+            doc.setDrawColor(147, 51, 234);
+            doc.setGState(new (doc as any).GState({ opacity: 0.28 }));
+            doc.rect(rectX, rectY, rectW, rectH, "FD");
+            doc.setGState(new (doc as any).GState({ opacity: 1.0 }));
+            const label = marker.label ? String(marker.label) : "";
+            if (label) {
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(7);
+                doc.setTextColor(88, 28, 135);
+                doc.text(label, rectX + 1, rectY + 3.5);
+            }
+        }
+        yPos = mapY + mapHeight + 8;
+
+        // Field rows matching view layout.
+        const drawPainRow = (label: string, value: string, rowY: number, minHeight = 20): number => {
+            const valueLines = doc.splitTextToSize(value, sectionValueWidth - 4);
+            const rowHeight = Math.max(minHeight, valueLines.length * 4 + 6);
+            doc.setFillColor(248, 250, 252);
+            doc.setDrawColor(203, 213, 225);
+            doc.rect(margin, rowY, sectionLabelWidth, rowHeight, "FD");
+            doc.rect(margin + sectionLabelWidth, rowY, sectionValueWidth, rowHeight, "S");
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8.5);
+            doc.setTextColor(17, 24, 39);
+            doc.text(doc.splitTextToSize(label, sectionLabelWidth - 4), margin + 2, rowY + 5);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9.5);
+            doc.text(valueLines, margin + sectionLabelWidth + 2, rowY + 5);
+            return rowY + rowHeight;
+        };
+
+        const descriptionOfPain = toText(getFormField("descriptionOfPain") ?? getFormField("description_of_pain"));
+        const relievePain = toText(getFormField("relievePain") ?? getFormField("relieve_pain"));
+        const worsePain = toText(getFormField("worsePain") ?? getFormField("worse_pain"));
+        yPos = drawPainRow("Residents description of their pain", descriptionOfPain, yPos);
+        yPos = drawPainRow("What will relieve the pain?", relievePain, yPos);
+        yPos = drawPainRow("What will make the pain worse?", worsePain, yPos);
+        yPos += 5;
+
+        // Signature/footer area matching form bottom grouping.
+        yPos = await ensureSpace(38, yPos);
+        const footerTopY = yPos;
+        const boxGap = 8;
+        const boxWidth = (fullWidth - boxGap) / 2;
+        const boxHeight = 28;
+        doc.setDrawColor(203, 213, 225);
+        doc.rect(margin, footerTopY, boxWidth, boxHeight);
+        doc.rect(margin + boxWidth + boxGap, footerTopY, boxWidth, boxHeight);
+
+        const completedBy = toText(getFormField("completedBy") ?? getFormField("completed_by"));
+        const role = toText(getFormField("role") ?? getFormField("jobRole") ?? getFormField("job_role"));
+        const signature = toText(getFormField("signature"));
+        const assessedDate = formatDateOnly(getFormField("assessmentDate") ?? getFormField("assessment_date") ?? data?.assessment_date);
+        const time = toText(getFormField("time") ?? getFormField("assessmentTime") ?? getFormField("assessment_time"));
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(75, 85, 99);
+        doc.text("NAME OF PERSON COMPLETING ASSESSMENT", margin + 2, footerTopY + 4.5);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(17, 24, 39);
+        doc.text(doc.splitTextToSize(completedBy, boxWidth - 4), margin + 2, footerTopY + 9);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(75, 85, 99);
+        doc.text("SIGNATURE", margin + 2, footerTopY + 16);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(17, 24, 39);
+        doc.text(doc.splitTextToSize(signature, boxWidth - 4), margin + 2, footerTopY + 20.5);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(75, 85, 99);
+        doc.text("JOB ROLE", margin + boxWidth + boxGap + 2, footerTopY + 4.5);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(17, 24, 39);
+        doc.text(doc.splitTextToSize(role, boxWidth - 4), margin + boxWidth + boxGap + 2, footerTopY + 9);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(75, 85, 99);
+        doc.text("DATE", margin + boxWidth + boxGap + 2, footerTopY + 16);
+        doc.text("TIME", margin + boxWidth + boxGap + boxWidth / 2, footerTopY + 16);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(17, 24, 39);
+        doc.text(assessedDate, margin + boxWidth + boxGap + 2, footerTopY + 20.5);
+        doc.text(time, margin + boxWidth + boxGap + boxWidth / 2, footerTopY + 20.5);
+
+        yPos = footerTopY + boxHeight + 4;
+
+        doc.save(`Pain-Assessment-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    // --- Personal Profile Specialized Layout ---
+    if (formName.toUpperCase().includes("PERSONAL PROFILE")) {
+        const assessmentData = assessmentDataForSpecialized as Record<string, unknown>;
+        const fullWidth = pageWidth - margin * 2;
+
+        const formatPersonalProfileDate = (value: unknown): string => {
+            if (value === null || value === undefined || value === "") return "N/A";
+            const dateObj = value instanceof Date ? value : new Date(value as string | number);
+            if (Number.isNaN(dateObj.getTime())) return "N/A";
+            return format(dateObj, "dd/MM/yyyy");
+        };
+
+        const normalizePersonalProfileValue = (value: unknown): string => {
+            if (typeof value === "boolean") return value ? "Yes" : "No";
+            if (value === null || value === undefined) return "N/A";
+            if (typeof value === "string") return value.trim() ? value : "N/A";
+            if (typeof value === "number") return String(value);
+            if (value instanceof Date) return formatPersonalProfileDate(value);
+            return formatValue(value);
+        };
+
+        const readPersonalProfileField = (
+            key: string,
+            type: "text" | "date" | "checkbox" = "text"
+        ): string => {
+            const rawValue = assessmentData[key];
+
+            if (type === "checkbox") {
+                // Checkboxes must always be explicit in output.
+                return normalizePersonalProfileValue(rawValue ?? false);
+            }
+
+            if (type === "date") {
+                return formatPersonalProfileDate(rawValue);
+            }
+
+            return normalizePersonalProfileValue(rawValue);
+        };
+
+        const personalProfileSections: Array<{
+            title: string;
+            fields: Array<{ label: string; key: string; type?: "text" | "date" | "checkbox" }>;
+        }> = [
+                {
+                    title: "Resident Details",
+                    fields: [
+                        { label: "First Name", key: "firstName" },
+                        { label: "Last Name", key: "lastName" },
+                        { label: "Date of Birth", key: "dateOfBirth", type: "date" },
+                        { label: "Preferred Name", key: "desiredName" }
+                    ]
+                },
+                {
+                    title: "Consent",
+                    fields: [
+                        { label: "Information Sharing Consent", key: "informationSharingConsent", type: "checkbox" }
+                    ]
+                },
+                {
+                    title: "Life Story",
+                    fields: [
+                        { label: "Birth and Growth", key: "birthAndGrowth" },
+                        { label: "Parents Details", key: "parentsDetails" },
+                        { label: "Siblings Details", key: "siblingsDetails" },
+                        { label: "Religion / Spirituality", key: "religionSpirituality" },
+                        { label: "School / Childhood", key: "schoolChildhood" },
+                        { label: "Friends / Neighbours", key: "friendsNeighbours" },
+                        { label: "Partner / Family Details", key: "partnerFamilyDetails" },
+                        { label: "Work History", key: "workHistory" }
+                    ]
+                },
+                {
+                    title: "Personal, Health and Well-being",
+                    fields: [
+                        { label: "Personality", key: "personality" },
+                        { label: "Hobbies / Interests", key: "hobbiesInterests" },
+                        { label: "Likes", key: "likes" },
+                        { label: "Dislikes", key: "dislikes" },
+                        { label: "Happiest Memory", key: "happiestMemory" },
+                        { label: "Enjoy Talking About", key: "enjoyTalkingAbout" },
+                        { label: "Traumatic Events", key: "traumaticEvents" },
+                        { label: "Usual Routine", key: "usualRoutine" },
+                        { label: "Mental Health Problems", key: "mentalHealthProblems" },
+                        { label: "Illness Recovery", key: "illnessRecovery" },
+                        { label: "Physical Health Problems", key: "physicalHealthProblems" },
+                        { label: "Feelings About Care", key: "feelingsAboutCare" },
+                        { label: "Staff Difficulties", key: "staffDifficulties" },
+                        { label: "Additional Comments", key: "additionalComments" }
+                    ]
+                },
+                {
+                    title: "Family / Representative",
+                    fields: [
+                        { label: "Family Representative Name", key: "familyRepName" },
+                        { label: "Family Representative Date", key: "familyRepDate", type: "date" },
+                        { label: "Family Representative Signature", key: "familyRepSignature" }
+                    ]
+                },
+                {
+                    title: "Completed By (Staff)",
+                    fields: [
+                        { label: "Completed By Name", key: "completedByName" },
+                        { label: "Completed By Designation", key: "completedByDesignation" },
+                        { label: "Completed By Date", key: "completedByDate", type: "date" },
+                        { label: "Completed By Signature", key: "completedBySignature" },
+                        { label: "Assessment Date", key: "assessmentDate", type: "date" }
+                    ]
+                }
+            ];
+
+        for (const section of personalProfileSections) {
+            yPos = await addSectionTitle(section.title, yPos);
+            for (const field of section.fields) {
+                yPos = await addField(
+                    field.label,
+                    readPersonalProfileField(field.key, field.type ?? "text"),
+                    margin,
+                    yPos,
+                    fullWidth
+                );
+            }
+        }
+
+        doc.save(`Personal-Profile-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
     // --- PEEP (Personal Emergency Evacuation Plan) Specialized Layout ---
     if (formName.toUpperCase().includes("PEEP")) {
         const assessmentData = assessmentDataForSpecialized;
@@ -3283,9 +4055,457 @@ export const generateCareFilePDF = async ({
         return;
     }
 
+    // --- Moving & Handling Specialized Layout ---
+    if (formName.toUpperCase().includes("MOVING") && formName.toUpperCase().includes("HANDLING")) {
+        const rawData = data as Record<string, unknown>;
+        const source = assessmentDataForSpecialized as Record<string, unknown>;
+        const sourceAssessment = (source.assessment_data ?? {}) as Record<string, unknown>;
+        const rawAssessment = (rawData.assessment_data ?? {}) as Record<string, unknown>;
+
+        const mobility = (
+            source.mobility_assessment ??
+            sourceAssessment.mobility_assessment ??
+            rawData.mobility_assessment ??
+            rawAssessment.mobility_assessment ??
+            {}
+        ) as Record<string, unknown>;
+
+        const risk = (
+            source.risk_factors ??
+            source.riskFactors ??
+            sourceAssessment.risk_factors ??
+            sourceAssessment.riskFactors ??
+            rawData.risk_factors ??
+            rawData.riskFactors ??
+            rawAssessment.risk_factors ??
+            rawAssessment.riskFactors ??
+            {}
+        ) as Record<string, unknown>;
+
+        const assessmentData: Record<string, unknown> = {
+            ...rawData,
+            ...source,
+            ...rawAssessment,
+            ...sourceAssessment,
+            ...mobility,
+            ...risk,
+            equipmentUsed:
+                source.equipmentUsed ??
+                source.equipment_needed ??
+                rawData.equipmentUsed ??
+                rawData.equipment_needed,
+            completedBy:
+                source.completedBy ??
+                source.completed_by ??
+                rawData.completedBy ??
+                rawData.completed_by,
+            jobRole:
+                source.jobRole ??
+                source.job_role ??
+                source.role ??
+                risk.jobRole ??
+                risk.job_role ??
+                rawData.jobRole ??
+                rawData.job_role,
+            signature:
+                source.signature ??
+                source.staffSignature ??
+                source.staff_signature ??
+                risk.signature ??
+                risk.staffSignature ??
+                risk.staff_signature ??
+                source.completedBy ??
+                source.completed_by,
+            assessmentDate:
+                source.assessmentDate ??
+                source.assessment_date ??
+                source.completionDate ??
+                source.completion_date ??
+                rawData.assessmentDate ??
+                rawData.assessment_date
+        };
+        const fullWidth = pageWidth - margin * 2;
+
+        const display = (value: unknown): string => {
+            if (value === null || value === undefined) return "N/A";
+            if (typeof value === "string") return value.trim() ? value : "N/A";
+            return String(value);
+        };
+
+        const displayDate = (value: unknown): string => {
+            if (!value) return "N/A";
+            const parsed = new Date(value as string | number | Date);
+            return Number.isNaN(parsed.getTime()) ? "N/A" : format(parsed, "dd/MM/yyyy");
+        };
+
+        const yesNo = (value: unknown): string => {
+            if (value === true) return "Yes";
+            if (value === false) return "No";
+            if (typeof value === "number") return value === 1 ? "Yes" : "No";
+            if (typeof value === "string") {
+                const normalized = value.trim().toLowerCase();
+                return normalized === "true" || normalized === "yes" || normalized === "1" ? "Yes" : "No";
+            }
+            return "No";
+        };
+
+        const enumDisplay = (value: unknown): string => {
+            const text = display(value);
+            if (text === "N/A") return text;
+            return text.replace(/-/g, " ").replace(/_/g, " ").toUpperCase();
+        };
+
+        // Override field renderer for this form only to prevent text overlap.
+        const addField = async (label: string, value: unknown, x: number, y: number, width: number) => {
+            const displayValue = display(value);
+            const splitValue = doc.splitTextToSize(displayValue, width);
+            const lineHeight = 4.8;
+            const neededHeight = 8 + (splitValue.length * lineHeight) + 2;
+
+            y = await ensureSpace(neededHeight, y);
+
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(107, 114, 128);
+            doc.text(label.toUpperCase(), x, y);
+
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(17, 24, 39);
+            doc.text(splitValue, x, y + 5);
+
+            return y + 6 + (splitValue.length * lineHeight);
+        };
+
+        const addSubsectionTitle = async (title: string, y: number) => {
+            if (y + 14 > 280) {
+                doc.addPage();
+                await drawHeader(formName);
+                y = 30;
+            }
+            doc.setFillColor(219, 234, 254);
+            doc.rect(margin, y, fullWidth, 8, "F");
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(30, 58, 138);
+            doc.text(title.toUpperCase(), margin + 2, y + 5.5);
+            return y + 10;
+        };
+
+        yPos = 30;
+        await drawHeader(formName);
+
+        yPos = await addSectionTitle("SECTION 1 - RESIDENT INFORMATION", yPos);
+        yPos = await addField("Resident Name", display(assessmentData.residentName || `${resident?.first_name || ""} ${resident?.last_name || ""}`.trim()), margin, yPos, fullWidth);
+        yPos = await addField("Date of Birth", displayDate(assessmentData.dateOfBirth || resident?.date_of_birth), margin, yPos, fullWidth);
+        yPos = await addField("Bedroom Number", display(assessmentData.bedroomNumber || resident?.room_number), margin, yPos, fullWidth);
+        yPos = await addField("Weight (kg)", display(assessmentData.weight), margin, yPos, fullWidth);
+        yPos = await addField("Height (cm)", display(assessmentData.height), margin, yPos, fullWidth);
+        yPos = await addField("History of Falls", yesNo(assessmentData.historyOfFalls), margin, yPos, fullWidth);
+
+        yPos = await addSectionTitle("SECTION 2 - MOBILITY ASSESSMENT", yPos + 2);
+        yPos = await addField("Independent Mobility", yesNo(assessmentData.independentMobility), margin, yPos, fullWidth);
+        yPos = await addField("Weight Bearing Capacity", enumDisplay(assessmentData.canWeightBear), margin, yPos, fullWidth);
+        yPos = await addField("Limb Mobility - Upper Right", enumDisplay(assessmentData.limbUpperRight), margin, yPos, fullWidth);
+        yPos = await addField("Limb Mobility - Upper Left", enumDisplay(assessmentData.limbUpperLeft), margin, yPos, fullWidth);
+        yPos = await addField("Limb Mobility - Lower Right", enumDisplay(assessmentData.limbLowerRight), margin, yPos, fullWidth);
+        yPos = await addField("Limb Mobility - Lower Left", enumDisplay(assessmentData.limbLowerLeft), margin, yPos, fullWidth);
+        yPos = await addField("Equipment Needed", display(assessmentData.equipmentUsed), margin, yPos, fullWidth);
+        yPos = await addField("Details of Support/Staff Required", display(assessmentData.needsRiskStaff), margin, yPos, fullWidth);
+
+        yPos = await addSectionTitle("SECTION 3 - RISK FACTORS", yPos + 2);
+
+        yPos = await addSubsectionTitle("Sensory & Behavioral", yPos);
+        yPos = await addField("Deafness State", enumDisplay(assessmentData.deafnessState), margin, yPos, fullWidth);
+        yPos = await addField("Deafness Comments", display(assessmentData.deafnessComments), margin, yPos, fullWidth);
+        yPos = await addField("Blindness State", enumDisplay(assessmentData.blindnessState), margin, yPos, fullWidth);
+        yPos = await addField("Blindness Comments", display(assessmentData.blindnessComments), margin, yPos, fullWidth);
+        yPos = await addField("Unpredictable Behaviour State", enumDisplay(assessmentData.unpredictableBehaviourState), margin, yPos, fullWidth);
+        yPos = await addField("Unpredictable Behaviour Comments", display(assessmentData.unpredictableBehaviourComments), margin, yPos, fullWidth);
+        yPos = await addField("Uncooperative Behaviour State", enumDisplay(assessmentData.uncooperativeBehaviourState), margin, yPos, fullWidth);
+        yPos = await addField("Uncooperative Behaviour Comments", display(assessmentData.uncooperativeBehaviourComments), margin, yPos, fullWidth);
+
+        yPos = await addSubsectionTitle("Cognitive & Emotional", yPos + 1);
+        yPos = await addField("Distressed Reaction State", enumDisplay(assessmentData.distressedReactionState), margin, yPos, fullWidth);
+        yPos = await addField("Distressed Reaction Comments", display(assessmentData.distressedReactionComments), margin, yPos, fullWidth);
+        yPos = await addField("Disorientated State", enumDisplay(assessmentData.disorientatedState), margin, yPos, fullWidth);
+        yPos = await addField("Disorientated Comments", display(assessmentData.disorientatedComments), margin, yPos, fullWidth);
+        yPos = await addField("Unconscious State", enumDisplay(assessmentData.unconsciousState), margin, yPos, fullWidth);
+        yPos = await addField("Unconscious Comments", display(assessmentData.unconsciousComments), margin, yPos, fullWidth);
+        yPos = await addField("Unbalance State", enumDisplay(assessmentData.unbalanceState), margin, yPos, fullWidth);
+        yPos = await addField("Unbalance Comments", display(assessmentData.unbalanceComments), margin, yPos, fullWidth);
+
+        yPos = await addSubsectionTitle("Physical & Other", yPos + 1);
+        yPos = await addField("Spasms State", enumDisplay(assessmentData.spasmsState), margin, yPos, fullWidth);
+        yPos = await addField("Spasms Comments", display(assessmentData.spasmsComments), margin, yPos, fullWidth);
+        yPos = await addField("Stiffness State", enumDisplay(assessmentData.stiffnessState), margin, yPos, fullWidth);
+        yPos = await addField("Stiffness Comments", display(assessmentData.stiffnessComments), margin, yPos, fullWidth);
+        yPos = await addField("Catheters State", enumDisplay(assessmentData.cathetersState), margin, yPos, fullWidth);
+        yPos = await addField("Catheters Comments", display(assessmentData.cathetersComments), margin, yPos, fullWidth);
+        yPos = await addField("Incontinence State", enumDisplay(assessmentData.incontinenceState), margin, yPos, fullWidth);
+        yPos = await addField("Incontinence Comments", display(assessmentData.incontinenceComments), margin, yPos, fullWidth);
+        yPos = await addField("Localised Pain State", enumDisplay(assessmentData.localisedPain), margin, yPos, fullWidth);
+        yPos = await addField("Localised Pain Comments", display(assessmentData.localisedPainComments), margin, yPos, fullWidth);
+        yPos = await addField("Other Risk Factors State", enumDisplay(assessmentData.otherState), margin, yPos, fullWidth);
+        yPos = await addField("Other Risk Factors Comments", display(assessmentData.otherComments), margin, yPos, fullWidth);
+
+        yPos = await addSectionTitle("SECTION 4 - COMPLETION", yPos + 2);
+        yPos = await addField("Completed By", display(assessmentData.completedBy), margin, yPos, fullWidth);
+        yPos = await addField("Job Role", display(assessmentData.jobRole), margin, yPos, fullWidth);
+        yPos = await addField("Signature", display(assessmentData.signature), margin, yPos, fullWidth);
+        yPos = await addField("Assessment Date", displayDate(assessmentData.assessmentDate), margin, yPos, fullWidth);
+
+        doc.save(`Moving-Handling-Assessment-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    // --- Nutrition Assessment + Monthly Review Specialized Layout ---
+    if (isNutritionAssessmentForm) {
+        const source = data as Record<string, unknown>;
+        const nested = (source.assessment_data ?? {}) as Record<string, unknown>;
+        const details = (source.assessment_details ?? nested.assessment_details ?? {}) as Record<string, unknown>;
+        const foodConsistency = (source.food_consistency ?? nested.food_consistency ?? source.foodConsistency ?? {}) as Record<string, unknown>;
+        const fluidConsistency = (source.fluid_consistency ?? nested.fluid_consistency ?? source.fluidConsistency ?? {}) as Record<string, unknown>;
+        const monthly = (details.monthlyEvaluations ?? source.monthlyEvaluations ?? []) as unknown[];
+
+        const fullWidth = pageWidth - margin * 2;
+        const display = (value: unknown): string => {
+            if (value === null || value === undefined) return "Not provided";
+            if (typeof value === "string") return value.trim() ? value : "Not provided";
+            return String(value);
+        };
+        const displayDate = (value: unknown): string => {
+            if (!value) return "Not provided";
+            const date = new Date(value as string | number | Date);
+            return Number.isNaN(date.getTime()) ? display(value) : format(date, "dd/MM/yyyy");
+        };
+        const yesNo = (value: unknown): "Yes" | "No" => {
+            if (value === true) return "Yes";
+            if (typeof value === "string") {
+                const normalized = value.trim().toLowerCase();
+                if (normalized === "yes" || normalized === "true" || normalized === "1") return "Yes";
+            }
+            return "No";
+        };
+        const labelFromKey = (value: string): string =>
+            value.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase()).trim();
+
+        yPos = 30;
+        await drawHeader(formName);
+
+        yPos = await addSectionTitle("Resident Information", yPos);
+        yPos = await addField("Resident Name", source.residentName ?? nested.residentName ?? `${resident?.first_name || ""} ${resident?.last_name || ""}`.trim(), margin, yPos, fullWidth);
+        yPos = await addField("Date of Birth", source.dateOfBirth ?? nested.dateOfBirth ?? resident?.date_of_birth, margin, yPos, fullWidth);
+        yPos = await addField("Bedroom Number", source.bedroomNumber ?? nested.bedroomNumber ?? resident?.room_number, margin, yPos, fullWidth);
+        yPos = await addField("Assessment Date", displayDate(source.assessment_date ?? nested.assessment_date ?? source.assessmentDate ?? nested.assessmentDate), margin, yPos, fullWidth);
+        yPos = await addField("Height", details.height ?? source.height ?? nested.height, margin, yPos, fullWidth);
+        yPos = await addField("Weight", details.weight ?? source.weight ?? nested.weight, margin, yPos, fullWidth);
+        yPos = await addField("Current MUST Score", source.must_score ?? source.mustScore ?? nested.must_score ?? nested.mustScore, margin, yPos, fullWidth);
+
+        yPos = await addSectionTitle("Clinical Involvement", yPos + 2);
+        yPos = await addField("SALT Involvement", yesNo(details.hasSaltInvolvement ?? source.hasSaltInvolvement ?? nested.hasSaltInvolvement), margin, yPos, fullWidth);
+        yPos = await addField("SALT Therapist Name", details.saltTherapistName ?? source.saltTherapistName ?? nested.saltTherapistName, margin, yPos, fullWidth);
+        yPos = await addField("SALT Contact Details", details.saltContactDetails ?? source.saltContactDetails ?? nested.saltContactDetails, margin, yPos, fullWidth);
+        yPos = await addField("Dietitian Involvement", yesNo(details.hasDietitianInvolvement ?? source.hasDietitianInvolvement ?? nested.hasDietitianInvolvement), margin, yPos, fullWidth);
+        yPos = await addField("Dietitian Name", details.dietitianName ?? source.dietitianName ?? nested.dietitianName, margin, yPos, fullWidth);
+        yPos = await addField("Dietitian Contact Details", details.dietitianContactDetails ?? source.dietitianContactDetails ?? nested.dietitianContactDetails, margin, yPos, fullWidth);
+
+        yPos = await addSectionTitle("Dietary Requirements", yPos + 2);
+        yPos = await addField("Food Fortification Required", details.foodFortificationRequired ?? source.foodFortificationRequired ?? nested.foodFortificationRequired, margin, yPos, fullWidth);
+        yPos = await addField("Supplements Prescribed", details.supplementsPrescribed ?? source.supplementsPrescribed ?? nested.supplementsPrescribed, margin, yPos, fullWidth);
+        yPos = await addField("Assistance Required", details.assistanceRequired ?? source.assistanceRequired ?? nested.assistanceRequired, margin, yPos, fullWidth);
+
+        yPos = await addSectionTitle("IDDSI Food Consistency", yPos + 2);
+        for (const key of ["level7EasyChew", "level6SoftBiteSized", "level5MincedMoist", "level4Pureed", "level3Liquidised"]) {
+            yPos = await addField(labelFromKey(key), yesNo(foodConsistency[key]), margin, yPos, fullWidth);
+        }
+
+        yPos = await addSectionTitle("IDDSI Fluid Consistency", yPos + 2);
+        for (const key of ["level4ExtremelyThick", "level3ModeratelyThick", "level2MildlyThick", "level1SlightlyThick", "level0Thin"]) {
+            yPos = await addField(labelFromKey(key), yesNo(fluidConsistency[key]), margin, yPos, fullWidth);
+        }
+
+        yPos = await addSectionTitle("Assessment Completion", yPos + 2);
+        yPos = await addField("Completed By", source.completed_by ?? source.completedBy ?? nested.completed_by ?? nested.completedBy, margin, yPos, fullWidth);
+        yPos = await addField("Job Role", details.jobRole ?? source.jobRole ?? nested.jobRole, margin, yPos, fullWidth);
+        yPos = await addField("Signature", details.signature ?? source.signature ?? nested.signature, margin, yPos, fullWidth);
+
+        const monthlyQuestions = [
+            "mustScoreChange",
+            "saltReferralRequired",
+            "saltInputReceived",
+            "specialisedDietChange",
+            "foodConsistencyChange",
+            "fluidConsistencyChange",
+            "foodFortificationRequired",
+            "supplementsPrescribed",
+            "assistanceRequired"
+        ];
+
+        if (monthly.length > 0) {
+            yPos = await addSectionTitle("Monthly Review", yPos + 2);
+            for (let i = 0; i < monthly.length; i += 1) {
+                const review = (monthly[i] ?? {}) as Record<string, unknown>;
+                yPos = await addSectionTitle(`Review ${i + 1}`, yPos + 1);
+                yPos = await addField("Review Date", displayDate(review.date), margin, yPos, fullWidth);
+                yPos = await addField("Completed By", display(review.completedBy), margin, yPos, fullWidth);
+                for (const key of monthlyQuestions) {
+                    yPos = await addField(labelFromKey(key), yesNo(review[key]), margin, yPos, fullWidth);
+                    yPos = await addField(`${labelFromKey(key)} Notes`, display(review[`${key}Notes`]), margin, yPos, fullWidth);
+                }
+            }
+        }
+
+        doc.save(`Nutrition-Assessment-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    const isBedrailConsentForm =
+        formName.toUpperCase().includes("BEDRAIL CONSENT") ||
+        formName.toUpperCase().includes("BEDRAILS CONSENT") ||
+        formName.toUpperCase().includes("BEDRAIL CONSENT / AGREEMENT") ||
+        formName.toUpperCase().includes("BEDRAILS CONSENT / AGREEMENT");
     const isRestraintsConsentForm = formName.toUpperCase().includes("CONSENT AND RISK ASSESSMENT FOR RESTRAINTS");
-    if (!isRestraintsConsentForm) {
+    if (!isRestraintsConsentForm && !isBedrailConsentForm) {
         yPos = await renderData(data, yPos, margin);
+    }
+
+    // Specialized fixed-field layout for Bedrail Consent / Agreement
+    if (isBedrailConsentForm) {
+        type ConsentType = "ABLE_TO_CONSENT" | "UNABLE_TO_CONSENT";
+        type ConsentChoice = "CONSENT_TO_USE" | "REFUSE_TO_USE";
+        type ResidentPreference = "WOULD_PREFER_USE" | "WOULD_NOT_PREFER_USE";
+
+        interface BedrailAbleSection {
+            consentChoice?: ConsentChoice;
+            residentSignature?: string;
+            staffMemberName?: string;
+            staffMemberSignature?: string;
+            staffSignatureDate?: string;
+        }
+
+        interface BedrailUnableSection {
+            representativeName?: string;
+            discussionAcknowledged?: boolean;
+            residentPreference?: ResidentPreference;
+            representativeSignature?: string;
+            staffMemberName?: string;
+            staffMemberSignature?: string;
+            staffSignatureDate?: string;
+        }
+
+        interface BedrailAssessmentData {
+            residentName?: string;
+            bedroomNumber?: string;
+            dateOfBirth?: string | number;
+            assessment_date?: string | number;
+            consentType?: ConsentType;
+            ableToConsentSection?: BedrailAbleSection;
+            unableToConsentSection?: BedrailUnableSection;
+            assessment_data?: BedrailAssessmentData;
+        }
+
+        const source = data as BedrailAssessmentData;
+        const assessmentData: BedrailAssessmentData = source.assessment_data || source;
+        const fullWidth = pageWidth - margin * 2;
+        const display = (value: unknown): string => {
+            if (value === null || value === undefined) return "Not provided";
+            if (typeof value === "string") return value.trim() ? value : "Not provided";
+            if (typeof value === "number") return String(value);
+            return String(value);
+        };
+        const displayDateValue = (value: unknown): string => {
+            if (value === null || value === undefined || value === "") return "Not provided";
+            try {
+                const date = new Date(value as string | number);
+                if (Number.isNaN(date.getTime())) return display(value);
+                return format(date, "dd/MM/yyyy");
+            } catch {
+                return display(value);
+            }
+        };
+        const yesNo = (value: boolean): string => (value ? "Yes" : "No");
+
+        const consentType = assessmentData.consentType;
+        const able = assessmentData.ableToConsentSection || {};
+        const unable = assessmentData.unableToConsentSection || {};
+
+        yPos = await addSectionTitle("Form Overview", yPos + 2);
+        yPos = await addField("Resident Name", display(assessmentData.residentName), margin, yPos, fullWidth);
+        yPos = await addField("Bedroom Number", display(assessmentData.bedroomNumber), margin, yPos, fullWidth);
+        yPos = await addField("Date of Birth", displayDateValue(assessmentData.dateOfBirth), margin, yPos, fullWidth);
+        yPos = await addField("Consent Type", display(consentType), margin, yPos, fullWidth);
+
+        if (consentType === "ABLE_TO_CONSENT") {
+            yPos = await addSectionTitle("Able To Consent Section", yPos + 2);
+            yPos = await addField(
+                "Consent Statement",
+                "I understand that I may be at risk of falling out of bed and would therefore like bed rails/bumpers to be used on my bed.",
+                margin,
+                yPos,
+                fullWidth
+            );
+            yPos = await addField(
+                "Consent To Use Bedrails (checkbox)",
+                yesNo(able.consentChoice === "CONSENT_TO_USE"),
+                margin,
+                yPos,
+                fullWidth
+            );
+            yPos = await addField(
+                "Refusal Statement",
+                "I understand that I may be at risk of falling out of bed, but I do NOT want bed rails or bumpers to be used on my bed.",
+                margin,
+                yPos,
+                fullWidth
+            );
+            yPos = await addField(
+                "Refuse To Use Bedrails (checkbox)",
+                yesNo(able.consentChoice === "REFUSE_TO_USE"),
+                margin,
+                yPos,
+                fullWidth
+            );
+            yPos = await addField("Resident Signature", display(able.residentSignature), margin, yPos, fullWidth);
+            yPos = await addField("Staff Member Name", display(able.staffMemberName), margin, yPos, fullWidth);
+            yPos = await addField("Staff Member Signature", display(able.staffMemberSignature), margin, yPos, fullWidth);
+            yPos = await addField("Staff Signature Date", displayDateValue(able.staffSignatureDate), margin, yPos, fullWidth);
+        } else if (consentType === "UNABLE_TO_CONSENT") {
+            yPos = await addSectionTitle("Unable To Consent Section", yPos + 2);
+            yPos = await addField("Representative Name", display(unable.representativeName), margin, yPos, fullWidth);
+            yPos = await addField(
+                "Discussion Statement",
+                "I have discussed the issue of using bed rails/bumpers with the professionals concerned and based on my knowledge of the resident's previously expressed wishes and beliefs:",
+                margin,
+                yPos,
+                fullWidth
+            );
+            yPos = await addField(
+                "Discussion Acknowledged (checkbox)",
+                yesNo(unable.discussionAcknowledged === true),
+                margin,
+                yPos,
+                fullWidth
+            );
+            yPos = await addField(
+                "Resident would have preferred to use bed rails/bumpers (checkbox)",
+                yesNo(unable.residentPreference === "WOULD_PREFER_USE"),
+                margin,
+                yPos,
+                fullWidth
+            );
+            yPos = await addField(
+                "Resident would not have preferred to use bed rails/bumpers (checkbox)",
+                yesNo(unable.residentPreference === "WOULD_NOT_PREFER_USE"),
+                margin,
+                yPos,
+                fullWidth
+            );
+            yPos = await addField("Representative Signature", display(unable.representativeSignature), margin, yPos, fullWidth);
+            yPos = await addField("Staff Member Name", display(unable.staffMemberName), margin, yPos, fullWidth);
+            yPos = await addField("Staff Member Signature", display(unable.staffMemberSignature), margin, yPos, fullWidth);
+            yPos = await addField("Staff Signature Date", displayDateValue(unable.staffSignatureDate), margin, yPos, fullWidth);
+        }
     }
 
     // Specialized fixed-field layout for Consent and Risk Assessment for Restraints
@@ -3370,5 +4590,7 @@ export const generateCareFilePDF = async ({
     doc.setTextColor(110, 110, 110);
     doc.text(`Generated by CareO System on ${new Date().toLocaleString('en-GB')}`, margin, doc.internal.pageSize.height - 10);
 
-    doc.save(`${formName.replace(/\s+/g, '-')}-${resident?.last_name}-${new Date().getTime()}.pdf`);
+    const safeFormName = toSafeFilePart(formName);
+    const safeResidentName = toSafeFilePart(resident?.last_name || "Resident");
+    doc.save(`${safeFormName}-${safeResidentName}-${new Date().getTime()}.pdf`);
 };

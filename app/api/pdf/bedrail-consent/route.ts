@@ -3,6 +3,46 @@ import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
+type ConsentChoice = "CONSENT_TO_USE" | "REFUSE_TO_USE";
+type ResidentPreference = "WOULD_PREFER_USE" | "WOULD_NOT_PREFER_USE";
+type ConsentType = "ABLE_TO_CONSENT" | "UNABLE_TO_CONSENT";
+
+interface AbleToConsentSection {
+  consentChoice?: ConsentChoice;
+  residentSignature?: string;
+  staffMemberName?: string;
+  staffMemberSignature?: string;
+  staffSignatureDate?: string;
+}
+
+interface UnableToConsentSection {
+  representativeName?: string;
+  discussionAcknowledged?: boolean;
+  residentPreference?: ResidentPreference;
+  representativeSignature?: string;
+  staffMemberName?: string;
+  staffMemberSignature?: string;
+  staffSignatureDate?: string;
+}
+
+interface BedrailConsentData {
+  id?: string;
+  _id?: string;
+  residentName?: string;
+  bedroomNumber?: string;
+  dateOfBirth?: string | number;
+  assessment_date?: string | number;
+  date?: string | number;
+  created_at?: string | number;
+  completed_by?: string;
+  completedBy?: string;
+  capacity_assessed?: boolean;
+  consentType?: ConsentType;
+  ableToConsentSection?: AbleToConsentSection;
+  unableToConsentSection?: UnableToConsentSection;
+  assessment_data?: Partial<BedrailConsentData>;
+}
+
 function formatDate(dateString?: string | number): string {
   if (!dateString) return "Not provided";
   return new Date(dateString).toLocaleDateString("en-GB");
@@ -20,12 +60,57 @@ function formatDateTime(dateString?: string | number): string {
   );
 }
 
-function generateBedrailConsentHTML(data: any): string {
-  // Data could be raw record from DB or form data
-  const form = data.assessment_data || data;
-  const isAble = form.consentType === "ABLE_TO_CONSENT" || data.capacity_assessed === true;
-  const ableSection = form.ableToConsentSection || {};
-  const unableSection = form.unableToConsentSection || {};
+function formatValue(value: string | number | undefined): string {
+  if (value === undefined || value === null || `${value}`.trim() === "") {
+    return "Not provided";
+  }
+  return `${value}`;
+}
+
+function formatYesNo(value: boolean | undefined): string {
+  return value === true ? "Yes" : "No";
+}
+
+function formatConsentChoice(value: ConsentChoice | undefined): string {
+  if (value === "CONSENT_TO_USE") return "Yes";
+  if (value === "REFUSE_TO_USE") return "No";
+  return "No";
+}
+
+function formatResidentPreference(value: ResidentPreference | undefined): string {
+  if (value === "WOULD_PREFER_USE") return "Yes";
+  if (value === "WOULD_NOT_PREFER_USE") return "No";
+  return "No";
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function row(label: string, value: string): string {
+  return `
+    <tr>
+      <td class="field-label">${escapeHtml(label)}</td>
+      <td class="field-value">${escapeHtml(value)}</td>
+    </tr>
+  `;
+}
+
+function generateBedrailConsentHTML(data: BedrailConsentData): string {
+  const form: Partial<BedrailConsentData> = data.assessment_data || data;
+  const ableSection: AbleToConsentSection = form.ableToConsentSection || data.ableToConsentSection || {};
+  const unableSection: UnableToConsentSection = form.unableToConsentSection || data.unableToConsentSection || {};
+  const residentName = form.residentName ?? data.residentName;
+  const bedroomNumber = form.bedroomNumber ?? data.bedroomNumber;
+  const dateOfBirth = form.dateOfBirth ?? data.dateOfBirth;
+  const assessmentDate = form.assessment_date ?? data.assessment_date;
+  const effectiveConsentType: ConsentType | undefined =
+    form.consentType ?? data.consentType;
 
   return `
     <!DOCTYPE html>
@@ -67,19 +152,27 @@ function generateBedrailConsentHTML(data: any): string {
           border-radius: 4px;
         }
         .section {
-          margin-bottom: 32px;
-          padding: 16px;
+          margin-bottom: 24px;
+          padding: 14px;
           border: 1px solid #e5e7eb;
           border-radius: 8px;
           page-break-inside: avoid;
         }
-        .info-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
-          margin-bottom: 16px;
+        .field-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 8px;
+        }
+        .field-table tr:nth-child(even) {
+          background: #f9fafb;
+        }
+        .field-table td {
+          border: 1px solid #e5e7eb;
+          padding: 8px 10px;
+          vertical-align: top;
         }
         .field-label {
+          width: 36%;
           font-weight: 600;
           color: #374151;
           font-size: 0.875rem;
@@ -91,16 +184,10 @@ function generateBedrailConsentHTML(data: any): string {
         }
         .consent-box {
           background-color: #f8fafc;
-          border: 2px solid #3b82f6;
-          padding: 20px;
+          border: 1px solid #bfdbfe;
+          padding: 12px;
           border-radius: 8px;
-          margin-top: 16px;
-        }
-        .signature-line {
-          margin-top: 24px;
-          border-top: 1px solid #94a3b8;
-          padding-top: 8px;
-          font-style: italic;
+          margin-top: 10px;
         }
         .footer {
           margin-top: 48px;
@@ -118,82 +205,42 @@ function generateBedrailConsentHTML(data: any): string {
       </div>
 
       <div class="section">
-        <h2>Resident Information</h2>
-        <div class="info-grid">
-          <div>
-            <div class="field-label">Resident Name</div>
-            <div class="field-value">${form.residentName || "Not specified"}</div>
-          </div>
-          <div>
-            <div class="field-label">Bedroom Number</div>
-            <div class="field-value">${form.bedroomNumber || "Not specified"}</div>
-          </div>
-          <div>
-            <div class="field-label">Date of Birth</div>
-            <div class="field-value">${formatDate(form.dateOfBirth)}</div>
-          </div>
-          <div>
-            <div class="field-label">Assessment Date</div>
-            <div class="field-value">${formatDate(data.assessment_date || Date.now())}</div>
-          </div>
+        <h2>Form Overview</h2>
+        <table class="field-table">
+          ${row("Resident Name", formatValue(residentName))}
+          ${row("Bedroom Number", formatValue(bedroomNumber))}
+          ${row("Date of Birth", formatDate(dateOfBirth))}
+          ${row("Assessment Date", formatDate(assessmentDate))}
+          ${row("Consent Type", formatValue(effectiveConsentType))}
+        </table>
+      </div>
+
+      <div class="section">
+        <h2>Able To Consent Section</h2>
+        <div class="consent-box">
+          <table class="field-table">
+            ${row("Consent To Use Bedrails (checkbox)", formatConsentChoice(ableSection.consentChoice))}
+            ${row("Resident Signature", formatValue(ableSection.residentSignature))}
+            ${row("Staff Member Name", formatValue(ableSection.staffMemberName))}
+            ${row("Staff Member Signature", formatValue(ableSection.staffMemberSignature))}
+            ${row("Staff Signature Date", formatDate(ableSection.staffSignatureDate))}
+          </table>
         </div>
       </div>
 
       <div class="section">
-        <h2>Capacity & Consent Status</h2>
-        <p><strong>Capacity Assessed:</strong> ${isAble ? "Resident is able to consent" : "Resident is unable to consent"}</p>
-        
-        ${isAble ? `
-          <div class="consent-box">
-            <h3>Resident Agreement</h3>
-            <p>
-              ${ableSection.consentChoice === "CONSENT_TO_USE"
-        ? "<strong>CONSENT GIVEN:</strong> I understand that I may be at risk of falling out of bed and would therefore like bed rails/bumpers to be used on my bed."
-        : "<strong>REFUSAL:</strong> I understand that I may be at risk of falling out of bed, but I do NOT want bed rails or bumpers to be used on my bed."
-      }
-            </p>
-            <div class="signature-line">
-              Resident Signature: ${ableSection.residentSignature || "Signed Electronically"}
-            </div>
-            <div class="grid grid-cols-2" style="margin-top: 16px;">
-              <div>
-                <div class="field-label">Staff Name</div>
-                <div class="field-value">${ableSection.staffMemberName || data.completed_by}</div>
-              </div>
-              <div>
-                <div class="field-label">Date signed</div>
-                <div class="field-value">${ableSection.staffSignatureDate || formatDate(Date.now())}</div>
-              </div>
-            </div>
-          </div>
-        ` : `
-          <div class="consent-box">
-            <h3>Representative Agreement</h3>
-            <p><strong>Representative Name:</strong> ${unableSection.representativeName || data.representative_name}</p>
-            <p style="font-style: italic; margin: 12px 0;">
-              "I have discussed the issue of using bed rails/bumpers with the professionals concerned and based on my knowledge of the resident's previously expressed wishes and beliefs:"
-            </p>
-            <p>
-              ${unableSection.residentPreference === "WOULD_PREFER_USE"
-      ? "The resident <strong>WOULD HAVE PREFERRED</strong> to use bed rails/bumpers"
-      : "The resident <strong>WOULD NOT HAVE PREFERRED</strong> to use bed rails/bumpers"
-    }
-            </p>
-            <div class="signature-line">
-              Representative Signature: ${unableSection.representativeSignature || "Signed Electronically"}
-            </div>
-            <div class="grid grid-cols-2" style="margin-top: 16px;">
-              <div>
-                <div class="field-label">Staff Name</div>
-                <div class="field-value">${unableSection.staffMemberName || data.completed_by}</div>
-              </div>
-              <div>
-                <div class="field-label">Date signed</div>
-                <div class="field-value">${unableSection.staffSignatureDate || formatDate(Date.now())}</div>
-              </div>
-            </div>
-          </div>
-        `}
+        <h2>Unable To Consent Section</h2>
+        <div class="consent-box">
+          <table class="field-table">
+            ${row("Representative Name", formatValue(unableSection.representativeName))}
+            ${row("Discussion Acknowledged (checkbox)", formatYesNo(unableSection.discussionAcknowledged))}
+            ${row("Resident Would Prefer Bedrails (checkbox)", formatResidentPreference(unableSection.residentPreference))}
+            ${row("Representative Signature", formatValue(unableSection.representativeSignature))}
+            ${row("Staff Member Name", formatValue(unableSection.staffMemberName))}
+            ${row("Staff Member Signature", formatValue(unableSection.staffMemberSignature))}
+            ${row("Staff Signature Date", formatDate(unableSection.staffSignatureDate))}
+          </table>
+        </div>
       </div>
 
       <div class="footer">
@@ -207,21 +254,22 @@ function generateBedrailConsentHTML(data: any): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const assessmentData = await request.json();
+    const assessmentData = (await request.json()) as BedrailConsentData;
 
     if (!assessmentData) {
       return NextResponse.json({ error: "Data is required" }, { status: 400 });
     }
 
     // Flatten the data: merge assessment_data into the top level
-    const flattenedData = {
+    const flattenedData: BedrailConsentData = {
       ...assessmentData,
       ...(assessmentData.assessment_data || {}),
       // Ensure resident details and common fields are at the top level
       residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
       bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber,
-      date: assessmentData.date || assessmentData.assessment_date || assessmentData.created_at || Date.now(),
-      completedBy: assessmentData.completedBy || assessmentData.completed_by || assessmentData.assessment_data?.completedBy || "Not specified"
+      assessment_date: assessmentData.assessment_date || assessmentData.date || assessmentData.created_at || Date.now(),
+      completedBy: assessmentData.completedBy || assessmentData.completed_by || assessmentData.assessment_data?.completedBy || "Not specified",
+      completed_by: assessmentData.completed_by || assessmentData.completedBy || assessmentData.assessment_data?.completedBy || "Not specified"
     };
 
     console.log("Bed Rail Consent PDF API flattening data:", {
@@ -256,7 +304,7 @@ export async function POST(request: NextRequest) {
 
       const residentName = (flattenedData.residentName || "resident").replace(/\s+/g, "-");
 
-      return new NextResponse(pdfBuffer as any, {
+      return new NextResponse(pdfBuffer, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="bedrail-consent-${residentName}.pdf"`,

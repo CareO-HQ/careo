@@ -3,25 +3,140 @@ import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
-function formatDate(dateString?: string | number): string {
-  if (!dateString) return "Not provided";
-  return new Date(dateString).toLocaleDateString("en-GB");
+interface ActivityDetails {
+  nStaff?: number | string;
+  equipment?: string;
+  handlingPlan?: string;
+  dateForReview?: string | number;
 }
 
-function formatDateTime(dateString?: string | number): string {
-  if (!dateString) return "Not provided";
-  return (
-    new Date(dateString).toLocaleDateString("en-GB") +
-    " at " +
-    new Date(dateString).toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit"
-    })
-  );
+interface HandlingProfileData {
+  residentName?: string;
+  bedroomNumber?: string;
+  weight?: number | string;
+  weight_bearing?: string;
+  completed_by?: string;
+  job_role?: string;
+  assessment_date?: string | number;
+  activities?: Record<string, ActivityDetails>;
+  [key: string]: unknown;
 }
 
-function generateHandlingProfileHTML(data: any): string {
-  const activities = data.activities || {};
+const EMPTY_VALUE = "Not provided";
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function valueOrFallback(value: unknown, fallback = EMPTY_VALUE): string {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === "string" && value.trim() === "") return fallback;
+  return String(value);
+}
+
+function isDateOnlyString(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function formatDate(value?: string | number): string {
+  if (value === undefined || value === null || value === "") return EMPTY_VALUE;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d{13}$/.test(trimmed) || /^\d{10}$/.test(trimmed)) {
+      const timestamp = Number(trimmed);
+      const dateFromTimestamp = new Date(trimmed.length === 10 ? timestamp * 1000 : timestamp);
+      if (!Number.isNaN(dateFromTimestamp.getTime())) {
+        return dateFromTimestamp.toLocaleDateString("en-GB");
+      }
+    }
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const normalizedTimestamp = value < 1e12 ? value * 1000 : value;
+    const dateFromNumber = new Date(normalizedTimestamp);
+    if (!Number.isNaN(dateFromNumber.getTime())) {
+      return dateFromNumber.toLocaleDateString("en-GB");
+    }
+  }
+
+  if (typeof value === "string" && isDateOnlyString(value)) {
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return EMPTY_VALUE;
+    return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return EMPTY_VALUE;
+  return date.toLocaleDateString("en-GB");
+}
+
+function formatDateTime(value?: string | number): string {
+  if (value === undefined || value === null || value === "") return EMPTY_VALUE;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return EMPTY_VALUE;
+
+  return `${date.toLocaleDateString("en-GB")} at ${date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit"
+  })}`;
+}
+
+function unknownToDisplayValue(value: unknown): string {
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (value === null || value === undefined) return EMPTY_VALUE;
+  if (typeof value === "string") return value.trim() === "" ? EMPTY_VALUE : value.trim();
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : EMPTY_VALUE;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return EMPTY_VALUE;
+    return value.map((item) => unknownToDisplayValue(item)).join(", ");
+  }
+  return EMPTY_VALUE;
+}
+
+function isDateLikeKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+  return normalized.includes("date");
+}
+
+function humanizeKey(key: string): string {
+  const normalizedKey = key.toLowerCase();
+  if (normalizedKey.endsWith("nstaff")) return "Number of staff required";
+
+  return key
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function flattenFields(
+  source: Record<string, unknown>,
+  parent = ""
+): Array<{ key: string; value: unknown }> {
+  const flattened: Array<{ key: string; value: unknown }> = [];
+
+  for (const [key, value] of Object.entries(source)) {
+    const fullKey = parent ? `${parent}.${key}` : key;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const nested = flattenFields(value as Record<string, unknown>, fullKey);
+      flattened.push(...nested);
+      continue;
+    }
+    flattened.push({ key: fullKey, value });
+  }
+
+  return flattened;
+}
+
+function generateHandlingProfileHTML(data: HandlingProfileData): string {
+  const activities = data.activities ?? {};
 
   const activityList = [
     { key: 'transferBed', title: 'Transfer to/from Bed' },
@@ -32,6 +147,35 @@ function generateHandlingProfileHTML(data: any): string {
     { key: 'bath', title: 'Bathing' },
     { key: 'outdoorMobility', title: 'Outdoor Mobility' }
   ];
+
+  const residentFieldRows = [
+    { label: "Resident Name", value: valueOrFallback(data.residentName, "Resident") },
+    { label: "Bedroom Number", value: valueOrFallback(data.bedroomNumber, EMPTY_VALUE) },
+    {
+      label: "Resident Weight",
+      value: data.weight === null || data.weight === undefined || data.weight === ""
+        ? EMPTY_VALUE
+        : `${String(data.weight)} kg`
+    },
+    { label: "Weight Bearing Status", value: valueOrFallback(data.weight_bearing) }
+  ];
+
+  const renderedKeys = new Set<string>([
+    "residentName",
+    "bedroomNumber",
+    "weight",
+    "weight_bearing",
+    "completed_by",
+    "job_role",
+    "assessment_date",
+    "activities"
+  ]);
+
+  const allFlattenedFields = flattenFields(data);
+  const extraFields = allFlattenedFields.filter((item) => {
+    const rootKey = item.key.split(".")[0] ?? item.key;
+    return !renderedKeys.has(rootKey);
+  });
 
   return `
     <!DOCTYPE html>
@@ -116,6 +260,32 @@ function generateHandlingProfileHTML(data: any): string {
           white-space: pre-wrap;
           word-wrap: break-word;
         }
+        .table-section {
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          overflow: hidden;
+          margin-top: 8px;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        th, td {
+          border: 1px solid #e5e7eb;
+          padding: 8px 10px;
+          font-size: 0.9rem;
+          text-align: left;
+          vertical-align: top;
+        }
+        th {
+          background-color: #f9fafb;
+          color: #374151;
+          font-weight: 600;
+        }
+        .mono {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+          font-size: 0.85rem;
+        }
         .footer {
           margin-top: 48px;
           padding-top: 24px;
@@ -135,22 +305,16 @@ function generateHandlingProfileHTML(data: any): string {
       <div class="section">
         <h2>Resident Information</h2>
         <div class="grid grid-cols-2 info-box">
-          <div>
-            <div class="field-label">Resident Name</div>
-            <div class="field-value">${data.residentName || "Not specified"}</div>
-          </div>
-          <div>
-            <div class="field-label">Bedroom Number</div>
-            <div class="field-value">${data.bedroomNumber || "Not specified"}</div>
-          </div>
-          <div>
-            <div class="field-label">Resident Weight</div>
-            <div class="field-value">${data.weight || 0} kg</div>
-          </div>
-          <div>
-            <div class="field-label">Weight Bearing Status</div>
-            <div class="field-value">${data.weight_bearing || "Not specified"}</div>
-          </div>
+          ${residentFieldRows
+      .map(
+        (row) => `
+            <div>
+              <div class="field-label">${escapeHtml(row.label)}</div>
+              <div class="field-value">${escapeHtml(row.value)}</div>
+            </div>
+          `
+      )
+      .join("")}
         </div>
       </div>
 
@@ -163,21 +327,21 @@ function generateHandlingProfileHTML(data: any): string {
               <h3>${act.title}</h3>
               <div class="grid grid-cols-2">
                 <div>
-                  <div class="field-label">Number of Staff</div>
-                  <div class="field-value">${details.nStaff || 0}</div>
+                  <div class="field-label">Number of staff required</div>
+                  <div class="field-value">${escapeHtml(unknownToDisplayValue(details.nStaff ?? 0))}</div>
                 </div>
                 <div>
                   <div class="field-label">Equipment Used</div>
-                  <div class="field-value">${details.equipment || "None"}</div>
+                  <div class="field-value">${escapeHtml(valueOrFallback(details.equipment, EMPTY_VALUE))}</div>
                 </div>
               </div>
               <div style="margin-top: 8px;">
                 <div class="field-label">Handling Plan</div>
-                <div class="field-value">${details.handlingPlan || "No details provided"}</div>
+                <div class="field-value">${escapeHtml(valueOrFallback(details.handlingPlan, EMPTY_VALUE))}</div>
               </div>
               <div style="margin-top: 8px;">
                 <div class="field-label">Review Date</div>
-                <div class="field-value">${formatDate(details.dateForReview)}</div>
+                <div class="field-value">${escapeHtml(formatDate(details.dateForReview))}</div>
               </div>
             </div>
           `;
@@ -189,27 +353,63 @@ function generateHandlingProfileHTML(data: any): string {
         <div class="info-box grid grid-cols-2">
           <div>
             <div class="field-label">Completed By</div>
-            <div class="field-value">${data.completed_by || "Not specified"}</div>
+            <div class="field-value">${escapeHtml(valueOrFallback(data.completed_by))}</div>
           </div>
           <div>
             <div class="field-label">Job Role</div>
-            <div class="field-value">${data.job_role || "Not specified"}</div>
+            <div class="field-value">${escapeHtml(valueOrFallback(data.job_role))}</div>
           </div>
           <div>
             <div class="field-label">Assessment Date</div>
-            <div class="field-value">${formatDate(data.assessment_date)}</div>
+            <div class="field-value">${escapeHtml(formatDate(data.assessment_date))}</div>
           </div>
           <div>
             <div class="field-label">Signature</div>
             <div class="field-value" style="font-style: italic; border-bottom: 1px solid #ccc; padding-top: 10px;">
-              ${data.completed_by || "Not specified"}
+              ${escapeHtml(valueOrFallback(data.completed_by))}
             </div>
           </div>
         </div>
       </div>
 
+      <div class="section">
+        <h2>All Submitted Fields</h2>
+        <div class="table-section">
+          <table>
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${allFlattenedFields
+      .map((field) => {
+        const isDateField = isDateLikeKey(field.key);
+        const isBooleanLike = typeof field.value === "boolean";
+        const displayValue = isBooleanLike
+          ? ((field.value as boolean) ? "Yes" : "No")
+          : isDateField
+            ? formatDate(field.value as string | number | undefined)
+            : unknownToDisplayValue(field.value);
+        return `
+                  <tr>
+                    <td class="mono">${escapeHtml(humanizeKey(field.key))}</td>
+                    <td>${escapeHtml(displayValue)}</td>
+                  </tr>
+                `;
+      })
+      .join("")}
+            </tbody>
+          </table>
+        </div>
+        ${extraFields.length > 0
+      ? `<p style="margin-top: 8px; color: #6b7280; font-size: 0.85rem;">Includes additional fields beyond the structured layout to ensure complete visibility.</p>`
+      : ""}
+      </div>
+
       <div class="footer">
-        <p>Generated on ${formatDateTime(Date.now())}</p>
+        <p>Generated on ${escapeHtml(formatDateTime(Date.now()))}</p>
         <p>Resident Handling Profile Audit</p>
       </div>
     </body>
@@ -219,22 +419,40 @@ function generateHandlingProfileHTML(data: any): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const assessmentData = await request.json();
+    const assessmentData = (await request.json()) as Record<string, unknown> | null;
 
     if (!assessmentData) {
       return NextResponse.json({ error: "Data is required" }, { status: 400 });
     }
 
     // Flatten the data: merge assessment_data into the top level
-    const flattenedData = {
+    const flattenedData: HandlingProfileData = {
       ...assessmentData,
-      ...(assessmentData.assessment_data || {}),
+      ...((assessmentData.assessment_data as Record<string, unknown>) || {}),
       // Ensure resident details and common fields are at the top level
-      residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
-      bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber,
-      assessment_date: assessmentData.assessment_date || assessmentData.assessment_date || assessmentData.created_at || Date.now(),
-      completed_by: assessmentData.completed_by || assessmentData.completedBy || assessmentData.assessment_data?.completed_by || "Not specified",
-      job_role: assessmentData.job_role || assessmentData.jobRole || assessmentData.assessment_data?.job_role || "Not specified"
+      residentName: valueOrFallback(
+        assessmentData.residentName ??
+        (assessmentData.assessment_data as Record<string, unknown> | undefined)?.residentName,
+        "Resident"
+      ),
+      bedroomNumber: valueOrFallback(
+        assessmentData.bedroomNumber ??
+        (assessmentData.assessment_data as Record<string, unknown> | undefined)?.bedroomNumber
+      ),
+      assessment_date:
+        (assessmentData.assessment_date as string | number | undefined) ??
+        (assessmentData.created_at as string | number | undefined) ??
+        Date.now(),
+      completed_by: valueOrFallback(
+        assessmentData.completed_by ??
+        assessmentData.completedBy ??
+        (assessmentData.assessment_data as Record<string, unknown> | undefined)?.completed_by
+      ),
+      job_role: valueOrFallback(
+        assessmentData.job_role ??
+        assessmentData.jobRole ??
+        (assessmentData.assessment_data as Record<string, unknown> | undefined)?.job_role
+      )
     };
 
     console.log("Resident Handling Profile PDF API flattening data:", {
@@ -269,7 +487,7 @@ export async function POST(request: NextRequest) {
 
       const residentName = (flattenedData.residentName || "resident").replace(/\s+/g, "-");
 
-      return new NextResponse(pdfBuffer as any, {
+      return new NextResponse(pdfBuffer, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="handling-profile-${residentName}.pdf"`,

@@ -395,16 +395,28 @@ export default function CareFileV2FolderPage() {
 
     const handlePrint = async () => {
         if (!activeFormKey || !resident) return;
-        if (activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && !formDataForEdit) return;
-        const formName = activeFormKey === "care-plan-form"
-            ? (formDataForEdit.care_plan_type || "Care Plan")
-            : activeFormKey === "v2-general-risk"
-                ? "General Risk Assessment"
-                : (folder?.forms.find(f => f.key === activeFormKey)?.value || "Form");
 
-        toast.info(`Generating PDF for ${formName}...`);
+        try {
+            const allowsHistoryOnlyPrint =
+                activeFormKey === "dependency-assessment" ||
+                activeFormKey === "fall-risk-assessment" ||
+                activeFormKey === "choking-risk-assessment-form" ||
+                activeFormKey === "v2-abbey-pain" ||
+                activeFormKey === "oral-assessment-form";
 
-        const dataToPrint: any = { ...formDataForEdit };
+            if (!allowsHistoryOnlyPrint && !formDataForEdit) {
+                toast.error("No form data available to print. Please save or open a completed record first.");
+                return;
+            }
+            const formName = activeFormKey === "care-plan-form"
+                ? (formDataForEdit.care_plan_type || "Care Plan")
+                : activeFormKey === "v2-general-risk"
+                    ? "General Risk Assessment"
+                    : (folder?.forms.find(f => f.key === activeFormKey)?.value || "Form");
+
+            toast.info(`Generating PDF for ${formName}...`);
+
+            const dataToPrint: any = { ...formDataForEdit };
 
         // If it's a care plan, fetch the 5 most recent evaluations
         if (activeFormKey === "care-plan-form") {
@@ -466,6 +478,20 @@ export default function CareFileV2FolderPage() {
             }
         }
 
+        // If it's Abbey Pain Tool, fetch all past assessments
+        if (activeFormKey === "v2-abbey-pain") {
+            const { data: history, error } = await supabase
+                .from('abbey_pain_assessments')
+                .select('*')
+                .eq('resident_id', residentId)
+                .eq('status', 'completed')
+                .order('assessment_date', { ascending: false });
+
+            if (!error && history) {
+                dataToPrint.history = history;
+            }
+        }
+
         // If it's an oral assessment, fetch the 5 most recent evaluations
         if (activeFormKey === "oral-assessment-form") {
             const { data: evaluations, error } = await supabase
@@ -480,14 +506,18 @@ export default function CareFileV2FolderPage() {
             }
         }
 
-        await generateCareFilePDF({
-            formName,
-            data: dataToPrint,
-            resident,
-            orgLogoUrl: activeOrganization?.logo_url,
-            careHomeName: activeOrganization?.name || profile?.care_home_name
-        });
-        toast.success("PDF generated successfully");
+            await generateCareFilePDF({
+                formName,
+                data: dataToPrint,
+                resident,
+                orgLogoUrl: activeOrganization?.logo_url,
+                careHomeName: activeOrganization?.name || profile?.care_home_name
+            });
+            toast.success("PDF generated successfully");
+        } catch (error) {
+            console.error("PDF generation failed:", error);
+            toast.error("PDF generation failed. Please try again.");
+        }
     };
 
     const handleExternalSubmit = () => {
@@ -633,7 +663,7 @@ export default function CareFileV2FolderPage() {
                                             variant="outline"
                                             size="sm"
                                             onClick={handlePrint}
-                                            disabled={activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && !formDataForEdit}
+                                            disabled={activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && activeFormKey !== "v2-abbey-pain" && activeFormKey !== "oral-assessment-form" && !formDataForEdit}
                                             className="gap-2"
                                         >
                                             <Printer className="w-4 h-4" /> Print

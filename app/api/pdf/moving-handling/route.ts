@@ -1,17 +1,221 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chromium } from "playwright";
 
-function formatDate(dateString?: string | number): string {
-    if (!dateString) return "Not specified";
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return "Not specified";
+type RiskState = "ALWAYS" | "SOMETIMES" | "NEVER";
+type LimbMobility = "FULLY" | "PARTIALLY" | "NONE";
+type WeightBearingCapacity = "FULLY" | "PARTIALLY" | "WITH-AID" | "NO-WEIGHTBEARING";
+
+interface MovingHandlingAssessment {
+    residentId?: string;
+    teamId?: string;
+    organizationId?: string;
+    userId?: string;
+    residentName?: string;
+    dateOfBirth?: string | number;
+    bedroomNumber?: string;
+    weight?: number | string;
+    height?: number | string;
+    historyOfFalls?: boolean | string | number;
+    independentMobility?: boolean | string | number;
+    canWeightBear?: WeightBearingCapacity | string;
+    limbUpperRight?: LimbMobility | string;
+    limbUpperLeft?: LimbMobility | string;
+    limbLowerRight?: LimbMobility | string;
+    limbLowerLeft?: LimbMobility | string;
+    equipmentUsed?: string;
+    needsRiskStaff?: string;
+    deafnessState?: RiskState | string;
+    deafnessComments?: string;
+    blindnessState?: RiskState | string;
+    blindnessComments?: string;
+    unpredictableBehaviourState?: RiskState | string;
+    unpredictableBehaviourComments?: string;
+    uncooperativeBehaviourState?: RiskState | string;
+    uncooperativeBehaviourComments?: string;
+    distressedReactionState?: RiskState | string;
+    distressedReactionComments?: string;
+    disorientatedState?: RiskState | string;
+    disorientatedComments?: string;
+    unconsciousState?: RiskState | string;
+    unconsciousComments?: string;
+    unbalanceState?: RiskState | string;
+    unbalanceComments?: string;
+    spasmsState?: RiskState | string;
+    spasmsComments?: string;
+    stiffnessState?: RiskState | string;
+    stiffnessComments?: string;
+    cathetersState?: RiskState | string;
+    cathetersComments?: string;
+    incontinenceState?: RiskState | string;
+    incontinenceComments?: string;
+    localisedPain?: RiskState | string;
+    localisedPainComments?: string;
+    otherState?: RiskState | string;
+    otherComments?: string;
+    completedBy?: string;
+    jobRole?: string;
+    signature?: string;
+    assessmentDate?: string;
+    completionDate?: string;
+}
+
+interface RawAssessmentInput {
+    assessment_data?: Record<string, unknown>;
+    [key: string]: unknown;
+}
+
+const EMPTY_VALUE = "Not provided";
+
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function valueOrEmpty(value: unknown): string {
+    if (value === null || value === undefined) return EMPTY_VALUE;
+    if (typeof value === "string") return value.trim() === "" ? EMPTY_VALUE : value.trim();
+    return String(value);
+}
+
+function formatDate(value?: string | number): string {
+    if (value === undefined || value === null || value === "") return EMPTY_VALUE;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return EMPTY_VALUE;
     return date.toLocaleDateString("en-GB");
+}
+
+function toYesNo(value: unknown): "Yes" | "No" {
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    if (typeof value === "number") return value === 1 ? "Yes" : "No";
+    if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        return normalized === "true" || normalized === "yes" || normalized === "1" ? "Yes" : "No";
+    }
+    return "No";
+}
+
+function normalizeEnum(value: unknown): string {
+    if (value === null || value === undefined || value === "") return EMPTY_VALUE;
+    return String(value).replace(/-/g, " ").replace(/_/g, " ").toUpperCase();
+}
+
+function createRow(label: string, value: string): string {
+    return `
+        <tr>
+            <td class="label">${escapeHtml(label)}</td>
+            <td class="value">${escapeHtml(value)}</td>
+        </tr>
+    `;
+}
+
+function createSection(title: string, rows: string[]): string {
+    return `
+        <section class="section">
+            <h2>${escapeHtml(title)}</h2>
+            <table>
+                <tbody>
+                    ${rows.join("")}
+                </tbody>
+            </table>
+        </section>
+    `;
+}
+
+function createSectionWithSubsections(
+    title: string,
+    subsections: Array<{ title: string; rows: string[] }>
+): string {
+    return `
+        <section class="section">
+            <h2>${escapeHtml(title)}</h2>
+            ${subsections
+            .map(
+                (subsection) => `
+                    <div class="subsection">
+                        <h3>${escapeHtml(subsection.title)}</h3>
+                        <table>
+                            <tbody>
+                                ${subsection.rows.join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                `
+            )
+            .join("")}
+        </section>
+    `;
+}
+
+function parseAssessmentPayload(input: RawAssessmentInput): MovingHandlingAssessment {
+    const merged = {
+        ...input,
+        ...(input.assessment_data ?? {})
+    } as Record<string, unknown>;
+
+    return {
+        residentId: valueOrEmpty(merged.residentId),
+        teamId: valueOrEmpty(merged.teamId),
+        organizationId: valueOrEmpty(merged.organizationId),
+        userId: valueOrEmpty(merged.userId),
+        residentName: valueOrEmpty(merged.residentName),
+        dateOfBirth: (merged.dateOfBirth ?? merged.date_of_birth ?? "") as string | number,
+        bedroomNumber: valueOrEmpty(merged.bedroomNumber),
+        weight: merged.weight ?? "",
+        height: merged.height ?? "",
+        historyOfFalls: merged.historyOfFalls,
+        independentMobility: merged.independentMobility,
+        canWeightBear: valueOrEmpty(merged.canWeightBear),
+        limbUpperRight: valueOrEmpty(merged.limbUpperRight),
+        limbUpperLeft: valueOrEmpty(merged.limbUpperLeft),
+        limbLowerRight: valueOrEmpty(merged.limbLowerRight),
+        limbLowerLeft: valueOrEmpty(merged.limbLowerLeft),
+        equipmentUsed: valueOrEmpty(merged.equipmentUsed ?? merged.equipment_needed),
+        needsRiskStaff: valueOrEmpty(merged.needsRiskStaff),
+        deafnessState: valueOrEmpty(merged.deafnessState),
+        deafnessComments: valueOrEmpty(merged.deafnessComments),
+        blindnessState: valueOrEmpty(merged.blindnessState),
+        blindnessComments: valueOrEmpty(merged.blindnessComments),
+        unpredictableBehaviourState: valueOrEmpty(merged.unpredictableBehaviourState),
+        unpredictableBehaviourComments: valueOrEmpty(merged.unpredictableBehaviourComments),
+        uncooperativeBehaviourState: valueOrEmpty(merged.uncooperativeBehaviourState),
+        uncooperativeBehaviourComments: valueOrEmpty(merged.uncooperativeBehaviourComments),
+        distressedReactionState: valueOrEmpty(merged.distressedReactionState),
+        distressedReactionComments: valueOrEmpty(merged.distressedReactionComments),
+        disorientatedState: valueOrEmpty(merged.disorientatedState),
+        disorientatedComments: valueOrEmpty(merged.disorientatedComments),
+        unconsciousState: valueOrEmpty(merged.unconsciousState),
+        unconsciousComments: valueOrEmpty(merged.unconsciousComments),
+        unbalanceState: valueOrEmpty(merged.unbalanceState),
+        unbalanceComments: valueOrEmpty(merged.unbalanceComments),
+        spasmsState: valueOrEmpty(merged.spasmsState),
+        spasmsComments: valueOrEmpty(merged.spasmsComments),
+        stiffnessState: valueOrEmpty(merged.stiffnessState),
+        stiffnessComments: valueOrEmpty(merged.stiffnessComments),
+        cathetersState: valueOrEmpty(merged.cathetersState),
+        cathetersComments: valueOrEmpty(merged.cathetersComments),
+        incontinenceState: valueOrEmpty(merged.incontinenceState),
+        incontinenceComments: valueOrEmpty(merged.incontinenceComments),
+        localisedPain: valueOrEmpty(merged.localisedPain),
+        localisedPainComments: valueOrEmpty(merged.localisedPainComments),
+        otherState: valueOrEmpty(merged.otherState),
+        otherComments: valueOrEmpty(merged.otherComments),
+        completedBy: valueOrEmpty(merged.completedBy ?? merged.completed_by),
+        jobRole: valueOrEmpty(merged.jobRole),
+        signature: valueOrEmpty(merged.signature),
+        assessmentDate: valueOrEmpty(merged.assessmentDate ?? merged.assessment_date),
+        completionDate: valueOrEmpty(
+            merged.completionDate ?? merged.completion_date ?? merged.assessmentDate ?? merged.assessment_date
+        )
+    };
 }
 
 export async function POST(request: NextRequest) {
     try {
-        // Parse the request body
-        const assessmentData = await request.json();
+        const assessmentData = (await request.json()) as RawAssessmentInput;
 
         if (!assessmentData) {
             return NextResponse.json(
@@ -20,29 +224,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Flatten the data: merge assessment_data into the top level
-        const flattenedAssessment = {
-            ...assessmentData,
-            ...(assessmentData.assessment_data || {}),
-            // Ensure resident details and common fields are at the top level
-            residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
-            dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth,
-            bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber,
-            completionDate: assessmentData.assessment_date || assessmentData.completionDate || assessmentData.completion_date || assessmentData.assessment_data?.completionDate || new Date().toLocaleDateString(),
-            weight: assessmentData.weight || assessmentData.assessment_data?.weight || "N/A",
-            height: assessmentData.height || assessmentData.assessment_data?.height || "N/A"
-        };
+        const assessment = parseAssessmentPayload(assessmentData);
 
-        // Add some debugging
-        console.log(
-            "Moving handling PDF API flattening data:",
-            flattenedAssessment.residentName
-        );
+        const htmlContent = generateMovingHandlingHTML(assessment);
 
-        // Generate HTML for the PDF
-        const htmlContent = generateMovingHandlingHTML(flattenedAssessment);
-
-        // Launch Playwright browser
         const browser = await chromium.launch({
             headless: true,
             args: ["--no-sandbox", "--disable-setuid-sandbox"]
@@ -51,13 +236,11 @@ export async function POST(request: NextRequest) {
         const page = await browser.newPage();
 
         try {
-            // Set the HTML content directly
             await page.setContent(htmlContent, {
                 waitUntil: "networkidle",
                 timeout: 30000
             });
 
-            // Generate PDF
             const pdfBuffer = await page.pdf({
                 format: "A4",
                 printBackground: true,
@@ -73,12 +256,11 @@ export async function POST(request: NextRequest) {
 
             await browser.close();
 
-            // Return the PDF as a response
-            return new NextResponse(pdfBuffer as any, {
+            return new NextResponse(pdfBuffer, {
                 status: 200,
                 headers: {
                     "Content-Type": "application/pdf",
-                    "Content-Disposition": `attachment; filename="moving-handling-assessment-${flattenedAssessment.residentName?.replace(/\s+/g, "-") || "record"}-${new Date().toISOString().split("T")[0]}.pdf"`
+                    "Content-Disposition": `attachment; filename="moving-handling-assessment-${assessment.residentName?.replace(/\s+/g, "-") || "record"}-${new Date().toISOString().split("T")[0]}.pdf"`
                 }
             });
         } catch (error) {
@@ -94,11 +276,85 @@ export async function POST(request: NextRequest) {
     }
 }
 
-function generateMovingHandlingHTML(assessment: any): string {
-
-    const formatRiskState = (state: string) => {
-        return state.charAt(0).toUpperCase() + state.slice(1).toLowerCase();
-    };
+function generateMovingHandlingHTML(assessment: MovingHandlingAssessment): string {
+    const sections = [
+        createSection("Section 1: Resident Information", [
+            createRow("Resident Name", valueOrEmpty(assessment.residentName)),
+            createRow("Date of Birth", formatDate(assessment.dateOfBirth)),
+            createRow("Bedroom Number", valueOrEmpty(assessment.bedroomNumber)),
+            createRow("Weight (kg)", valueOrEmpty(assessment.weight)),
+            createRow("Height (cm)", valueOrEmpty(assessment.height)),
+            createRow("History of Falls", toYesNo(assessment.historyOfFalls))
+        ]),
+        createSection("Section 2: Mobility Assessment", [
+            createRow("Independent Mobility", toYesNo(assessment.independentMobility)),
+            createRow("Weight Bearing Capacity", normalizeEnum(assessment.canWeightBear)),
+            createRow("Limb Mobility - Upper Right", normalizeEnum(assessment.limbUpperRight)),
+            createRow("Limb Mobility - Upper Left", normalizeEnum(assessment.limbUpperLeft)),
+            createRow("Limb Mobility - Lower Right", normalizeEnum(assessment.limbLowerRight)),
+            createRow("Limb Mobility - Lower Left", normalizeEnum(assessment.limbLowerLeft)),
+            createRow("Equipment Needed", valueOrEmpty(assessment.equipmentUsed)),
+            createRow("Details of Support/Staff Required", valueOrEmpty(assessment.needsRiskStaff))
+        ]),
+        createSectionWithSubsections("Section 3: Risk Factors", [
+            {
+                title: "Sensory & Behavioral",
+                rows: [
+                    createRow("Deafness State", normalizeEnum(assessment.deafnessState)),
+                    createRow("Deafness Comments", valueOrEmpty(assessment.deafnessComments)),
+                    createRow("Blindness State", normalizeEnum(assessment.blindnessState)),
+                    createRow("Blindness Comments", valueOrEmpty(assessment.blindnessComments)),
+                    createRow("Unpredictable Behaviour State", normalizeEnum(assessment.unpredictableBehaviourState)),
+                    createRow("Unpredictable Behaviour Comments", valueOrEmpty(assessment.unpredictableBehaviourComments)),
+                    createRow("Uncooperative Behaviour State", normalizeEnum(assessment.uncooperativeBehaviourState)),
+                    createRow("Uncooperative Behaviour Comments", valueOrEmpty(assessment.uncooperativeBehaviourComments))
+                ]
+            },
+            {
+                title: "Cognitive & Emotional",
+                rows: [
+                    createRow("Distressed Reaction State", normalizeEnum(assessment.distressedReactionState)),
+                    createRow("Distressed Reaction Comments", valueOrEmpty(assessment.distressedReactionComments)),
+                    createRow("Disorientated State", normalizeEnum(assessment.disorientatedState)),
+                    createRow("Disorientated Comments", valueOrEmpty(assessment.disorientatedComments)),
+                    createRow("Unconscious State", normalizeEnum(assessment.unconsciousState)),
+                    createRow("Unconscious Comments", valueOrEmpty(assessment.unconsciousComments)),
+                    createRow("Unbalance State", normalizeEnum(assessment.unbalanceState)),
+                    createRow("Unbalance Comments", valueOrEmpty(assessment.unbalanceComments))
+                ]
+            },
+            {
+                title: "Physical & Other",
+                rows: [
+                    createRow("Spasms State", normalizeEnum(assessment.spasmsState)),
+                    createRow("Spasms Comments", valueOrEmpty(assessment.spasmsComments)),
+                    createRow("Stiffness State", normalizeEnum(assessment.stiffnessState)),
+                    createRow("Stiffness Comments", valueOrEmpty(assessment.stiffnessComments)),
+                    createRow("Catheters State", normalizeEnum(assessment.cathetersState)),
+                    createRow("Catheters Comments", valueOrEmpty(assessment.cathetersComments)),
+                    createRow("Incontinence State", normalizeEnum(assessment.incontinenceState)),
+                    createRow("Incontinence Comments", valueOrEmpty(assessment.incontinenceComments)),
+                    createRow("Localised Pain State", normalizeEnum(assessment.localisedPain)),
+                    createRow("Localised Pain Comments", valueOrEmpty(assessment.localisedPainComments)),
+                    createRow("Other Risk Factors State", normalizeEnum(assessment.otherState)),
+                    createRow("Other Risk Factors Comments", valueOrEmpty(assessment.otherComments))
+                ]
+            }
+        ]),
+        createSection("Section 7: Assessment Completion", [
+            createRow("Completed By", valueOrEmpty(assessment.completedBy)),
+            createRow("Job Role", valueOrEmpty(assessment.jobRole)),
+            createRow("Signature", valueOrEmpty(assessment.signature)),
+            createRow("Assessment Date", valueOrEmpty(assessment.assessmentDate)),
+            createRow("Completion Date", valueOrEmpty(assessment.completionDate))
+        ]),
+        createSection("Metadata", [
+            createRow("Resident ID", valueOrEmpty(assessment.residentId)),
+            createRow("Team ID", valueOrEmpty(assessment.teamId)),
+            createRow("Organization ID", valueOrEmpty(assessment.organizationId)),
+            createRow("User ID", valueOrEmpty(assessment.userId))
+        ])
+    ];
 
     return `
     <!DOCTYPE html>
@@ -109,389 +365,85 @@ function generateMovingHandlingHTML(assessment: any): string {
         <style>
             body {
                 font-family: Arial, sans-serif;
-                font-size: 12px;
+                font-size: 11px;
                 line-height: 1.4;
-                margin: 20px;
-                color: #333;
+                margin: 16px;
+                color: #111827;
             }
-            .header {
-                text-align: center;
-                margin-bottom: 30px;
-                border-bottom: 2px solid #2563eb;
-                padding-bottom: 20px;
+            .page-header {
+                border: 1px solid #1d4ed8;
+                background: #eff6ff;
+                padding: 10px 12px;
+                margin-bottom: 16px;
             }
-            .header h1 {
-                color: #2563eb;
+            .page-header h1 {
+                margin: 0 0 4px 0;
+                color: #1d4ed8;
+                font-size: 18px;
+            }
+            .page-header p {
                 margin: 0;
-                font-size: 24px;
-            }
-            .header p {
-                margin: 5px 0;
-                color: #666;
+                color: #374151;
+                font-size: 11px;
             }
             .section {
-                margin-bottom: 25px;
-                page-break-inside: avoid;
+                margin-bottom: 12px;
             }
-            .section-title {
-                background-color: #2563eb;
-                color: white;
-                padding: 8px 12px;
-                margin: 0 0 15px 0;
-                font-size: 14px;
+            .section h2 {
+                margin: 0;
+                padding: 6px 8px;
+                background: #1d4ed8;
+                color: #ffffff;
+                font-size: 12px;
                 font-weight: bold;
             }
-            .info-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 15px;
-                margin-bottom: 15px;
+            .subsection {
+                margin-top: 8px;
             }
-            .info-item {
-                margin-bottom: 10px;
+            .subsection h3 {
+                margin: 0;
+                padding: 5px 8px;
+                background: #dbeafe;
+                color: #1e3a8a;
+                font-size: 11px;
+                font-weight: 700;
+                border: 1px solid #bfdbfe;
+                border-bottom: 0;
             }
-            .info-label {
-                font-weight: bold;
-                color: #374151;
-                margin-bottom: 2px;
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                table-layout: fixed;
+                border: 1px solid #d1d5db;
             }
-            .info-value {
-                color: #111827;
-                padding: 4px 8px;
-                background-color: #f9fafb;
-                border: 1px solid #e5e7eb;
-                border-radius: 4px;
+            td {
+                border: 1px solid #d1d5db;
+                padding: 6px 8px;
+                vertical-align: top;
+                word-break: break-word;
             }
-            .risk-assessment {
-                margin-bottom: 20px;
+            td.label {
+                width: 36%;
+                font-weight: 600;
+                background: #f9fafb;
             }
-            .risk-item {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 8px 12px;
-                margin-bottom: 8px;
-                border: 1px solid #e5e7eb;
-                border-radius: 4px;
-            }
-            .risk-item.always {
-                background-color: #fee2e2;
-                border-color: #fca5a5;
-            }
-            .risk-item.sometimes {
-                background-color: #fef3c7;
-                border-color: #fcd34d;
-            }
-            .risk-item.never {
-                background-color: #dcfce7;
-                border-color: #86efac;
-            }
-            .risk-label {
-                font-weight: 500;
-            }
-            .risk-value {
-                font-weight: bold;
-                padding: 2px 8px;
-                border-radius: 3px;
-                color: white;
-            }
-            .risk-value.always {
-                background-color: #dc2626;
-            }
-            .risk-value.sometimes {
-                background-color: #d97706;
-            }
-            .risk-value.never {
-                background-color: #16a34a;
-            }
-            .comments {
-                font-style: italic;
-                color: #6b7280;
-                margin-left: 15px;
-                margin-top: 5px;
-            }
-            .signature-section {
-                margin-top: 30px;
-                border-top: 1px solid #e5e7eb;
-                padding-top: 20px;
-            }
-            .signature-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 30px;
-            }
-            .limb-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 15px;
-                margin-bottom: 15px;
-            }
-            .page-break {
-                page-break-before: always;
+            td.value {
+                width: 64%;
             }
             @media print {
                 body { margin: 0; }
-                .page-break { page-break-before: always; }
+                .section { break-inside: avoid; }
             }
         </style>
     </head>
     <body>
-        <div class="header">
-            <h1>Moving and Handling Risk Assessment</h1>
-            <p>Assessment Date: ${assessment.completionDate}</p>
-            <p>Generated on: ${new Date().toLocaleDateString()}</p>
+        <div class="page-header">
+            <h1>Moving and Handling Assessment</h1>
+            <p>Assessment Date: ${escapeHtml(valueOrEmpty(assessment.completionDate))}</p>
+            <p>Generated On: ${escapeHtml(new Date().toLocaleDateString("en-GB"))}</p>
         </div>
-
-        <div class="section">
-            <h2 class="section-title">Resident Information</h2>
-            <div class="info-grid">
-                <div class="info-item">
-                    <div class="info-label">Resident Name:</div>
-                    <div class="info-value">${assessment.residentName}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Date of Birth:</div>
-                    <div class="info-value">${formatDate(assessment.dateOfBirth)}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Bedroom Number:</div>
-                    <div class="info-value">${assessment.bedroomNumber}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Weight:</div>
-                    <div class="info-value">${assessment.weight} kg</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Height:</div>
-                    <div class="info-value">${assessment.height} cm</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">History of Falls:</div>
-                    <div class="info-value">${assessment.historyOfFalls ? "Yes" : "No"}</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">Mobility Assessment</h2>
-            <div class="info-grid">
-                <div class="info-item">
-                    <div class="info-label">Independent Mobility:</div>
-                    <div class="info-value">${assessment.independentMobility ? "Yes" : "No"}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Weight Bearing Capacity:</div>
-                    <div class="info-value">${assessment.canWeightBear.replace(/-/g, " ")}</div>
-                </div>
-            </div>
-            
-            <h3>Limb Mobility</h3>
-            <div class="limb-grid">
-                <div class="info-item">
-                    <div class="info-label">Upper Right:</div>
-                    <div class="info-value">${assessment.limbUpperRight}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Upper Left:</div>
-                    <div class="info-value">${assessment.limbUpperLeft}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Lower Right:</div>
-                    <div class="info-value">${assessment.limbLowerRight}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Lower Left:</div>
-                    <div class="info-value">${assessment.limbLowerLeft}</div>
-                </div>
-            </div>
-
-            ${assessment.equipmentUsed
-            ? `
-                <div class="info-item">
-                    <div class="info-label">Equipment Used:</div>
-                    <div class="info-value">${assessment.equipmentUsed}</div>
-                </div>
-            `
-            : ""
-        }
-
-            ${assessment.needsRiskStaff
-            ? `
-                <div class="info-item">
-                    <div class="info-label">Staff Risk Assessment:</div>
-                    <div class="info-value">${assessment.needsRiskStaff}</div>
-                </div>
-            `
-            : ""
-        }
-        </div>
-
-        <div class="page-break"></div>
-
-        <div class="section">
-            <h2 class="section-title">Sensory & Behavioral Risk Factors</h2>
-            <div class="risk-assessment">
-                <div class="risk-item ${assessment.deafnessState.toLowerCase()}">
-                    <span class="risk-label">Deafness:</span>
-                    <span class="risk-value ${assessment.deafnessState.toLowerCase()}">${formatRiskState(assessment.deafnessState)}</span>
-                </div>
-                ${assessment.deafnessComments ? `<div class="comments">${assessment.deafnessComments}</div>` : ""}
-
-                <div class="risk-item ${assessment.blindnessState.toLowerCase()}">
-                    <span class="risk-label">Blindness/Visual Impairment:</span>
-                    <span class="risk-value ${assessment.blindnessState.toLowerCase()}">${formatRiskState(assessment.blindnessState)}</span>
-                </div>
-                ${assessment.blindnessComments ? `<div class="comments">${assessment.blindnessComments}</div>` : ""}
-
-                <div class="risk-item ${assessment.unpredictableBehaviourState.toLowerCase()}">
-                    <span class="risk-label">Unpredictable Behavior:</span>
-                    <span class="risk-value ${assessment.unpredictableBehaviourState.toLowerCase()}">${formatRiskState(assessment.unpredictableBehaviourState)}</span>
-                </div>
-                ${assessment.unpredictableBehaviourComments ? `<div class="comments">${assessment.unpredictableBehaviourComments}</div>` : ""}
-
-                <div class="risk-item ${assessment.uncooperativeBehaviourState.toLowerCase()}">
-                    <span class="risk-label">Uncooperative Behavior:</span>
-                    <span class="risk-value ${assessment.uncooperativeBehaviourState.toLowerCase()}">${formatRiskState(assessment.uncooperativeBehaviourState)}</span>
-                </div>
-                ${assessment.uncooperativeBehaviourComments ? `<div class="comments">${assessment.uncooperativeBehaviourComments}</div>` : ""}
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">Cognitive & Emotional Risk Factors</h2>
-            <div class="risk-assessment">
-                <div class="risk-item ${assessment.distressedReactionState.toLowerCase()}">
-                    <span class="risk-label">Distressed Reaction:</span>
-                    <span class="risk-value ${assessment.distressedReactionState.toLowerCase()}">${formatRiskState(assessment.distressedReactionState)}</span>
-                </div>
-                ${assessment.distressedReactionComments ? `<div class="comments">${assessment.distressedReactionComments}</div>` : ""}
-
-                <div class="risk-item ${assessment.disorientatedState.toLowerCase()}">
-                    <span class="risk-label">Disorientation:</span>
-                    <span class="risk-value ${assessment.disorientatedState.toLowerCase()}">${formatRiskState(assessment.disorientatedState)}</span>
-                </div>
-                ${assessment.disorientatedComments ? `<div class="comments">${assessment.disorientatedComments}</div>` : ""}
-
-                <div class="risk-item ${assessment.unconsciousState.toLowerCase()}">
-                    <span class="risk-label">Unconscious/Sedated:</span>
-                    <span class="risk-value ${assessment.unconsciousState.toLowerCase()}">${formatRiskState(assessment.unconsciousState)}</span>
-                </div>
-                ${assessment.unconsciousComments ? `<div class="comments">${assessment.unconsciousComments}</div>` : ""}
-
-                <div class="risk-item ${assessment.unbalanceState.toLowerCase()}">
-                    <span class="risk-label">Unbalanced/Unstable:</span>
-                    <span class="risk-value ${assessment.unbalanceState.toLowerCase()}">${formatRiskState(assessment.unbalanceState)}</span>
-                </div>
-                ${assessment.unbalanceComments ? `<div class="comments">${assessment.unbalanceComments}</div>` : ""}
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">Physical Risk Factors</h2>
-            <div class="risk-assessment">
-                <div class="risk-item ${assessment.spasmsState.toLowerCase()}">
-                    <span class="risk-label">Spasms:</span>
-                    <span class="risk-value ${assessment.spasmsState.toLowerCase()}">${formatRiskState(assessment.spasmsState)}</span>
-                </div>
-                ${assessment.spasmsComments ? `<div class="comments">${assessment.spasmsComments}</div>` : ""}
-
-                <div class="risk-item ${assessment.stiffnessState.toLowerCase()}">
-                    <span class="risk-label">Stiffness/Rigidity:</span>
-                    <span class="risk-value ${assessment.stiffnessState.toLowerCase()}">${formatRiskState(assessment.stiffnessState)}</span>
-                </div>
-                ${assessment.stiffnessComments ? `<div class="comments">${assessment.stiffnessComments}</div>` : ""}
-
-                <div class="risk-item ${assessment.cathetersState.toLowerCase()}">
-                    <span class="risk-label">Catheters/Tubes:</span>
-                    <span class="risk-value ${assessment.cathetersState.toLowerCase()}">${formatRiskState(assessment.cathetersState)}</span>
-                </div>
-                ${assessment.cathetersComments ? `<div class="comments">${assessment.cathetersComments}</div>` : ""}
-
-                <div class="risk-item ${assessment.incontinenceState.toLowerCase()}">
-                    <span class="risk-label">Incontinence:</span>
-                    <span class="risk-value ${assessment.incontinenceState.toLowerCase()}">${formatRiskState(assessment.incontinenceState)}</span>
-                </div>
-                ${assessment.incontinenceComments ? `<div class="comments">${assessment.incontinenceComments}</div>` : ""}
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">Additional Risk Factors</h2>
-            <div class="risk-assessment">
-                <div class="risk-item ${assessment.localisedPain.toLowerCase()}">
-                    <span class="risk-label">Localized Pain:</span>
-                    <span class="risk-value ${assessment.localisedPain.toLowerCase()}">${formatRiskState(assessment.localisedPain)}</span>
-                </div>
-                ${assessment.localisedPainComments ? `<div class="comments">${assessment.localisedPainComments}</div>` : ""}
-
-                <div class="risk-item ${assessment.otherState.toLowerCase()}">
-                    <span class="risk-label">Other Risk Factors:</span>
-                    <span class="risk-value ${assessment.otherState.toLowerCase()}">${formatRiskState(assessment.otherState)}</span>
-                </div>
-                ${assessment.otherComments ? `<div class="comments">${assessment.otherComments}</div>` : ""}
-            </div>
-        </div>
-
-        <div class="signature-section">
-            <h2 class="section-title">Assessment Completion</h2>
-            <div class="signature-grid">
-                <div class="info-item">
-                    <div class="info-label">Completed By:</div>
-                    <div class="info-value">${assessment.completedBy}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Job Role:</div>
-                    <div class="info-value">${assessment.jobRole}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Signature:</div>
-                    <div class="info-value">${assessment.signature}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Date:</div>
-                    <div class="info-value">${assessment.completionDate}</div>
-                </div>
-            </div>
-        </div>
+        ${sections.join("")}
     </body>
     </html>
   `;
-}
-
-async function generatePDFFromHTML(html: string): Promise<Buffer> {
-    const puppeteer = await import("puppeteer");
-
-    const browser = await puppeteer.default.launch({
-        headless: true,
-        args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-accelerated-2d-canvas",
-            "--no-first-run",
-            "--no-zygote",
-            "--single-process",
-            "--disable-gpu"
-        ]
-    });
-
-    try {
-        const page = await browser.newPage();
-        await page.setContent(html, { waitUntil: "networkidle0" });
-
-        const pdfBuffer = await page.pdf({
-            format: "A4",
-            printBackground: true,
-            margin: {
-                top: "20px",
-                bottom: "20px",
-                left: "20px",
-                right: "20px"
-            }
-        });
-
-        return Buffer.from(pdfBuffer);
-    } finally {
-        await browser.close();
-    }
 }
