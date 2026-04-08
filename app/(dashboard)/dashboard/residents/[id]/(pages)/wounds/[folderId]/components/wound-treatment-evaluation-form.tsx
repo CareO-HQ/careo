@@ -1,47 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
 import { useProfile } from "@/hooks/use-profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Save, Plus, Trash2, Loader2 } from "lucide-react";
+import { CalendarIcon, Save, Loader2, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 // --- Types ---
 type WoundTreatmentEvaluation = {
@@ -67,342 +42,344 @@ type WoundTreatmentEvaluationFormProps = {
   onSaved?: () => void;
 };
 
-// --- Zod Schema ---
-const WoundTreatmentEvaluationSchema = z.object({
-  evaluationDate: z.date(),
-  woundNumber: z.string().min(1, "Wound number is required"),
-  cleansingMethod: z.string().optional(),
-  dressingChoice: z.string().optional(),
-  frequency: z.string().optional(),
-  rationaleForChange: z.string().optional(),
-  woundEvaluation: z.string().optional(),
-  signature: z.string().min(1, "Signature is required"),
-});
-
-type WoundTreatmentEvaluationFormData = z.infer<typeof WoundTreatmentEvaluationSchema>;
-
 export function WoundTreatmentEvaluationForm({
   residentId,
   woundFolderId,
   residentName,
   residentDOB,
   roomNumber,
-  evaluations = [],
   onSaved,
 }: WoundTreatmentEvaluationFormProps) {
-  const [showForm, setShowForm] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [evaluationToDelete, setEvaluationToDelete] = useState<string | null>(null);
   const { profile } = useProfile();
-
-  const form = useForm<WoundTreatmentEvaluationFormData>({
-    resolver: zodResolver(WoundTreatmentEvaluationSchema),
-    defaultValues: {
-      evaluationDate: new Date(),
-      woundNumber: "",
-      cleansingMethod: "",
-      dressingChoice: "",
-      frequency: "",
-      rationaleForChange: "",
-      woundEvaluation: "",
-      signature: "",
-    },
+  const [evaluations, setEvaluations] = useState<WoundTreatmentEvaluation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showNewEntry, setShowNewEntry] = useState(false);
+  const [newEntry, setNewEntry] = useState({
+    date: new Date(),
+    woundNumber: "",
+    cleansingMethod: "",
+    dressingChoice: "",
+    frequency: "",
+    rationaleForChange: "",
+    woundEvaluation: "",
+    signature: profile?.name || "",
   });
 
-  const onSubmit = async (data: WoundTreatmentEvaluationFormData) => {
-    setIsSaving(true);
+  // Fetch existing evaluations
+  useEffect(() => {
+    fetchEvaluations();
+  }, [woundFolderId]);
 
+  // Set showNewEntry based on whether evaluations exist
+  useEffect(() => {
+    if (!isLoading) {
+      setShowNewEntry(evaluations.length === 0);
+    }
+  }, [evaluations.length, isLoading]);
+
+  const fetchEvaluations = async () => {
+    setIsLoading(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
+        .from("wound_treatment_evaluations")
+        .select("*")
+        .eq("wound_folder_id", woundFolderId)
+        .order("evaluation_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        console.log("Fetched evaluations (newest first):", data);
+        setEvaluations(data);
+      }
+    } catch (err) {
+      console.error("Error fetching evaluations:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!newEntry.woundNumber || !newEntry.signature) {
+      toast.error("Wound number and signature are required");
+      return;
+    }
+
+    if (!profile?.active_organization_id) {
+      toast.error("No active organization found");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      console.log("Attempting to save evaluation:", {
+        wound_folder_id: woundFolderId,
+        resident_id: residentId,
+        organization_id: profile?.active_organization_id,
+      });
+
+      const { error, data } = await supabase
         .from("wound_treatment_evaluations")
         .insert({
           wound_folder_id: woundFolderId,
           resident_id: residentId,
           organization_id: profile?.active_organization_id,
-          evaluation_date: format(data.evaluationDate, "yyyy-MM-dd"),
-          wound_number: data.woundNumber,
-          cleansing_method: data.cleansingMethod || null,
-          dressing_choice: data.dressingChoice || null,
-          frequency: data.frequency || null,
-          rationale_for_change: data.rationaleForChange || null,
-          wound_evaluation: data.woundEvaluation || null,
-          signature: data.signature,
-        });
+          evaluation_date: format(newEntry.date, "yyyy-MM-dd"),
+          wound_number: newEntry.woundNumber,
+          cleansing_method: newEntry.cleansingMethod || null,
+          dressing_choice: newEntry.dressingChoice || null,
+          frequency: newEntry.frequency || null,
+          rationale_for_change: newEntry.rationaleForChange || null,
+          wound_evaluation: newEntry.woundEvaluation || null,
+          signature: newEntry.signature,
+        })
+        .select();
 
       if (error) {
-        console.error("Error saving evaluation:", error);
-        toast.error("Failed to save evaluation");
+        console.error("Save error:", error);
+        toast.error(`Failed to save: ${error.message}`);
         return;
       }
 
-      toast.success("Treatment evaluation saved successfully");
-      form.reset();
-      setShowForm(false);
+      console.log("Save successful:", data);
+      toast.success("Evaluation saved successfully");
 
-      if (onSaved) {
-        onSaved();
-      }
+      // Hide new entry form and reset
+      setShowNewEntry(false);
+      setNewEntry({
+        date: new Date(),
+        woundNumber: "",
+        cleansingMethod: "",
+        dressingChoice: "",
+        frequency: "",
+        rationaleForChange: "",
+        woundEvaluation: "",
+        signature: profile?.name || "",
+      });
+
+      // Refresh data
+      await fetchEvaluations();
+      if (onSaved) onSaved();
     } catch (error) {
-      console.error("Error saving evaluation:", error);
-      toast.error("An unexpected error occurred");
+      console.error("Error saving:", error);
+      toast.error("An error occurred while saving");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDeleteClick = (evaluationId: string) => {
-    setEvaluationToDelete(evaluationId);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!evaluationToDelete) return;
-
-    setDeletingId(evaluationToDelete);
-
-    try {
-      const { error } = await supabase
-        .from("wound_treatment_evaluations")
-        .delete()
-        .eq("id", evaluationToDelete);
-
-      if (error) {
-        console.error("Error deleting evaluation:", error);
-        toast.error("Failed to delete evaluation");
-        return;
-      }
-
-      toast.success("Treatment evaluation deleted successfully");
-
-      if (onSaved) {
-        onSaved();
-      }
-    } catch (error) {
-      console.error("Error deleting evaluation:", error);
-      toast.error("An unexpected error occurred");
-    } finally {
-      setDeletingId(null);
-      setDeleteDialogOpen(false);
-      setEvaluationToDelete(null);
-    }
-  };
-
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Wound Treatment and Evaluation of Care</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            To be completed when treatment dressing type/regime changed - Please record clearly
-          </p>
-        </div>
-        <Button onClick={() => setShowForm(!showForm)} size="sm">
-          <Plus className="w-4 h-4 mr-2" />
-          {showForm ? "Cancel" : "New Evaluation"}
-        </Button>
-      </div>
+    <ScrollArea className="h-full">
+      <div className="max-w-full mx-auto p-6">
+        <style>{`
+          .treatment-eval-form input:disabled {
+            opacity: 1 !important;
+            color: inherit !important;
+            -webkit-text-fill-color: currentColor !important;
+            background-color: #f9fafb !important;
+          }
 
-      {/* Resident Information */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Resident Information</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-3 gap-4 text-sm">
-          <div>
-            <p className="text-muted-foreground">Resident Name</p>
-            <p className="font-medium">{residentName || "N/A"}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">D.O.B.</p>
-            <p className="font-medium">
-              {residentDOB ? format(new Date(residentDOB), "dd/MM/yyyy") : "N/A"}
+          .treatment-eval-form textarea:disabled {
+            opacity: 1 !important;
+            color: inherit !important;
+            -webkit-text-fill-color: currentColor !important;
+            background-color: #f9fafb !important;
+          }
+        `}</style>
+
+        <div className="treatment-eval-form bg-white border-2 border-gray-300">
+          {/* Header */}
+          <div className="border-b-2 border-gray-300 p-4 bg-gray-50">
+            <h1 className="text-xl font-bold text-center mb-3">
+              Wound Treatment and Evaluation of Care
+            </h1>
+            <p className="text-xs text-center text-gray-600 mb-3">
+              (To be completed when treatment or dressing type / regime / changed / Please record clearly)
             </p>
+
+            {/* Resident Info */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-semibold">Resident&apos;s name:</span> {residentName || "N/A"}
+              </div>
+              <div>
+                <span className="font-semibold">D.O.B:</span>{" "}
+                {residentDOB ? format(new Date(residentDOB), "dd/MM/yyyy") : "N/A"}
+              </div>
+              <div>
+                <span className="font-semibold">Rm. No.:</span> {roomNumber || "N/A"}
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-muted-foreground">Room No.</p>
-            <p className="font-medium">{roomNumber || "N/A"}</p>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border-2 border-gray-300 p-2 font-bold text-left w-24">Date</th>
+                  <th className="border-2 border-gray-300 p-2 font-bold text-left w-20">Wound Number</th>
+                  <th className="border-2 border-gray-300 p-2 font-bold text-left">Cleansing Method, Dressing Choice</th>
+                  <th className="border-2 border-gray-300 p-2 font-bold text-left w-24">Frequency</th>
+                  <th className="border-2 border-gray-300 p-2 font-bold text-left">Rationale for changing dressing type</th>
+                  <th className="border-2 border-gray-300 p-2 font-bold text-left">Wound evaluation (healing, dry etc.)</th>
+                  <th className="border-2 border-gray-300 p-2 font-bold text-left w-32">Signature</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* New Entry Row - Only show when adding */}
+                {showNewEntry && (
+                  <tr className="bg-yellow-50">
+                    <td className="border-2 border-gray-300 p-1">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className={cn(
+                              "w-full h-auto text-xs justify-start p-2 font-normal",
+                              !newEntry.date && "text-muted-foreground"
+                            )}
+                          >
+                            {newEntry.date ? format(newEntry.date, "dd/MM/yyyy") : "Pick"}
+                            <CalendarIcon className="ml-auto h-3 w-3" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={newEntry.date}
+                            onSelect={(date) => setNewEntry({ ...newEntry, date: date || new Date() })}
+                            disabled={(date) => date > new Date()}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Input
+                        value={newEntry.woundNumber}
+                        onChange={(e) => setNewEntry({ ...newEntry, woundNumber: e.target.value })}
+                        className="h-auto text-xs border-0 p-1"
+                        placeholder="#"
+                      />
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Textarea
+                        value={newEntry.cleansingMethod}
+                        onChange={(e) => setNewEntry({ ...newEntry, cleansingMethod: e.target.value })}
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                        placeholder="Describe cleansing method and dressing..."
+                      />
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Input
+                        value={newEntry.frequency}
+                        onChange={(e) => setNewEntry({ ...newEntry, frequency: e.target.value })}
+                        className="h-auto text-xs border-0 p-1"
+                        placeholder="e.g., Daily"
+                      />
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Textarea
+                        value={newEntry.rationaleForChange}
+                        onChange={(e) => setNewEntry({ ...newEntry, rationaleForChange: e.target.value })}
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                        placeholder="Reason for change..."
+                      />
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Textarea
+                        value={newEntry.woundEvaluation}
+                        onChange={(e) => setNewEntry({ ...newEntry, woundEvaluation: e.target.value })}
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                        placeholder="Wound status..."
+                      />
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Input
+                        value={newEntry.signature}
+                        onChange={(e) => setNewEntry({ ...newEntry, signature: e.target.value })}
+                        className="h-auto text-xs border-0 p-1"
+                        placeholder="Sign"
+                      />
+                    </td>
+                  </tr>
+                )}
+
+                {/* Existing Evaluations - Newest First */}
+                {evaluations.map((evaluation, index) => (
+                  <tr key={evaluation.id} className="hover:bg-gray-50">
+                    <td className="border-2 border-gray-300 p-1">
+                      <Input
+                        value={format(new Date(evaluation.evaluation_date), "dd/MM/yyyy")}
+                        disabled
+                        className="h-auto text-xs border-0 p-1"
+                      />
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Input
+                        value={evaluation.wound_number}
+                        disabled
+                        className="h-auto text-xs border-0 p-1"
+                      />
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Textarea
+                        value={evaluation.cleansing_method || ""}
+                        disabled
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                      />
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Input
+                        value={evaluation.frequency || ""}
+                        disabled
+                        className="h-auto text-xs border-0 p-1"
+                      />
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Textarea
+                        value={evaluation.rationale_for_change || ""}
+                        disabled
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                      />
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Textarea
+                        value={evaluation.wound_evaluation || ""}
+                        disabled
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                      />
+                    </td>
+                    <td className="border-2 border-gray-300 p-1">
+                      <Input
+                        value={evaluation.signature}
+                        disabled
+                        className="h-auto text-xs border-0 p-1"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* New Evaluation Form */}
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>New Treatment Evaluation</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Date */}
-                  <FormField
-                    control={form.control}
-                    name="evaluationDate"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Date</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant="outline"
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "dd/MM/yyyy")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Wound Number */}
-                  <FormField
-                    control={form.control}
-                    name="woundNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Wound Number</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="Enter wound number" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Cleansing Method */}
-                  <FormField
-                    control={form.control}
-                    name="cleansingMethod"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Cleansing Method</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="e.g., Normal saline" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Dressing Choice */}
-                  <FormField
-                    control={form.control}
-                    name="dressingChoice"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Dressing Choice</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="e.g., Hydrocolloid" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Frequency */}
-                <FormField
-                  control={form.control}
-                  name="frequency"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Frequency</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="e.g., Daily, Twice daily, Every 3 days" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Rationale for Changing Dressing Type */}
-                <FormField
-                  control={form.control}
-                  name="rationaleForChange"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Rationale for Changing Dressing Type</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          placeholder="Explain why the dressing type/regime was changed"
-                          rows={3}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Wound Evaluation */}
-                <FormField
-                  control={form.control}
-                  name="woundEvaluation"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Wound Evaluation</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          placeholder="e.g., Healing, dry, showing signs of improvement"
-                          rows={3}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Signature */}
-                <FormField
-                  control={form.control}
-                  name="signature"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Signature</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Enter your name/initials" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end gap-3">
+          {/* Action Buttons */}
+          <div className="border-t-2 border-gray-300 p-4 bg-gray-50 flex justify-between items-center">
+            <div className="text-sm text-gray-600">
+              {evaluations.length} evaluation{evaluations.length !== 1 ? 's' : ''} recorded
+              {evaluations.length > 0 && <span className="ml-2 text-xs text-muted-foreground">(Most recent first)</span>}
+            </div>
+            <div className="flex gap-2">
+              {showNewEntry ? (
+                <>
                   <Button
-                    type="button"
                     variant="outline"
-                    onClick={() => setShowForm(false)}
+                    onClick={() => setShowNewEntry(false)}
+                    disabled={isSaving}
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isSaving}>
+                  <Button onClick={handleSave} disabled={isSaving}>
                     {isSaving ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -415,140 +392,17 @@ export function WoundTreatmentEvaluationForm({
                       </>
                     )}
                   </Button>
-                </div>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Previous Evaluations */}
-      {evaluations.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Previous Evaluations</h3>
-            <Badge variant="secondary">{evaluations.length} evaluation(s)</Badge>
+                </>
+              ) : (
+                <Button onClick={() => setShowNewEntry(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add New Evaluation
+                </Button>
+              )}
+            </div>
           </div>
-
-          <ScrollArea className="h-[500px]">
-            <div className="space-y-3 pr-4">
-              {evaluations.map((evaluation) => (
-                <Card key={evaluation.id} className="relative group">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="text-sm font-medium">
-                          {format(new Date(evaluation.evaluation_date), "dd/MM/yyyy")} - Wound #{evaluation.wound_number}
-                        </CardTitle>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Recorded on {format(new Date(evaluation.created_at), "dd/MM/yyyy HH:mm")}
-                        </p>
-                      </div>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleDeleteClick(evaluation.id)}
-                        disabled={deletingId === evaluation.id}
-                      >
-                        {deletingId === evaluation.id ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-3 h-3" />
-                        )}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
-                    <div className="grid grid-cols-2 gap-3">
-                      {evaluation.cleansing_method && (
-                        <div>
-                          <p className="text-muted-foreground text-xs">Cleansing Method</p>
-                          <p>{evaluation.cleansing_method}</p>
-                        </div>
-                      )}
-                      {evaluation.dressing_choice && (
-                        <div>
-                          <p className="text-muted-foreground text-xs">Dressing Choice</p>
-                          <p>{evaluation.dressing_choice}</p>
-                        </div>
-                      )}
-                      {evaluation.frequency && (
-                        <div>
-                          <p className="text-muted-foreground text-xs">Frequency</p>
-                          <p>{evaluation.frequency}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {evaluation.rationale_for_change && (
-                      <div>
-                        <p className="text-muted-foreground text-xs">Rationale for Change</p>
-                        <p className="mt-1">{evaluation.rationale_for_change}</p>
-                      </div>
-                    )}
-
-                    {evaluation.wound_evaluation && (
-                      <div>
-                        <p className="text-muted-foreground text-xs">Wound Evaluation</p>
-                        <p className="mt-1">{evaluation.wound_evaluation}</p>
-                      </div>
-                    )}
-
-                    <Separator />
-
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-muted-foreground text-xs">Signature</p>
-                        <p className="font-medium">{evaluation.signature}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </ScrollArea>
         </div>
-      )}
-
-      {evaluations.length === 0 && !showForm && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="rounded-full bg-muted p-3 mb-4">
-              <Save className="w-6 h-6 text-muted-foreground" />
-            </div>
-            <h3 className="font-semibold mb-1">No Evaluations Yet</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Create your first treatment evaluation to track wound care
-            </p>
-            <Button onClick={() => setShowForm(true)} size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Create Evaluation
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Treatment Evaluation</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this treatment evaluation? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+      </div>
+    </ScrollArea>
   );
 }

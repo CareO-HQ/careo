@@ -1,0 +1,4 @@
+app/(dashboard)/dashboard/residents/[id]/(pages)/overview/page.tsx(222,51): error TS2339: Property 'middle_name' does not exist on type 'Resident'.
+app/(dashboard)/dashboard/residents/[id]/(pages)/wounds/[folderId]/page.tsx(821,17): error TS2322: Type '{ residentId: string; woundFolderId: string; residentName: string; residentDOB: string | undefined; assessments: any[]; isLoadingAssessments: boolean; onSaved: () => void; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'residentDOB' does not exist on type 'IntrinsicAttributes & Props'. Did you mean 'residentId'?
+tmp/check_counts.ts(3,25): error TS2307: Cannot find module 'dotenv' or its corresponding type declarations.

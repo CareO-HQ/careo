@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
+import { PrnAdministrationModal } from "./PrnAdministrationModal";
 
 interface PrnMarSheetProps {
   residentId: string;
@@ -41,6 +42,13 @@ export function PrnMarSheet({
     administrations: any[];
   } | null>(null);
 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalData, setModalData] = useState<{
+    medication: any;
+    date: number;
+    administrations: any[];
+  } | null>(null);
+
   // Generate array of days [1, 2, 3, ..., daysInMonth]
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
@@ -53,13 +61,19 @@ export function PrnMarSheet({
         admin.administration_date === dateStr
     );
   };
-
-  // Handle cell click - show details in read-only modal
+  // Handle cell click - show administration modal
   const handleCellClick = (medication: any, day: number) => {
     const admins = getAdministrationsForCell(medication.id, day);
-    if (admins.length > 0) {
+    
+    if (admins.length === 0) return;
+
+    if (isReadOnly) {
       setSelectedCell({ medication, date: day, administrations: admins });
+      return;
     }
+
+    setModalData({ medication, date: day, administrations: admins });
+    setIsModalOpen(true);
   };
 
   // Format time for display
@@ -184,7 +198,7 @@ export function PrnMarSheet({
             {medications.map((medication, medIndex) => (
               <tr key={medication.id} className={medIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                 {/* Medication Details Column */}
-                <td className="border-2 border-black p-2 font-medium sticky left-0 z-10 bg-inherit">
+                <td className="border-2 border-black p-2 font-medium sticky left-0 z-10 bg-inherit min-w-[160px]">
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-sm">{medication.name}</p>
@@ -194,19 +208,23 @@ export function PrnMarSheet({
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-700">
-                      <span className="font-semibold">Dose:</span> {medication.strength} {medication.strength_unit}
-                    </div>
-                    <div className="text-xs text-gray-700">
-                      <span className="font-semibold">Route:</span> {medication.route || "—"}
-                    </div>
-                    {medication.instructions && (
+                    {medication.strength && (
                       <div className="text-xs text-gray-700">
-                        <span className="font-semibold">Indication:</span> {medication.instructions}
+                        <span className="font-semibold uppercase text-[10px]">Strength:</span> {medication.strength} {medication.strength_unit || medication.strengthUnit || ""}
                       </div>
                     )}
+                    {medication.route && (
+                      <div className="text-xs text-gray-700">
+                        <span className="font-semibold uppercase text-[10px]">Route:</span> {medication.route}
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-700">
+                      <span className="font-semibold uppercase text-[10px] block mb-0.5 border-b border-gray-100 pb-0.5">Dose / Instructions:</span>
+                      <span className="leading-relaxed">{medication.instructions || medication.frequency || "As required"}</span>
+                    </div>
                   </div>
                 </td>
+
 
                 {/* Day cells */}
                 {days.map((day) => {
@@ -234,7 +252,7 @@ export function PrnMarSheet({
                     <td
                       key={day}
                       className={`border-2 border-black p-1 w-[28px] max-w-[28px] min-h-[45px] ${
-                        adminCount > 0 ? 'bg-green-100 cursor-pointer hover:bg-green-200' : 'bg-white'
+                        adminCount > 0 ? 'bg-green-100 hover:bg-green-200 cursor-pointer' : 'bg-white'
                       }`}
                       onClick={() => handleCellClick(medication, day)}
                       title={buildTooltip()}
@@ -276,59 +294,26 @@ export function PrnMarSheet({
       </div>
 
 
-      {/* Read-Only Details Modal */}
-      {selectedCell && (
-        <Dialog open={!!selectedCell} onOpenChange={() => setSelectedCell(null)}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                PRN Administration Details - {selectedCell.medication.name}
-              </DialogTitle>
-              <p className="text-sm text-muted-foreground">
-                {format(new Date(year, month - 1, selectedCell.date), "EEEE, MMMM d, yyyy")}
-              </p>
-            </DialogHeader>
-
-            <div className="space-y-4 mt-4">
-              {selectedCell.administrations.map((admin, index) => (
-                <div key={admin.id || index} className="border rounded-lg p-4 bg-gray-50">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase">Time</p>
-                      <p className="text-sm font-medium">{formatTimeDisplay(admin.administered_at)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase">Status</p>
-                      <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
-                        {admin.status || "Given"}
-                      </Badge>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase">Dose Administered</p>
-                      <p className="text-sm font-medium">{admin.prn_dose_administered || `${admin.quantity || 1}x`}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase">Administered By</p>
-                      <p className="text-sm font-medium">{admin.administered_by?.name || "Unknown"}</p>
-                    </div>
-                    {admin.prn_reason && (
-                      <div className="col-span-2">
-                        <p className="text-xs font-semibold text-gray-600 uppercase">Reason</p>
-                        <p className="text-sm">{admin.prn_reason}</p>
-                      </div>
-                    )}
-                    {admin.prn_outcome && (
-                      <div className="col-span-2">
-                        <p className="text-xs font-semibold text-gray-600 uppercase">Outcome</p>
-                        <p className="text-sm">{admin.prn_outcome}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
+      {/* PRN Administration Modal (Add/Edit/View) */}
+      {modalData && (
+        <PrnAdministrationModal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setModalData(null);
+          }}
+          medication={modalData.medication}
+          date={modalData.date}
+          month={month}
+          year={year}
+          sheetId={sheetId}
+          existingRecords={getAdministrationsForCell(modalData.medication.id, modalData.date)}
+          allowAdd={false}
+          onSuccess={() => {
+            onRefresh();
+            // We don't close the modal immediately to allow multiple records or continued viewing
+          }}
+        />
       )}
     </>
   );

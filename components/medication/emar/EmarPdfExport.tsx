@@ -115,10 +115,14 @@ export function EmarPdfExport({
 
   const getStatusSymbol = (status: string) => {
     switch (status) {
-      case "given": return "✓";
+      case "taken": return "T";
       case "refused": return "R";
-      case "omitted": return "O";
-      case "not_required": return "N";
+      case "hospitalised": return "C";
+      case "social_leave": return "D";
+      case "refused_destroyed": return "E";
+      case "not_required": return "NR";
+      case "made_available": return "M";
+      case "given": return "T"; // Backwards compatibility
       default: return "";
     }
   };
@@ -200,10 +204,18 @@ export function EmarPdfExport({
                       const admin = getAdministration(med.id, day, time);
                       const status = admin?.status || "";
                       const bgClass = admin
-                        ? status === "given"
+                        ? (status === "taken" || status === "given")
                           ? "bg-green-100"
-                          : status === "refused"
+                          : status === "refused" || status === "refused_destroyed"
+                          ? "bg-red-100"
+                          : status === "hospitalised"
+                          ? "bg-blue-100"
+                          : status === "social_leave"
                           ? "bg-orange-100"
+                          : status === "not_required"
+                          ? "bg-gray-100"
+                          : status === "made_available"
+                          ? "bg-purple-100"
                           : "bg-gray-100"
                         : "";
                       return (
@@ -269,11 +281,14 @@ export function EmarPdfExport({
         <div className="border border-black" style={{ marginTop: "8px", padding: "6px" }}>
           <p className="font-bold uppercase" style={{ fontSize: "8px", marginBottom: "4px" }}>Administration Key</p>
           {type === "medication" && (
-            <div style={{ display: "flex", gap: "12px", fontSize: "7px" }}>
-              <span>✓ = Given</span>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px", fontSize: "7px" }}>
+              <span>T = Taken</span>
               <span>R = Refused</span>
-              <span>O = Omitted</span>
-              <span>N = Not Required</span>
+              <span>C = Hospitalised</span>
+              <span>D = Social Leave</span>
+              <span>E = Refused/Destroyed</span>
+              <span>NR = Not Required</span>
+              <span>M = Made Available</span>
             </div>
           )}
           {type === "prn" && (

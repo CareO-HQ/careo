@@ -1,0 +1,808 @@
+
+100644 blob 87f05429603e43
+a521e43a075ff2fa7f6e3c3c88
+	supabase/migrations/20240
+630000000_audit_system.sql
+100644 blob 0a361ec5d6ed79
+e01e02c0131fa2f13209753f07
+	supabase/migrations/20260
+121050000_consolidated_car
+eo_schema.sql
+100644 blob d72165b35d4720
+f62d4adf0e319f74846242edfe
+	supabase/migrations/20260
+122053000_fix_invitation_a
+cceptance.sql
+100644 blob 340082116ee350
+c39e9b36d8e1c8303338dfcbe2
+	supabase/migrations/20260
+1220713_fix_can_access_org
+anization.sql
+100644 blob 73134ab624dd27
+5761b5ead1ff5456094d220baf
+	supabase/migrations/20260
+1220745_fix_is_saas_admin_
+function.sql
+100644 blob 97306a619d4160
+9f8e7d68e97c58ad04450b5f28
+	supabase/migrations/20260
+1220800_create_invitations
+_table.sql
+100644 blob 1264d01c953d25
+e911b27979826fa20bc52bb67f
+	supabase/migrations/20260
+1220815_add_care_homes_ins
+ert_policy.sql
+100644 blob a8bbc099d35752
+907c3a3dbd7617b27ba179f804
+	supabase/migrations/20260
+1220851_fix_can_access_org
+anization_remove_auth_memb
+ers.sql
+100644 blob 1b764812eeca0b
+1b4cdb9f2283bc94856f3fa565
+	supabase/migrations/20260
+1220906_fix_care_homes_pol
+icies_role_check.sql
+100644 blob 9db9835b80cd9e
+2b662ddc0c0ab61ccd004c2063
+	supabase/migrations/20260
+1220923_create_get_active_
+organization_id_function.s
+ql
+100644 blob 4d2ee680988064
+2db72057983dfe392044f4a0ad
+	supabase/migrations/20260
+1220935_simplify_can_acces
+s_organization_function.sq
+l
+100644 blob 4969c47c688b59
+81c9b5ea55f0072f16dd7a1044
+	supabase/migrations/20260
+1221000_fix_care_homes_rls
+_policy.sql
+100644 blob b29009f6eb55ff
+aa104cc906e4111c8f87988e21
+	supabase/migrations/20260
+1221136_fix_care_homes_ins
+ert_policy_for_owners_with
+out_active_organization.sq
+l
+100644 blob 5fd4c38ef2e7a9
+2a1406fbb4d25d5e90b261fd06
+	supabase/migrations/20260
+1221815_drop_conflicting_p
+olicy.sql
+100644 blob abde86356c5bf5
+8b5a14047267080d548de53d99
+	supabase/migrations/20260
+1231045_nuclear_rls_reset.
+sql
+100644 blob e738ed31ea8590
+1314436caaf2cc3068ba110ccd
+	supabase/migrations/20260
+1231100_add_todos_rls_poli
+cies.sql
+100644 blob b66cfc26e616aa
+9debcce1f1fb6205a225c5fd98
+	supabase/migrations/20260
+1231140_fix_teams_and_invi
+tations_rls.sql
+100644 blob a1b256d2645783
+85287c6cad2deb1bb3e1aa703b
+	supabase/migrations/20260
+1231155_robust_rls_helpers
+.sql
+100644 blob 83972d6610d8b0
+61ed87b836d1a022a0ee077326
+	supabase/migrations/20260
+1231415_add_residents_rls_
+policies.sql
+100644 blob c22ccd16674e24
+4446ba97559b24e1ac79a411f3
+	supabase/migrations/20260
+1240000_add_care_plan_asse
+ssments_rls.sql
+100644 blob 875232ccf85256
+cc5f28bddb7fb7e66e104857d5
+	supabase/migrations/20260
+127000000_add_care_plan_ve
+rsion_tracking.sql
+100644 blob 0e2fdbc153ef5a
+07982ad8262ae9a713e075c6a5
+	supabase/migrations/20260
+127120000_add_care_files_r
+ls.sql
+100644 blob a04fc21c227e02
+897423115835b5742f30ae2ed4
+	supabase/migrations/20260
+1271230_fix_assessment_sch
+emas.sql
+100644 blob 269ae74730c8b8
+01d82ada8485b17dbe2a94f8e3
+	supabase/migrations/20260
+1271300_standardize_remain
+ing_assessments.sql
+100644 blob 93e35ba192ef1e
+bccc44d0eb6f4356aa0c305081
+	supabase/migrations/20260
+128000000_fix_assessment_s
+chemas.sql
+100644 blob d9d35537021404
+28aedcffd6336b687fce165712
+	supabase/migrations/20260
+128100000_fix_remaining_as
+sessment_schemas.sql
+100644 blob 7bdb512a693d64
+39c33d481a1431e01cde5f05c1
+	supabase/migrations/20260
+128113000_restore_permissi
+ons.sql
+100644 blob 090756e5189827
+48a4e798d962b9115912693e5c
+	supabase/migrations/20260
+128120000_add_versioning_t
+o_assessments.sql
+100644 blob 9e928b632f9611
+3d8228be67402421d5fcd2684b
+	supabase/migrations/20260
+128140000_fix_timl_and_ora
+l_schemas.sql
+100644 blob 754ed5019dca3b
+26d4eff2d28c8679a6a8025518
+	supabase/migrations/20260
+1281700_add_medication_col
+umns.sql
+100644 blob a6fd8eabd5380c
+5ded778c0c9663648ece7b961e
+	supabase/migrations/20260
+1291000_add_medication_int
+akes_rls.sql
+100644 blob 6a579b32097779
+98d360eb44235e31d1030cb015
+	supabase/migrations/20260
+1291100_add_missing_care_d
+ata_rls.sql
+100644 blob 2957e627999a9f
+ee81d08dff83debcb8648294fe
+	supabase/migrations/20260
+1292200_add_medication_ale
+rt_tracking.sql
+100644 blob 76fbbb340663b7
+be6be197a39e5d1f5453e2961a
+	supabase/migrations/20260
+1292205_add_medication_ale
+rt_trigger.sql
+100644 blob 2d02bdd2522d9e
+d2957c5a30031867177d758810
+	supabase/migrations/20260
+130094000_automate_medicat
+ion_alerts.sql
+100644 blob 57790107356151
+526a4aecd36cecf53e308ea04a
+	supabase/migrations/20260
+131000000_add_alert_dismis
+sals_table.sql
+100644 blob 64ed5014462ab0
+806b0860084256f1cd59364fde
+	supabase/migrations/20260
+201000000_fix_food_fluid_l
+ogs_rls.sql
+100644 blob 43976917d4907c
+3c3a4594fb7eb80999908b4263
+	supabase/migrations/20260
+201010000_fix_food_fluid_s
+chema_issues.sql
+100644 blob ed007d257d66d9
+b654bb560d77fa00b81cc9d1dd
+	supabase/migrations/20260
+201020000_add_diet_lifesty
+le_rls.sql
+100644 blob 2b80bdc5ad73f4
+59bf3a659a3a4831846350f5a6
+	supabase/migrations/20260
+201030000_fix_daily_care_r
+ls_policies.sql
+100644 blob 4ec358ba63de1b
+98ef461936a5aacb5cee8ce403
+	supabase/migrations/20260
+202000000_update_progress_
+notes_schema.sql
+100644 blob 0dd883a2b99fa5
+0171f3cc277f6180a2bc860ef8
+	supabase/migrations/20260
+202120000_add_documents_rl
+s.sql
+100644 blob b8a4b7e44b7826
+f6fa7a015661729109431ecd4b
+	supabase/migrations/20260
+203000000_add_appointment_
+fields.sql
+100644 blob ec37eafe3140bc
+da6e9289c170c205746f99081e
+	supabase/migrations/20260
+203000001_add_notification
+_fields.sql
+100644 blob df9bb5c5844f93
+072ef61cfc0e080a338b7bdcae
+	supabase/migrations/20260
+203000002_create_appointme
+nt_notes_table.sql
+100644 blob be2e34718d8fa2
+34e82273a16d6b575b3b0d17c7
+	supabase/migrations/20260
+203000003_add_appointments
+_rls.sql
+100644 blob e68a7909463c71
+8761ba2e76d979a8bae802781b
+	supabase/migrations/20260
+203000005_hospital_transfe
+rs.sql
+100644 blob b41ea8a876b2e8
+332b595075802e821edc161335
+	supabase/migrations/20260
+203000006_add_diet_informa
+tion.sql
+100644 blob 6bc32175587dcb
+fbaef7f12af9dd30f44472e32c
+	supabase/migrations/20260
+204000000_fix_users_rls_po
+licies.sql
+100644 blob 1cd24e93d3b0b3
+3ab59da9e6a6142c3231523f77
+	supabase/migrations/20260
+204000001_sync_user_metada
+ta.sql
+100644 blob 8be448b8978305
+19de219023286af4d90abdf474
+	supabase/migrations/20260
+204000002_fix_staff_scopin
+g_and_visibility.sql
+100644 blob 1b465fb46bd7f7
+b1356626e128f2f9ec48059848
+	supabase/migrations/20260
+204000003_fix_rls_recursio
+n.sql
+100644 blob d3c7935924335a
+3caf77e705a1cf0b43a0767757
+	supabase/migrations/20260
+204000004_break_rls_recurs
+ion.sql
+100644 blob 24455764847d12
+a206de3008fc96591f064f5e49
+	supabase/migrations/20260
+204000005_robust_onboardin
+g_rls.sql
+100644 blob 5f69c545d04a69
+f96e23cb16164129e0398b0304
+	supabase/migrations/20260
+204000006_fix_foreign_keys
+_for_joining.sql
+100644 blob abb85e38c668fd
+5d54532fb097622ef1728b7779
+	supabase/migrations/20260
+204000007_final_recursion_
+fix.sql
+100644 blob 0d77d0138034d2
+071a706df1df5bd78e7e7355a3
+	supabase/migrations/20260
+204000008_junction_recursi
+on_and_manager_view.sql
+100644 blob 91a99f6791f713
+99661955f087c48d2e7b2eaf54
+	supabase/migrations/20260
+204100000_fix_hospital_tab
+les.sql
+100644 blob 5a45320b617cdb
+6c26ca3d6d1233e07b1526ee91
+	supabase/migrations/20260
+204120000_add_category_to_
+audit_completions.sql
+100644 blob 650fd4510829b2
+47f9e5b9b6672f3a29912cb7b0
+	supabase/migrations/20260
+205000000_add_read_status_
+rls.sql
+100644 blob 2fd4d4b60d0206
+5f9ee9cab689bddc948e24e61b
+	supabase/migrations/20260
+205000001_fix_incidents_sc
+hema_and_rls.sql
+100644 blob d2fcb255fc1cb8
+e4d013e2fc7cda3557c8f42866
+	supabase/migrations/20260
+205000002_fix_notification
+s_rls.sql
+100644 blob 5ec78674b9bd6c
+bfdc035c0a63e10a075906babe
+	supabase/migrations/20260
+205000003_fix_action_plan_
+constraints.sql
+100644 blob 8f38f0d966d1dc
+ce9d2d259e8fefb63f61eef697
+	supabase/migrations/20260
+205000004_add_resident_nam
+e_to_action_plans.sql
+100644 blob 63faf954caae7f
+d2da83dcbfa107bc7f9b760e42
+	supabase/migrations/20260
+205000005_create_labels_ta
+ble.sql
+100644 blob bf1edd5dd1e8bc
+f7cdf5d65b21cb52b206add56c
+	supabase/migrations/20260
+205100000_create_notificat
+ion_dismissals.sql
+100644 blob 83f4e5824dbae9
+2a3d42ed88d031e8de98266f7a
+	supabase/migrations/20260
+205112500_fix_menu_items_r
+ls.sql
+100644 blob 45ed72c131d36e
+c2eb6f1cbcc50d7d4aa8d5bca8
+	supabase/migrations/20260
+205120000_add_clinical_not
+es_policy.sql
+100644 blob a3e5e9aff8c2d1
+c29c734b5ed9ddcab3566e60c7
+	supabase/migrations/20260
+205123000_fix_saas_admin_a
+ccess.sql
+100644 blob 24fee71a58561d
+1c485e8a1b4c490b349d94e7c4
+	supabase/migrations/20260
+205130000_add_lifestyle_so
+cial_tables.sql
+100644 blob 2eeffbd549766e
+840d629066b53c9e89d200c8fd
+	supabase/migrations/20260
+205140000_fix_personal_int
+erests_constraint.sql
+100644 blob ef34f090d98330
+598766b49897157a1983d6790f
+	supabase/migrations/20260
+205143000_add_mdt_rls_poli
+cies.sql
+100644 blob d4e922e7e406db
+23ebee2c8877e1bf864f72722e
+	supabase/migrations/20260
+205150000_fix_handover_sch
+ema.sql
+100644 blob aa11149be5f398
+5fe23f593eaff4b9e171c6d269
+	supabase/migrations/20260
+205154000_add_storage_rls_
+policies.sql
+100644 blob c445dc26ccad44
+c6c6042e95fad3b69fc680c3c7
+	supabase/migrations/20260
+206130000_add_missing_mdt_
+column.sql
+100644 blob e3f7733a64264e
+d5e6c3a4097bfd4468227468d6
+	supabase/migrations/20260
+209000000_storage_setup.sq
+l
+100644 blob 02ce4cec1c111a
+37580ee315e8aa772e2ab88e6c
+	supabase/migrations/20260
+209000001_add_org_logo_url
+.sql
+100644 blob 77a8fd3b1d1eb5
+39adbc858f5dba1e73baa104f6
+	supabase/migrations/20260
+210000000_add_staff_detail
+s_to_users.sql
+100644 blob 649edeefb039a0
+17d35cf915a0e807158ed905d3
+	supabase/migrations/20260
+210000001_fix_users_update
+_policy.sql
+100644 blob 9def44bcf624ac
+47829fb815ca47bfe91dd8fad2
+	supabase/migrations/20260
+210070000_fix_invitations_
+updated_at.sql
+100644 blob 7334a31b68a6a9
+822ee8d0e2c6279d6494605b3c
+	supabase/migrations/20260
+210130000_add_care_home_id
+_to_notifs_and_apts.sql
+100644 blob b4f201acb8eac6
+608559637144b53720e6eb2b51
+	supabase/migrations/20260
+210140000_add_team_id_to_n
+otifications.sql
+100644 blob 561692c0b2c449
+f6d497ead0dd082646eef6d872
+	supabase/migrations/20260
+2111100_add_quantity_to_me
+dication_intakes.sql
+100644 blob cd28840c68dabe
+20514bdf85b2d49034429e0afc
+	supabase/migrations/20260
+2122200_fix_medication_sto
+ck_management.sql
+100644 blob a41c9caed970af
+fd94020e5c14335d267f32f3f8
+	supabase/migrations/20260
+2122300_schedule_intake_ge
+neration.sql
+100644 blob 5e682d69bedde8
+d2ed251ec242abe2fd24d50bf1
+	supabase/migrations/20260
+2131015_add_unique_constra
+int_to_medication_intakes.
+sql
+100644 blob ac3ece3b6ecbf6
+6ea0448ae7d0532a1eec788927
+	supabase/migrations/20260
+2160000_add_body_map_data_
+to_incidents.sql
+100644 blob 2523f7fa0611b2
+803404196aebe81c0ba0b14ce8
+	supabase/migrations/20260
+2181710_create_resident_bo
+dy_maps.sql
+100644 blob 6f2ab35d6fe936
+fbd2ce9f0c85fbcdcd028f52e9
+	supabase/migrations/20260
+2191455_allow_org_managers
+_update_organization.sql
+100644 blob 07cf2df5cd84d9
+3cf4ebc98538bad04c52297d65
+	supabase/migrations/20260
+221000000_create_incident_
+folders_table.sql
+100644 blob 659e2fd4ab4b1d
+77cb6de42143f30f155bffc53a
+	supabase/migrations/20260
+225131500_add_outcome_posi
+tion_to_evaluations.sql
+100644 blob d0048858b2f20f
+aa62bb0f621be3686a7d03e0a7
+	supabase/migrations/20260
+225150000_add_reviewed_by_
+name_to_evaluations.sql
+100644 blob 8514a16f5f3106
+f955f062a6358b3bb2b213d584
+	supabase/migrations/20260
+227000000_add_body_map_dat
+a_to_incident_folders.sql
+100644 blob f461992d217e61
+1fb328cebbc5aa8ffc80cc1ec4
+	supabase/migrations/20260
+228000000_add_folder_id_to
+_incidents.sql
+100644 blob ad5d1813bc5806
+528bcdd227f55259b284c350ae
+	supabase/migrations/20260
+228000001_fix_trust_incide
+nt_reports_schema.sql
+100644 blob 8015968e5fbdea
+75d155a9ad12efe64ae01ca838
+	supabase/migrations/20260
+302000000_create_braden_ri
+sk_assessments.sql
+100644 blob 6b806fc9ead9b5
+d10031851bcad28eafbecc329d
+	supabase/migrations/20260
+302000001_add_versioning_t
+o_braden.sql
+100644 blob f739d6592b1915
+fad826ea1f0b879da49dbdccbb
+	supabase/migrations/20260
+302154500_add_assessment_d
+ata_to_bedrail_consents.sq
+l
+100644 blob b4af4f926fdc69
+eac0695d15d65008fe6cd4fec8
+	supabase/migrations/20260
+303100000_create_restraint
+s_consents.sql
+100644 blob 930d23552aff67
+4f042f728a01f1d07f649b6530
+	supabase/migrations/20260
+303120000_add_versioning_t
+o_restraints.sql
+100644 blob 66f641148660af
+5e3f4c704a55ac13ba003937c5
+	supabase/migrations/20260
+303121000_create_care_fold
+er_body_maps.sql
+100644 blob 9e73373d7700f5
+5cf16ec1c39a81b60a54a43019
+	supabase/migrations/20260
+303124700_create_smoking_r
+isk_assessments.sql
+100644 blob c7da8612ef0caf
+903bf1123590cc3d420b333482
+	supabase/migrations/20260
+303140300_create_specimen_
+records.sql
+100644 blob 3654269fc7360e
+d86999c831e198eea3f4e65379
+	supabase/migrations/20260
+303151500_add_smoking_envi
+ronment_fields.sql
+100644 blob 384c2df0b2c656
+19bf6c709907653ac0bd2bb79e
+	supabase/migrations/20260
+303154500_add_smoking_revi
+ew_and_relatives_fields.sq
+l
+100644 blob 74878ed7a53775
+81908bf719859549bbab54dae4
+	supabase/migrations/20260
+304000000_create_wounds_ta
+ble.sql
+100644 blob a06074325ecbb2
+257feb9fcb867269b411d45405
+	supabase/migrations/20260
+304000001_create_wound_fol
+ders_table.sql
+100644 blob be67091f360a39
+57169bb7a107e1060c66ffd7a0
+	supabase/migrations/20260
+304120000_create_prn_conse
+nts.sql
+100644 blob 798283a874848b
+2e3da0e37526f2260c270f3b47
+	supabase/migrations/20260
+305000000_create_continenc
+e_entries_table.sql
+100644 blob eb0642dfb124e0
+cf7e05d88b0d36630d7fe2910e
+	supabase/migrations/20260
+307000000_create_wound_ass
+essments_table.sql
+100644 blob 89f734166d16cb
+2a93cd87147475a6c836d09c1b
+	supabase/migrations/20260
+307100000_create_wound_pho
+tograph_evaluations.sql
+100644 blob a48dcaa0d25db4
+babe7bf04c0947f98883419bf6
+	supabase/migrations/20260
+307110000_add_wound_folder
+_status.sql
+100644 blob 71be9c1ba7d2af
+c63d96ce48fca6ffaacade5a66
+	supabase/migrations/20260
+307120000_create_wound_tre
+atment_evaluations.sql
+100644 blob 67bc6600017c43
+ce8bd4042c1b244b8147fdaffe
+	supabase/migrations/20260
+309000000_create_modified_
+diet_audit.sql
+100644 blob c379f3d7f8033d
+1dd07575593da0968291216352
+	supabase/migrations/20260
+309100000_add_wound_folder
+_id_to_care_plans.sql
+100644 blob 571d0e17c42420
+ea067bb9cbd45ab100ded8333c
+	supabase/migrations/20260
+309115000_fix_choking_risk
+_schema.sql
+100644 blob 6f006084733943
+05b794287698884bfb420c2c9e
+	supabase/migrations/20260
+309120000_complete_choking
+_risk_schema_fix.sql
+100644 blob 0e3279b35dcf7d
+9e19881a5928672ae06609d2ee
+	supabase/migrations/20260
+309121500_create_dependenc
+y_assessments.sql
+100644 blob 34726d2a5ff1f1
+e2230bdb3cd4d870c6fe02dc5d
+	supabase/migrations/20260
+309124000_fix_dependency_a
+ssessments_schema_fix.sql
+100644 blob f90c9ab4dbe46b
+668d56b6e26e3cf90d4489c0c6
+	supabase/migrations/20260
+309130000_create_fall_risk
+_assessments.sql
+100644 blob 7144e37f4aca4c
+56682a5dc2a947b554e767998b
+	supabase/migrations/20260
+309133000_add_missing_colu
+mns_to_fall_risk.sql
+100644 blob 04080b4f9d6949
+642cc7186e7eb1ad0c74b822c1
+	supabase/migrations/20260
+310072653_add_type_to_inci
+dent_folders.sql
+100644 blob 9c3acfc2d9b8c7
+38ae36dc718efcdcf0a7423373
+	supabase/migrations/20260
+310120000_create_oral_asse
+ssment_evaluations.sql
+100644 blob 87223167f87cff
+e9360fa5ca86fab91a84d1ab82
+	supabase/migrations/20260
+312130000_create_prn_proto
+cols.sql
+100644 blob 944efb5e7b7086
+6afeb5765b6a4e955a77d14b98
+	supabase/migrations/20260
+312140000_create_blood_mon
+itoring_records.sql
+100644 blob e6a68e6112e456
+bdd25a3cca7852803714422efc
+	supabase/migrations/20260
+313120000_manager_audit_sh
+ared_state.sql
+100644 blob 577aa4b1b49c6d
+5e1e42659a01e6c3dc0e10e664
+	supabase/migrations/20260
+313170000_add_care_home_id
+_to_audit_action_plans.sql
+100644 blob 1c7d1b876b45b4
+40047f39664cef0cb664f1d064
+	supabase/migrations/20260
+313173000_add_audit_manage
+r_action_plans.sql
+100644 blob b156bd239c7807
+7b6a071896d3068bf22b5a4ad1
+	supabase/migrations/20260
+313180000_fix_manager_acti
+on_plans_status.sql
+100644 blob 9264adbbbeaa30
+8f820b91d1174ee672204861ff
+	supabase/migrations/20260
+316000000_add_selected_pat
+hway_to_incident_folders.s
+ql
+100644 blob f65463f8e15f18
+7377cec6b4904fdcaf004abc7e
+	supabase/migrations/20260
+316000001_create_folder_co
+llaborators_tables.sql
+100644 blob 5943cd70602ecb
+5e9e6a39a602109b806c3412bb
+	supabase/migrations/20260
+318000000_add_folder_name_
+to_files.sql
+100644 blob 2449a7f1542575
+9d9ca1e8b766022114344566b3
+	supabase/migrations/20260
+318000001_add_missing_file
+_columns.sql
+100644 blob ca7a98cfa12919
+8c7e8c4b494f25caeba828fe8a
+	supabase/migrations/20260
+319100244_force_add_assess
+ment_data_to_capacity_cons
+ents.sql
+100644 blob 8fdf4b8c35ea35
+0ec124e57fa5dacb859725275a
+	supabase/migrations/20260
+319130500_add_assessment_d
+ata_to_peeps.sql
+100644 blob ef3351a13933b8
+8be1870901842c89b1bfa91c87
+	supabase/migrations/20260
+319144400_add_capacity_con
+sents_table.sql
+100644 blob beb9b83338534c
+1958e17750db0145b3b571b80d
+	supabase/migrations/20260
+319154400_add_versioning_t
+o_capacity_consents.sql
+100644 blob 9368c301639420
+139b169d36309778efa8e843b9
+	supabase/migrations/20260
+319154700_add_archived_at_
+to_capacity_consents.sql
+100644 blob 3e00d70fb06f27
+66ddeb6153467447597318260f
+	supabase/migrations/20260
+319163000_create_night_obs
+ervation_consents.sql
+100644 blob f87c76679e0299
+497a343d63d4d19fbfa3291f0b
+	supabase/migrations/20260
+319165500_fix_night_observ
+ation_consents_schema.sql
+100644 blob 72a7468d128293
+7cfe725f6ef6c7d6eb32d78472
+	supabase/migrations/20260
+323000000_add_care_file_nu
+mbers_to_progress_notes.sq
+l
+100644 blob 35a1c79d01620e
+7cd67532662d4af23c446c30c7
+	supabase/migrations/20260
+323040000_create_general_r
+isk_assessments.sql
+100644 blob 46be757cedca39
+bd1691b6b9888db1ee04daa5af
+	supabase/migrations/20260
+323100000_medication_stock
+_management.sql
+100644 blob d9e166cc5aefd4
+89c916810295617212aeb92b4d
+	supabase/migrations/20260
+323110000_create_emar_syst
+em.sql
+100644 blob f3dd10599ee055
+c7e999d569a056aa8a2482ef5e
+	supabase/migrations/20260
+323110001_sync_medication_
+intakes_to_emar.sql
+100644 blob 06d8d99f3da9a2
+69dca7bb26b1becb7cd2908afc
+	supabase/migrations/20260
+323110002_fix_backfill_fun
+ction.sql
+100644 blob 95b70592924094
+b1ad3b94d514777f3453dea16f
+	supabase/migrations/20260
+323110003_fix_sync_trigger
+_conflict.sql
+100644 blob d1b91c72d96e63
+999bfa2d955c498bd9f1f4e564
+	supabase/migrations/20260
+324131500_create_personal_
+profiles.sql
+100644 blob dc5746e2fd8223
+0151b167c487e065dcf35c6c42
+	supabase/migrations/20260
+324143000_fix_personal_pro
+files_columns.sql
+100644 blob 296878987de440
+4fd1d4050e13bf9215b588a65e
+	supabase/migrations/20260
+324150000_create_abbey_pai
+n_assessments.sql
+100644 blob d8545d0e3a6ba7
+1ae9c322187f6f9fc773d300df
+	supabase/migrations/20260
+325000000_add_topical_to_e
+mar.sql
+100644 blob 7762f266713a05
+d13101be7a802402d7cad37068
+	supabase/migrations/20260
+325110500_fix_diet_notific
+ation_signature.sql
+100644 blob 303e5b9556a90b
+17745cce57f3aabda1afa94789
+	supabase/migrations/20260
+326000000_create_key_worke
+r_diary.sql
+100644 blob 5c4ec21ec75479
+93b388f1c88a983a364e8fc2e3
+	supabase/migrations/20260
+326000001_add_body_regions
+_to_medications.sql
+100644 blob 04826bb800def2
+c9dd90110e25e44c86b10d8890
+	supabase/migrations/20260
+326160000_add_quality_of_l
+ife_to_bladder_bowel.sql
+100644 blob 76c21656c3c15d
+cddc06db94080e347a2fd75f70
+	supabase/migrations/20260
+327155800_add_job_role_to_
+bedrail_risk.sql
+100644 blob 077f56ccae959e
+e2f3197931c33c2ea8d610bad5
+	supabase/migrations/20260
+331135500_add_discontinued
+_to_medication_status.sql
+100644 blob 189fd566b70152
+1be000ed66415bf45991b79ba7
+	supabase/migrations/20260
+402000000_create_initial_w
+ound_assessments_table.sql
+100644 blob 7e930379c958ee
+17f0a4e4e84c87ef0f94530670
+	supabase/migrations/20260
+402000001_update_wound_ass
+essments_to_checkboxes.sql
+
+

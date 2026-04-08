@@ -59,7 +59,7 @@ const UK_TIMEZONE = "Europe/London";
 // --- Time Slots Configuration ---------------------------------------------------------------------------------
 
 const TIME_SLOTS: Record<string, string[]> = {
-  Morning: ["08:00", "10:00", "12:00"],
+  Morning: ["07:00", "08:00", "10:00", "12:00"],
   Afternoon: ["14:00", "18:00"],
   Evening: ["22:00", "00:00"],
 };

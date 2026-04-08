@@ -47,7 +47,7 @@ export function MedicationAdministrationModal({
   onSuccess,
 }: MedicationAdministrationModalProps) {
   const { profile } = useProfile();
-  const [status, setStatus] = useState<string>(existingRecord?.status || "given");
+  const [status, setStatus] = useState<string>(existingRecord?.status || "taken");
   const [notes, setNotes] = useState<string>(existingRecord?.notes || "");
   const [witnessId, setWitnessId] = useState<string>(existingRecord?.witness_id || "");
   const [availableWitnesses, setAvailableWitnesses] = useState<any[]>([]);
@@ -85,12 +85,14 @@ export function MedicationAdministrationModal({
     }
 
     // Validation
-    if (status === "given" && !witnessId) {
-      toast.error("Please select a witness for medication administration");
+    const needsWitness = status === "taken" || status === "made_available";
+
+    if (needsWitness && !witnessId) {
+      toast.error("Please select a witness for this status");
       return;
     }
 
-    if (status === "given" && !signature) {
+    if (needsWitness && !signature) {
       toast.error("Please provide your signature");
       return;
     }
@@ -107,8 +109,8 @@ export function MedicationAdministrationModal({
         administered_at: new Date().toISOString(),
         administered_by: profile.id,
         administered_signature: signature,
-        witness_id: status === "given" ? witnessId : null,
-        witness_at: status === "given" ? new Date().toISOString() : null,
+        witness_id: needsWitness ? witnessId : null,
+        witness_at: needsWitness ? new Date().toISOString() : null,
         notes: notes || null,
         quantity: medication.time_quantities?.[time] || 1,
         organization_id: profile.active_organization_id,
@@ -193,12 +195,12 @@ export function MedicationAdministrationModal({
           {/* Status Selection */}
           <div className="space-y-3">
             <Label className="font-semibold">Administration Status *</Label>
-            <RadioGroup value={status} onValueChange={setStatus}>
+            <RadioGroup value={status} onValueChange={setStatus} className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-green-50 transition-colors">
-                <RadioGroupItem value="given" id="given" />
-                <Label htmlFor="given" className="flex-1 cursor-pointer">
-                  <div className="font-medium">✓ Given</div>
-                  <div className="text-xs text-gray-600">Medication administered as prescribed</div>
+                <RadioGroupItem value="taken" id="taken" />
+                <Label htmlFor="taken" className="flex-1 cursor-pointer">
+                  <div className="font-medium">T Taken</div>
+                  <div className="text-xs text-gray-600">When a medication is consumed by a service user</div>
                 </Label>
               </div>
 
@@ -206,30 +208,54 @@ export function MedicationAdministrationModal({
                 <RadioGroupItem value="refused" id="refused" />
                 <Label htmlFor="refused" className="flex-1 cursor-pointer">
                   <div className="font-medium">R Refused</div>
-                  <div className="text-xs text-gray-600">Resident refused to take medication</div>
+                  <div className="text-xs text-gray-600">When a service user refuses a medication</div>
                 </Label>
               </div>
 
-              <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                <RadioGroupItem value="omitted" id="omitted" />
-                <Label htmlFor="omitted" className="flex-1 cursor-pointer">
-                  <div className="font-medium">O Omitted</div>
-                  <div className="text-xs text-gray-600">Medication not given for clinical reasons</div>
+              <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-red-50 transition-colors">
+                <RadioGroupItem value="refused_destroyed" id="refused_destroyed" />
+                <Label htmlFor="refused_destroyed" className="flex-1 cursor-pointer">
+                  <div className="font-medium">E Refused and destroyed</div>
+                  <div className="text-xs text-gray-600">If the service user refused and medication was destroyed</div>
                 </Label>
               </div>
 
               <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-blue-50 transition-colors">
+                <RadioGroupItem value="hospitalised" id="hospitalised" />
+                <Label htmlFor="hospitalised" className="flex-1 cursor-pointer">
+                  <div className="font-medium">C Hospitalised</div>
+                  <div className="text-xs text-gray-600">If the service user has been hospitalised</div>
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-amber-50 transition-colors">
+                <RadioGroupItem value="social_leave" id="social_leave" />
+                <Label htmlFor="social_leave" className="flex-1 cursor-pointer">
+                  <div className="font-medium">D Social leave</div>
+                  <div className="text-xs text-gray-600">If the service user is on social leave</div>
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
                 <RadioGroupItem value="not_required" id="not_required" />
                 <Label htmlFor="not_required" className="flex-1 cursor-pointer">
-                  <div className="font-medium">N Not Required</div>
-                  <div className="text-xs text-gray-600">Medication not needed (e.g., resident out, medication discontinued)</div>
+                  <div className="font-medium">NR Not required</div>
+                  <div className="text-xs text-gray-600">If the service user no longer requires the medication</div>
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-purple-50 transition-colors">
+                <RadioGroupItem value="made_available" id="made_available" />
+                <Label htmlFor="made_available" className="flex-1 cursor-pointer">
+                  <div className="font-medium">M Made available</div>
+                  <div className="text-xs text-gray-600">If the medication was made available for the user</div>
                 </Label>
               </div>
             </RadioGroup>
           </div>
 
-          {/* Witness Selection (required for "given") */}
-          {status === "given" && (
+          {/* Witness Selection */}
+          {(status === "taken" || status === "made_available") && (
             <div className="space-y-2">
               <Label htmlFor="witness" className="font-semibold">Witness *</Label>
               <Select value={witnessId} onValueChange={setWitnessId}>
@@ -251,7 +277,7 @@ export function MedicationAdministrationModal({
           )}
 
           {/* Signature */}
-          {status === "given" && (
+          {(status === "taken" || status === "made_available") && (
             <div className="space-y-2">
               <Label className="font-semibold">Your Signature *</Label>
               <SignaturePad
@@ -265,7 +291,7 @@ export function MedicationAdministrationModal({
           {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes" className="font-semibold">
-              Notes {status !== "given" && "(Required)"}
+              Notes {(status !== "taken" && status !== "made_available") && "(Required)"}
             </Label>
             <Textarea
               id="notes"
@@ -274,8 +300,8 @@ export function MedicationAdministrationModal({
               placeholder={
                 status === "refused"
                   ? "Please provide reason for refusal..."
-                  : status === "omitted"
-                  ? "Please provide clinical reason for omission..."
+                  : status === "not_required"
+                  ? "Please provide reason why not required..."
                   : "Add any additional notes..."
               }
               rows={3}

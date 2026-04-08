@@ -7,7 +7,7 @@ export const config = {
   times: [
     {
       name: "Morning",
-      values: ["08:00", "10:00", "12:00"]
+      values: ["07:00", "08:00", "10:00", "12:00"]
     },
     {
       name: "Afternoon",

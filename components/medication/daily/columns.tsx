@@ -80,8 +80,14 @@ export const createColumns = (
     | "scheduled"
     | "dispensed"
     | "administered"
-    | "missed"
+    | "taken"
     | "refused"
+    | "hospitalised"
+    | "social_leave"
+    | "refused_destroyed"
+    | "not_required"
+    | "made_available"
+    | "missed"
     | "skipped";
   }) => Promise<void | null>,
   saveMedicationIntakeComment?: (intakeId: string, comment: string) => Promise<void>,
@@ -342,15 +348,20 @@ export const createColumns = (
     },
     {
       accessorKey: "state",
-      header: "State",
+      header: "Status",
       cell: ({ row }) => {
         const currentState = row.original.status;
         const medicationIntake = row.original;
 
-        const handleStateChange = async (
-          newState:
-            | "given"
+        const handleStatusChange = async (
+          newStatus:
+            | "taken"
             | "refused"
+            | "hospitalised"
+            | "social_leave"
+            | "refused_destroyed"
+            | "not_required"
+            | "made_available"
         ) => {
           if (!updateMedicationIntakeStatus) {
             toast.error("Update function not available");
@@ -358,40 +369,49 @@ export const createColumns = (
           }
 
           // Check if medication is prepared before marking as given
-          if (newState === "given" && !medicationIntake.popped_out_at) {
+          // Check if medication is prepared before marking as taken
+          if (newStatus === "taken" && !medicationIntake.popped_out_at) {
             toast.error("Please prepare the medication first");
             return;
           }
-
-          // Check if witness is selected when marking as given
-          if (newState === "given" && !medicationIntake.witness_id) {
-            toast.error("Please select a witness before marking as given");
+    
+          // Check if witness is selected when marking as taken
+          if (newStatus === "taken" && !medicationIntake.witness_id) {
+            toast.error("Please select a witness before marking as taken");
             return;
           }
 
           try {
-            // Map "given" to "administered" for the mutation
-            const mappedState = newState === "given" ? "administered" : newState;
             await updateMedicationIntakeStatus({
               intakeId: row.original.id,
-              state: mappedState as "scheduled" | "dispensed" | "administered" | "refused" | "missed" | "skipped"
+              state: newStatus as any
             });
-            toast.success("State updated successfully");
+            toast.success("Status updated successfully");
           } catch (error) {
             console.error("Error updating state:", error);
             toast.error("Failed to update state: " + (error as Error).message);
           }
         };
 
-        // Get badge style based on state
-        const getStateBadge = (state: string) => {
-          switch (state) {
-            case "given":
+        // Get badge style based on status
+        const getStatusBadge = (status: string) => {
+          switch (status) {
+            case "taken":
+            case "administered":
               return "bg-green-50 text-green-700 border-green-200";
             case "refused":
-              return "bg-orange-50 text-orange-700 border-orange-200";
-            case "missed":
+            case "refused_destroyed":
               return "bg-red-50 text-red-700 border-red-200";
+            case "hospitalised":
+              return "bg-blue-50 text-blue-700 border-blue-200";
+            case "social_leave":
+              return "bg-orange-50 text-orange-700 border-orange-200";
+            case "not_required":
+              return "bg-gray-50 text-gray-700 border-gray-200";
+            case "made_available":
+              return "bg-purple-50 text-purple-700 border-purple-200";
+            case "missed":
+              return "bg-amber-50 text-amber-700 border-amber-200";
             case "scheduled":
               return "bg-blue-50 text-blue-700 border-blue-200";
             default:
@@ -399,46 +419,76 @@ export const createColumns = (
           }
         };
 
-        const getStateText = (state: string) => {
-          switch (state) {
-            case "given":
-              return "Given";
+        const getStatusText = (status: string) => {
+          switch (status) {
+            case "taken":
+            case "administered":
+              return "T Taken";
             case "refused":
-              return "Refused";
+              return "R Refused";
+            case "hospitalised":
+              return "C Hospitalised";
+            case "social_leave":
+              return "D Social leave";
+            case "refused_destroyed":
+              return "E Refused/Destroyed";
+            case "not_required":
+              return "NR Not required";
+            case "made_available":
+              return "M Made available";
             case "missed":
               return "Missed";
             case "scheduled":
               return "Scheduled";
             default:
-              return state;
+              return status;
           }
         };
 
         return (
           <Select
-            onValueChange={handleStateChange}
+            onValueChange={handleStatusChange}
             value={currentState}
-            disabled={isRoundCompleted}
           >
             <SelectTrigger className={`border-none shadow-none hover:bg-slate-50 h-8 ${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : ''}`}>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${getStateBadge(currentState)}`}>
-                {getStateText(currentState)}
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${getStatusBadge(currentState)}`}>
+                {getStatusText(currentState)}
               </span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="given">
+              <SelectItem value="taken">
                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                  Given
+                  T Taken
                 </span>
               </SelectItem>
               <SelectItem value="refused">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
-                  Refused
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+                  R Refused
                 </span>
               </SelectItem>
-              <SelectItem value="missed">
+              <SelectItem value="refused_destroyed">
                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
-                  Missed
+                  E Refused/Destroyed
+                </span>
+              </SelectItem>
+              <SelectItem value="hospitalised">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                  C Hospitalised
+                </span>
+              </SelectItem>
+              <SelectItem value="social_leave">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
+                  D Social leave
+                </span>
+              </SelectItem>
+              <SelectItem value="not_required">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                  NR Not required
+                </span>
+              </SelectItem>
+              <SelectItem value="made_available">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                  M Made available
                 </span>
               </SelectItem>
             </SelectContent>

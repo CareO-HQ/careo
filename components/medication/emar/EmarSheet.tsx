@@ -310,17 +310,21 @@ export function EmarSheet({
       const enrichWithUserData = async (admins: any[]) => {
         if (!admins || admins.length === 0) return [];
 
-        const userIds = [...new Set(admins.map(a => a.administered_by).filter(Boolean))];
+        const allUserIds = [...new Set([
+          ...admins.map(a => a.administered_by).filter(Boolean),
+          ...admins.map(a => a.witness_id).filter(Boolean),
+        ])];
         const { data: users } = await supabase
           .from('users')
           .select('id, name')
-          .in('id', userIds);
+          .in('id', allUserIds);
 
         const userMap = new Map(users?.map(u => [u.id, u]) || []);
 
         return admins.map(admin => ({
           ...admin,
           administered_by: admin.administered_by ? userMap.get(admin.administered_by) : null,
+          witness: admin.witness_id ? userMap.get(admin.witness_id) : null,
         }));
       };
 

@@ -37,19 +37,17 @@ export function TodoList({ teamId }: TodoListProps) {
   const [showCompleted, setShowCompleted] = useState(false);
 
   const fetchTodos = useCallback(async () => {
-    if (!profile?.active_organization_id) return;
+    if (!profile?.active_organization_id || !profile?.id) return;
 
     try {
       setIsLoading(true);
       let query = supabase
         .from("todos")
         .select("*")
-        .eq("organization_id", profile.active_organization_id);
+        .eq("organization_id", profile.active_organization_id)
+        .eq("created_by", profile.id);
 
       // If teamId is provided, filter by it. Otherwise, get todos without a team or for any team in the org?
-      // Convex original: { teamId: teamId ?? undefined }
-      // The Convex handler was filtering by user and completed.
-      // Let's filter by organization and optionally team.
       if (teamId) {
         query = query.eq("team_id", teamId);
       }

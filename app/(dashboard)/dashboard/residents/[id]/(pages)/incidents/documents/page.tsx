@@ -619,8 +619,6 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
                       <TableHead>Date & Time</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Severity</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Injured Person</TableHead>
                       <TableHead>Reported By</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -656,40 +654,13 @@ export default function IncidentsDocumentsPage({ params }: IncidentsDocumentsPag
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {incident.home_name && incident.unit ? (
-                            <div className="flex items-center space-x-2">
-                              <MapPin className="w-4 h-4 text-gray-400" />
-                              <div className="text-sm">
-                                <p className="font-medium">{incident.home_name}</p>
-                                <p className="text-gray-500">{incident.unit}</p>
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {incident.injuredPersonFirstName && incident.injuredPersonSurname ? (
-                            <div className="text-sm">
-                              <p className="font-medium">
-                                {incident.injuredPersonFirstName} {incident.injuredPersonSurname}
-                              </p>
-                              {incident.injuredPersonDOB && (
-                                <p className="text-gray-500">DOB: {incident.injuredPersonDOB}</p>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {incident.completedByFullName ? (
+                          {incident.completed_by_full_name || incident.completedByFullName ? (
                             <div className="flex items-center space-x-2">
                               <User className="w-4 h-4 text-gray-400" />
                               <div className="text-sm">
-                                <p className="font-medium">{incident.completedByFullName}</p>
-                                {incident.completedByJobTitle && (
-                                  <p className="text-gray-500">{incident.completedByJobTitle}</p>
+                                <p className="font-medium">{incident.completed_by_full_name || incident.completedByFullName}</p>
+                                {(incident.completed_by_job_title || incident.completedByJobTitle) && (
+                                  <p className="text-gray-500">{incident.completed_by_job_title || incident.completedByJobTitle}</p>
                                 )}
                               </div>
                             </div>
