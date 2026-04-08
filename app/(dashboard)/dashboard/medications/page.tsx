@@ -7,15 +7,9 @@ import { useProfile } from "@/hooks/use-profile";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pill, Loader2, Calendar, ArrowRight } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Pill, Loader2, ArrowRight } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import ShiftTimes from "@/components/medication/daily/ShiftTimes";
 import { toast } from "sonner";
 import { config } from "@/config";
 import { getUKTodayDate, UK_TIMEZONE, formatTimestampToUKTime } from "@/lib/date-utils";
@@ -187,43 +181,25 @@ export default function MedicationsPage() {
     );
   }
 
-  // All valid config times flattened
-  const allTimes = config.times.flatMap((t) => t.values);
-
   return (
     <div className="h-[calc(100vh-7rem)] flex flex-col bg-gray-50 rounded-lg overflow-hidden">
       {/* Header */}
       <div className="bg-white border-b flex-shrink-0">
-        <div className="px-4 py-2.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-blue-50 rounded">
-                <Pill className="w-4 h-4 text-blue-600" />
-              </div>
-              <div>
-                <h1 className="text-base font-semibold text-gray-900">Pending Medications</h1>
-                <p className="text-xs text-gray-500">
-                  {residentsWithPendingMeds.length} residents have meds for {selectedTime}
-                </p>
-              </div>
+        <div className="px-4 py-3">
+          {/* Title row */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1.5 bg-blue-50 rounded">
+              <Pill className="w-4 h-4 text-blue-600" />
             </div>
-
-            <div className="flex items-center gap-2">
-              {/* Time Filter */}
-              <Select value={selectedTime} onValueChange={(value) => setSelectedTime(value)}>
-                <SelectTrigger className="w-[120px] h-8 text-xs">
-                  <SelectValue placeholder="Time" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allTimes.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div>
+              <h1 className="text-base font-semibold text-gray-900">Pending Medications</h1>
+              <p className="text-xs text-gray-500">
+                {residentsWithPendingMeds.length} residents have meds for {selectedTime}
+              </p>
             </div>
           </div>
+          {/* Time section chips */}
+          <ShiftTimes selectedTime={selectedTime} setSelectedTime={setSelectedTime} />
         </div>
       </div>
 

@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Heart, Loader2, Calendar, ArrowRight, Filter as FilterIcon } from "lucide-react";
+import { Heart, Loader2, Calendar, ArrowRight } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -17,6 +17,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type Wound = {
   id: string;
@@ -39,6 +40,9 @@ type Wound = {
     last_name: string;
     image_url: string | null;
     room_number?: string;
+  };
+  wound_folder?: {
+    next_review_date: string | null;
   };
 };
 
@@ -65,7 +69,8 @@ export default function WoundsPage() {
         .from("wounds")
         .select(`
           *,
-          resident:residents(id, first_name, last_name, image_url, room_number)
+          resident:residents(id, first_name, last_name, image_url, room_number),
+          wound_folder:wound_folders(next_review_date)
         `)
         .neq("status", "healed"); // Exclude healed wounds
 
@@ -156,8 +161,9 @@ export default function WoundsPage() {
     <div className="h-[calc(100vh-7rem)] flex flex-col bg-gray-50 rounded-lg overflow-hidden">
       {/* Header */}
       <div className="bg-white border-b flex-shrink-0">
-        <div className="px-4 py-2.5">
-          <div className="flex items-center justify-between">
+        <div className="px-4 py-3">
+          {/* Title row */}
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className="p-1.5 bg-red-50 rounded">
                 <Heart className="w-4 h-4 text-red-600" />
@@ -165,42 +171,47 @@ export default function WoundsPage() {
               <div>
                 <h1 className="text-base font-semibold text-gray-900">Wounds</h1>
                 <p className="text-xs text-gray-500">
-                  {filteredWounds.length} active
+                  {filteredWounds.length} wound{filteredWounds.length !== 1 ? "s" : ""}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* Status Filter */}
-              <Select value={filter} onValueChange={(value: any) => setFilter(value)}>
-                <SelectTrigger className="w-[120px] h-8 text-xs">
-                  <SelectValue placeholder="Status" />
+            {/* Room Filter */}
+            {units.length > 0 && (
+              <Select value={unitFilter} onValueChange={setUnitFilter}>
+                <SelectTrigger className="w-[100px] h-8 text-xs">
+                  <SelectValue placeholder="Rooms" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="healing">Healing</SelectItem>
-                  <SelectItem value="deteriorating">Deteriorating</SelectItem>
-                  <SelectItem value="infected">Infected</SelectItem>
+                  <SelectItem value="all">All Rooms</SelectItem>
+                  {units.map((room) => (
+                    <SelectItem key={room} value={room}>
+                      Rm {room}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+            )}
+          </div>
 
-              {/* Room Filter */}
-              {units.length > 0 && (
-                <Select value={unitFilter} onValueChange={setUnitFilter}>
-                  <SelectTrigger className="w-[100px] h-8 text-xs">
-                    <SelectValue placeholder="Rooms" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Rooms</SelectItem>
-                    {units.map((room) => (
-                      <SelectItem key={room} value={room}>
-                        Rm {room}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+          {/* Status filter chips */}
+          <div className="flex flex-row items-center gap-2">
+            <p className="text-sm text-muted-foreground">Status</p>
+            <div className="flex flex-row gap-2">
+              {(["all", "active", "healing", "deteriorating", "infected"] as const).map((status) => (
+                <div
+                  key={status}
+                  onClick={() => setFilter(status)}
+                  className={cn(
+                    "px-2 py-1 text-sm font-medium rounded-md border transition-colors cursor-pointer capitalize",
+                    filter === status
+                      ? "bg-green-100 border-green-500 text-green-800 hover:bg-green-200"
+                      : "bg-primary-foreground/10 hover:bg-primary-foreground/20"
+                  )}
+                >
+                  {status === "all" ? "All" : status}
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -268,11 +279,21 @@ export default function WoundsPage() {
                     <p className="text-xs font-medium text-gray-900 truncate">{wound.location}</p>
                   </div>
 
-                  {/* Date */}
-                  <div className="pt-1.5 border-t border-gray-100">
+                  {/* Dates */}
+                  <div className="pt-1.5 border-t border-gray-100 space-y-1">
                     <div className="flex items-center gap-1 text-[10px] text-gray-500">
-                      <Calendar className="w-3 h-3" />
-                      <span>{format(new Date(wound.date_identified), "MMM d, yyyy")}</span>
+                      <Calendar className="w-3 h-3 flex-shrink-0" />
+                      <span>Identified: {format(new Date(wound.date_identified), "MMM d, yyyy")}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <Calendar className="w-3 h-3 flex-shrink-0 text-rose-400" />
+                      {wound.wound_folder?.next_review_date ? (
+                        <span className="text-rose-600 font-medium">
+                          Review: {format(new Date(wound.wound_folder.next_review_date), "MMM d, yyyy")}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">No review date set</span>
+                      )}
                     </div>
                   </div>
                 </div>

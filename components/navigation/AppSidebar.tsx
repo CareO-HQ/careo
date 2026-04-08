@@ -25,7 +25,8 @@ import {
   Shield,
   BellIcon,
   ListTodo,
-  Heart
+  Heart,
+  Pill
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
@@ -404,6 +405,15 @@ export function AppSidebar() {
                 <Link href="/dashboard/wounds">
                   <Heart />
                   <span>Wounds</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            {/* Medications */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/medications">
+                  <Pill />
+                  <span>Medications</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
