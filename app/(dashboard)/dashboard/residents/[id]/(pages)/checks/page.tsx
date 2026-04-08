@@ -179,12 +179,12 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
   // Derived State
   const nightCheckItems = nightCheckConfigs.map(config => {
     const typeIconMap: Record<string, { icon: any; color: string; title: string }> = {
-      night_check: { icon: Moon, color: "bg-blue-600 hover:bg-blue-700", title: "Night Check" },
+      night_check: { icon: Moon, color: "bg-blue-600 hover:bg-blue-700", title: "Check" },
       positioning: { icon: RotateCw, color: "bg-indigo-600 hover:bg-indigo-700", title: "Positioning" },
       pad_change: { icon: ShieldCheck, color: "bg-violet-600 hover:bg-violet-700", title: "Pad Change" },
       bed_rails: { icon: BedDouble, color: "bg-purple-600 hover:bg-purple-700", title: "Bed Rails Check" },
       environmental: { icon: Home, color: "bg-fuchsia-600 hover:bg-fuchsia-700", title: "Environmental Check" },
-      night_note: { icon: StickyNote, color: "bg-amber-600 hover:bg-amber-700", title: "Night Note" },
+      night_note: { icon: StickyNote, color: "bg-amber-600 hover:bg-amber-700", title: "Note" },
       cleaning: { icon: ShieldCheck, color: "bg-teal-600 hover:bg-teal-700", title: "Cleaning" },
     };
     const typeInfo = typeIconMap[config.check_type] || { icon: Moon, color: "bg-gray-600", title: config.check_type };
@@ -768,7 +768,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         }
       }
       
-      toast.success("Night check recorded");
+      toast.success("Check recorded");
       setIsNightCheckDialogOpen(false);
       
       // Reset form
@@ -825,14 +825,14 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
 
   const getDialogTitle = () => {
     switch (dialogType) {
-      case "night_check": return "Record Night Check";
+      case "night_check": return "Record Check";
       case "positioning": return "Record Positioning";
       case "pad_change": return "Record Pad Change";
       case "bed_rails": return "Bed Rails Equipment Check";
       case "environmental": return "Environmental Checks";
       case "cleaning": return "Record Cleaning";
-      case "night_note": return "Night Note";
-      default: return "Record Night Check";
+      case "night_note": return "Note";
+      default: return "Record Check";
     }
   };
 
@@ -872,10 +872,10 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Checks Options</DropdownMenuLabel>
+                <DropdownMenuLabel>Check Options</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem disabled={isItemTypeAdded("night_check")} onClick={() => { setPendingNightCheckAdd(true); setFrequencyDialogType("night_check"); }}>
-                  <Moon className="w-4 h-4 mr-2" /> Night Check
+                  <Moon className="w-4 h-4 mr-2" /> Check
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled={isItemTypeAdded("positioning")} onClick={() => { setPendingPositioningAdd(true); setFrequencyDialogType("positioning"); }}>
                   <RotateCw className="w-4 h-4 mr-2" /> Positioning
@@ -893,7 +893,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                   <ShieldCheck className="w-4 h-4 mr-2" /> Cleaning
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openDialog("night_note")}>
-                  <StickyNote className="w-4 h-4 mr-2" /> Night Note
+                  <StickyNote className="w-4 h-4 mr-2" /> Note
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -909,7 +909,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Moon className="w-5 h-5 text-blue-600" />
-              <span>Checks Recording</span>
+              <span>Check Recording</span>
               {nightCheckItems.length > 0 && <BadgeComponent variant="outline" className="ml-auto bg-blue-50 border-blue-200 text-blue-700">{nightCheckItems.length} Items</BadgeComponent>}
             </CardTitle>
           </CardHeader>
@@ -949,7 +949,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
                 <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="night_check">Night Check</TabsTrigger>
+                <TabsTrigger value="night_check">Check</TabsTrigger>
                 <TabsTrigger value="positioning">Positioning</TabsTrigger>
                 <TabsTrigger value="pad_change">Pad Change</TabsTrigger>
                 <TabsTrigger value="bed_rails">Bed Rails</TabsTrigger>
@@ -969,12 +969,12 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                         {filtered.map(rec => {
                           const checkData = rec.checkData || {};
                           const typeLabels: Record<string, string> = {
-                            night_check: "Night Check",
+                            night_check: "Check",
                             positioning: "Positioning",
                             pad_change: "Pad Change",
                             bed_rails: "Bed Rails Check",
                             environmental: "Environmental Check",
-                            night_note: "Night Note",
+                            night_note: "Note",
                             cleaning: "Cleaning",
                           };
                           
@@ -1149,8 +1149,17 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           <DialogContent>
             <DialogHeader><DialogTitle>Set Frequency</DialogTitle></DialogHeader>
             <div className="flex flex-col gap-2 py-4">
-              {["15", "30", "60", "120", "180", "240", "300", "360"].map(freq => (
-                <Button key={freq} variant={selectedFrequency === freq ? "default" : "outline"} onClick={() => setSelectedFrequency(freq)}>Every {freq} min</Button>
+              {[
+                { value: "15", label: "Every 15 min" },
+                { value: "30", label: "Every 30 min" },
+                { value: "60", label: "Every hour" },
+                { value: "120", label: "Every 2 hours" },
+                { value: "180", label: "Every 3 hours" },
+                { value: "240", label: "Every 4 hours" },
+                { value: "300", label: "Every 5 hours" },
+                { value: "360", label: "Every 6 hours" }
+              ].map(freq => (
+                <Button key={freq.value} variant={selectedFrequency === freq.value ? "default" : "outline"} onClick={() => setSelectedFrequency(freq.value)}>{freq.label}</Button>
               ))}
             </div>
             <div className="flex justify-end gap-2">

@@ -462,7 +462,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
               </CardContent>
             </Card>
           )}
-          {/* Night Check Card */}
+          {/* Checks Card */}
           {canViewResidentSection("checks", userRole) && (
             <Card
               className="cursor-pointer shadow-none"
@@ -477,7 +477,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                     <div>
                       <h3 className="font-semibold">Checks</h3>
                       <p className="text-sm text-muted-foreground">
-                        Night monitoring
+                        Monitoring checks
                       </p>
                     </div>
                   </div>
