@@ -856,7 +856,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold">Night Check</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Checks</h1>
             <p className="text-muted-foreground text-sm">
               View night monitoring and wellness checks for {fullName}.
             </p>
@@ -872,7 +872,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Night Check Options</DropdownMenuLabel>
+                <DropdownMenuLabel>Checks Options</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem disabled={isItemTypeAdded("night_check")} onClick={() => { setPendingNightCheckAdd(true); setFrequencyDialogType("night_check"); }}>
                   <Moon className="w-4 h-4 mr-2" /> Night Check
@@ -898,7 +898,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button variant="outline" onClick={() => router.push(`/dashboard/residents/${id}/night-check/documents`)}>
+            <Button variant="outline" onClick={() => router.push(`/dashboard/residents/${id}/checks/documents`)}>
               <Eye className="w-4 h-4 mr-2" /> See All Records
             </Button>
           </div>
@@ -909,7 +909,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Moon className="w-5 h-5 text-blue-600" />
-              <span>Night Check Recording</span>
+              <span>Checks Recording</span>
               {nightCheckItems.length > 0 && <BadgeComponent variant="outline" className="ml-auto bg-blue-50 border-blue-200 text-blue-700">{nightCheckItems.length} Items</BadgeComponent>}
             </CardTitle>
           </CardHeader>

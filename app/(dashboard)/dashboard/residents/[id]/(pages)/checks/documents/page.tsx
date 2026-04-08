@@ -433,7 +433,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     const a = document.createElement("a");
     a.href = url;
     const today = getUKTodayDate();
-    a.download = `night-check-reports-${fullName.replace(/\s+/g, "-")}-${today}.csv`;
+    a.download = `checks-reports-${fullName.replace(/\s+/g, "-")}-${today}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -546,7 +546,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
 
     return `
       <div class="header">
-        <h1>Night Check Report</h1>
+        <h1>Checks Report</h1>
         <p style="color: #64748B; margin: 0;">${resident.first_name} ${resident.last_name}</p>
       </div>
 
@@ -589,7 +589,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Night Check Report</title>
+          <title>Checks Report</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; }
             .header { text-align: center; margin-bottom: 20px; }
@@ -638,10 +638,10 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push(`/dashboard/residents/${id}/night-check`)}
+          onClick={() => router.push(`/dashboard/residents/${id}/checks`)}
           className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
         >
-          Night Check
+          Checks
         </Button>
         <span>/</span>
         <span className="text-foreground">All Reports</span>
@@ -652,7 +652,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
         <Button
           variant="outline"
           size="icon"
-          onClick={() => router.push(`/dashboard/residents/${id}/night-check`)}
+          onClick={() => router.push(`/dashboard/residents/${id}/checks`)}
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>
@@ -661,7 +661,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
             <Moon className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Night Check Reports History</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Checks Reports History</h1>
             <p className="text-muted-foreground text-sm">
               Complete history of night check reports for {fullName}
             </p>

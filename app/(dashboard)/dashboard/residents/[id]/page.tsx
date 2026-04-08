@@ -463,10 +463,10 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </Card>
           )}
           {/* Night Check Card */}
-          {canViewResidentSection("night-check", userRole) && (
+          {canViewResidentSection("checks", userRole) && (
             <Card
               className="cursor-pointer shadow-none"
-              onClick={() => handleCardClick("night-check")}
+              onClick={() => handleCardClick("checks")}
             >
               <CardContent className="p-2">
                 <div className="flex items-center justify-between p-3">
@@ -475,7 +475,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                       <Moon className="w-6 h-6 text-gray-600" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">Night Docs</h3>
+                      <h3 className="font-semibold">Checks</h3>
                       <p className="text-sm text-muted-foreground">
                         Night monitoring
                       </p>
