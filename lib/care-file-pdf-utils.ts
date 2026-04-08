@@ -1133,6 +1133,335 @@ export const generateCareFilePDF = async ({
         return String(value);
     };
 
+    // --- Pre-Admission Assessment Specialized Layout ---
+    if (formName.toUpperCase().includes("PRE-ADMISSION ASSESSMENT FORM")) {
+        const assessmentData = assessmentDataForSpecialized;
+
+        const drawPreAdmissionHeader = async () => {
+            await drawHeader();
+        };
+
+        const ensurePreAdmissionSpace = async (heightNeeded: number, currentY: number) => {
+            if (currentY + heightNeeded > 280) {
+                doc.addPage();
+                await drawPreAdmissionHeader();
+                return 30;
+            }
+            return currentY;
+        };
+
+        let yPos = 30;
+        await drawPreAdmissionHeader();
+
+        const cpWidth = (pageWidth - margin * 2) / 2 - 5;
+        const cpCol2 = margin + (pageWidth - margin * 2) / 2;
+
+        // 1. Administrative Details
+        yPos = await addSectionTitle("ADMINISTRATIVE DETAILS", yPos);
+        yPos = await ensurePreAdmissionSpace(40, yPos);
+        const rowAdminY = yPos;
+        let yAdmin1 = await addField("Care Home Name", assessmentData.careHomeName || data.care_home_name || careHomeName || "N/A", margin, rowAdminY, cpWidth, true);
+        yAdmin1 = await addField("Assessing Worker", assessmentData.userName || "N/A", margin, yAdmin1 + 1, cpWidth, true);
+
+        let yAdmin2 = await addField("NHS Number", assessmentData.nhsHealthCareNumber || data.nhs_number || "N/A", cpCol2, rowAdminY, cpWidth, true);
+        yAdmin2 = await addField("Job Role", assessmentData.jobRole || "N/A", cpCol2, yAdmin2 + 1, cpWidth, true);
+
+        yPos = Math.max(yAdmin1, yAdmin2);
+        const aDate = assessmentData.date || data.date;
+        yPos = await addField("Assessment Date", aDate ? format(new Date(aDate), "dd/MM/yyyy") : "N/A", margin, yPos + 1, cpWidth);
+        yPos = await addField("Signature", assessmentData.signature || "N/A", margin, yPos + 1, cpWidth);
+
+        // 2. Resident Information
+        yPos = await addSectionTitle("RESIDENT INFORMATION", yPos + 2);
+        yPos = await ensurePreAdmissionSpace(40, yPos);
+        const rowResY = yPos;
+        let yRes1 = await addField("Full Name", `${assessmentData.firstName || ""} ${assessmentData.lastName || ""}`.trim() || (resident ? `${resident.first_name} ${resident.last_name}` : "N/A"), margin, rowResY, cpWidth, true);
+        const dobVal = assessmentData.dateOfBirth || (resident ? resident.date_of_birth : "");
+        yRes1 = await addField("Date of Birth", dobVal ? format(new Date(dobVal), "dd/MM/yyyy") : "N/A", margin, yRes1 + 1, cpWidth, true);
+        yRes1 = await addField("Gender", assessmentData.gender || "N/A", margin, yRes1 + 1, cpWidth, true);
+        yRes1 = await addField("Religion", assessmentData.religion || "N/A", margin, yRes1 + 1, cpWidth, true);
+
+        let yRes2 = await addField("Current Address", assessmentData.address || "N/A", cpCol2, rowResY, cpWidth, true);
+        yRes2 = await addField("Phone Number", assessmentData.phoneNumber || "N/A", cpCol2, yRes2 + 1, cpWidth, true);
+        yRes2 = await addField("Ethnicity", assessmentData.ethnicity || "N/A", cpCol2, yRes2 + 1, cpWidth, true);
+        yPos = Math.max(yRes1, yRes2);
+
+        // 3. Next of Kin
+        yPos = await addSectionTitle("NEXT OF KIN", yPos + 2);
+        yPos = await ensurePreAdmissionSpace(25, yPos);
+        const rowKinY = yPos;
+        let yKin1 = await addField("Name", `${assessmentData.kinFirstName || ""} ${assessmentData.kinLastName || ""}`.trim() || "N/A", margin, rowKinY, cpWidth, true);
+        yKin1 = await addField("Relationship", assessmentData.kinRelationship || "N/A", margin, yKin1 + 1, cpWidth, true);
+
+        let yKin2 = await addField("Phone Number", assessmentData.kinPhoneNumber || "N/A", cpCol2, rowKinY, cpWidth, true);
+        yPos = Math.max(yKin1, yKin2);
+
+        // 4. Professional Contacts
+        yPos = await addSectionTitle("PROFESSIONAL CONTACTS", yPos + 2);
+        yPos = await ensurePreAdmissionSpace(40, yPos);
+        const rowProfY = yPos;
+        let yProf1 = await addField("Care Manager", `${assessmentData.careManagerName || "N/A"} (${assessmentData.careManagerPhoneNumber || "N/A"})`, margin, rowProfY, cpWidth, true);
+        yProf1 = await addField("General Practitioner", `${assessmentData.generalPractitionerName || "N/A"} (${assessmentData.generalPractitionerPhoneNumber || "N/A"})`, margin, yProf1 + 1, cpWidth, true);
+
+        let yProf2 = await addField("District Nurse", `${assessmentData.districtNurseName || "N/A"} (${assessmentData.districtNursePhoneNumber || "N/A"})`, cpCol2, rowProfY, cpWidth, true);
+        yProf2 = await addField("Provider Healthcare Info", `${assessmentData.providerHealthcareInfoName || "N/A"} - ${assessmentData.providerHealthcareInfoDesignation || "N/A"}`, cpCol2, yProf2 + 1, cpWidth, true);
+        yPos = Math.max(yProf1, yProf2);
+
+        // 5. Medical Assessment
+        yPos = await addSectionTitle("MEDICAL ASSESSMENT", yPos + 2);
+        yPos = await addField("Known Allergies", assessmentData.allergies || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Medical History & Diagnoses", assessmentData.medicalHistory || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Medications Prescribed", assessmentData.medicationPrescribed || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // 6. Activities of Daily Living
+        yPos = await addSectionTitle("ACTIVITIES OF DAILY LIVING", yPos + 2);
+        const adlFields = [
+            { label: "Consent, Capacity & Rights", value: assessmentData.consentCapacityRights },
+            { label: "Medication", value: assessmentData.medication },
+            { label: "Mobility", value: assessmentData.mobility },
+            { label: "Nutrition", value: assessmentData.nutrition },
+            { label: "Continence", value: assessmentData.continence },
+            { label: "Hygiene & Dressing", value: assessmentData.hygieneDressing },
+            { label: "Skin Integrity", value: assessmentData.skin },
+            { label: "Cognition", value: assessmentData.cognition },
+            { label: "Infection Control", value: assessmentData.infection },
+            { label: "Breathing", value: assessmentData.breathing },
+            { label: "Altered State of Consciousness", value: assessmentData.alteredStateOfConsciousness }
+        ];
+
+        for (const adl of adlFields) {
+            yPos = await addField(adl.label, adl.value || "N/A", margin, yPos, pageWidth - margin * 2);
+        }
+
+        // 7. Legal & End of Life
+        yPos = await addSectionTitle("LEGAL & END OF LIFE", yPos + 2);
+        yPos = await ensurePreAdmissionSpace(25, yPos);
+        const rowLegalY = yPos;
+        let yLegal1 = await addField("DNACPR", assessmentData.dnacpr, margin, rowLegalY, cpWidth, true);
+        yLegal1 = await addField("Capacity Assessment", assessmentData.capacity, margin, yLegal1 + 1, cpWidth, true);
+
+        let yLegal2 = await addField("Advanced Decision", assessmentData.advancedDecision, cpCol2, rowLegalY, cpWidth, true);
+        yLegal2 = await addField("Advanced Care Plan", assessmentData.advancedCarePlan, cpCol2, yLegal2 + 1, cpWidth, true);
+        yPos = Math.max(yLegal1, yLegal2);
+        yPos = await addField("Palliative Care Comments", assessmentData.comments || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // 8. Resident Preferences
+        yPos = await addSectionTitle("RESIDENT PREFERENCES", yPos + 2);
+        yPos = await addField("Preferred Name", assessmentData.preferedName || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Room Preferences", assessmentData.roomPreferences || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Food Preferences", assessmentData.foodPreferences || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Admission Contact", assessmentData.admissionContact || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Family Concerns", assessmentData.familyConcerns || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // 9. Other Information
+        yPos = await addSectionTitle("OTHER RELEVANT INFORMATION", yPos + 2);
+        yPos = await addField("Other Healthcare Professionals Involved", assessmentData.otherHealthCareProfessional || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Equipment Required", assessmentData.equipment || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // 10. Financial & Additional
+        yPos = await addSectionTitle("FINANCIAL & FINAL DETAILS", yPos + 2);
+        yPos = await addField("Does anyone attend to finances?", assessmentData.attendFinances, margin, yPos, pageWidth - margin * 2);
+        if (assessmentData.attendFinances) {
+             yPos = await addField("Finance Contact Name", assessmentData.financesName || "N/A", margin, yPos, pageWidth - margin * 2);
+             yPos = await addField("Finance Contact Number", assessmentData.financesContactNumber || "N/A", margin, yPos, pageWidth - margin * 2);
+             yPos = await addField("Finance Contact Address", assessmentData.financesAddress || "N/A", margin, yPos, pageWidth - margin * 2);
+        }
+        yPos = await addField("Additional Considerations", assessmentData.additionalConsiderations || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("ASSESSMENT OUTCOME", assessmentData.outcome || "N/A", margin, yPos, pageWidth - margin * 2);
+        const pDate = assessmentData.plannedAdmissionDate;
+        yPos = await addField("PLANNED ADMISSION DATE", pDate ? format(new Date(pDate), "dd/MM/yyyy") : "N/A", margin, yPos, pageWidth - margin * 2);
+
+        doc.save(`Pre-Admission-Assessment-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    // --- Infection Prevention Control Pre-Admission Assessment Specialized Layout ---
+    if (formName.toUpperCase().includes("INFECTION PREVENTION CONTROL")) {
+        const assessmentData = assessmentDataForSpecialized;
+        const symptoms = assessmentData.symptoms || {};
+        const exposure = assessmentData.exposure_history || {};
+        const details = symptoms.details || {};
+        const respiratory = symptoms.respiratory || {};
+        const dv = symptoms.diarrheaVomiting || {};
+        const clostridium = symptoms.clostridium || {};
+        const mrsa = symptoms.mrsa || {};
+        const mdro = symptoms.multiDrugResistance || {};
+
+        const drawIPCHeader = async () => {
+            await drawHeader();
+        };
+
+        const ensureIPCSpace = async (heightNeeded: number, currentY: number) => {
+            if (currentY + heightNeeded > 280) {
+                doc.addPage();
+                await drawIPCHeader();
+                return 30;
+            }
+            return currentY;
+        };
+
+        let yPos = 30;
+        await drawIPCHeader();
+
+        const cpWidth = (pageWidth - margin * 2) / 2 - 5;
+        const cpCol2 = margin + (pageWidth - margin * 2) / 2;
+
+        // 1. Resident Details
+        yPos = await addSectionTitle("RESIDENT DETAILS", yPos);
+        yPos = await ensureIPCSpace(40, yPos);
+        const rowResY = yPos;
+        const resName = assessmentData.name || details.name || `${resident?.first_name} ${resident?.last_name}`;
+        let yRes1 = await addField("Resident Name", resName, margin, rowResY, cpWidth, true);
+        const dobVal = assessmentData.dateOfBirth || details.dateOfBirth || resident?.date_of_birth;
+        yRes1 = await addField("Date of Birth", dobVal ? format(new Date(dobVal), "dd/MM/yyyy") : "N/A", margin, yRes1 + 1, cpWidth, true);
+        yRes1 = await addField("Information Provided By", details.informationProvidedBy || "N/A", margin, yRes1 + 1, cpWidth, true);
+
+        let yRes2 = await addField("Assessment Type", assessmentData.assessment_type || "Pre-admission", cpCol2, rowResY, cpWidth, true);
+        yRes2 = await addField("Home Address", details.homeAddress || "N/A", cpCol2, yRes2 + 1, cpWidth, true);
+        yRes2 = await addField("Consultant / GP Name", details.consultantGP || "N/A", cpCol2, yRes2 + 1, cpWidth, true);
+        yPos = Math.max(yRes1, yRes2);
+
+        // Admission Details
+        yPos = await ensureIPCSpace(20, yPos + 2);
+        const rowAdmY = yPos;
+        let yAdm1 = await addField("Location Admitted From", exposure.admittedFrom || "N/A", margin, rowAdmY, cpWidth, true);
+        yAdm1 = await addField("Reason for Admission", exposure.reasonForAdmission || "N/A", margin, yAdm1 + 1, cpWidth, true);
+        let yAdm2 = await addField("Admission Date", exposure.dateOfAdmission ? format(new Date(exposure.dateOfAdmission), "dd/MM/yyyy") : "N/A", cpCol2, rowAdmY, cpWidth, true);
+        yPos = Math.max(yAdm1, yAdm2);
+
+        // 2. Acute Respiratory Illness (ARI)
+        yPos = await addSectionTitle("ACUTE RESPIRATORY ILLNESS (ARI)", yPos + 4);
+        
+        const getYesNo = (val: any) => val ? "YES" : "NO";
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Symptoms', 'Result', 'Testing', 'Result']],
+            body: [
+                ["New Continuous Cough", getYesNo(respiratory.newContinuousCough), "Tested for COVID-19", getYesNo(respiratory.testedForCovid19)],
+                ["Worsening Cough", getYesNo(respiratory.worseningCough), "Tested for Influenza A", getYesNo(respiratory.testedForInfluenzaA)],
+                ["High Temperature (>37.8°C)", getYesNo(respiratory.temperatureHigh), "Tested for Influenza B", getYesNo(respiratory.testedForInfluenzaB)],
+                ["", "", "Tested for Resp Screen", getYesNo(respiratory.testedForRespiratoryScreen)]
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [34, 197, 94] },
+            styles: { fontSize: 9 }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 4;
+        
+        yPos = await addField("Other Respiratory Symptoms", respiratory.otherRespiratorySymptoms || "None", margin, yPos, pageWidth - margin * 2);
+        
+        yPos = await ensureIPCSpace(20, yPos);
+        const rowAriResY = yPos;
+        let yAri1 = await addField("Influenza B Result", respiratory.influenzaB ? "Positive" : "Negative", margin, rowAriResY, cpWidth, true);
+        let yAri2 = await addField("Respiratory Screen Result", respiratory.respiratoryScreen ? "Positive" : "Negative", cpCol2, rowAriResY, cpWidth, true);
+        yPos = Math.max(yAri1, yAri2) + 2;
+
+        // 3. Exposure & Isolation History
+        yPos = await addSectionTitle("EXPOSURE & ISOLATION HISTORY", yPos + 4);
+        yPos = await ensureIPCSpace(35, yPos);
+        const rowExpY = yPos;
+        let yExp1 = await addField("Exposed to COVID+ Patients?", getYesNo(exposure.exposureToPatientsCovid), margin, rowExpY, cpWidth, true);
+        yExp1 = await addField("Exposed to COVID+ Staff?", getYesNo(exposure.exposureToStaffCovid), margin, yExp1 + 1, cpWidth, true);
+        
+        let yExp2 = await addField("Current Isolation Required?", getYesNo(assessmentData.isolation_required), cpCol2, rowExpY, cpWidth, true);
+        yExp2 = await addField("Further Treatment Required?", getYesNo(exposure.furtherTreatmentRequired), cpCol2, yExp2 + 1, cpWidth, true);
+        yPos = Math.max(yExp1, yExp2);
+        yPos = await addField("Isolation Details & Recommendations", exposure.isolationDetails || "None", margin, yPos + 1, pageWidth - margin * 2);
+
+        // 4. Diarrhoea & Vomiting
+        yPos = await addSectionTitle("DIARRHOEA & VOMITING", yPos + 4);
+        yPos = await addField("Current Symptoms (Infection Not Confirmed)", getYesNo(dv.currentSymptoms), margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Contact with d/v within last 72 hours", getYesNo(dv.contactWithOthers), margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Family history of d/v in past 72 hours", getYesNo(dv.familyHistory72h), margin, yPos, pageWidth - margin * 2);
+
+        // 5. Clostridium Difficile
+        yPos = await addSectionTitle("CLOSTRIDIUM DIFFICILE", yPos + 4);
+        yPos = await ensureIPCSpace(50, yPos);
+        const rowCdiffY = yPos;
+        let yCdiff1 = await addField("Active C.Diff Case?", getYesNo(clostridium.active), margin, rowCdiffY, cpWidth, true);
+        yCdiff1 = await addField("Past History of C.Diff?", getYesNo(clostridium.history), margin, yCdiff1 + 1, cpWidth, true);
+        yCdiff1 = await addField("Stool Count (Last 72h)", clostridium.stoolCount72h || "N/A", margin, yCdiff1 + 1, cpWidth, true);
+        
+        let yCdiff2 = await addField("Last Positive Specimen Date", clostridium.lastPositiveSpecimenDate ? format(new Date(clostridium.lastPositiveSpecimenDate), "dd/MM/yyyy") : "N/A", cpCol2, rowCdiffY, cpWidth, true);
+        yCdiff2 = await addField("Specimen Result", clostridium.result || "N/A", cpCol2, yCdiff2 + 1, cpWidth, true);
+        yCdiff2 = await addField("Treatment Received", clostridium.treatmentReceived || "N/A", cpCol2, yCdiff2 + 1, cpWidth, true);
+        yCdiff2 = await addField("Treatment Complete?", getYesNo(clostridium.treatmentComplete), cpCol2, yCdiff2 + 1, cpWidth, true);
+        yPos = Math.max(yCdiff1, yCdiff2);
+        
+        // Ongoing C.Diff Regimen
+        yPos = await addSectionTitle("ONGOING C.DIFF REGIMEN", yPos + 4);
+        yPos = await addField("Active Antibiotic Details", clostridium.ongoingDetails || "None", margin, yPos, pageWidth - margin * 2);
+        yPos = await ensureIPCSpace(20, yPos);
+        const rowCdiffRegY = yPos;
+        let yCdiffReg1 = await addField("Course Start Date", clostridium.ongoingDateCommenced ? format(new Date(clostridium.ongoingDateCommenced), "dd/MM/yyyy") : "N/A", margin, rowCdiffRegY, cpWidth, true);
+        let yCdiffReg2 = await addField("Projected Length", clostridium.ongoingLengthOfCourse || "N/A", cpCol2, rowCdiffRegY, cpWidth, true);
+        yPos = Math.max(yCdiffReg1, yCdiffReg2);
+        yPos = await addField("Follow-up required", clostridium.ongoingFollowUpRequired || "None", margin, yPos + 1, pageWidth - margin * 2);
+
+        // 6. MRSA / MSSA
+        yPos = await addSectionTitle("MRSA / MSSA STATUS", yPos + 4);
+        yPos = await ensureIPCSpace(40, yPos);
+        const rowMrsaY = yPos;
+        let yMrsa1 = await addField("Known Colonisation?", getYesNo(mrsa.colonised), margin, rowMrsaY, cpWidth, true);
+        yMrsa1 = await addField("Active Infection?", getYesNo(mrsa.infected), margin, yMrsa1 + 1, cpWidth, true);
+        yMrsa1 = await addField("Last Positive Swab Date", mrsa.lastPositiveSwabDate ? format(new Date(mrsa.lastPositiveSwabDate), "dd/MM/yyyy") : "N/A", margin, yMrsa1 + 1, cpWidth, true);
+        
+        let yMrsa2 = await addField("Sites Positive", mrsa.sitesPositive || "N/A", cpCol2, rowMrsaY, cpWidth, true);
+        yMrsa2 = await addField("Treatment Regimen Received", mrsa.treatmentReceived || "N/A", cpCol2, yMrsa2 + 1, cpWidth, true);
+        yPos = Math.max(yMrsa1, yMrsa2);
+
+        // Ongoing MRSA Regimen
+        yPos = await addSectionTitle("ONGOING DECOLONISATION", yPos + 4);
+        yPos = await addField("Details", mrsa.mrsaMssaDetails || "None", margin, yPos, pageWidth - margin * 2);
+        yPos = await ensureIPCSpace(20, yPos);
+        const rowMrsaRegY = yPos;
+        let yMrsaReg1 = await addField("Regimen Start Date", mrsa.mrsaMssaDateCommenced ? format(new Date(mrsa.mrsaMssaDateCommenced), "dd/MM/yyyy") : "N/A", margin, rowMrsaRegY, cpWidth, true);
+        let yMrsaReg2 = await addField("Projected Duration", mrsa.mrsaMssaLengthOfCourse || "N/A", cpCol2, rowMrsaRegY, cpWidth, true);
+        yPos = Math.max(yMrsaReg1, yMrsaReg2);
+        yPos = await addField("Follow-up required", mrsa.mrsaMssaFollowUpRequired || "None", margin, yPos + 1, pageWidth - margin * 2);
+
+        // 7. MDRO
+        yPos = await addSectionTitle("MULTI-DRUG RESISTANT ORGANISMS (MDRO)", yPos + 4);
+        autoTable(doc, {
+            startY: yPos,
+            body: [
+                ["ESBL", getYesNo(mdro.esbl)],
+                ["VRE / GRE", getYesNo(mdro.vreGre)],
+                ["CPE", getYesNo(mdro.cpe)]
+            ],
+            theme: 'grid',
+            styles: { fontSize: 9 },
+            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 }, 1: { cellWidth: 30 } }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 4;
+        yPos = await addField("Other MDR Organisms", mdro.other || "None", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Additional Clinical Notes", mdro.relevantInformation || "None", margin, yPos, pageWidth - margin * 2);
+
+        // 8. Vaccinations & Awareness
+        yPos = await addSectionTitle("VACCINATIONS & AWARENESS", yPos + 4);
+        yPos = await ensureIPCSpace(20, yPos);
+        const rowVacY = yPos;
+        let yVac1 = await addField("Personal awareness of status?", getYesNo(exposure.awarenessOfInfection), margin, rowVacY, cpWidth, true);
+        let yVac2 = await addField("Last Flu Vaccination Date", exposure.lastFluVaccinationDate ? format(new Date(exposure.lastFluVaccinationDate), "dd/MM/yyyy") : "N/A", cpCol2, rowVacY, cpWidth, true);
+        yPos = Math.max(yVac1, yVac2) + 2;
+
+        // 9. Completion & Sign-off
+        yPos = await addSectionTitle("COMPLETION & SIGN-OFF", yPos + 4);
+        yPos = await ensureIPCSpace(35, yPos);
+        const rowSignY = yPos;
+        let ySign1 = await addField("Completed By", assessmentData.completed_by || details.jobRole || "N/A", margin, rowSignY, cpWidth, true);
+        ySign1 = await addField("Job Role", details.jobRole || "N/A", margin, ySign1 + 1, cpWidth, true);
+        
+        const cDate = assessmentData.assessment_date || data.assessment_date;
+        let ySign2 = await addField("Completion Date", cDate ? format(new Date(cDate), "dd/MM/yyyy") : "N/A", cpCol2, rowSignY, cpWidth, true);
+        ySign2 = await addField("Digital Signature", assessmentData.signature || resName || "N/A", cpCol2, ySign2 + 1, cpWidth, true);
+        yPos = Math.max(ySign1, ySign2);
+
+        doc.save(`Infection-Prevention-Assessment-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
     // --- Admission Assessment Specialized Layout ---
     if (formName.toUpperCase().includes("ADMISSION ASSESSMENT")) {
         const assessmentData = assessmentDataForSpecialized;
@@ -1291,6 +1620,10 @@ export const generateCareFilePDF = async ({
         doc.save(`Admission-Assessment-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
         return;
     }
+
+
+    // --- Dependency Assessment Specialized Layout ---
+
 
     // --- Dependency Assessment Specialized Layout ---
     if (formName.toUpperCase().includes("DEPENDENCY ASSESSMENT")) {
