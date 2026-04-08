@@ -891,136 +891,6 @@ export const generateCareFilePDF = async ({
         return;
     }
 
-    // --- Best Interest Decision Form ---
-    if (formName === "Best Interest Decision Form") {
-        const val = (v: any) => v === undefined || v === null ? "" : String(v);
-        const drawBIDHeader = async () => {
-             doc.setFontSize(14);
-             doc.setFont("helvetica", "bold");
-             const title = "BEST INTEREST DECISION FORM FOR RESIDENTS WHO ARE UNABLE TO CONSENT TO INVESTIGATION/TREATMENT/PROCEDURE/RESTRAINT";
-             const splitTitle = doc.splitTextToSize(title.toUpperCase(), pageWidth - margin * 2);
-             doc.text(splitTitle, margin, 20, { align: 'left' });
-             return 20 + (splitTitle.length * 7);
-        };
-
-        let currentY = await drawBIDHeader();
-
-        // Resident Details Box
-        doc.setDrawColor(0);
-        doc.setLineWidth(0.5);
-        doc.rect(margin, currentY, pageWidth - margin * 2, 45);
-        
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.text("Resident Details", margin + 5, currentY + 8);
-        doc.line(margin + 5, currentY + 9, margin + 35, currentY + 9);
-
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
-        doc.text("Resident's Name:", margin + 5, currentY + 18);
-        doc.setFont("helvetica", "normal");
-        doc.text(val(data.residentName), margin + 40, currentY + 18);
-        doc.line(margin + 40, currentY + 19, margin + 40 + 50, currentY + 19);
-
-        doc.setFont("helvetica", "bold");
-        doc.text("Date of Birth:", margin + 5, currentY + 28);
-        doc.setFont("helvetica", "normal");
-        doc.text(data.dateOfBirth ? format(new Date(data.dateOfBirth), "dd/MM/yyyy") : "N/A", margin + 40, currentY + 28);
-        doc.line(margin + 40, currentY + 29, margin + 40 + 50, currentY + 29);
-
-        doc.setFont("helvetica", "bold");
-        doc.text("GP:", margin + 5, currentY + 38);
-        doc.setFont("helvetica", "normal");
-        doc.text(val(data.gpName), margin + 40, currentY + 38);
-        doc.line(margin + 40, currentY + 39, margin + 40 + 50, currentY + 39);
-
-        doc.setFont("helvetica", "bold");
-        doc.text("Staff member involved in Discussion (PRINT):", margin + 100, currentY + 18);
-        doc.setFont("helvetica", "normal");
-        const staffName = val(data.staffMemberInvolved);
-        doc.text(staffName, margin + 100, currentY + 26);
-        doc.line(margin + 100, currentY + 27, pageWidth - margin - 5, currentY + 27);
-
-        currentY += 55;
-
-        // Declaration Section
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        const decl1 = "I/We have been involved in a discussion with the relevant health professionals over the investigation/treatment/procedure/restraint proposed of";
-        const splitDecl1 = doc.splitTextToSize(decl1, pageWidth - margin * 2);
-        doc.text(splitDecl1, margin, currentY);
-        currentY += splitDecl1.length * 5;
-
-        doc.setFont("helvetica", "bold");
-        const splitProposed = doc.splitTextToSize(val(data.proposedTreatmentOf), pageWidth - margin * 2);
-        doc.text(splitProposed, margin, currentY);
-        currentY += splitProposed.length * 5 + 2;
-
-        doc.setFont("helvetica", "normal");
-        doc.text("for (Explain what treatment is)", margin, currentY);
-        currentY += 5;
-        doc.setFont("helvetica", "bold");
-        const splitTreatment = doc.splitTextToSize(val(data.treatmentDescription), pageWidth - margin * 2);
-        doc.text(splitTreatment, margin, currentY);
-        currentY += splitTreatment.length * 5 + 5;
-
-        doc.setFont("helvetica", "normal");
-        const decl2 = "I/We understand that he/she is unable to give his/her consent. I/We also understand that investigation/treatment/procedure/restraint may lawfully be carried out if it is in his/her best interests to receive it.";
-        const splitDecl2 = doc.splitTextToSize(decl2, pageWidth - margin * 2);
-        doc.text(splitDecl2, margin, currentY);
-        currentY += splitDecl2.length * 5 + 10;
-
-        // Comments Section
-        doc.setFont("helvetica", "bold");
-        doc.text("Any other comments, including concerns about the decision:", margin, currentY);
-        currentY += 7;
-        doc.setLineWidth(0.2);
-        doc.rect(margin, currentY, pageWidth - margin * 2, 40);
-        doc.setFont("helvetica", "normal");
-        const splitComments = doc.splitTextToSize(val(data.otherComments), pageWidth - margin * 2 - 10);
-        doc.text(splitComments, margin + 5, currentY + 7);
-        currentY += 50;
-
-        // Sign-off Section
-        const leftColX = margin;
-        const rightColX = margin + 100;
-
-        doc.setFont("helvetica", "bold");
-        doc.text("Name:", leftColX, currentY);
-        doc.setFont("helvetica", "normal");
-        doc.text(val(data.signerName), leftColX + 15, currentY);
-        doc.line(leftColX + 15, currentY + 1, leftColX + 90, currentY + 1);
-
-        doc.setFont("helvetica", "bold");
-        doc.text("Relationship to Resident:", rightColX, currentY);
-        doc.setFont("helvetica", "normal");
-        doc.text(val(data.signerRelationship), rightColX + 45, currentY);
-        doc.line(rightColX + 45, currentY + 1, pageWidth - margin, currentY + 1);
-
-        currentY += 12;
-        doc.setFont("helvetica", "bold");
-        doc.text("Address:", leftColX, currentY);
-        doc.setFont("helvetica", "normal");
-        const splitAddress = doc.splitTextToSize(val(data.signerAddress), pageWidth - margin - (leftColX + 18));
-        doc.text(splitAddress, leftColX + 18, currentY);
-        currentY += splitAddress.length * 5;
-
-        currentY += 12;
-        doc.setFont("helvetica", "bold");
-        doc.text("Signature:", leftColX, currentY);
-        doc.setFont("helvetica", "italic");
-        doc.text(val(data.signerSignature), leftColX + 22, currentY);
-        doc.line(leftColX + 22, currentY + 1, leftColX + 90, currentY + 1);
-
-        doc.setFont("helvetica", "bold");
-        doc.text("Date:", rightColX, currentY);
-        doc.setFont("helvetica", "normal");
-        doc.text(val(data.signerDate), rightColX + 12, currentY);
-        doc.line(rightColX + 12, currentY + 1, rightColX + 50, currentY + 1);
-
-        doc.save(`Best-Interest-Decision-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
-        return;
-    }
 
     // --- PDF Layout Helpers ---
     const drawHeader = async () => {
@@ -1133,7 +1003,144 @@ export const generateCareFilePDF = async ({
         return String(value);
     };
 
-    // --- Pre-Admission Assessment Specialized Layout ---
+    // --- Capacity and Consent Specialized Layout ---
+    if (formName.toUpperCase().includes("CAPACITY AND CONSENT")) {
+        const assessmentData = assessmentDataForSpecialized;
+
+        const drawCapacityHeader = async () => {
+            await drawHeader();
+        };
+
+        const ensureCapacitySpace = async (heightNeeded: number, currentY: number) => {
+            if (currentY + heightNeeded > 280) {
+                doc.addPage();
+                await drawCapacityHeader();
+                return 30;
+            }
+            return currentY;
+        };
+
+        let yPos = 30;
+        await drawCapacityHeader();
+
+        const cpWidth = (pageWidth - margin * 2) / 2 - 5;
+        const cpCol2 = margin + (pageWidth - margin * 2) / 2;
+
+        // Section A - Resident Details
+        yPos = await addSectionTitle("SECTION A - RESIDENT DETAILS", yPos);
+        yPos = await ensureCapacitySpace(40, yPos);
+        const rowResY = yPos;
+        let yRes1 = await addField("Resident Name", assessmentData.residentName || (resident ? `${resident.first_name} ${resident.last_name}` : "N/A"), margin, rowResY, cpWidth, true);
+        const dobVal = assessmentData.dateOfBirth || (resident ? resident.date_of_birth : "");
+        yRes1 = await addField("Date of Birth", dobVal ? (typeof dobVal === 'number' ? format(new Date(dobVal), "dd/MM/yyyy") : format(new Date(dobVal), "dd/MM/yyyy")) : "N/A", margin, yRes1 + 1, cpWidth, true);
+
+        let yRes2 = await addField("NHS Number", assessmentData.nhsNumber || (resident ? resident.nhs_health_number : "N/A"), cpCol2, rowResY, cpWidth, true);
+        const admDate = assessmentData.dateOfAdmission || (resident ? resident.admission_date : "");
+        yRes2 = await addField("Date of Admission", admDate ? format(new Date(admDate), "dd/MM/yyyy") : "N/A", cpCol2, yRes2 + 1, cpWidth, true);
+        yPos = Math.max(yRes1, yRes2);
+
+        // Section B - Details of Decision
+        yPos = await addSectionTitle("SECTION B - DETAILS OF DECISION", yPos + 2);
+        if (assessmentData.decisionToBeMade && assessmentData.decisionToBeMade !== "N/A") {
+            yPos = await addField("Decision to be made", assessmentData.decisionToBeMade, margin, yPos, pageWidth - margin * 2);
+        }
+        
+        const decisionTypes = [
+            { label: "Admission to Care Home", value: assessmentData.admissionToCareHome },
+            { label: "Consent to Care Planning & Treatment", value: assessmentData.consentToCarePlanning },
+            { label: "Consent to Medication", value: assessmentData.consentToMedication },
+            { label: "Consent to Sharing Information", value: assessmentData.consentToSharingInfo },
+            { label: "Other Decision", value: assessmentData.otherDecision }
+        ];
+
+        const decisionsText = decisionTypes
+            .filter(d => d.value)
+            .map(d => `[x] ${d.label}`)
+            .join("   ");
+        
+        if (decisionsText) {
+            yPos = await addField("Decision requiring assessment", decisionsText, margin, yPos, pageWidth - margin * 2);
+        }
+        if (assessmentData.otherDecision && assessmentData.otherDecisionDetails) {
+            yPos = await addField("Other Decision Details", assessmentData.otherDecisionDetails, margin, yPos, pageWidth - margin * 2);
+        }
+
+        // Section C - Stage 1 (Diagnostic Test)
+        yPos = await addSectionTitle("SECTION C - STAGE 1: THE DIAGNOSTIC TEST", yPos + 2);
+        yPos = await addField("Does the person have an impairment or disturbance in the functioning of the mind or brain?", assessmentData.hasImpairment || "N/A", margin, yPos, pageWidth - margin * 2);
+        yPos = await addField("Details of impairment", assessmentData.impairmentDetails || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // Section D - Stage 2 (Functional Test)
+        yPos = await addSectionTitle("SECTION D - STAGE 2: THE FUNCTIONAL TEST", yPos + 2);
+        
+        const functionalAssesments = [
+            { label: "1. Can the person understand the information relevant to the decision?", value: assessmentData.understandInformation, notes: assessmentData.understandNotes },
+            { label: "2. Can the person retain that information?", value: assessmentData.retainInformation, notes: assessmentData.retainNotes },
+            { label: "3. Can the person use or weigh that information as part of the process of making the decision?", value: assessmentData.useWeighInformation, notes: assessmentData.useWeighNotes },
+            { label: "4. Can the person communicate their decision?", value: assessmentData.communicateDecision, notes: assessmentData.communicateNotes }
+        ];
+
+        for (const fa of functionalAssesments) {
+            yPos = await addField(fa.label, fa.value || "N/A", margin, yPos, pageWidth - margin * 2);
+            if (fa.notes) {
+                yPos = await addField("Notes / Evidence", fa.notes, margin, yPos, pageWidth - margin * 2);
+            }
+            yPos += 2;
+        }
+
+        // Section E - Outcome of Capacity Assessment
+        yPos = await addSectionTitle("SECTION E - OUTCOME OF CAPACITY ASSESSMENT", yPos + 2);
+        const capacityOutcome = assessmentData.hasCapacity === "Yes" 
+            ? "Based on the assessment above, the person DOES have the capacity to make this decision."
+            : "Based on the assessment above, the person DOES NOT have the capacity to make this decision.";
+        yPos = await addField("Capacity Outcome", capacityOutcome, margin, yPos, pageWidth - margin * 2);
+
+        // Section F - Resident Consent (if capacity is present)
+        if (assessmentData.hasCapacity === "Yes") {
+            yPos = await addSectionTitle("SECTION F - RESIDENT CONSENT", yPos + 2);
+            yPos = await ensureCapacitySpace(25, yPos);
+            const rowResConsentY = yPos;
+            let yResConsent1 = await addField("Resident Signature", assessmentData.residentSignature || "N/A", margin, rowResConsentY, cpWidth, true);
+            let yResConsent2 = await addField("Date", assessmentData.residentConsentDate ? format(new Date(assessmentData.residentConsentDate), "dd/MM/yyyy") : "N/A", cpCol2, rowResConsentY, cpWidth, true);
+            yPos = Math.max(yResConsent1, yResConsent2);
+        }
+
+        // Section G - Assessor Details
+        yPos = await addSectionTitle("SECTION G - ASSESSOR DETAILS", yPos + 2);
+        yPos = await ensureCapacitySpace(40, yPos);
+        const rowAssessorY = yPos;
+        let yAssessor1 = await addField("Assessor Name", assessmentData.assessorName || "N/A", margin, rowAssessorY, cpWidth, true);
+        yAssessor1 = await addField("Assessor Role", assessmentData.assessorRole || "N/A", margin, yAssessor1 + 1, cpWidth, true);
+
+        let yAssessor2 = await addField("Assessor Signature", assessmentData.assessorSignature || "N/A", cpCol2, rowAssessorY, cpWidth, true);
+        yAssessor2 = await addField("Date of Assessment", assessmentData.assessmentDate ? format(new Date(assessmentData.assessmentDate), "dd/MM/yyyy") : "N/A", cpCol2, yAssessor2 + 1, cpWidth, true);
+        yPos = Math.max(yAssessor1, yAssessor2);
+
+        // Section H - Legal Representative (if applicable)
+        if (assessmentData.legalRepresentativeType || assessmentData.representativeName) {
+            yPos = await addSectionTitle("SECTION H - LEGAL REPRESENTATIVE", yPos + 2);
+            yPos = await ensureCapacitySpace(40, yPos);
+            const rowRepY = yPos;
+            let yRep1 = await addField("Type of Representative", assessmentData.legalRepresentativeType || "N/A", margin, rowRepY, cpWidth, true);
+            yRep1 = await addField("Representative Name", assessmentData.representativeName || "N/A", margin, yRep1 + 1, cpWidth, true);
+
+            let yRep2 = await addField("Relationship to Resident", assessmentData.relationshipToResident || "N/A", cpCol2, rowRepY, cpWidth, true);
+            yRep2 = await addField("Contact Details", assessmentData.contactDetails || "N/A", cpCol2, yRep2 + 1, cpWidth, true);
+            yPos = Math.max(yRep1, yRep2);
+        }
+
+        // Section I - Review and Reassessment
+        yPos = await addSectionTitle("SECTION I - REVIEW AND REASSESSMENT", yPos + 2);
+        yPos = await ensureCapacitySpace(25, yPos);
+        const rowReviewY = yPos;
+        let yReview1 = await addField("Next Review Date", assessmentData.nextReviewDate ? format(new Date(assessmentData.nextReviewDate), "dd/MM/yyyy") : "N/A", margin, rowReviewY, cpWidth, true);
+        let yReview2 = await addField("Reason for Reassessment", assessmentData.reasonForReassessment || "N/A", cpCol2, rowReviewY, cpWidth, true);
+        yPos = Math.max(yReview1, yReview2);
+
+        doc.save(`Capacity-and-Consent-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
     if (formName.toUpperCase().includes("PRE-ADMISSION ASSESSMENT FORM")) {
         const assessmentData = assessmentDataForSpecialized;
 
@@ -1462,7 +1469,195 @@ export const generateCareFilePDF = async ({
         return;
     }
 
-    // --- Admission Assessment Specialized Layout ---
+    // --- Photographic Consent Form Specialized Layout ---
+    if (formName.toUpperCase().includes("PHOTOGRAPHIC CONSENT") || formName.toUpperCase().includes("PHOTOGRAPHY CONSENT")) {
+        const assessmentData = assessmentDataForSpecialized;
+
+        const drawPhotoHeader = async () => {
+            await drawHeader();
+        };
+
+        const ensurePhotoSpace = async (heightNeeded: number, currentY: number) => {
+            if (currentY + heightNeeded > 280) {
+                doc.addPage();
+                await drawPhotoHeader();
+                return 30;
+            }
+            return currentY;
+        };
+
+        let yPos = 30;
+        await drawPhotoHeader();
+
+        const cpWidth = (pageWidth - margin * 2) / 2 - 5;
+        const cpCol2 = margin + (pageWidth - margin * 2) / 2;
+
+        // 1. Resident Information
+        yPos = await addSectionTitle("RESIDENT INFORMATION", yPos);
+        yPos = await ensurePhotoSpace(40, yPos);
+        const rowResY = yPos;
+        let yRes1 = await addField("Resident Name", assessmentData.residentName || (resident ? `${resident.first_name} ${resident.last_name}` : "N/A"), margin, rowResY, cpWidth, true);
+        const dobVal = assessmentData.dateOfBirth || (resident ? resident.date_of_birth : "");
+        yRes1 = await addField("Date of Birth", dobVal ? format(new Date(dobVal), "dd/MM/yyyy") : "N/A", margin, yRes1 + 1, cpWidth, true);
+
+        let yRes2 = await addField("Bedroom Number", assessmentData.bedroomNumber || (resident ? resident.room_number : "N/A"), cpCol2, rowResY, cpWidth, true);
+        yPos = Math.max(yRes1, yRes2);
+
+        // 2. Consent Permissions
+        yPos = await addSectionTitle("PHOTOGRAPHY AND IMAGE USE CONSENT", yPos + 2);
+        
+        const consents = [
+            { 
+                label: "Healthcare Records", 
+                value: assessmentData.healthcareRecords,
+                description: "Photography for medical documentation, wound care monitoring, and healthcare record purposes."
+            },
+            { 
+                label: "Internal Social Activities", 
+                value: assessmentData.socialActivitiesInternal,
+                description: "Photography during internal activities, celebrations, and events for internal facility use only."
+            },
+            { 
+                label: "External Social Activities & Marketing", 
+                value: assessmentData.socialActivitiesExternal,
+                description: "Photography for marketing materials, website, social media, newsletters, and promotional activities."
+            }
+        ];
+
+        for (const consent of consents) {
+            yPos = await addField(consent.label, consent.value ? "CONSENT GIVEN" : "CONSENT NOT GIVEN", margin, yPos, pageWidth - margin * 2);
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "italic");
+            doc.setTextColor(107, 114, 128);
+            const splitDesc = doc.splitTextToSize(consent.description, pageWidth - margin * 2);
+            doc.text(splitDesc, margin, yPos);
+            yPos += (splitDesc.length * 4) + 4;
+        }
+
+        // 3. Resident / Representative Signature
+        yPos = await addSectionTitle("SIGNATURES & AUTHORIZATION", yPos + 2);
+        yPos = await ensurePhotoSpace(40, yPos);
+        const rowSignY = yPos;
+        
+        let ySign1 = await addField("Resident Signature", assessmentData.residentSignature || "N/A", margin, rowSignY, cpWidth, true);
+        
+        let ySign2 = await addField("Representative Name", assessmentData.representativeName || "N/A", cpCol2, rowSignY, cpWidth, true);
+        ySign2 = await addField("Relationship to Resident", assessmentData.representativeRelationship || "N/A", cpCol2, ySign2 + 1, cpWidth, true);
+        ySign2 = await addField("Representative Signature", assessmentData.representativeSignature || "N/A", cpCol2, ySign2 + 1, cpWidth, true);
+        ySign2 = await addField("Date (Representative)", assessmentData.representativeDate ? format(new Date(assessmentData.representativeDate), "dd/MM/yyyy") : "N/A", cpCol2, ySign2 + 1, cpWidth, true);
+        
+        yPos = Math.max(ySign1, ySign2);
+
+        // 4. Staff Verification
+        yPos = await addSectionTitle("STAFF VERIFICATION", yPos + 2);
+        yPos = await ensurePhotoSpace(30, yPos);
+        const rowStaffY = yPos;
+        
+        let yStaff1 = await addField("Staff Name", assessmentData.nameStaff || "N/A", margin, rowStaffY, cpWidth, true);
+        yStaff1 = await addField("Staff Signature", assessmentData.staffSignature || "N/A", margin, yStaff1 + 1, cpWidth, true);
+        
+        let yStaff2 = await addField("Date Completed", assessmentData.date ? format(new Date(assessmentData.date), "dd/MM/yyyy") : "N/A", cpCol2, rowStaffY, cpWidth, true);
+        
+        yPos = Math.max(yStaff1, yStaff2);
+
+        doc.save(`Photographic-Consent-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    // --- Best Interest Decision Form Specialized Layout ---
+    if (formName.toUpperCase().includes("BEST INTEREST DECISION")) {
+        const assessmentData = assessmentDataForSpecialized;
+
+        const drawBIDHeader = async () => {
+            await drawHeader();
+        };
+
+        const ensureBIDSpace = async (heightNeeded: number, currentY: number) => {
+            if (currentY + heightNeeded > 280) {
+                doc.addPage();
+                await drawBIDHeader();
+                return 30;
+            }
+            return currentY;
+        };
+
+        let yPos = 30;
+        await drawBIDHeader();
+
+        const cpWidth = (pageWidth - margin * 2) / 2 - 5;
+        const cpCol2 = margin + (pageWidth - margin * 2) / 2;
+
+        // 1. Resident Details
+        yPos = await addSectionTitle("RESIDENT DETAILS", yPos);
+        yPos = await ensureBIDSpace(40, yPos);
+        const rowResY = yPos;
+        let yRes1 = await addField("Resident Name", assessmentData.residentName || (resident ? `${resident.first_name} ${resident.last_name}` : "N/A"), margin, rowResY, cpWidth, true);
+        const dobVal = assessmentData.dateOfBirth || (resident ? resident.date_of_birth : "");
+        yRes1 = await addField("Date of Birth", dobVal ? format(new Date(dobVal), "dd/MM/yyyy") : "N/A", margin, yRes1 + 1, cpWidth, true);
+
+        let yRes2 = await addField("GP Name", assessmentData.gpName || (resident ? resident.gp_name : "N/A"), cpCol2, rowResY, cpWidth, true);
+        yRes2 = await addField("Staff involved in Discussion", assessmentData.staffMemberInvolved || "N/A", cpCol2, yRes2 + 1, cpWidth, true);
+        yPos = Math.max(yRes1, yRes2);
+
+        // 2. Decision Details
+        yPos = await addSectionTitle("DECISION DETAILS", yPos + 2);
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(31, 41, 55);
+        
+        const label1 = "I/We have been involved in a discussion with the relevant health professionals over the investigation/treatment/procedure/restraint proposed of:";
+        const splitLabel1 = doc.splitTextToSize(label1, pageWidth - margin * 2);
+        doc.text(splitLabel1, margin, yPos);
+        yPos += (splitLabel1.length * 5) + 2;
+
+        doc.setFont("helvetica", "bold");
+        const val1 = assessmentData.proposedTreatmentOf || "N/A";
+        const splitVal1 = doc.splitTextToSize(val1, pageWidth - margin * 2);
+        doc.text(splitVal1, margin, yPos);
+        yPos += (splitVal1.length * 5) + 4;
+
+        doc.setFont("helvetica", "normal");
+        const label2 = "for (Explain what treatment is):";
+        doc.text(label2, margin, yPos);
+        yPos += 5;
+
+        doc.setFont("helvetica", "bold");
+        const val2 = assessmentData.treatmentDescription || "N/A";
+        const splitVal2 = doc.splitTextToSize(val2, pageWidth - margin * 2);
+        doc.text(splitVal2, margin, yPos);
+        yPos += (splitVal2.length * 5) + 6;
+
+        // 3. Declaration & Comments
+        yPos = await addSectionTitle("DECLARATION & COMMENTS", yPos + 2);
+        const declarationText = "I/We understand that he/she is unable to give his/her consent. I/We also understand that investigation/treatment/procedure/restraint may lawfully be carried out if it is in his/her best interests to receive it.";
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(107, 114, 128);
+        const splitDecl = doc.splitTextToSize(declarationText, pageWidth - margin * 2);
+        doc.text(splitDecl, margin, yPos);
+        yPos += (splitDecl.length * 5) + 4;
+
+        yPos = await addField("Any other comments, including concerns about the decision", assessmentData.otherComments || "N/A", margin, yPos, pageWidth - margin * 2);
+
+        // 4. Sign-off
+        yPos = await addSectionTitle("SIGN-OFF", yPos + 2);
+        yPos = await ensureBIDSpace(40, yPos);
+        const rowSignY = yPos;
+
+        let ySign1 = await addField("Name", assessmentData.signerName || "N/A", margin, rowSignY, cpWidth, true);
+        ySign1 = await addField("Relationship to Resident", assessmentData.signerRelationship || "N/A", margin, ySign1 + 1, cpWidth, true);
+        ySign1 = await addField("Address", assessmentData.signerAddress || "N/A", margin, ySign1 + 1, cpWidth, true);
+
+        let ySign2 = await addField("Signature", assessmentData.signerSignature || "N/A", cpCol2, rowSignY, cpWidth, true);
+        ySign2 = await addField("Date", assessmentData.signerDate ? format(new Date(assessmentData.signerDate), "dd/MM/yyyy") : "N/A", cpCol2, ySign2 + 1, cpWidth, true);
+
+        yPos = Math.max(ySign1, ySign2);
+
+        doc.save(`Best-Interest-Decision-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
     if (formName.toUpperCase().includes("ADMISSION ASSESSMENT")) {
         const assessmentData = assessmentDataForSpecialized;
 
@@ -2779,6 +2974,180 @@ export const generateCareFilePDF = async ({
         yPos = await addField("Planned Admission Date", pDate ? format(new Date(pDate), "PPP") : "N/A", margin, yPos + 1, colWidth);
 
         doc.save(`Pre-Admission-Assessment-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
+        return;
+    }
+
+    // --- Night Observation Consent Specialized Layout ---
+    if (formName.toUpperCase().includes("NIGHT OBSERVATION CONSENT")) {
+        const assessmentData = data.assessment_data || data;
+        const colWidth = (pageWidth - margin * 2) / 2 - 5;
+        const col2 = margin + (pageWidth - margin * 2) / 2;
+
+        // Section A: Resident Information
+        yPos = await addSectionTitle("Section A — Resident Information", yPos);
+        const row1Y = yPos;
+        const ya1 = await addField("Full Name", assessmentData.residentName || "N/A", margin, row1Y, colWidth, true);
+        const ya2 = await addField("Date of Birth", assessmentData.dateOfBirth ? format(new Date(assessmentData.dateOfBirth), "dd/MM/yyyy") : "N/A", col2, row1Y, colWidth, true);
+        yPos = Math.max(ya1, ya2) + 2;
+
+        const row2Y = yPos;
+        const ya3 = await addField("Resident / NHS Number", assessmentData.nhsNumber || "N/A", margin, row2Y, colWidth, true);
+        const ya4 = await addField("Room Number", assessmentData.roomNumber || "N/A", col2, row2Y, colWidth, true);
+        yPos = Math.max(ya3, ya4) + 2;
+
+        yPos = await addField("Date of Admission", assessmentData.dateOfAdmission ? format(new Date(assessmentData.dateOfAdmission), "dd/MM/yyyy") : "N/A", margin, yPos, colWidth);
+
+        // Section B: Purpose
+        yPos = await addSectionTitle("Section B — Purpose of Night Observations", yPos + 4);
+        const purposeText = "Night observations are carried out to ensure the safety, wellbeing, and health of residents during night hours. Observations may include visual checks, monitoring breathing, repositioning, continence care, or responding to medical needs.";
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(75, 85, 99);
+        const purposeLines = doc.splitTextToSize(purposeText, pageWidth - margin * 2);
+        doc.text(purposeLines, margin, yPos);
+        yPos += (purposeLines.length * 5) + 6;
+
+        // Section C: Type of Observation
+        yPos = await addSectionTitle("Section C — Type of Observation Required", yPos);
+        const allObsTypes = [
+            "General welfare checks at regular intervals",
+            "Increased observation due to medical condition",
+            "Falls risk monitoring",
+            "Pressure area care / repositioning",
+            "Behavioral monitoring",
+            "Other (please specify below)"
+        ];
+
+        const obsTableData = allObsTypes.map(type => [
+            type,
+            assessmentData.observationTypes?.includes(type) ? "YES" : "NO"
+        ]);
+
+        autoTable(doc, {
+            startY: yPos,
+            body: obsTableData,
+            theme: 'grid',
+            styles: { fontSize: 9, cellPadding: 2 },
+            columnStyles: {
+                0: { cellWidth: pageWidth - margin * 2 - 25 },
+                1: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }
+            },
+            margin: { left: margin }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 2;
+
+        if (assessmentData.otherObservationType) {
+            yPos = await addField("Other Observation Details", assessmentData.otherObservationType, margin, yPos, pageWidth - margin * 2);
+        }
+
+        // Section D: Frequency
+        yPos = await addSectionTitle("Section D — Frequency of Observations", yPos + 4);
+        const allFrequencies = [
+            "Every 15 minutes",
+            "Every 30 minutes",
+            "Hourly",
+            "Two-hourly",
+            "As required based on condition",
+            "Other (please specify below)"
+        ];
+
+        const freqTableData = allFrequencies.map(freq => [
+            freq,
+            assessmentData.frequency?.includes(freq) ? "YES" : "NO"
+        ]);
+
+        autoTable(doc, {
+            startY: yPos,
+            body: freqTableData,
+            theme: 'grid',
+            styles: { fontSize: 9, cellPadding: 2 },
+            columnStyles: {
+                0: { cellWidth: pageWidth - margin * 2 - 25 },
+                1: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }
+            },
+            margin: { left: margin }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 2;
+
+        if (assessmentData.otherFrequency) {
+            yPos = await addField("Other Frequency Details", assessmentData.otherFrequency, margin, yPos, pageWidth - margin * 2);
+        }
+
+        // Section E & F: Consent & Capacity
+        yPos = await addSectionTitle("Section E & F — Consent & Capacity", yPos + 4);
+        const rowCEF = yPos;
+        const ye1 = await addField("Resident Consented", assessmentData.residentConsented ? "Yes" : "No", margin, rowCEF, colWidth, true);
+        const ye2 = await addField("Has Capacity", assessmentData.hasCapacity || "N/A", col2, rowCEF, colWidth, true);
+        yPos = Math.max(ye1, ye2) + 2;
+
+        const rowSigRC = yPos;
+        const ye3 = await addField("Resident Signature", assessmentData.residentSignature || "N/A", margin, rowSigRC, colWidth, true);
+        const ye4 = await addField("Consent Date", assessmentData.consentDate ? format(new Date(assessmentData.consentDate), "dd/MM/yyyy") : "N/A", col2, rowSigRC, colWidth, true);
+        yPos = Math.max(ye3, ye4) + 4;
+
+        // Section G: Legal Rep
+        if (assessmentData.representativeConsulted && assessmentData.representativeConsulted !== "Not Applicable") {
+            yPos = await addSectionTitle("Section G — Legal Representative / Family Involvement", yPos);
+            const rowRG = yPos;
+            const yg1 = await addField("Consulted", assessmentData.representativeConsulted, margin, rowRG, colWidth, true);
+            const yg2 = await addField("Representative Name", assessmentData.representativeName || "N/A", col2, rowRG, colWidth, true);
+            yPos = Math.max(yg1, yg2) + 2;
+
+            const rowRG2 = yPos;
+            const yg3 = await addField("Relationship", assessmentData.relationshipToResident || "N/A", margin, rowRG2, colWidth, true);
+            const yg4 = await addField("Contact / Notes", assessmentData.contactDetails || "N/A", col2, rowRG2, colWidth, true);
+            yPos = Math.max(yg3, yg4) + 4;
+        }
+
+        // Section H: Risks
+        yPos = await addSectionTitle("Section H — Risks Explained", yPos);
+        const allRisks = [
+            "Risk of falls",
+            "Risk of medical deterioration",
+            "Risk of pressure sores",
+            "Risk of wandering or confusion",
+            "Other (please specify below)"
+        ];
+
+        const riskTableData = allRisks.map(risk => [
+            risk,
+            assessmentData.risksExplained?.includes(risk) ? "YES" : "NO"
+        ]);
+
+        autoTable(doc, {
+            startY: yPos,
+            body: riskTableData,
+            theme: 'grid',
+            styles: { fontSize: 9, cellPadding: 2 },
+            columnStyles: {
+                0: { cellWidth: pageWidth - margin * 2 - 25 },
+                1: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }
+            },
+            margin: { left: margin }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 2;
+
+        if (assessmentData.otherRisk) {
+            yPos = await addField("Other Risk Details", assessmentData.otherRisk, margin, yPos, pageWidth - margin * 2);
+        }
+
+        // Section I: Staff Declaration
+        yPos = await addSectionTitle("Section I — Staff Declaration", yPos + 4);
+        const rowSI = yPos;
+        const yi1 = await addField("Staff Name", assessmentData.staffName || "N/A", margin, rowSI, colWidth, true);
+        const yi2 = await addField("Role / Designation", assessmentData.staffRole || "N/A", col2, rowSI, colWidth, true);
+        yPos = Math.max(yi1, yi2) + 2;
+
+        const rowSI2 = yPos;
+        const yi3 = await addField("Staff Signature", assessmentData.staffSignature || "N/A", margin, rowSI2, colWidth, true);
+        const yi4 = await addField("Declaration Date", assessmentData.declarationDate ? format(new Date(assessmentData.declarationDate), "dd/MM/yyyy") : "N/A", col2, rowSI2, colWidth, true);
+        yPos = Math.max(yi3, yi4) + 4;
+
+        // Finalize
+        doc.setFontSize(8);
+        doc.setTextColor(110, 110, 110);
+        doc.text(`Generated by CareO System on ${new Date().toLocaleString('en-GB')}`, margin, doc.internal.pageSize.height - 10);
+        doc.save(`Night-Observation-Consent-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
         return;
     }
 
