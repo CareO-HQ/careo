@@ -161,6 +161,9 @@ export default function ResidentValuablesList({
                           (item: any, index: number) => (
                             <li key={index} className="text-sm">
                               {item.value || item}
+                              {(item.count ?? 1) > 1 && (
+                                <span className="text-muted-foreground ml-1">(x{item.count})</span>
+                              )}
                             </li>
                           )
                         )}
@@ -171,18 +174,13 @@ export default function ResidentValuablesList({
                   {assessment.other && assessment.other.length > 0 && (
                     <div>
                       <h3 className="font-medium">Other Items</h3>
-                      <ul className="list-none space-y-2">
+                      <ul className="list-disc list-inside">
                         {assessment.other.map((item: any, index: number) => (
-                          <li
-                            key={index}
-                            className="text-sm border-l-2 border-muted-foreground pl-2"
-                          >
-                            <p className="font-medium">{item.details}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Received by {item.receivedBy} on{" "}
-                              {format(new Date(item.date), "PPP")} at{" "}
-                              {item.time}
-                            </p>
+                          <li key={index} className="text-sm">
+                            {item.value || item.details || item}
+                            {(item.count ?? 1) > 1 && (
+                              <span className="text-muted-foreground ml-1">(x{item.count})</span>
+                            )}
                           </li>
                         ))}
                       </ul>

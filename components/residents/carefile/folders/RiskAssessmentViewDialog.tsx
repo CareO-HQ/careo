@@ -83,8 +83,13 @@ const formatValue = (v: any, fmt?: "date" | "bool" | string): string => {
     if (fmt === "clothing_list") {
       if (!Array.isArray(v) || v.length === 0) return "—";
       const items = (v as any[])
-        .map((item) => item?.value)
-        .filter((x) => x && String(x).trim().length > 0);
+        .map((item) => {
+          const name = item?.value;
+          if (!name || !String(name).trim()) return null;
+          const count = item?.count ?? 1;
+          return count > 1 ? `${name} (x${count})` : name;
+        })
+        .filter((x) => x);
       if (!items.length) {
         const count = v.length;
         return `${count} item${count === 1 ? "" : "s"}`;
@@ -95,22 +100,18 @@ const formatValue = (v: any, fmt?: "date" | "bool" | string): string => {
     if (fmt === "other_items_list") {
       if (!Array.isArray(v) || v.length === 0) return "—";
       const items = (v as any[])
-        .map((item, idx) => {
-          const details = item?.details;
-          if (!details) return null;
-          const time = item?.time;
-          const who = item?.receivedBy || item?.witnessedBy;
-          const parts = [details];
-          if (who) parts.push(`(${who})`);
-          if (time) parts.push(`@ ${time}`);
-          return `${idx + 1}) ${parts.join(" ")}`;
+        .map((item) => {
+          const name = item?.value || item?.details;
+          if (!name || !String(name).trim()) return null;
+          const count = item?.count ?? 1;
+          return count > 1 ? `${name} (x${count})` : String(name);
         })
         .filter((x) => x);
       if (!items.length) {
         const count = v.length;
         return `${count} item${count === 1 ? "" : "s"}`;
       }
-      return items.join(" | ");
+      return items.join(", ");
     }
   }
 

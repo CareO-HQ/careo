@@ -35,6 +35,7 @@ import CapacityConsentDialog from "@/components/residents/carefile/dialogs/Capac
 import NightObservationDialog from "@/components/residents/carefile/dialogs/NightObservationDialog";
 import GeneralRiskAssessmentDialog from "@/components/residents/carefile/dialogs/GeneralRiskAssessmentDialog";
 import AbbeyPainDialog from "@/components/residents/carefile/dialogs/AbbeyPainDialog";
+import MustAssessmentDialog from "@/components/residents/carefile/dialogs/MustAssessmentDialog";
 
 
 interface BaseDialogProps {
@@ -426,6 +427,15 @@ export function CareFileDialogRenderer({
             {...commonProps}
             userName={userName ?? ""}
             initialData={editData}
+            refreshForms={refreshForms}
+          />
+        );
+
+      case "v2-must-assessment":
+        return (
+          <MustAssessmentDialog
+            {...commonProps}
+            userName={userName ?? ""}
             refreshForms={refreshForms}
           />
         );

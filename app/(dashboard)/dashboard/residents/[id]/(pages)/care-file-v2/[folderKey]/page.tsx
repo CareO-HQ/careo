@@ -93,11 +93,28 @@ const TABLE_MAP: Record<string, string> = {
     "v2-capacity-consent": "capacity_consents",
     "v2-night-obs-consent": "night_observation_consents",
     "v2-general-risk": "general_risk_assessments",
+    "v2-must-assessment": "must_assessments",
     "v2-personal-profile": "personal_profiles",
     "v2-abbey-pain": "abbey_pain_assessments",
     "v2-specimen-log": "specimen_records",
     "progress-note-form": "progress_notes"
 };
+
+/** Forms that load their own data for PDF (Print enabled without a single saved row in formDataForEdit). */
+function careFileV2FormAllowsPrintWithoutSavedRecord(key: CareFileFormKey | null): boolean {
+    if (!key) return false;
+    return (
+        key === "dependency-assessment" ||
+        key === "fall-risk-assessment" ||
+        key === "choking-risk-assessment-form" ||
+        key === "v2-abbey-pain" ||
+        key === "oral-assessment-form" ||
+        key === "braden-risk-assessment-form" ||
+        key === "v2-specimen-log" ||
+        key === "key-worker-diary-form" ||
+        key === "progress-note-form"
+    );
+}
 
 // ─── File Viewer ──────────────────────────────────────────────────────────────
 
@@ -397,12 +414,7 @@ export default function CareFileV2FolderPage() {
         if (!activeFormKey || !resident) return;
 
         try {
-            const allowsHistoryOnlyPrint =
-                activeFormKey === "dependency-assessment" ||
-                activeFormKey === "fall-risk-assessment" ||
-                activeFormKey === "choking-risk-assessment-form" ||
-                activeFormKey === "v2-abbey-pain" ||
-                activeFormKey === "oral-assessment-form";
+            const allowsHistoryOnlyPrint = careFileV2FormAllowsPrintWithoutSavedRecord(activeFormKey);
 
             if (!allowsHistoryOnlyPrint && !formDataForEdit) {
                 toast.error("No form data available to print. Please save or open a completed record first.");
@@ -416,7 +428,44 @@ export default function CareFileV2FolderPage() {
 
             toast.info(`Generating PDF for ${formName}...`);
 
-            const dataToPrint: any = { ...formDataForEdit };
+            let dataToPrint: any;
+
+            if (activeFormKey === "v2-specimen-log") {
+                const { data: specimenRows, error: specimenError } = await supabase
+                    .from("specimen_records")
+                    .select("*")
+                    .eq("resident_id", residentId)
+                    .order("date_time_obtained", { ascending: false });
+
+                if (specimenError) throw specimenError;
+                dataToPrint = specimenRows ?? [];
+            } else if (activeFormKey === "key-worker-diary-form") {
+                const { data: diaryRows, error: diaryError } = await supabase
+                    .from("key_worker_diary")
+                    .select("*")
+                    .eq("resident_id", residentId)
+                    .order("date", { ascending: true })
+                    .order("time", { ascending: true });
+
+                if (diaryError) throw diaryError;
+                dataToPrint = diaryRows ?? [];
+            } else if (activeFormKey === "progress-note-form") {
+                if (formDataForEdit) {
+                    dataToPrint = [{ ...formDataForEdit }];
+                } else {
+                    const { data: pnRows, error: pnError } = await supabase
+                        .from("progress_notes")
+                        .select("*")
+                        .eq("resident_id", residentId)
+                        .order("created_at", { ascending: false })
+                        .limit(200);
+
+                    if (pnError) throw pnError;
+                    dataToPrint = pnRows ?? [];
+                }
+            } else {
+                dataToPrint = { ...formDataForEdit };
+            }
 
         // If it's a care plan, fetch the 5 most recent evaluations
         if (activeFormKey === "care-plan-form") {
@@ -503,6 +552,19 @@ export default function CareFileV2FolderPage() {
 
             if (!error && evaluations) {
                 dataToPrint.evaluations = evaluations;
+            }
+        }
+
+        // If it's a Braden Risk Assessment, fetch all past assessments for history table
+        if (activeFormKey === "braden-risk-assessment-form") {
+            const { data: history, error } = await supabase
+                .from('braden_risk_assessments')
+                .select('*')
+                .eq('resident_id', residentId)
+                .order('assessment_date', { ascending: false });
+
+            if (!error && history) {
+                dataToPrint.history = history;
             }
         }
 
@@ -654,16 +716,18 @@ export default function CareFileV2FolderPage() {
                                         ) : (
                                             <>
                                                 <Button variant="outline" size="sm" onClick={handleCloseForm} disabled={isSaving}>Cancel</Button>
-                                                <Button size="sm" onClick={handleExternalSubmit} disabled={isSaving} className="gap-2">
-                                                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} Submit
-                                                </Button>
+                                                {activeFormKey !== "progress-note-form" && (
+                                                    <Button size="sm" onClick={handleExternalSubmit} disabled={isSaving} className="gap-2">
+                                                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} Submit
+                                                    </Button>
+                                                )}
                                             </>
                                         )}
                                         <Button
                                             variant="outline"
                                             size="sm"
                                             onClick={handlePrint}
-                                            disabled={activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && activeFormKey !== "v2-abbey-pain" && activeFormKey !== "oral-assessment-form" && !formDataForEdit}
+                                            disabled={!careFileV2FormAllowsPrintWithoutSavedRecord(activeFormKey) && !formDataForEdit}
                                             className="gap-2"
                                         >
                                             <Printer className="w-4 h-4" /> Print
