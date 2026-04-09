@@ -1045,11 +1045,18 @@ export default function CareFileV2FolderPage() {
                             </div>
                         </Card>
                         {folder.value !== "General" && (
-                            <Card className="cursor-pointer hover:bg-muted/50 p-2.5 border" onClick={() => handleCarePlanSelect(`${folder.value} Care Plan`)}>
+                            <Card
+                                className="cursor-pointer hover:bg-muted/50 p-2.5 border"
+                                onClick={() =>
+                                    handleCarePlanSelect(
+                                        folderKey === "v2-additional-cp" ? "Smoking Care Plan" : `${folder.value} Care Plan`
+                                    )
+                                }
+                            >
                                 <div className="flex items-start gap-2">
                                     <div className="p-1.5 rounded-md bg-green-100 text-green-600"><FileText className="w-4 h-4" /></div>
                                     <div className="flex-1 min-w-0">
-                                        <h3 className="font-semibold text-xs">{folder.value} Plan</h3>
+                                        <h3 className="font-semibold text-xs">{folderKey === "v2-additional-cp" ? "Smoking Care Plan" : `${folder.value} Plan`}</h3>
                                         <p className="text-[10px] text-muted-foreground line-clamp-1">Specific for {folder.value}</p>
                                     </div>
                                 </div>
