@@ -45,15 +45,11 @@ CREATE POLICY "Users can view weight records in their scope"
     )
   );
 
--- Users can insert weight records for residents in their care home
-CREATE POLICY "Users can insert weight records in their care home"
+-- Users can insert weight records for residents in their organization
+CREATE POLICY "Users can insert weight records in their organization"
   ON public.weight_records FOR INSERT
   WITH CHECK (
-    care_home_id IN (
-      SELECT active_care_home_id FROM public.users
-      WHERE id = auth.uid()
-    )
-    AND organization_id IN (
+    organization_id IN (
       SELECT organization_id FROM public.user_organizations
       WHERE user_id = auth.uid()
     )

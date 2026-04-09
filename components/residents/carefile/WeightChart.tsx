@@ -151,15 +151,19 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
         created_by: profile?.id,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
 
       toast.success("Weight recorded successfully");
       setIsDialogOpen(false);
       resetForm();
       fetchWeightRecords();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving weight record:", error);
-      toast.error("Failed to save weight record");
+      const errorMessage = error?.message || "Failed to save weight record";
+      toast.error(errorMessage);
     } finally {
       setIsSaving(false);
     }
