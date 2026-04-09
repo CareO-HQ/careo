@@ -36,6 +36,7 @@ import NightObservationDialog from "@/components/residents/carefile/dialogs/Nigh
 import GeneralRiskAssessmentDialog from "@/components/residents/carefile/dialogs/GeneralRiskAssessmentDialog";
 import AbbeyPainDialog from "@/components/residents/carefile/dialogs/AbbeyPainDialog";
 import MustAssessmentDialog from "@/components/residents/carefile/dialogs/MustAssessmentDialog";
+import { WeightChart } from "@/components/residents/carefile/WeightChart";
 
 
 interface BaseDialogProps {
@@ -437,6 +438,14 @@ export function CareFileDialogRenderer({
             {...commonProps}
             userName={userName ?? ""}
             refreshForms={refreshForms}
+          />
+        );
+
+      case "v2-weight-chart":
+        return (
+          <WeightChart
+            residentId={residentId}
+            residentName={`${resident?.first_name || ""} ${resident?.last_name || ""}`.trim()}
           />
         );
 
