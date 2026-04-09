@@ -379,68 +379,72 @@ export async function POST(request: NextRequest) {
     }
 
     // Deep flattening: merge assessment_data and normalize old/new payload shapes.
-    const baseData = assessmentData.assessment_data || {};
-    const flattenedData = {
+    const baseData = (assessmentData.assessment_data || {}) as Partial<OralAssessmentPdfData> & Record<string, unknown>;
+    const getOptionalString = (value: unknown): string | undefined =>
+      typeof value === "string" ? value : undefined;
+    const getOptionalBoolean = (value: unknown): boolean | undefined =>
+      typeof value === "boolean" ? value : undefined;
+    const flattenedData: OralAssessmentPdfData = {
       ...assessmentData,
       ...baseData,
       oral_hygiene_routine:
         assessmentData.oral_hygiene_routine ||
         baseData.oral_hygiene_routine ||
-        baseData.normalOralHygieneRoutine ||
+        (typeof baseData["normalOralHygieneRoutine"] === "string" ? baseData["normalOralHygieneRoutine"] : undefined) ||
         "Not specified",
       dental_info: assessmentData.dental_info || baseData.dental_info || {
-        isRegisteredWithDentist: baseData.isRegisteredWithDentist,
-        lastSeenByDentist: baseData.lastSeenByDentist,
-        dentistName: baseData.dentistName,
-        dentalPracticeAddress: baseData.dentalPracticeAddress,
-        contactTelephone: baseData.contactTelephone
+        isRegisteredWithDentist: getOptionalBoolean(baseData.isRegisteredWithDentist),
+        lastSeenByDentist: getOptionalString(baseData.lastSeenByDentist),
+        dentistName: getOptionalString(baseData.dentistName),
+        dentalPracticeAddress: getOptionalString(baseData.dentalPracticeAddress),
+        contactTelephone: getOptionalString(baseData.contactTelephone)
       },
       exam_findings: assessmentData.exam_findings || baseData.exam_findings || {
-        lipsDryCracked: baseData.lipsDryCracked,
-        tongueDryCracked: baseData.tongueDryCracked,
-        tongueUlceration: baseData.tongueUlceration,
-        hasTopDenture: baseData.hasTopDenture,
-        hasLowerDenture: baseData.hasLowerDenture,
-        hasDenturesAndNaturalTeeth: baseData.hasDenturesAndNaturalTeeth,
-        hasNaturalTeeth: baseData.hasNaturalTeeth,
-        evidencePlaqueDebris: baseData.evidencePlaqueDebris,
-        dryMouth: baseData.dryMouth
+        lipsDryCracked: getOptionalBoolean(baseData.lipsDryCracked),
+        tongueDryCracked: getOptionalBoolean(baseData.tongueDryCracked),
+        tongueUlceration: getOptionalBoolean(baseData.tongueUlceration),
+        hasTopDenture: getOptionalBoolean(baseData.hasTopDenture),
+        hasLowerDenture: getOptionalBoolean(baseData.hasLowerDenture),
+        hasDenturesAndNaturalTeeth: getOptionalBoolean(baseData.hasDenturesAndNaturalTeeth),
+        hasNaturalTeeth: getOptionalBoolean(baseData.hasNaturalTeeth),
+        evidencePlaqueDebris: getOptionalBoolean(baseData.evidencePlaqueDebris),
+        dryMouth: getOptionalBoolean(baseData.dryMouth)
       },
       symptoms: assessmentData.symptoms || baseData.symptoms || {
-        painWhenEating: baseData.painWhenEating,
-        gumsUlceration: baseData.gumsUlceration,
-        difficultySwallowing: baseData.difficultySwallowing,
-        poorFluidDietaryIntake: baseData.poorFluidDietaryIntake,
-        dehydrated: baseData.dehydrated,
-        speechDifficultyDryMouth: baseData.speechDifficultyDryMouth,
-        speechDifficultyDenturesSlipping: baseData.speechDifficultyDenturesSlipping,
-        dexterityProblems: baseData.dexterityProblems,
-        cognitiveImpairment: baseData.cognitiveImpairment
+        painWhenEating: getOptionalBoolean(baseData.painWhenEating),
+        gumsUlceration: getOptionalBoolean(baseData.gumsUlceration),
+        difficultySwallowing: getOptionalBoolean(baseData.difficultySwallowing),
+        poorFluidDietaryIntake: getOptionalBoolean(baseData.poorFluidDietaryIntake),
+        dehydrated: getOptionalBoolean(baseData.dehydrated),
+        speechDifficultyDryMouth: getOptionalBoolean(baseData.speechDifficultyDryMouth),
+        speechDifficultyDenturesSlipping: getOptionalBoolean(baseData.speechDifficultyDenturesSlipping),
+        dexterityProblems: getOptionalBoolean(baseData.dexterityProblems),
+        cognitiveImpairment: getOptionalBoolean(baseData.cognitiveImpairment)
       },
       care_recommendations: assessmentData.care_recommendations || baseData.care_recommendations || {
-        lipsDryCrackedCare: baseData.lipsDryCrackedCare,
-        tongueDryCrackedCare: baseData.tongueDryCrackedCare,
-        tongueUlcerationCare: baseData.tongueUlcerationCare,
-        topDentureCare: baseData.topDentureCare,
-        lowerDentureCare: baseData.lowerDentureCare,
-        denturesAndNaturalTeethCare: baseData.denturesAndNaturalTeethCare,
-        naturalTeethCare: baseData.naturalTeethCare,
-        plaqueDebrisCare: baseData.plaqueDebrisCare,
-        dryMouthCare: baseData.dryMouthCare,
-        painWhenEatingCare: baseData.painWhenEatingCare,
-        gumsUlcerationCare: baseData.gumsUlcerationCare,
-        difficultySwallowingCare: baseData.difficultySwallowingCare,
-        poorFluidDietaryIntakeCare: baseData.poorFluidDietaryIntakeCare,
-        dehydratedCare: baseData.dehydratedCare,
-        speechDifficultyDryMouthCare: baseData.speechDifficultyDryMouthCare,
-        speechDifficultyDenturesSlippingCare: baseData.speechDifficultyDenturesSlippingCare,
-        dexterityProblemsCare: baseData.dexterityProblemsCare,
-        cognitiveImpairmentCare: baseData.cognitiveImpairmentCare
+        lipsDryCrackedCare: getOptionalString(baseData.lipsDryCrackedCare),
+        tongueDryCrackedCare: getOptionalString(baseData.tongueDryCrackedCare),
+        tongueUlcerationCare: getOptionalString(baseData.tongueUlcerationCare),
+        topDentureCare: getOptionalString(baseData.topDentureCare),
+        lowerDentureCare: getOptionalString(baseData.lowerDentureCare),
+        denturesAndNaturalTeethCare: getOptionalString(baseData.denturesAndNaturalTeethCare),
+        naturalTeethCare: getOptionalString(baseData.naturalTeethCare),
+        plaqueDebrisCare: getOptionalString(baseData.plaqueDebrisCare),
+        dryMouthCare: getOptionalString(baseData.dryMouthCare),
+        painWhenEatingCare: getOptionalString(baseData.painWhenEatingCare),
+        gumsUlcerationCare: getOptionalString(baseData.gumsUlcerationCare),
+        difficultySwallowingCare: getOptionalString(baseData.difficultySwallowingCare),
+        poorFluidDietaryIntakeCare: getOptionalString(baseData.poorFluidDietaryIntakeCare),
+        dehydratedCare: getOptionalString(baseData.dehydratedCare),
+        speechDifficultyDryMouthCare: getOptionalString(baseData.speechDifficultyDryMouthCare),
+        speechDifficultyDenturesSlippingCare: getOptionalString(baseData.speechDifficultyDenturesSlippingCare),
+        dexterityProblemsCare: getOptionalString(baseData.dexterityProblemsCare),
+        cognitiveImpairmentCare: getOptionalString(baseData.cognitiveImpairmentCare)
       },
       assessment_details: assessmentData.assessment_details || baseData.assessment_details || {
-        height: baseData.height,
-        weight: baseData.weight,
-        signature: baseData.signature
+        height: getOptionalString(baseData.height),
+        weight: getOptionalString(baseData.weight),
+        signature: getOptionalString(baseData.signature)
       },
       // Ensure resident details and common fields are at the top level
       residentName: assessmentData.residentName || baseData.residentName || "Resident",

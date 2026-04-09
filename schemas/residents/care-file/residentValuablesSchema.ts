@@ -29,10 +29,10 @@ export const residentValuablesSchema = z.object({
   total: z.number(),
 
   // Clothing
-  clothing: z.array(z.object({ value: z.string(), count: z.number().min(1).default(1) })),
+  clothing: z.array(z.object({ value: z.string(), count: z.number().min(1) })),
 
   // Other
-  other: z.array(z.object({ value: z.string(), count: z.number().min(1).default(1) })),
+  other: z.array(z.object({ value: z.string(), count: z.number().min(1) })),
   comments: z.string().optional()
 });
 

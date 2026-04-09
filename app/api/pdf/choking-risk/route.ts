@@ -407,19 +407,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Assessment data is required" }, { status: 400 });
     }
 
-    // Flatten the data: merge assessment_data into the top level
-    const flattenedData = {
+    const assessmentDataNested: Record<string, unknown> =
+      assessmentData.assessment_data && typeof assessmentData.assessment_data === "object"
+        ? assessmentData.assessment_data
+        : {};
+
+    const getOptionalString = (value: unknown): string | undefined => {
+      if (typeof value === "string" && value.trim().length > 0) return value;
+      return undefined;
+    };
+
+    const getOptionalNumber = (value: unknown): number | undefined => {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string" && value.trim().length > 0) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return undefined;
+    };
+
+    // Flatten known fields into a strongly-typed payload for HTML rendering.
+    const flattenedData: ChokingRiskPayload = {
       ...assessmentData,
-      ...(assessmentData.assessment_data || {}),
-      // Ensure resident details and common fields are at the top level
-      residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
-      dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth,
-      assessment_date: assessmentData.assessment_date || assessmentData.created_at || Date.now(),
-      completed_by: assessmentData.completed_by || assessmentData.completedBy || assessmentData.assessment_data?.completed_by || "Not specified",
-      // Ensure risk specific fields are at top level
-      risk_factors: assessmentData.risk_factors || assessmentData.assessment_data?.risk_factors || {},
-      total_score: assessmentData.total_score || assessmentData.assessment_data?.total_score || 0,
-      risk_level: assessmentData.risk_level || assessmentData.assessment_data?.risk_level || "No Risk"
+      residentName:
+        assessmentData.residentName ??
+        getOptionalString(assessmentDataNested.residentName) ??
+        "Resident",
+      dateOfBirth:
+        assessmentData.dateOfBirth ??
+        getOptionalString(assessmentDataNested.dateOfBirth),
+      assessment_date: assessmentData.assessment_date ?? assessmentData.created_at ?? Date.now(),
+      completed_by:
+        assessmentData.completed_by ??
+        assessmentData.completedBy ??
+        getOptionalString(assessmentDataNested.completed_by) ??
+        "Not specified",
+      risk_factors:
+        assessmentData.risk_factors ??
+        ((assessmentDataNested.risk_factors as Record<string, unknown> | undefined) ?? {}),
+      total_score:
+        assessmentData.total_score ??
+        getOptionalNumber(assessmentDataNested.total_score) ??
+        0,
+      risk_level:
+        assessmentData.risk_level ??
+        getOptionalString(assessmentDataNested.risk_level) ??
+        "No Risk"
     };
 
     console.log("Choking Risk PDF API flattening data:", {

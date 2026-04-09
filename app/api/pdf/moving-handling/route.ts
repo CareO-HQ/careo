@@ -103,6 +103,18 @@ function normalizeEnum(value: unknown): string {
     return String(value).replace(/-/g, " ").replace(/_/g, " ").toUpperCase();
 }
 
+function toStringOrNumber(value: unknown, fallback: string | number = ""): string | number {
+    if (typeof value === "string" || typeof value === "number") return value;
+    return fallback;
+}
+
+function toBooleanStringNumber(value: unknown): string | number | boolean | undefined {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        return value;
+    }
+    return undefined;
+}
+
 function createRow(label: string, value: string): string {
     return `
         <tr>
@@ -162,12 +174,12 @@ function parseAssessmentPayload(input: RawAssessmentInput): MovingHandlingAssess
         organizationId: valueOrEmpty(merged.organizationId),
         userId: valueOrEmpty(merged.userId),
         residentName: valueOrEmpty(merged.residentName),
-        dateOfBirth: (merged.dateOfBirth ?? merged.date_of_birth ?? "") as string | number,
+        dateOfBirth: toStringOrNumber(merged.dateOfBirth ?? merged.date_of_birth, ""),
         bedroomNumber: valueOrEmpty(merged.bedroomNumber),
-        weight: merged.weight ?? "",
-        height: merged.height ?? "",
-        historyOfFalls: merged.historyOfFalls,
-        independentMobility: merged.independentMobility,
+        weight: toStringOrNumber(merged.weight, ""),
+        height: toStringOrNumber(merged.height, ""),
+        historyOfFalls: toBooleanStringNumber(merged.historyOfFalls),
+        independentMobility: toBooleanStringNumber(merged.independentMobility),
         canWeightBear: valueOrEmpty(merged.canWeightBear),
         limbUpperRight: valueOrEmpty(merged.limbUpperRight),
         limbUpperLeft: valueOrEmpty(merged.limbUpperLeft),

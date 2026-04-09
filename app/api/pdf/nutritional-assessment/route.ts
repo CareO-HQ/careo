@@ -420,18 +420,68 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Flatten the data: merge assessment_data and assessment_details into the top level
-    const flattenedData = {
+    const nestedAssessmentData =
+      assessmentData.assessment_data && typeof assessmentData.assessment_data === "object"
+        ? (assessmentData.assessment_data as Record<string, unknown>)
+        : {};
+
+    const getOptionalString = (value: unknown): string | undefined => {
+      if (typeof value === "string" && value.trim().length > 0) return value;
+      return undefined;
+    };
+
+    const getOptionalDateLike = (value: unknown): string | number | undefined => {
+      if (typeof value === "string" || typeof value === "number") return value;
+      return undefined;
+    };
+
+    const normalizeConsistency = (
+      value: unknown
+    ): Record<string, boolean | undefined> => {
+      if (!value || typeof value !== "object") return {};
+      const source = value as Record<string, unknown>;
+      const normalized: Record<string, boolean | undefined> = {};
+      for (const [key, entry] of Object.entries(source)) {
+        if (typeof entry === "boolean") normalized[key] = entry;
+      }
+      return normalized;
+    };
+
+    const nestedDetails =
+      nestedAssessmentData.assessment_details &&
+        typeof nestedAssessmentData.assessment_details === "object"
+        ? (nestedAssessmentData.assessment_details as NutritionalAssessmentDetails)
+        : undefined;
+
+    const flattenedData: NutritionalAssessmentPdfData = {
       ...assessmentData,
-      ...(assessmentData.assessment_data || {}),
-      ...(assessmentData.assessment_details || {}),
-      food_consistency: assessmentData.food_consistency || assessmentData.assessment_data?.food_consistency || {},
-      fluid_consistency: assessmentData.fluid_consistency || assessmentData.assessment_data?.fluid_consistency || {},
-      assessment_details: assessmentData.assessment_details || assessmentData.assessment_data?.assessment_details || {},
-      residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || assessmentData.assessment_details?.residentName || "Resident",
-      dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth || assessmentData.assessment_details?.dateOfBirth,
-      bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber || assessmentData.assessment_details?.bedroomNumber,
-      assessment_date: assessmentData.assessment_date || assessmentData.completion_date || assessmentData.created_at
+      food_consistency: normalizeConsistency(
+        assessmentData.food_consistency ?? nestedAssessmentData.food_consistency
+      ),
+      fluid_consistency: normalizeConsistency(
+        assessmentData.fluid_consistency ?? nestedAssessmentData.fluid_consistency
+      ),
+      assessment_details: assessmentData.assessment_details ?? nestedDetails ?? {},
+      residentName:
+        assessmentData.residentName ??
+        getOptionalString(nestedAssessmentData.residentName) ??
+        assessmentData.assessment_details?.residentName ??
+        nestedDetails?.residentName ??
+        "Resident",
+      dateOfBirth:
+        assessmentData.dateOfBirth ??
+        getOptionalString(nestedAssessmentData.dateOfBirth) ??
+        assessmentData.assessment_details?.dateOfBirth ??
+        nestedDetails?.dateOfBirth,
+      bedroomNumber:
+        assessmentData.bedroomNumber ??
+        getOptionalString(nestedAssessmentData.bedroomNumber) ??
+        assessmentData.assessment_details?.bedroomNumber ??
+        nestedDetails?.bedroomNumber,
+      assessment_date:
+        assessmentData.assessment_date ??
+        getOptionalDateLike(assessmentData.completion_date) ??
+        getOptionalDateLike(assessmentData.created_at)
     };
 
     const htmlContent = generateNutritionalAssessmentHTML(flattenedData);

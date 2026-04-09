@@ -1052,8 +1052,8 @@ export const generateCareFilePDF = async ({
             yPos = await addSectionTitle("SECTION F - RESIDENT CONSENT", yPos + 2);
             yPos = await ensureCapacitySpace(25, yPos);
             const rowResConsentY = yPos;
-            let yResConsent1 = await addField("Resident Signature", assessmentData.residentSignature || "N/A", margin, rowResConsentY, cpWidth, true);
-            let yResConsent2 = await addField("Date", assessmentData.residentConsentDate ? format(new Date(assessmentData.residentConsentDate), "dd/MM/yyyy") : "N/A", cpCol2, rowResConsentY, cpWidth, true);
+            const yResConsent1 = await addField("Resident Signature", assessmentData.residentSignature || "N/A", margin, rowResConsentY, cpWidth, true);
+            const yResConsent2 = await addField("Date", assessmentData.residentConsentDate ? format(new Date(assessmentData.residentConsentDate), "dd/MM/yyyy") : "N/A", cpCol2, rowResConsentY, cpWidth, true);
             yPos = Math.max(yResConsent1, yResConsent2);
         }
 
@@ -1085,8 +1085,8 @@ export const generateCareFilePDF = async ({
         yPos = await addSectionTitle("SECTION I - REVIEW AND REASSESSMENT", yPos + 2);
         yPos = await ensureCapacitySpace(25, yPos);
         const rowReviewY = yPos;
-        let yReview1 = await addField("Next Review Date", assessmentData.nextReviewDate ? format(new Date(assessmentData.nextReviewDate), "dd/MM/yyyy") : "N/A", margin, rowReviewY, cpWidth, true);
-        let yReview2 = await addField("Reason for Reassessment", assessmentData.reasonForReassessment || "N/A", cpCol2, rowReviewY, cpWidth, true);
+        const yReview1 = await addField("Next Review Date", assessmentData.nextReviewDate ? format(new Date(assessmentData.nextReviewDate), "dd/MM/yyyy") : "N/A", margin, rowReviewY, cpWidth, true);
+        const yReview2 = await addField("Reason for Reassessment", assessmentData.reasonForReassessment || "N/A", cpCol2, rowReviewY, cpWidth, true);
         yPos = Math.max(yReview1, yReview2);
 
         doc.save(`Capacity-and-Consent-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);
@@ -1152,7 +1152,7 @@ export const generateCareFilePDF = async ({
         let yKin1 = await addField("Name", `${assessmentData.kinFirstName || ""} ${assessmentData.kinLastName || ""}`.trim() || "N/A", margin, rowKinY, cpWidth, true);
         yKin1 = await addField("Relationship", assessmentData.kinRelationship || "N/A", margin, yKin1 + 1, cpWidth, true);
 
-        let yKin2 = await addField("Phone Number", assessmentData.kinPhoneNumber || "N/A", cpCol2, rowKinY, cpWidth, true);
+        const yKin2 = await addField("Phone Number", assessmentData.kinPhoneNumber || "N/A", cpCol2, rowKinY, cpWidth, true);
         yPos = Math.max(yKin1, yKin2);
 
         // 4. Professional Contacts
@@ -1285,7 +1285,7 @@ export const generateCareFilePDF = async ({
         const rowAdmY = yPos;
         let yAdm1 = await addField("Location Admitted From", exposure.admittedFrom || "N/A", margin, rowAdmY, cpWidth, true);
         yAdm1 = await addField("Reason for Admission", exposure.reasonForAdmission || "N/A", margin, yAdm1 + 1, cpWidth, true);
-        let yAdm2 = await addField("Admission Date", exposure.dateOfAdmission ? format(new Date(exposure.dateOfAdmission), "dd/MM/yyyy") : "N/A", cpCol2, rowAdmY, cpWidth, true);
+        const yAdm2 = await addField("Admission Date", exposure.dateOfAdmission ? format(new Date(exposure.dateOfAdmission), "dd/MM/yyyy") : "N/A", cpCol2, rowAdmY, cpWidth, true);
         yPos = Math.max(yAdm1, yAdm2);
 
         // 2. Acute Respiratory Illness (ARI)
@@ -1312,8 +1312,8 @@ export const generateCareFilePDF = async ({
         
         yPos = await ensureIPCSpace(20, yPos);
         const rowAriResY = yPos;
-        let yAri1 = await addField("Influenza B Result", respiratory.influenzaB ? "Positive" : "Negative", margin, rowAriResY, cpWidth, true);
-        let yAri2 = await addField("Respiratory Screen Result", respiratory.respiratoryScreen ? "Positive" : "Negative", cpCol2, rowAriResY, cpWidth, true);
+        const yAri1 = await addField("Influenza B Result", respiratory.influenzaB ? "Positive" : "Negative", margin, rowAriResY, cpWidth, true);
+        const yAri2 = await addField("Respiratory Screen Result", respiratory.respiratoryScreen ? "Positive" : "Negative", cpCol2, rowAriResY, cpWidth, true);
         yPos = Math.max(yAri1, yAri2) + 2;
 
         // 3. Exposure & Isolation History
@@ -1353,8 +1353,8 @@ export const generateCareFilePDF = async ({
         yPos = await addField("Active Antibiotic Details", clostridium.ongoingDetails || "None", margin, yPos, pageWidth - margin * 2);
         yPos = await ensureIPCSpace(20, yPos);
         const rowCdiffRegY = yPos;
-        let yCdiffReg1 = await addField("Course Start Date", clostridium.ongoingDateCommenced ? format(new Date(clostridium.ongoingDateCommenced), "dd/MM/yyyy") : "N/A", margin, rowCdiffRegY, cpWidth, true);
-        let yCdiffReg2 = await addField("Projected Length", clostridium.ongoingLengthOfCourse || "N/A", cpCol2, rowCdiffRegY, cpWidth, true);
+        const yCdiffReg1 = await addField("Course Start Date", clostridium.ongoingDateCommenced ? format(new Date(clostridium.ongoingDateCommenced), "dd/MM/yyyy") : "N/A", margin, rowCdiffRegY, cpWidth, true);
+        const yCdiffReg2 = await addField("Projected Length", clostridium.ongoingLengthOfCourse || "N/A", cpCol2, rowCdiffRegY, cpWidth, true);
         yPos = Math.max(yCdiffReg1, yCdiffReg2);
         yPos = await addField("Follow-up required", clostridium.ongoingFollowUpRequired || "None", margin, yPos + 1, pageWidth - margin * 2);
 
@@ -1375,8 +1375,8 @@ export const generateCareFilePDF = async ({
         yPos = await addField("Details", mrsa.mrsaMssaDetails || "None", margin, yPos, pageWidth - margin * 2);
         yPos = await ensureIPCSpace(20, yPos);
         const rowMrsaRegY = yPos;
-        let yMrsaReg1 = await addField("Regimen Start Date", mrsa.mrsaMssaDateCommenced ? format(new Date(mrsa.mrsaMssaDateCommenced), "dd/MM/yyyy") : "N/A", margin, rowMrsaRegY, cpWidth, true);
-        let yMrsaReg2 = await addField("Projected Duration", mrsa.mrsaMssaLengthOfCourse || "N/A", cpCol2, rowMrsaRegY, cpWidth, true);
+        const yMrsaReg1 = await addField("Regimen Start Date", mrsa.mrsaMssaDateCommenced ? format(new Date(mrsa.mrsaMssaDateCommenced), "dd/MM/yyyy") : "N/A", margin, rowMrsaRegY, cpWidth, true);
+        const yMrsaReg2 = await addField("Projected Duration", mrsa.mrsaMssaLengthOfCourse || "N/A", cpCol2, rowMrsaRegY, cpWidth, true);
         yPos = Math.max(yMrsaReg1, yMrsaReg2);
         yPos = await addField("Follow-up required", mrsa.mrsaMssaFollowUpRequired || "None", margin, yPos + 1, pageWidth - margin * 2);
 
@@ -1401,8 +1401,8 @@ export const generateCareFilePDF = async ({
         yPos = await addSectionTitle("VACCINATIONS & AWARENESS", yPos + 4);
         yPos = await ensureIPCSpace(20, yPos);
         const rowVacY = yPos;
-        let yVac1 = await addField("Personal awareness of status?", getYesNo(exposure.awarenessOfInfection), margin, rowVacY, cpWidth, true);
-        let yVac2 = await addField("Last Flu Vaccination Date", exposure.lastFluVaccinationDate ? format(new Date(exposure.lastFluVaccinationDate), "dd/MM/yyyy") : "N/A", cpCol2, rowVacY, cpWidth, true);
+        const yVac1 = await addField("Personal awareness of status?", getYesNo(exposure.awarenessOfInfection), margin, rowVacY, cpWidth, true);
+        const yVac2 = await addField("Last Flu Vaccination Date", exposure.lastFluVaccinationDate ? format(new Date(exposure.lastFluVaccinationDate), "dd/MM/yyyy") : "N/A", cpCol2, rowVacY, cpWidth, true);
         yPos = Math.max(yVac1, yVac2) + 2;
 
         // 9. Completion & Sign-off
@@ -1452,7 +1452,7 @@ export const generateCareFilePDF = async ({
         const dobVal = assessmentData.dateOfBirth || (resident ? resident.date_of_birth : "");
         yRes1 = await addField("Date of Birth", dobVal ? format(new Date(dobVal), "dd/MM/yyyy") : "N/A", margin, yRes1 + 1, cpWidth, true);
 
-        let yRes2 = await addField("Bedroom Number", assessmentData.bedroomNumber || (resident ? resident.room_number : "N/A"), cpCol2, rowResY, cpWidth, true);
+        const yRes2 = await addField("Bedroom Number", assessmentData.bedroomNumber || (resident ? resident.room_number : "N/A"), cpCol2, rowResY, cpWidth, true);
         yPos = Math.max(yRes1, yRes2);
 
         // 2. Consent Permissions
@@ -1491,7 +1491,7 @@ export const generateCareFilePDF = async ({
         yPos = await ensurePhotoSpace(40, yPos);
         const rowSignY = yPos;
         
-        let ySign1 = await addField("Resident Signature", assessmentData.residentSignature || "N/A", margin, rowSignY, cpWidth, true);
+        const ySign1 = await addField("Resident Signature", assessmentData.residentSignature || "N/A", margin, rowSignY, cpWidth, true);
         
         let ySign2 = await addField("Representative Name", assessmentData.representativeName || "N/A", cpCol2, rowSignY, cpWidth, true);
         ySign2 = await addField("Relationship to Resident", assessmentData.representativeRelationship || "N/A", cpCol2, ySign2 + 1, cpWidth, true);
@@ -1508,7 +1508,7 @@ export const generateCareFilePDF = async ({
         let yStaff1 = await addField("Staff Name", assessmentData.nameStaff || "N/A", margin, rowStaffY, cpWidth, true);
         yStaff1 = await addField("Staff Signature", assessmentData.staffSignature || "N/A", margin, yStaff1 + 1, cpWidth, true);
         
-        let yStaff2 = await addField("Date Completed", assessmentData.date ? format(new Date(assessmentData.date), "dd/MM/yyyy") : "N/A", cpCol2, rowStaffY, cpWidth, true);
+        const yStaff2 = await addField("Date Completed", assessmentData.date ? format(new Date(assessmentData.date), "dd/MM/yyyy") : "N/A", cpCol2, rowStaffY, cpWidth, true);
         
         yPos = Math.max(yStaff1, yStaff2);
 
@@ -1660,8 +1660,8 @@ export const generateCareFilePDF = async ({
         yPos = await addSectionTitle("SECTION B — ASSESSMENT DETAILS", yPos + 2);
         yPos = await ensureGeneralRiskSpace(20, yPos);
         const rowAssY = yPos;
-        let yAss1 = await addField("Assessment Completed By", assessment.assessmentCompletedBy || "N/A", margin, rowAssY, cpWidth, true);
-        let yAss2 = await addField("Role", assessment.role || "N/A", cpCol2, rowAssY, cpWidth, true);
+        const yAss1 = await addField("Assessment Completed By", assessment.assessmentCompletedBy || "N/A", margin, rowAssY, cpWidth, true);
+        const yAss2 = await addField("Role", assessment.role || "N/A", cpCol2, rowAssY, cpWidth, true);
         yPos = Math.max(yAss1, yAss2);
 
         const reasonOptions = ["New admission", "Change in condition", "Routine review", "Incident or accident"] as const;
@@ -1743,8 +1743,8 @@ export const generateCareFilePDF = async ({
         yPos = await addSectionTitle("SECTION J — SIGNATURES", yPos + 2);
         yPos = await ensureGeneralRiskSpace(30, yPos);
         const rowSigY = yPos;
-        let ySig1 = await addField("Assessor Signature", assessment.assessorSignature || "N/A", margin, rowSigY, cpWidth, true);
-        let ySig2 = await addField("Date", assessment.signatureDate ? format(new Date(assessment.signatureDate), "dd/MM/yyyy") : "N/A", cpCol2, rowSigY, cpWidth, true);
+        const ySig1 = await addField("Assessor Signature", assessment.assessorSignature || "N/A", margin, rowSigY, cpWidth, true);
+        const ySig2 = await addField("Date", assessment.signatureDate ? format(new Date(assessment.signatureDate), "dd/MM/yyyy") : "N/A", cpCol2, rowSigY, cpWidth, true);
         yPos = Math.max(ySig1, ySig2);
 
         doc.save(`${resident?.last_name || "Resident"}_General_Risk_Assessment_${format(new Date(), "ddMMyyyy")}.pdf`);
@@ -2673,10 +2673,10 @@ export const generateCareFilePDF = async ({
         const fullName = [resident?.first_name, resident?.middle_name, resident?.last_name].filter(Boolean).join(" ") || "N/A";
 
         const rowY = yPos;
-        let yA = await addField("Full Name",      fullName,                                   margin, rowY, quarterWidth, true);
-        let yB = await addField("Date of Birth",  formattedDob,                               col2,   rowY, quarterWidth, true);
-        let yC = await addField("Bedroom / Room", toVal(resident?.room_number),               col3,   rowY, quarterWidth, true);
-        let yD = await addField("Care Home",      toVal(careHomeName),                        col4,   rowY, quarterWidth, true);
+        const yA = await addField("Full Name",      fullName,                                   margin, rowY, quarterWidth, true);
+        const yB = await addField("Date of Birth",  formattedDob,                               col2,   rowY, quarterWidth, true);
+        const yC = await addField("Bedroom / Room", toVal(resident?.room_number),               col3,   rowY, quarterWidth, true);
+        const yD = await addField("Care Home",      toVal(careHomeName),                        col4,   rowY, quarterWidth, true);
         yPos = Math.max(yA, yB, yC, yD) + 8;
 
         // Records table
@@ -2793,10 +2793,10 @@ export const generateCareFilePDF = async ({
         const careHomeVal = careHomeName;
 
         const rowY = yPos;
-        let yA = await addField("Resident name", fullName, margin, rowY, quarterWidth, true);
-        let yB = await addField("Date of birth", formattedDob, col2, rowY, quarterWidth, true);
-        let yC = await addField("Room number", diaryCell(roomVal), col3, rowY, quarterWidth, true);
-        let yD = await addField("Care home", diaryCell(careHomeVal), col4, rowY, quarterWidth, true);
+        const yA = await addField("Resident name", fullName, margin, rowY, quarterWidth, true);
+        const yB = await addField("Date of birth", formattedDob, col2, rowY, quarterWidth, true);
+        const yC = await addField("Room number", diaryCell(roomVal), col3, rowY, quarterWidth, true);
+        const yD = await addField("Care home", diaryCell(careHomeVal), col4, rowY, quarterWidth, true);
         yPos = Math.max(yA, yB, yC, yD) + 8;
 
         yPos = await addSectionTitle("DIARY ENTRIES", yPos);
@@ -2843,7 +2843,7 @@ export const generateCareFilePDF = async ({
             },
         });
 
-        const finalY = (doc as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+        const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
         doc.setFontSize(8);
         doc.setFont("helvetica", "italic");
         doc.setTextColor(107, 114, 128);
@@ -2964,7 +2964,7 @@ export const generateCareFilePDF = async ({
             },
         });
 
-        const finalY = (doc as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+        const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
         doc.setFontSize(8);
         doc.setFont("helvetica", "italic");
         doc.setTextColor(107, 114, 128);
@@ -3161,8 +3161,8 @@ export const generateCareFilePDF = async ({
         yPos = await addSectionTitle("Score Summary", yPos + 2);
         yPos = await ensureSpace(20, yPos);
         const scoreY = yPos;
-        let scoreLeft = await addField("Total Score", String(totalScore), margin, scoreY, colWidth, true);
-        let scoreRight = await addField("Severity Level", severityLevel, col2, scoreY, colWidth, true);
+        const scoreLeft = await addField("Total Score", String(totalScore), margin, scoreY, colWidth, true);
+        const scoreRight = await addField("Severity Level", severityLevel, col2, scoreY, colWidth, true);
         yPos = Math.max(scoreLeft, scoreRight) + 2;
         yPos = await addField("Interpretation Guide", "0-7 = No Depression  |  8-12 = Mild Depression  |  13+ = Major Depression", margin, yPos, fullWidth);
 
@@ -3255,15 +3255,15 @@ export const generateCareFilePDF = async ({
                 },
                 margin: { left: margin, right: margin },
             });
-            yPos = (doc as Record<string, Record<string, number>>).lastAutoTable.finalY + 6;
+            yPos = (doc as unknown as Record<string, Record<string, number>>).lastAutoTable.finalY + 6;
         }
 
         // Completion section
         yPos = await addSectionTitle("Completion", yPos + 2);
         yPos = await ensureSpace(25, yPos);
         const compY = yPos;
-        let compLeft = await addField("Assessed By", assessedBy, margin, compY, colWidth, true);
-        let compRight = await addField("Signature", signature, col2, compY, colWidth, true);
+        const compLeft = await addField("Assessed By", assessedBy, margin, compY, colWidth, true);
+        const compRight = await addField("Signature", signature, col2, compY, colWidth, true);
         yPos = Math.max(compLeft, compRight) + 4;
         yPos = await addField("Assessment Date", formatDateSafe(assessmentDate), margin, yPos, fullWidth);
 
