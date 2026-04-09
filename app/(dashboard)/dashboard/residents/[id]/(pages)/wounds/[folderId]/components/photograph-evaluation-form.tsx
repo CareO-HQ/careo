@@ -58,7 +58,7 @@ type Props = {
   woundFolderId: string;
   residentId: string;
   residentName: string;
-  residentDOB?: string;
+  woundNumber?: number;
   evaluations?: Array<{
     id: string;
     photograph_date: string;
@@ -79,7 +79,7 @@ export function PhotographEvaluationForm({
   woundFolderId,
   residentId,
   residentName,
-  residentDOB,
+  woundNumber,
   evaluations = [],
   isLoadingEvaluations = false,
   onSaved,
@@ -359,15 +359,18 @@ export function PhotographEvaluationForm({
           </div>
         )}
 
-        {/* New Evaluation Button */}
+        {/* New Evaluation Button with Evaluation Count */}
         {!isLoadingEvaluations && evaluations.length > 0 && !showNewForm && (
-          <div className="flex justify-center">
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-gray-600">
+              {evaluations.length} {evaluations.length === 1 ? "evaluation" : "evaluations"} recorded
+            </div>
             <Button
               onClick={() => setShowNewForm(true)}
-              size="lg"
+              size="sm"
               className="gap-2"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               New Evaluation
             </Button>
           </div>
@@ -384,7 +387,7 @@ export function PhotographEvaluationForm({
                     New Wound Evaluation
                   </h1>
                   <p className="text-sm text-gray-600 mt-1">
-                    <span className="font-medium">Resident:</span> {residentName} <span className="mx-2 text-gray-300">|</span> <span className="font-medium">D.O.B:</span> {residentDOB ? format(new Date(residentDOB), "dd/MM/yyyy") : "N/A"}
+                    <span className="font-medium">Resident:</span> {residentName}
                   </p>
                 </div>
               </div>
@@ -744,13 +747,6 @@ export function PhotographEvaluationForm({
         {/* Existing Evaluations List */}
         {!isLoadingEvaluations && evaluations.length > 0 && (
           <div className="space-y-6">
-            {!showNewForm && evaluations.length > 0 && (
-              <div className="text-center text-sm text-muted-foreground">
-                <h3 className="font-semibold text-foreground mb-2">Previous Evaluations</h3>
-                <p>{evaluations.length} {evaluations.length === 1 ? "evaluation" : "evaluations"} recorded</p>
-              </div>
-            )}
-
             {evaluations.map((evaluation, index) => {
               const isEditing = editingEvaluationId === evaluation.id;
 
@@ -763,6 +759,11 @@ export function PhotographEvaluationForm({
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-3">
                           <h2 className="text-xl font-bold">WOUND PHOTOGRAPHIC EVALUATION</h2>
+                          {woundNumber && (
+                            <Badge variant="outline" className="font-mono font-semibold text-base">
+                              Wound #{woundNumber}
+                            </Badge>
+                          )}
                           <Badge variant="secondary" className="text-xs">
                             Evaluation #{evaluations.length - index}
                           </Badge>
@@ -777,7 +778,7 @@ export function PhotographEvaluationForm({
                         </Button>
                       </div>
                       <div className="mt-2 text-sm text-muted-foreground">
-                        <span className="font-semibold">Resident:</span> {residentName} <span className="mx-2">|</span> <span className="font-semibold">D.O.B:</span> {residentDOB ? format(new Date(residentDOB), "dd/MM/yyyy") : "N/A"}
+                        <span className="font-semibold">Resident:</span> {residentName}
                       </div>
                     </div>
 
@@ -873,7 +874,14 @@ export function PhotographEvaluationForm({
                     {/* Edit View - Inline Form */}
                     <div className="border-b bg-slate-50 px-6 py-4">
                       <div className="flex justify-between items-center">
-                        <h2 className="text-xl font-bold">EDIT WOUND PHOTOGRAPHIC EVALUATION</h2>
+                        <div className="flex items-center gap-3">
+                          <h2 className="text-xl font-bold">EDIT WOUND PHOTOGRAPHIC EVALUATION</h2>
+                          {woundNumber && (
+                            <Badge variant="outline" className="font-mono font-semibold text-base">
+                              Wound #{woundNumber}
+                            </Badge>
+                          )}
+                        </div>
                         <Badge variant="secondary">Editing</Badge>
                       </div>
                       <div className="mt-2 text-sm text-muted-foreground">

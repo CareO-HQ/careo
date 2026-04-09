@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useProfile } from "@/hooks/use-profile";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -88,6 +89,68 @@ type Props = {
   residentId: string;
   residentName: string;
   residentDOB?: string;
+  woundNumber?: number;
+  assessments?: any[];
+  isLoadingAssessments?: boolean;
+  onSaved?: () => void;
+};
+
+// --- Sub-components for Form Fields ---
+
+/**
+ * A reusable date picker component for assessment form cells.
+ * This component handles its own state for the popover to avoid "rules-of-hooks" 
+ * violations when used inside FormField render callbacks.
+ */
+const AssessmentDatePicker = ({ 
+  field, 
+  isSaved, 
+  disabledMatcher 
+}: { 
+  field: any, 
+  isSaved: boolean, 
+  disabledMatcher?: (date: Date) => boolean 
+}) => {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <FormItem>
+      <Popover open={open && !isSaved} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <FormControl>
+            <Button
+              variant="ghost"
+              className={cn(
+                "h-7 text-xs w-full justify-start p-1",
+                !field.value && "text-muted-foreground"
+              )}
+              disabled={isSaved}
+            >
+              {field.value ? (
+                format(field.value, "dd/MM/yyyy")
+              ) : (
+                <span>Pick date</span>
+              )}
+              <CalendarIcon className="ml-auto h-3 w-3" />
+            </Button>
+          </FormControl>
+        </PopoverTrigger>
+        {!isSaved && (
+          <PopoverContent className="w-auto p-0">
+            <Calendar
+              mode="single"
+              selected={field.value}
+              onSelect={(date) => {
+                field.onChange(date);
+                setOpen(false);
+              }}
+              disabled={disabledMatcher}
+            />
+          </PopoverContent>
+        )}
+      </Popover>
+      <FormMessage />
+    </FormItem>
+  );
 };
 
 export function WoundAssessmentForm({
@@ -95,6 +158,8 @@ export function WoundAssessmentForm({
   residentId,
   residentName,
   residentDOB,
+  woundNumber,
+  onSaved,
 }: Props) {
   const { profile } = useProfile();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -102,14 +167,13 @@ export function WoundAssessmentForm({
   const [isLoading, setIsLoading] = useState(true);
   const [previousSheets, setPreviousSheets] = useState<any[][]>([]);
   const [showPreviousSheets, setShowPreviousSheets] = useState(false);
-  const formHeaderRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<WoundAssessmentFormValues>({
     resolver: zodResolver(WoundAssessmentSchema),
     defaultValues: {
       assessments: Array(5).fill(null).map(() => ({
         assessmentDate: undefined,
-        woundNumber: "",
+        woundNumber: woundNumber?.toString() || "",
         analgesiaRequired: false,
         regularOngoingAnalgesia: false,
         preDressingOnly: false,
@@ -161,6 +225,20 @@ export function WoundAssessmentForm({
     fetchAssessments();
   }, [woundFolderId]);
 
+  // Update wound number for all assessments when woundNumber prop changes
+  useEffect(() => {
+    if (woundNumber) {
+      const currentAssessments = form.getValues('assessments');
+      // Only update if assessments exist and don't have wound numbers set
+      const hasEmptyWoundNumbers = currentAssessments.some(a => !a.woundNumber);
+      if (hasEmptyWoundNumbers) {
+        currentAssessments.forEach((_, index) => {
+          form.setValue(`assessments.${index}.woundNumber`, woundNumber.toString());
+        });
+      }
+    }
+  }, [woundNumber]);
+
   const fetchAssessments = async () => {
     setIsLoading(true);
     try {
@@ -171,8 +249,6 @@ export function WoundAssessmentForm({
         .order("assessment_date", { ascending: false });
 
       if (!error && data) {
-        setAssessments(data);
-
         console.log("Fetched assessments:", data.length);
 
         // Populate form with the most recent 5 assessments
@@ -181,6 +257,64 @@ export function WoundAssessmentForm({
 
         console.log("First 5 assessments to load:", first5.length);
 
+        // Get the most recent assessor initials to carry forward
+        const lastAssessorInitials = first5.length > 0 && first5[first5.length - 1]?.assessor_initials
+          ? first5[first5.length - 1].assessor_initials
+          : (data.length > 0 && data[0]?.assessor_initials ? data[0].assessor_initials : profile?.name || "");
+
+        // First, reset any empty slots to default values
+        for (let i = 0; i < 5; i++) {
+          if (i >= first5.length) {
+            form.setValue(`assessments.${i}`, {
+              assessmentDate: undefined,
+              woundNumber: woundNumber?.toString() || "",
+              analgesiaRequired: false,
+              regularOngoingAnalgesia: false,
+              preDressingOnly: false,
+              length: "",
+              width: "",
+              depth: "",
+              trackingUndermining: false,
+              photographTakenDate: undefined,
+              necrotic: false,
+              sloughy: false,
+              granulating: false,
+              epithelialising: false,
+              hypergranulating: false,
+              haematoma: false,
+              boneTendon: false,
+              exudateLow: false,
+              exudateModerate: false,
+              exudateHigh: false,
+              exudateSerous: false,
+              exudateHaemoserous: false,
+              exudatePurulent: false,
+              macerated: false,
+              oedematous: false,
+              erythema: false,
+              excoriated: false,
+              fragile: false,
+              dryScaly: false,
+              healthyIntact: false,
+              heat: false,
+              newSloughNecrosis: false,
+              increasingPain: false,
+              increasingExudate: false,
+              increasingOdour: false,
+              friableGranulation: false,
+              debridement: false,
+              absorption: false,
+              hydration: false,
+              protection: false,
+              palliativeConservative: false,
+              assessorInitials: lastAssessorInitials,
+              dressingRenewed: false,
+              reassessmentDate: undefined,
+            });
+          }
+        }
+
+        // Now populate with saved assessments
         first5.forEach((assessment, index) => {
           const formData = {
             assessmentDate: assessment.assessment_date ? new Date(assessment.assessment_date) : undefined,
@@ -234,6 +368,9 @@ export function WoundAssessmentForm({
         });
 
         console.log("newSavedSet after populating:", Array.from(newSavedSet));
+
+        // Update all states together to trigger a single re-render
+        setAssessments(data);
         setSavedAssessments(newSavedSet);
 
         // Group remaining assessments into sheets of 5
@@ -262,7 +399,14 @@ export function WoundAssessmentForm({
 
     const assessment = form.getValues(`assessments.${index}`);
 
-    if (!assessment.assessmentDate) {
+    console.log("Saving assessment at index:", index);
+    console.log("Assessment data:", assessment);
+    console.log("Assessment date:", assessment.assessmentDate);
+    console.log("Assessment date type:", typeof assessment.assessmentDate);
+    console.log("Is Date?", assessment.assessmentDate instanceof Date);
+
+    // Validate assessment date more thoroughly
+    if (!assessment.assessmentDate || !(assessment.assessmentDate instanceof Date)) {
       toast.error("Please select an assessment date");
       return;
     }
@@ -278,7 +422,8 @@ export function WoundAssessmentForm({
           ? format(assessment.assessmentDate, "yyyy-MM-dd")
           : null,
         wound_number: assessment.woundNumber || null,
-        analgesia_required: assessment.analgesiaRequired || false,
+        // Analgesia required - not used (empty field)
+        analgesia_required: false,
         regular_ongoing_analgesia: assessment.regularOngoingAnalgesia || false,
         pre_dressing_only: assessment.preDressingOnly || false,
         length_cm: assessment.length ? parseFloat(assessment.length) : null,
@@ -350,15 +495,13 @@ export function WoundAssessmentForm({
 
       toast.success("Assessment saved successfully");
 
-      // Mark this assessment as saved
-      setSavedAssessments(prev => new Set(prev).add(index));
-
+      // Refetch assessments to update the UI
       await fetchAssessments();
 
-      // Scroll to top to show the latest assessment
-      setTimeout(() => {
-        formHeaderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
+      // Notify parent component if callback provided
+      if (onSaved) {
+        onSaved();
+      }
     } catch (error) {
       console.error("Error saving assessment:", error);
       toast.error("An unexpected error occurred");
@@ -378,12 +521,20 @@ export function WoundAssessmentForm({
   // Function to create a new assessment sheet
   const createNewAssessmentSheet = async () => {
     try {
-      // First, fetch all assessments to update previous sheets
+      // First, clear saved assessments immediately
+      setSavedAssessments(new Set());
+
+      // Fetch all assessments to update previous sheets
       const { data, error } = await supabase
         .from("wound_assessments")
         .select("*")
         .eq("wound_folder_id", woundFolderId)
         .order("assessment_date", { ascending: false });
+
+      // Get the most recent assessor initials to carry forward
+      const lastAssessorInitials = data && data.length > 0 && data[0]?.assessor_initials
+        ? data[0].assessor_initials
+        : profile?.name || "";
 
       if (!error && data) {
         // All assessments become previous sheets (grouped by 5)
@@ -391,19 +542,17 @@ export function WoundAssessmentForm({
         for (let i = 0; i < data.length; i += 5) {
           sheets.push(data.slice(i, i + 5));
         }
-        console.log("Created sheets:", sheets.length, "Total assessments:", data.length);
-        console.log("First sheet dates:", sheets[0]?.map(a => a.assessment_date));
-        if (sheets.length > 1) {
-          console.log("Second sheet dates:", sheets[1]?.map(a => a.assessment_date));
-        }
         setPreviousSheets(sheets);
+
+        // Clear assessments state to avoid confusion
+        setAssessments([]);
       }
 
       // Clear the form and reset saved assessments
       form.reset({
         assessments: Array(5).fill(null).map(() => ({
           assessmentDate: undefined,
-          woundNumber: "",
+          woundNumber: woundNumber?.toString() || "",
           analgesiaRequired: false,
           regularOngoingAnalgesia: false,
           preDressingOnly: false,
@@ -443,20 +592,14 @@ export function WoundAssessmentForm({
           hydration: false,
           protection: false,
           palliativeConservative: false,
-          assessorInitials: profile?.name || "",
+          assessorInitials: lastAssessorInitials,
           dressingRenewed: false,
           reassessmentDate: undefined,
         })),
       });
 
-      setSavedAssessments(new Set());
-
+      console.log("Form reset complete. Current form values:", form.getValues());
       toast.success("New assessment sheet created");
-
-      // Scroll to top to show the new assessment form
-      setTimeout(() => {
-        formHeaderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
     } catch (error) {
       console.error("Error creating new sheet:", error);
       toast.error("Failed to create new sheet");
@@ -474,28 +617,19 @@ export function WoundAssessmentForm({
   return (
     <ScrollArea className="h-full">
       <div className="max-w-full mx-auto p-6">
-        <style>{`
-          /* Keep disabled text fields dark and readable */
-          .wound-assessment-form input[type="text"]:disabled,
-          .wound-assessment-form input[type="number"]:disabled,
-          .wound-assessment-form textarea:disabled {
-            opacity: 1 !important;
-            color: inherit !important;
-            -webkit-text-fill-color: currentColor !important;
-            background-color: #f9fafb !important;
-          }
-
-          /* Ensure checkboxes and their hidden inputs don't ghost */
-          .wound-assessment-form input[type="checkbox"]:disabled {
-            opacity: 0 !important;
-          }
-        `}</style>
-        <div className="wound-assessment-form bg-white border-2 border-gray-300">
+        <div className="bg-white border-2 border-gray-300">
           {/* Header */}
-          <div ref={formHeaderRef} className="border-b-2 border-gray-300 p-4 bg-gray-50">
-            <h1 className="text-xl font-bold text-center mb-2">
-              Ongoing Wound Assessment (Appendix H)
-            </h1>
+          <div className="border-b-2 border-gray-300 p-4 bg-gray-50">
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <h1 className="text-xl font-bold text-center">
+                Ongoing Wound Assessment (Appendix H)
+              </h1>
+              {woundNumber && (
+                <Badge variant="outline" className="font-mono font-semibold text-base">
+                  Wound #{woundNumber}
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-center text-gray-600">
               Complete on initial assessment and at every dressing change
               thereafter
@@ -533,7 +667,9 @@ export function WoundAssessmentForm({
             </div>
             <div className="p-2">
               <span className="text-xs font-semibold">Date of Birth: </span>
-              <span className="text-xs">{residentDOB ? format(new Date(residentDOB), "dd/MM/yyyy") : "N/A"}</span>
+              <span className="text-xs">
+                {residentDOB ? format(new Date(residentDOB), "dd/MM/yyyy") : "N/A"}
+              </span>
             </div>
           </div>
 
@@ -545,6 +681,9 @@ export function WoundAssessmentForm({
                 {[1, 2, 3, 4, 5].map((num, idx) => (
                   <div key={num} className="p-2 text-center font-bold text-xs">
                     Assessment {num}
+                    {savedAssessments.has(idx) && (
+                      <span className="ml-1 text-green-600">✓ Saved</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -562,39 +701,11 @@ export function WoundAssessmentForm({
                         control={form.control}
                         name={`assessments.${index}.assessmentDate`}
                         render={({ field }) => (
-                          <FormItem>
-                            <Popover>
-                              <PopoverTrigger asChild disabled={savedAssessments.has(index)}>
-                                <FormControl>
-                                  <Button
-                                    variant="ghost"
-                                    disabled={savedAssessments.has(index)}
-                                    className={cn(
-                                      "h-7 text-xs w-full justify-start p-1",
-                                      !field.value && "text-muted-foreground",
-                                      savedAssessments.has(index) && "cursor-not-allowed"
-                                    )}
-                                  >
-                                    {field.value ? (
-                                      format(field.value, "dd/MM/yyyy")
-                                    ) : (
-                                      <span>Pick date</span>
-                                    )}
-                                    <CalendarIcon className="ml-auto h-3 w-3" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={field.onChange}
-                                  disabled={(date) => date > new Date()}
-                                />
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>
+                          <AssessmentDatePicker 
+                            field={field} 
+                            isSaved={savedAssessments.has(index)} 
+                            disabledMatcher={(date) => date > new Date()}
+                          />
                         )}
                       />
                     </div>
@@ -615,9 +726,9 @@ export function WoundAssessmentForm({
                           <FormItem>
                             <FormControl>
                               <Input
-                                className="h-7 text-xs border-0 p-1"
-                                placeholder="Enter wound number"
-                                disabled={savedAssessments.has(index)}
+                                className="h-7 text-xs border-0 p-1 bg-gray-50"
+                                placeholder="#"
+                                readOnly
                                 {...field}
                               />
                             </FormControl>
@@ -638,23 +749,8 @@ export function WoundAssessmentForm({
                     </div>
                   </div>
                   {[0, 1, 2, 3, 4].map((index) => (
-                    <div key={index} className="p-2 flex justify-center">
-                      <FormField
-                        control={form.control}
-                        name={`assessments.${index}.analgesiaRequired`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                disabled={savedAssessments.has(index)}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    <div key={index} className="p-2">
+                      {/* Empty cell - no input required */}
                     </div>
                   ))}
                 </div>
@@ -732,7 +828,7 @@ export function WoundAssessmentForm({
                                 placeholder="e.g., 2.5"
                                 type="number"
                                 step="0.1"
-                                disabled={savedAssessments.has(index)}
+                                readOnly={savedAssessments.has(index)}
                                 {...field}
                               />
                             </FormControl>
@@ -760,7 +856,7 @@ export function WoundAssessmentForm({
                                 placeholder="e.g., 1.5"
                                 type="number"
                                 step="0.1"
-                                disabled={savedAssessments.has(index)}
+                                readOnly={savedAssessments.has(index)}
                                 {...field}
                               />
                             </FormControl>
@@ -788,7 +884,7 @@ export function WoundAssessmentForm({
                                 placeholder="e.g., 0.5"
                                 type="number"
                                 step="0.1"
-                                disabled={savedAssessments.has(index)}
+                                readOnly={savedAssessments.has(index)}
                                 {...field}
                               />
                             </FormControl>
@@ -836,39 +932,11 @@ export function WoundAssessmentForm({
                         control={form.control}
                         name={`assessments.${index}.photographTakenDate`}
                         render={({ field }) => (
-                          <FormItem>
-                            <Popover>
-                              <PopoverTrigger asChild disabled={savedAssessments.has(index)}>
-                                <FormControl>
-                                  <Button
-                                    variant="ghost"
-                                    disabled={savedAssessments.has(index)}
-                                    className={cn(
-                                      "h-7 text-xs w-full justify-start p-1",
-                                      !field.value && "text-muted-foreground",
-                                      savedAssessments.has(index) && "cursor-not-allowed"
-                                    )}
-                                  >
-                                    {field.value ? (
-                                      format(field.value, "dd/MM/yyyy")
-                                    ) : (
-                                      <span>Pick date</span>
-                                    )}
-                                    <CalendarIcon className="ml-auto h-3 w-3" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={field.onChange}
-                                  disabled={(date) => date > new Date()}
-                                />
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>
+                          <AssessmentDatePicker 
+                            field={field} 
+                            isSaved={savedAssessments.has(index)} 
+                            disabledMatcher={(date) => date > new Date()}
+                          />
                         )}
                       />
                     </div>
@@ -1109,7 +1177,7 @@ export function WoundAssessmentForm({
                               <Input
                                 className="h-7 text-xs border-0 p-1"
                                 placeholder="Initials"
-                                disabled={savedAssessments.has(index)}
+                                readOnly={savedAssessments.has(index)}
                                 {...field}
                               />
                             </FormControl>
@@ -1159,39 +1227,11 @@ export function WoundAssessmentForm({
                         control={form.control}
                         name={`assessments.${index}.reassessmentDate`}
                         render={({ field }) => (
-                          <FormItem>
-                            <Popover>
-                              <PopoverTrigger asChild disabled={savedAssessments.has(index)}>
-                                <FormControl>
-                                  <Button
-                                    variant="ghost"
-                                    disabled={savedAssessments.has(index)}
-                                    className={cn(
-                                      "h-7 text-xs w-full justify-start p-1",
-                                      !field.value && "text-muted-foreground",
-                                      savedAssessments.has(index) && "cursor-not-allowed"
-                                    )}
-                                  >
-                                    {field.value ? (
-                                      format(field.value, "dd/MM/yyyy")
-                                    ) : (
-                                      <span>Pick date</span>
-                                    )}
-                                    <CalendarIcon className="ml-auto h-3 w-3" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={field.onChange}
-                                  disabled={(date) => date < new Date()}
-                                />
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>
+                          <AssessmentDatePicker 
+                            field={field} 
+                            isSaved={savedAssessments.has(index)} 
+                            disabledMatcher={(date) => date < new Date()}
+                          />
                         )}
                       />
                     </div>
@@ -1287,14 +1327,12 @@ export function WoundAssessmentForm({
                     const dateRange = sheet.length > 0
                       ? `${format(new Date(sheet[sheet.length - 1].assessment_date), "dd/MM/yyyy")} - ${format(new Date(sheet[0].assessment_date), "dd/MM/yyyy")}`
                       : "";
-                    const isNewest = sheetIndex === 0;
 
                     return (
                       <div key={sheetIndex} className="bg-white border-2 border-gray-300 rounded-lg overflow-hidden">
                         <div className="bg-gray-100 border-b-2 border-gray-300 p-3">
                           <h3 className="font-bold text-sm">
                             Assessment Sheet #{sheetNumber}
-                            {isNewest && <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Most Recent</span>}
                             {dateRange && (
                               <span className="ml-2 text-gray-600 font-normal">
                                 ({dateRange})
