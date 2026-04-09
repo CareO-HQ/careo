@@ -56,7 +56,6 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
   const [records, setRecords] = useState<WeightRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"weekly" | "monthly">("monthly");
   const [checkFrequency, setCheckFrequency] = useState<"weekly" | "monthly" | "as-needed">("monthly");
   const [isUpdatingFrequency, setIsUpdatingFrequency] = useState(false);
 
@@ -131,19 +130,22 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
     fetchCheckFrequency();
   }, [residentId]);
 
-  // Filter records based on view mode
+  // Filter records based on check frequency
   const filteredRecords = useMemo(() => {
     const now = new Date();
     const cutoffDate = new Date();
 
-    if (viewMode === "weekly") {
+    if (checkFrequency === "weekly") {
       cutoffDate.setDate(now.getDate() - 90); // Last 90 days for weekly view
-    } else {
+    } else if (checkFrequency === "monthly") {
       cutoffDate.setMonth(now.getMonth() - 12); // Last 12 months for monthly view
+    } else {
+      // "as-needed" - show all records
+      return records;
     }
 
     return records.filter(record => new Date(record.measurement_date) >= cutoffDate);
-  }, [records, viewMode]);
+  }, [records, checkFrequency]);
 
   // Prepare chart data
   const chartData = useMemo(() => {
@@ -220,38 +222,14 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header with toggle and record button */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      {/* Header with record button */}
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Scale className="w-4 h-4 text-gray-500" />
           <h3 className="text-sm font-medium text-gray-900">Weight Tracking</h3>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* View mode toggle */}
-          <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-md">
-            <button
-              onClick={() => setViewMode("weekly")}
-              className={`px-2.5 py-1 text-xs font-medium rounded transition-all ${
-                viewMode === "weekly"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Weekly
-            </button>
-            <button
-              onClick={() => setViewMode("monthly")}
-              className={`px-2.5 py-1 text-xs font-medium rounded transition-all ${
-                viewMode === "monthly"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Monthly
-            </button>
-          </div>
-
           {/* Record button */}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
