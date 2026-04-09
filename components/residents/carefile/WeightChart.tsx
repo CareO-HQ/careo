@@ -292,6 +292,18 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
 
                 <div>
                   <label className="text-xs font-medium text-gray-700 mb-1.5 block">
+                    Staff Name
+                  </label>
+                  <Input
+                    type="text"
+                    value={profile?.name || profile?.email || ""}
+                    readOnly
+                    className="h-8 text-sm bg-gray-50 text-gray-600 cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-700 mb-1.5 block">
                     Notes (optional)
                   </label>
                   <Textarea
