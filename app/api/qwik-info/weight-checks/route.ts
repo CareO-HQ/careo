@@ -91,6 +91,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Fetch latest MUST assessments for all residents
+    const { data: mustAssessments, error: mustAssessmentsError } = await supabase
+      .from('must_assessments')
+      .select('id, resident_id, height_cm, bmi_value, total_must_score, assessment_date')
+      .in('resident_id', residentIds)
+      .eq('status', 'active')
+      .order('assessment_date', { ascending: false });
+
+    if (mustAssessmentsError) {
+      console.error('Error fetching MUST assessments:', mustAssessmentsError);
+      // Don't fail the request, just continue without MUST data
+    }
+
     // Process each resident
     const weightCheckData = residents.map(resident => {
       const fullName = [resident.first_name, resident.middle_name, resident.last_name]
@@ -110,6 +123,24 @@ export async function GET(request: NextRequest) {
       const previousWeight = previousRecord ? parseFloat(previousRecord.weight_kg.toString()) : null;
       const change = lastWeight !== null && previousWeight !== null ? lastWeight - previousWeight : null;
       const lastCheckedDate = latestRecord?.measurement_date || null;
+
+      // Get latest MUST assessment for this resident
+      const residentMustAssessments = (mustAssessments || [])
+        .filter(ma => ma.resident_id === resident.id)
+        .sort((a, b) => new Date(b.assessment_date).getTime() - new Date(a.assessment_date).getTime());
+
+      const latestMustAssessment = residentMustAssessments[0] || null;
+
+      // Get height, BMI, and MUST score from assessment
+      const heightCm = latestMustAssessment ? parseFloat(latestMustAssessment.height_cm.toString()) : null;
+      let bmi = latestMustAssessment ? parseFloat(latestMustAssessment.bmi_value.toString()) : null;
+      const mustScore = latestMustAssessment ? latestMustAssessment.total_must_score : null;
+
+      // If no MUST assessment but we have weight and height, calculate BMI
+      if (!bmi && lastWeight && heightCm) {
+        const heightM = heightCm / 100;
+        bmi = lastWeight / (heightM * heightM);
+      }
 
       // Calculate next due date based on frequency
       const frequency = resident.weight_check_frequency || 'monthly';
@@ -149,6 +180,9 @@ export async function GET(request: NextRequest) {
         lastWeight: lastWeight,
         previousWeight: previousWeight,
         change: change,
+        heightCm: heightCm,
+        bmi: bmi,
+        mustScore: mustScore,
         lastCheckedDate: lastCheckedDate,
         nextDueDate: nextDueDate,
         status: status,

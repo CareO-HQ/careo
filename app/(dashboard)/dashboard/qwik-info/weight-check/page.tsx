@@ -25,6 +25,9 @@ type WeightCheckData = {
   lastWeight: number | null;
   previousWeight: number | null;
   change: number | null;
+  heightCm: number | null;
+  bmi: number | null;
+  mustScore: number | null;
   lastCheckedDate: string | null;
   nextDueDate: string | null;
   status: 'on-track' | 'due-soon' | 'overdue' | 'no-data';
@@ -149,6 +152,32 @@ export default function WeightCheckPage() {
     }
   };
 
+  const getMustScoreBadge = (score: number | null) => {
+    if (score === null) {
+      return <span className="text-gray-400 text-xs">-</span>;
+    }
+
+    if (score === 0) {
+      return (
+        <Badge className="bg-green-500 text-white text-xs">
+          {score} - Low Risk
+        </Badge>
+      );
+    } else if (score === 1) {
+      return (
+        <Badge className="bg-amber-500 text-white text-xs">
+          {score} - Medium Risk
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge className="bg-red-500 text-white text-xs">
+          {score} - High Risk
+        </Badge>
+      );
+    }
+  };
+
   const getStatusRowClass = (status: string) => {
     switch (status) {
       case 'overdue':
@@ -199,6 +228,9 @@ export default function WeightCheckPage() {
                     >
                       Change {sortKey === 'change' && (sortOrder === 'asc' ? '↑' : '↓')}
                     </TableHead>
+                    <TableHead>Height (cm)</TableHead>
+                    <TableHead>BMI</TableHead>
+                    <TableHead>MUST Score</TableHead>
                     <TableHead
                       className="cursor-pointer hover:bg-gray-100"
                       onClick={() => handleSort('lastCheckedDate')}
@@ -244,6 +276,15 @@ export default function WeightCheckPage() {
                         ) : (
                           '-'
                         )}
+                      </TableCell>
+                      <TableCell>
+                        {item.heightCm !== null ? item.heightCm.toFixed(0) : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {item.bmi !== null ? item.bmi.toFixed(1) : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {getMustScoreBadge(item.mustScore)}
                       </TableCell>
                       <TableCell>
                         {item.lastCheckedDate ? (
