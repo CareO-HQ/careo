@@ -36,49 +36,34 @@ CREATE INDEX IF NOT EXISTS idx_weight_records_resident_date ON public.weight_rec
 ALTER TABLE public.weight_records ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
-DROP POLICY IF EXISTS "Users can view weight records in their scope" ON public.weight_records;
-CREATE POLICY "Users can view weight records in their scope"
-  ON public.weight_records FOR SELECT
-  USING (
-    organization_id IN (
-      SELECT organization_id FROM public.user_organizations
-      WHERE user_id = auth.uid()
-    )
-  );
+DROP POLICY IF EXISTS "SaaS admins manage weight_records" ON public.weight_records;
+CREATE POLICY "SaaS admins manage weight_records"
+    ON public.weight_records FOR ALL TO authenticated
+    USING (public.is_saas_admin()) WITH CHECK (public.is_saas_admin());
+
+DROP POLICY IF EXISTS "Users can view weight records in their organization" ON public.weight_records;
+CREATE POLICY "Users can view weight records in their organization"
+    ON public.weight_records FOR SELECT
+    USING (public.can_access_organization(organization_id));
 
 DROP POLICY IF EXISTS "Users can insert weight records in their organization" ON public.weight_records;
 CREATE POLICY "Users can insert weight records in their organization"
-  ON public.weight_records FOR INSERT
-  WITH CHECK (
-    organization_id IN (
-      SELECT organization_id FROM public.user_organizations
-      WHERE user_id = auth.uid()
-    )
-  );
+    ON public.weight_records FOR INSERT
+    WITH CHECK (public.can_access_organization(organization_id));
 
-DROP POLICY IF EXISTS "Users can update their own weight records" ON public.weight_records;
-CREATE POLICY "Users can update their own weight records"
-  ON public.weight_records FOR UPDATE
-  USING (created_by = auth.uid())
-  WITH CHECK (created_by = auth.uid());
+DROP POLICY IF EXISTS "Users can update weight records in their organization" ON public.weight_records;
+CREATE POLICY "Users can update weight records in their organization"
+    ON public.weight_records FOR UPDATE
+    USING (public.can_access_organization(organization_id));
 
-DROP POLICY IF EXISTS "Users can delete their own weight records" ON public.weight_records;
-CREATE POLICY "Users can delete their own weight records"
-  ON public.weight_records FOR DELETE
-  USING (created_by = auth.uid());
+DROP POLICY IF EXISTS "Users can delete weight records in their organization" ON public.weight_records;
+CREATE POLICY "Users can delete weight records in their organization"
+    ON public.weight_records FOR DELETE
+    USING (public.can_access_organization(organization_id));
 
--- Trigger function
-CREATE OR REPLACE FUNCTION update_weight_records_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger
-DROP TRIGGER IF EXISTS weight_records_updated_at ON public.weight_records;
-CREATE TRIGGER weight_records_updated_at
-  BEFORE UPDATE ON public.weight_records
-  FOR EACH ROW
-  EXECUTE FUNCTION update_weight_records_updated_at();
+-- Updated at trigger
+DROP TRIGGER IF EXISTS set_updated_at_weight_records ON public.weight_records;
+CREATE TRIGGER set_updated_at_weight_records
+    BEFORE UPDATE ON public.weight_records
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
