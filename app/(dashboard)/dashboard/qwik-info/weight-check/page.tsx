@@ -22,14 +22,14 @@ type WeightCheckData = {
   name: string;
   roomNumber: string;
   frequency: 'weekly' | 'monthly' | 'as-needed';
-  lastWeight: number | null;
-  previousWeight: number | null;
-  change: number | null;
-  heightCm: number | null;
-  bmi: number | null;
-  mustScore: number | null;
-  lastCheckedDate: string | null;
-  nextDueDate: string | null;
+  lastWeight?: number | null;
+  previousWeight?: number | null;
+  change?: number | null;
+  heightCm?: number | null;
+  bmi?: number | null;
+  mustScore?: number | null;
+  lastCheckedDate?: string | null;
+  nextDueDate?: string | null;
   status: 'on-track' | 'due-soon' | 'overdue' | 'no-data';
 };
 
@@ -76,7 +76,7 @@ export default function WeightCheckPage() {
   // Filter by search query
   const filteredData = useMemo(() => {
     return weightData.filter(item =>
-      item.name.toLowerCase().includes(searchQuery.toLowerCase())
+      (item.name || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [weightData, searchQuery]);
 
@@ -101,8 +101,8 @@ export default function WeightCheckPage() {
 
       switch (sortKey) {
         case 'name':
-          aValue = a.name;
-          bValue = b.name;
+          aValue = a.name || '';
+          bValue = b.name || '';
           break;
         case 'lastCheckedDate':
           aValue = a.lastCheckedDate ? new Date(a.lastCheckedDate).getTime() : 0;
@@ -113,8 +113,8 @@ export default function WeightCheckPage() {
           bValue = b.nextDueDate ? new Date(b.nextDueDate).getTime() : Number.MAX_SAFE_INTEGER;
           break;
         case 'change':
-          aValue = a.change || 0;
-          bValue = b.change || 0;
+          aValue = a.change ?? 0;
+          bValue = b.change ?? 0;
           break;
         default:
           return 0;
@@ -152,8 +152,8 @@ export default function WeightCheckPage() {
     }
   };
 
-  const getMustScoreBadge = (score: number | null) => {
-    if (score === null) {
+  const getMustScoreBadge = (score?: number | null) => {
+    if (score === null || score === undefined) {
       return <span className="text-gray-400 text-xs">-</span>;
     }
 
@@ -255,13 +255,13 @@ export default function WeightCheckPage() {
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{item.roomNumber}</TableCell>
                       <TableCell>
-                        {item.lastWeight !== null ? item.lastWeight.toFixed(1) : '-'}
+                        {item.lastWeight ? item.lastWeight.toFixed(1) : '-'}
                       </TableCell>
                       <TableCell>
-                        {item.previousWeight !== null ? item.previousWeight.toFixed(1) : '-'}
+                        {item.previousWeight ? item.previousWeight.toFixed(1) : '-'}
                       </TableCell>
                       <TableCell>
-                        {item.change !== null ? (
+                        {item.change !== null && item.change !== undefined ? (
                           <span className={cn(
                             'flex items-center gap-1 font-medium',
                             item.change > 0 ? 'text-green-600' : item.change < 0 ? 'text-red-600' : 'text-gray-600'
@@ -278,10 +278,10 @@ export default function WeightCheckPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {item.heightCm !== null ? item.heightCm.toFixed(0) : '-'}
+                        {item.heightCm ? item.heightCm.toFixed(0) : '-'}
                       </TableCell>
                       <TableCell>
-                        {item.bmi !== null ? item.bmi.toFixed(1) : '-'}
+                        {item.bmi ? item.bmi.toFixed(1) : '-'}
                       </TableCell>
                       <TableCell>
                         {getMustScoreBadge(item.mustScore)}
