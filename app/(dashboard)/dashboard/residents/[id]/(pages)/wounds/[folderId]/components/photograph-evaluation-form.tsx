@@ -33,11 +33,13 @@ import {
   X,
   Plus,
   Edit,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { generateWoundPhotographEvaluationPDF } from "@/lib/wound-photograph-evaluation-pdf-utils";
 
 // --- Zod Schema ---
 const PhotographEvaluationSchema = z.object({
@@ -58,6 +60,7 @@ type Props = {
   woundFolderId: string;
   residentId: string;
   residentName: string;
+  orgLogoUrl?: string;
   woundNumber?: number;
   evaluations?: Array<{
     id: string;
@@ -79,6 +82,7 @@ export function PhotographEvaluationForm({
   woundFolderId,
   residentId,
   residentName,
+  orgLogoUrl,
   woundNumber,
   evaluations = [],
   isLoadingEvaluations = false,
@@ -92,6 +96,32 @@ export function PhotographEvaluationForm({
   const [imageError, setImageError] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [editingEvaluationId, setEditingEvaluationId] = useState<string | null>(null);
+
+  const handleDownloadPDF = async () => {
+    try {
+      await generateWoundPhotographEvaluationPDF({
+        residentName,
+        woundNumber,
+        orgLogoUrl,
+        evaluations: evaluations.map((evaluation) => ({
+          id: evaluation.id,
+          photograph_date: evaluation.photograph_date,
+          photograph_url: evaluation.signedUrl || evaluation.photograph_url,
+          site_of_wound: evaluation.site_of_wound,
+          length_cm: evaluation.length_cm ?? null,
+          width_cm: evaluation.width_cm ?? null,
+          depth_cm: null,
+          rgn_signature: evaluation.rgn_signature,
+          comment: evaluation.comment ?? null,
+          created_at: evaluation.created_at,
+        })),
+      });
+      toast.success("PDF downloaded successfully");
+    } catch (error) {
+      console.error("Failed to generate photograph evaluation PDF:", error);
+      toast.error("Failed to generate PDF");
+    }
+  };
 
   // Show new form by default if no evaluations exist
   React.useEffect(() => {
@@ -365,14 +395,25 @@ export function PhotographEvaluationForm({
             <div className="text-sm text-gray-600">
               {evaluations.length} {evaluations.length === 1 ? "evaluation" : "evaluations"} recorded
             </div>
-            <Button
-              onClick={() => setShowNewForm(true)}
-              size="sm"
-              className="gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              New Evaluation
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleDownloadPDF}
+                size="sm"
+                className="gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Download PDF
+              </Button>
+              <Button
+                onClick={() => setShowNewForm(true)}
+                size="sm"
+                className="gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                New Evaluation
+              </Button>
+            </div>
           </div>
         )}
 

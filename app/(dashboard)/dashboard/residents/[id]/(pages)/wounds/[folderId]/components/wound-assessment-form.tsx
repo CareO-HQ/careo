@@ -24,10 +24,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Save, Loader2, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { CalendarIcon, Save, Loader2, FileText, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import jsPDF from "jspdf";
 
 // Schema for a single assessment
 const SingleAssessmentSchema = z.object({
@@ -83,6 +84,9 @@ const WoundAssessmentSchema = z.object({
 });
 
 type WoundAssessmentFormValues = z.infer<typeof WoundAssessmentSchema>;
+type GroupRow =
+  | { type: "section"; label: string }
+  | { type: "field"; label: string; key: string; valueType: "boolean" | "date" | "text" };
 
 type Props = {
   woundFolderId: string;
@@ -166,7 +170,9 @@ export function WoundAssessmentForm({
   const [assessments, setAssessments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [previousSheets, setPreviousSheets] = useState<any[][]>([]);
-  const [showPreviousSheets, setShowPreviousSheets] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null);
+  const currentAssessmentNumber = assessments.length + 1;
 
   const form = useForm<WoundAssessmentFormValues>({
     resolver: zodResolver(WoundAssessmentSchema),
@@ -238,6 +244,21 @@ export function WoundAssessmentForm({
       }
     }
   }, [woundNumber]);
+
+  useEffect(() => {
+    const fetchOrgLogo = async () => {
+      if (!profile?.active_organization_id) return;
+      const { data, error } = await supabase
+        .from("organizations")
+        .select("logo_url")
+        .eq("id", profile.active_organization_id)
+        .single();
+      if (!error && data?.logo_url) {
+        setOrgLogoUrl(data.logo_url);
+      }
+    };
+    fetchOrgLogo();
+  }, [profile?.active_organization_id]);
 
   const fetchAssessments = async () => {
     setIsLoading(true);
@@ -373,13 +394,68 @@ export function WoundAssessmentForm({
         setAssessments(data);
         setSavedAssessments(newSavedSet);
 
-        // Group remaining assessments into sheets of 5
-        const remaining = data.slice(5);
+        // Group all saved assessments into sets of 7 for history display
+        const remaining = data;
         const sheets: any[][] = [];
-        for (let i = 0; i < remaining.length; i += 5) {
-          sheets.push(remaining.slice(i, i + 5));
+        for (let i = 0; i < remaining.length; i += 7) {
+          sheets.push(remaining.slice(i, i + 7));
         }
         setPreviousSheets(sheets);
+
+        // Always keep the editable form as a fresh single assessment entry.
+        const latestAssessorInitials =
+          data.length > 0 && data[0]?.assessor_initials
+            ? data[0].assessor_initials
+            : profile?.name || "";
+        setSavedAssessments(new Set());
+        form.reset({
+          assessments: Array(5).fill(null).map(() => ({
+            assessmentDate: undefined,
+            woundNumber: woundNumber?.toString() || "",
+            analgesiaRequired: false,
+            regularOngoingAnalgesia: false,
+            preDressingOnly: false,
+            length: "",
+            width: "",
+            depth: "",
+            trackingUndermining: false,
+            photographTakenDate: undefined,
+            necrotic: false,
+            sloughy: false,
+            granulating: false,
+            epithelialising: false,
+            hypergranulating: false,
+            haematoma: false,
+            boneTendon: false,
+            exudateLow: false,
+            exudateModerate: false,
+            exudateHigh: false,
+            exudateSerous: false,
+            exudateHaemoserous: false,
+            exudatePurulent: false,
+            macerated: false,
+            oedematous: false,
+            erythema: false,
+            excoriated: false,
+            fragile: false,
+            dryScaly: false,
+            healthyIntact: false,
+            heat: false,
+            newSloughNecrosis: false,
+            increasingPain: false,
+            increasingExudate: false,
+            increasingOdour: false,
+            friableGranulation: false,
+            debridement: false,
+            absorption: false,
+            hydration: false,
+            protection: false,
+            palliativeConservative: false,
+            assessorInitials: latestAssessorInitials,
+            dressingRenewed: false,
+            reassessmentDate: undefined,
+          })),
+        });
       }
     } catch (err) {
       console.error("Error fetching assessments:", err);
@@ -510,101 +586,9 @@ export function WoundAssessmentForm({
     }
   };
 
-  // Check if all 5 assessments are saved
-  const allAssessmentsSaved = savedAssessments.size === 5;
-
   // Debug logging
   console.log("Saved assessments count:", savedAssessments.size);
   console.log("Saved assessments:", Array.from(savedAssessments));
-  console.log("All assessments saved?", allAssessmentsSaved);
-
-  // Function to create a new assessment sheet
-  const createNewAssessmentSheet = async () => {
-    try {
-      // First, clear saved assessments immediately
-      setSavedAssessments(new Set());
-
-      // Fetch all assessments to update previous sheets
-      const { data, error } = await supabase
-        .from("wound_assessments")
-        .select("*")
-        .eq("wound_folder_id", woundFolderId)
-        .order("assessment_date", { ascending: false });
-
-      // Get the most recent assessor initials to carry forward
-      const lastAssessorInitials = data && data.length > 0 && data[0]?.assessor_initials
-        ? data[0].assessor_initials
-        : profile?.name || "";
-
-      if (!error && data) {
-        // All assessments become previous sheets (grouped by 5)
-        const sheets: any[][] = [];
-        for (let i = 0; i < data.length; i += 5) {
-          sheets.push(data.slice(i, i + 5));
-        }
-        setPreviousSheets(sheets);
-
-        // Clear assessments state to avoid confusion
-        setAssessments([]);
-      }
-
-      // Clear the form and reset saved assessments
-      form.reset({
-        assessments: Array(5).fill(null).map(() => ({
-          assessmentDate: undefined,
-          woundNumber: woundNumber?.toString() || "",
-          analgesiaRequired: false,
-          regularOngoingAnalgesia: false,
-          preDressingOnly: false,
-          length: "",
-          width: "",
-          depth: "",
-          trackingUndermining: false,
-          photographTakenDate: undefined,
-          necrotic: false,
-          sloughy: false,
-          granulating: false,
-          epithelialising: false,
-          hypergranulating: false,
-          haematoma: false,
-          boneTendon: false,
-          exudateLow: false,
-          exudateModerate: false,
-          exudateHigh: false,
-          exudateSerous: false,
-          exudateHaemoserous: false,
-          exudatePurulent: false,
-          macerated: false,
-          oedematous: false,
-          erythema: false,
-          excoriated: false,
-          fragile: false,
-          dryScaly: false,
-          healthyIntact: false,
-          heat: false,
-          newSloughNecrosis: false,
-          increasingPain: false,
-          increasingExudate: false,
-          increasingOdour: false,
-          friableGranulation: false,
-          debridement: false,
-          absorption: false,
-          hydration: false,
-          protection: false,
-          palliativeConservative: false,
-          assessorInitials: lastAssessorInitials,
-          dressingRenewed: false,
-          reassessmentDate: undefined,
-        })),
-      });
-
-      console.log("Form reset complete. Current form values:", form.getValues());
-      toast.success("New assessment sheet created");
-    } catch (error) {
-      console.error("Error creating new sheet:", error);
-      toast.error("Failed to create new sheet");
-    }
-  };
 
   if (isLoading) {
     return (
@@ -613,6 +597,229 @@ export function WoundAssessmentForm({
       </div>
     );
   }
+
+  const renderGroupCell = (
+    group: any[],
+    colIdx: number,
+    key: string,
+    type: "boolean" | "date" | "text" = "text",
+  ) => {
+    const item = group[colIdx];
+    if (!item) return "-";
+
+    if (type === "boolean") return item[key] ? "✓" : "-";
+    if (type === "date") {
+      return item[key] ? format(new Date(item[key]), "dd/MM/yyyy") : "-";
+    }
+    return item[key] ?? "-";
+  };
+
+  const downloadGroupPdf = async (groupIndex: number, start: number, end: number) => {
+    try {
+      const group = previousSheets[groupIndex] ?? [];
+
+      const rows: GroupRow[] = [
+        { type: "field", label: "Date of Assessment", key: "assessment_date", valueType: "date" },
+        { type: "field", label: "Wound Number", key: "wound_number", valueType: "text" },
+        { type: "field", label: "Regular/on-going analgesia", key: "regular_ongoing_analgesia", valueType: "boolean" },
+        { type: "field", label: "Pre-dressing only", key: "pre_dressing_only", valueType: "boolean" },
+        { type: "section", label: "Wound Dimensions" },
+        { type: "field", label: "Length (cm/mm)", key: "length_cm", valueType: "text" },
+        { type: "field", label: "Width (cm/mm)", key: "width_cm", valueType: "text" },
+        { type: "field", label: "Depth (cm/mm)", key: "depth_cm", valueType: "text" },
+        { type: "field", label: "Tracking/undermining", key: "tracking_undermining", valueType: "boolean" },
+        { type: "field", label: "Photograph taken date", key: "photograph_taken_date", valueType: "date" },
+        { type: "section", label: "Tissue type on wound bed" },
+        { type: "field", label: "Necrotic (Black)", key: "necrotic", valueType: "boolean" },
+        { type: "field", label: "Sloughy (Yellow/Green)", key: "sloughy", valueType: "boolean" },
+        { type: "field", label: "Granulating (Red)", key: "granulating", valueType: "boolean" },
+        { type: "field", label: "Epithelialising (Pink)", key: "epithelialising", valueType: "boolean" },
+        { type: "field", label: "Hypergranulating (Red)", key: "hypergranulating", valueType: "boolean" },
+        { type: "field", label: "Haematoma", key: "haematoma", valueType: "boolean" },
+        { type: "field", label: "Bone/tendon", key: "bone_tendon", valueType: "boolean" },
+        { type: "section", label: "Wound exudate levels/type" },
+        { type: "field", label: "Low", key: "exudate_low", valueType: "boolean" },
+        { type: "field", label: "Moderate", key: "exudate_moderate", valueType: "boolean" },
+        { type: "field", label: "High", key: "exudate_high", valueType: "boolean" },
+        { type: "field", label: "Serous (Straw)", key: "exudate_serous", valueType: "boolean" },
+        { type: "field", label: "Haemoserous (Red/Straw)", key: "exudate_haemoserous", valueType: "boolean" },
+        { type: "field", label: "Purulent (Green/Brown/Yellow)", key: "exudate_purulent", valueType: "boolean" },
+        { type: "section", label: "Peri-wound skin" },
+        { type: "field", label: "Macerated (White)", key: "macerated", valueType: "boolean" },
+        { type: "field", label: "Oedematous", key: "oedematous", valueType: "boolean" },
+        { type: "field", label: "Erythema (Red)", key: "erythema", valueType: "boolean" },
+        { type: "field", label: "Excoriated (Red)", key: "excoriated", valueType: "boolean" },
+        { type: "field", label: "Fragile", key: "fragile", valueType: "boolean" },
+        { type: "field", label: "Dry/scaly", key: "dry_scaly", valueType: "boolean" },
+        { type: "field", label: "Healthy/intact", key: "healthy_intact", valueType: "boolean" },
+        { type: "section", label: "Signs of infection" },
+        { type: "field", label: "Heat", key: "heat", valueType: "boolean" },
+        { type: "field", label: "New slough/necrosis", key: "new_slough_necrosis", valueType: "boolean" },
+        { type: "field", label: "Increasing pain", key: "increasing_pain", valueType: "boolean" },
+        { type: "field", label: "Increasing exudate", key: "increasing_exudate", valueType: "boolean" },
+        { type: "field", label: "Increasing odour", key: "increasing_odour", valueType: "boolean" },
+        { type: "field", label: "Friable granulation tissue", key: "friable_granulation", valueType: "boolean" },
+        { type: "section", label: "Treatment objectives" },
+        { type: "field", label: "Debridement", key: "debridement", valueType: "boolean" },
+        { type: "field", label: "Absorption", key: "absorption", valueType: "boolean" },
+        { type: "field", label: "Hydration", key: "hydration", valueType: "boolean" },
+        { type: "field", label: "Protection", key: "protection", valueType: "boolean" },
+        { type: "field", label: "Palliative / conservative", key: "palliative_conservative", valueType: "boolean" },
+        { type: "field", label: "Assessor Initials", key: "assessor_initials", valueType: "text" },
+        { type: "field", label: "Dressing renewed", key: "dressing_renewed", valueType: "boolean" },
+        { type: "field", label: "Re-assessment date", key: "reassessment_date", valueType: "date" },
+      ];
+
+      const getCellValue = (row: GroupRow, colIdx: number): string => {
+        if (row.type === "section") return "";
+        const item = group[colIdx];
+        if (!item) return "-";
+        if (row.valueType === "boolean") return item[row.key] ? "Yes" : "-";
+        if (row.valueType === "date") {
+          return item[row.key] ? format(new Date(item[row.key]), "dd/MM/yyyy") : "-";
+        }
+        return item[row.key] ? String(item[row.key]) : "-";
+      };
+
+      const pdf = new jsPDF("landscape", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const margin = 8;
+      const contentWidth = pdfWidth - margin * 2;
+      const labelWidth = 56;
+      const colWidth = (contentWidth - labelWidth) / 7;
+      let y = margin;
+
+      const drawBorder = () => {
+        pdf.setDrawColor(22, 163, 74);
+        pdf.setLineWidth(0.7);
+        pdf.rect(margin, margin, contentWidth, pdfHeight - margin * 2);
+      };
+
+      drawBorder();
+
+      if (orgLogoUrl) {
+        try {
+          const response = await fetch(orgLogoUrl, { mode: "cors", credentials: "omit" });
+          if (response.ok) {
+            const blob = await response.blob();
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result));
+              reader.onerror = () => reject(new Error("logo read failed"));
+              reader.readAsDataURL(blob);
+            });
+            const logoW = 22;
+            const logoH = 12;
+            pdf.addImage(dataUrl, "PNG", pdfWidth - margin - logoW - 2, y + 1, logoW, logoH);
+          }
+        } catch {
+          // Ignore logo failures and continue.
+        }
+      }
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.setTextColor(22, 101, 52);
+      pdf.text("Ongoing Wound Assessment (Appendix H)", margin + 2, y + 6);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(12);
+      pdf.setTextColor(75, 85, 99);
+      pdf.text(`Assessments ${start} to ${end}`, margin + 2, y + 11);
+      y += 16;
+
+      const baseRowHeight = 6.3;
+      const baseSectionHeight = 6.3;
+      const baseHeaderHeight = 7.2;
+      const staticHeaderHeight = y - margin;
+      const variableHeight =
+        baseHeaderHeight +
+        rows.reduce(
+          (acc, row) => acc + (row.type === "section" ? baseSectionHeight : baseRowHeight),
+          0
+        );
+      const availableVariableHeight = pdfHeight - margin - staticHeaderHeight - 2;
+      const fitScale = Math.min(1, availableVariableHeight / variableHeight);
+
+      const rowHeight = Math.max(3.6, baseRowHeight * fitScale);
+      const sectionHeight = Math.max(3.8, baseSectionHeight * fitScale);
+      const headerHeight = Math.max(4.2, baseHeaderHeight * fitScale);
+      const headerFontSize = Math.max(8, 10.8 * fitScale);
+      const bodyFontSize = Math.max(7.4, 9.6 * fitScale);
+
+      const drawHeaderRow = () => {
+        pdf.setFillColor(243, 244, 246);
+        pdf.rect(margin, y, contentWidth, headerHeight, "F");
+        pdf.setDrawColor(209, 213, 219);
+        pdf.rect(margin, y, contentWidth, headerHeight);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(headerFontSize);
+        pdf.setTextColor(31, 41, 55);
+        pdf.text("Field", margin + 2, y + headerHeight * 0.68);
+        for (let i = 0; i < 7; i++) {
+          const x = margin + labelWidth + i * colWidth;
+          pdf.line(x, y, x, y + headerHeight);
+          pdf.text(`A${start + i}`, x + colWidth / 2, y + headerHeight * 0.68, { align: "center" });
+        }
+        y += headerHeight;
+      };
+
+      drawHeaderRow();
+
+      rows.forEach((row) => {
+        if (row.type === "section") {
+          pdf.setFillColor(229, 231, 235);
+          pdf.rect(margin, y, contentWidth, sectionHeight, "F");
+          pdf.setDrawColor(209, 213, 219);
+          pdf.rect(margin, y, contentWidth, sectionHeight);
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(Math.max(6.2, bodyFontSize));
+          pdf.setTextColor(31, 41, 55);
+          pdf.text(row.label, margin + 2, y + sectionHeight * 0.7);
+          y += sectionHeight;
+          return;
+        }
+
+        pdf.setDrawColor(229, 231, 235);
+        pdf.rect(margin, y, contentWidth, rowHeight);
+        pdf.line(margin + labelWidth, y, margin + labelWidth, y + rowHeight);
+        for (let i = 1; i < 7; i++) {
+          const x = margin + labelWidth + i * colWidth;
+          pdf.line(x, y, x, y + rowHeight);
+        }
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(bodyFontSize);
+        pdf.setTextColor(17, 24, 39);
+        pdf.text(row.label, margin + 1.2, y + rowHeight * 0.7);
+
+        for (let i = 0; i < 7; i++) {
+          const x = margin + labelWidth + i * colWidth;
+          const value = getCellValue(row, i);
+          pdf.text(value, x + colWidth / 2, y + rowHeight * 0.7, { align: "center" });
+        }
+        y += rowHeight;
+      });
+
+      pdf.save(`wound-assessments-${start}-${end}.pdf`);
+      toast.success(`Downloaded assessments ${start}-${end} PDF`);
+    } catch (error) {
+      console.error("Failed to export PDF:", error);
+      toast.error("Failed to export PDF");
+    }
+  };
+
+  const toggleGroupCollapse = (groupIndex: number) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupIndex)) {
+        next.delete(groupIndex);
+      } else {
+        next.add(groupIndex);
+      }
+      return next;
+    });
+  };
 
   return (
     <ScrollArea className="h-full">
@@ -640,21 +847,12 @@ export function WoundAssessmentForm({
                 Assessments Completed:
               </span>
               <div className="flex items-center gap-1">
-                {[0, 1, 2, 3, 4].map((idx) => (
-                  <div
-                    key={idx}
-                    className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${
-                      savedAssessments.has(idx)
-                        ? "bg-green-500 text-white"
-                        : "bg-gray-300 text-gray-600"
-                    }`}
-                  >
-                    {idx + 1}
-                  </div>
-                ))}
+                <div className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold bg-green-500 text-white">
+                  {Math.max(currentAssessmentNumber - 1, 0)}
+                </div>
               </div>
               <span className="text-xs font-semibold text-gray-700">
-                ({savedAssessments.size}/5)
+                (Next: {currentAssessmentNumber})
               </span>
             </div>
           </div>
@@ -676,14 +874,11 @@ export function WoundAssessmentForm({
           <Form {...form}>
             <form onSubmit={(e) => e.preventDefault()}>
               {/* Column Headers */}
-              <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b-2 border-gray-300 bg-gray-100">
+              <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300 border-b-2 border-gray-300 bg-gray-100">
                 <div className="p-2"></div>
-                {[1, 2, 3, 4, 5].map((num, idx) => (
-                  <div key={num} className="p-2 text-center font-bold text-xs">
-                    Assessment {num}
-                    {savedAssessments.has(idx) && (
-                      <span className="ml-1 text-green-600">✓ Saved</span>
-                    )}
+                {[0].map((idx) => (
+                  <div key={idx} className="p-2 text-center font-bold text-xs">
+                    Assessment {currentAssessmentNumber}
                   </div>
                 ))}
               </div>
@@ -691,11 +886,11 @@ export function WoundAssessmentForm({
               {/* Table structure */}
               <div className="divide-y divide-gray-300">
                 {/* Date of Assessment Row */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 font-semibold text-xs">
                     Date of Assessment
                   </div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2">
                       <FormField
                         control={form.control}
@@ -713,11 +908,11 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Wound Number Row */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 font-semibold text-xs">
                     Wound Number
                   </div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2">
                       <FormField
                         control={form.control}
@@ -741,14 +936,14 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Analgesia required */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 font-semibold text-xs">
                     Analgesia required
                     <div className="text-[10px] text-gray-500 font-normal">
                       (Refer to pain assessment tool)
                     </div>
                   </div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2">
                       {/* Empty cell - no input required */}
                     </div>
@@ -756,11 +951,11 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Regular/on-going analgesia */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 text-xs">
                     Regular/on-going analgesia
                   </div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2 flex justify-center">
                       <FormField
                         control={form.control}
@@ -783,9 +978,9 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Pre-dressing only */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 text-xs">Pre-dressing only</div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2 flex justify-center">
                       <FormField
                         control={form.control}
@@ -813,9 +1008,9 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Length */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 text-xs">Length (cm/mm)</div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2">
                       <FormField
                         control={form.control}
@@ -841,9 +1036,9 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Width */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 text-xs">Width (cm/mm)</div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2">
                       <FormField
                         control={form.control}
@@ -869,9 +1064,9 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Depth */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 text-xs">Depth (cm/mm)</div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2">
                       <FormField
                         control={form.control}
@@ -897,11 +1092,11 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Tracking/undermining */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 text-xs">
                     Is wound tracking/undermining
                   </div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2 flex justify-center">
                       <FormField
                         control={form.control}
@@ -924,9 +1119,9 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Photograph taken date */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 text-xs">Photograph taken date</div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2">
                       <FormField
                         control={form.control}
@@ -960,10 +1155,10 @@ export function WoundAssessmentForm({
                 ].map((tissue) => (
                   <div
                     key={tissue.name}
-                    className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300"
+                    className="grid grid-cols-[250px_1fr] divide-x divide-gray-300"
                   >
                     <div className="p-2 bg-gray-50 text-xs">{tissue.label}</div>
-                    {[0, 1, 2, 3, 4].map((index) => (
+                    {[0].map((index) => (
                       <div key={index} className="p-2 flex justify-center">
                         <FormField
                           control={form.control}
@@ -1002,10 +1197,10 @@ export function WoundAssessmentForm({
                 ].map((exudate) => (
                   <div
                     key={exudate.name}
-                    className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300"
+                    className="grid grid-cols-[250px_1fr] divide-x divide-gray-300"
                   >
                     <div className="p-2 bg-gray-50 text-xs">{exudate.label}</div>
-                    {[0, 1, 2, 3, 4].map((index) => (
+                    {[0].map((index) => (
                       <div key={index} className="p-2 flex justify-center">
                         <FormField
                           control={form.control}
@@ -1045,10 +1240,10 @@ export function WoundAssessmentForm({
                 ].map((skin) => (
                   <div
                     key={skin.name}
-                    className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300"
+                    className="grid grid-cols-[250px_1fr] divide-x divide-gray-300"
                   >
                     <div className="p-2 bg-gray-50 text-xs">{skin.label}</div>
-                    {[0, 1, 2, 3, 4].map((index) => (
+                    {[0].map((index) => (
                       <div key={index} className="p-2 flex justify-center">
                         <FormField
                           control={form.control}
@@ -1091,10 +1286,10 @@ export function WoundAssessmentForm({
                 ].map((infection) => (
                   <div
                     key={infection.name}
-                    className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300"
+                    className="grid grid-cols-[250px_1fr] divide-x divide-gray-300"
                   >
                     <div className="p-2 bg-gray-50 text-xs">{infection.label}</div>
-                    {[0, 1, 2, 3, 4].map((index) => (
+                    {[0].map((index) => (
                       <div key={index} className="p-2 flex justify-center">
                         <FormField
                           control={form.control}
@@ -1135,10 +1330,10 @@ export function WoundAssessmentForm({
                 ].map((treatment) => (
                   <div
                     key={treatment.name}
-                    className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300"
+                    className="grid grid-cols-[250px_1fr] divide-x divide-gray-300"
                   >
                     <div className="p-2 bg-gray-50 text-xs">{treatment.label}</div>
-                    {[0, 1, 2, 3, 4].map((index) => (
+                    {[0].map((index) => (
                       <div key={index} className="p-2 flex justify-center">
                         <FormField
                           control={form.control}
@@ -1162,11 +1357,11 @@ export function WoundAssessmentForm({
                 ))}
 
                 {/* Assessor initials */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 font-semibold text-xs">
                     Assessors Print Initials
                   </div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2">
                       <FormField
                         control={form.control}
@@ -1190,11 +1385,11 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Dressing Renewed */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 font-semibold text-xs">
                     Dressing Renewed
                   </div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2 flex justify-center">
                       <FormField
                         control={form.control}
@@ -1217,11 +1412,11 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Re-assessment date */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300">
                   <div className="p-2 bg-gray-50 font-semibold text-xs">
                     Re-assessment date
                   </div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2">
                       <FormField
                         control={form.control}
@@ -1239,11 +1434,11 @@ export function WoundAssessmentForm({
                 </div>
 
                 {/* Save Buttons Row */}
-                <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-t-2 border-gray-300 bg-gray-50">
+                <div className="grid grid-cols-[250px_1fr] divide-x divide-gray-300 border-t-2 border-gray-300 bg-gray-50">
                   <div className="p-2 bg-gray-50 font-semibold text-xs flex items-center">
                     Save Assessment
                   </div>
-                  {[0, 1, 2, 3, 4].map((index) => (
+                  {[0].map((index) => (
                     <div key={index} className="p-2 flex justify-center">
                       <Button
                         type="button"
@@ -1276,446 +1471,312 @@ export function WoundAssessmentForm({
                 {/* Padding after Save Assessment */}
                 <div className="p-4 bg-white"></div>
 
-                {/* New Assessment Sheet Button */}
-                {allAssessmentsSaved && (
-                  <div className="border-t-2 border-gray-300 bg-blue-50 p-4">
-                    <div className="flex items-center justify-center gap-3">
-                      <p className="text-sm text-gray-700">
-                        All 5 assessments completed. Start a new assessment sheet?
-                      </p>
-                      <Button
-                        type="button"
-                        onClick={createNewAssessmentSheet}
-                        variant="default"
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <FileText className="w-4 h-4 mr-2" />
-                        New Assessment Sheet
-                      </Button>
-                    </div>
-                  </div>
-                )}
               </div>
             </form>
           </Form>
 
           {/* Previous Assessment Sheets */}
           {previousSheets.length > 0 && (
-            <div className="mt-6 border-t-2 border-gray-300">
-              <button
-                type="button"
-                onClick={() => setShowPreviousSheets(!showPreviousSheets)}
-                className="w-full p-4 bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-between"
-              >
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-gray-600" />
-                  <span className="font-semibold text-gray-800">
-                    Previous Assessment Sheets ({previousSheets.length})
-                  </span>
-                </div>
-                {showPreviousSheets ? (
-                  <ChevronUp className="w-5 h-5 text-gray-600" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-600" />
-                )}
-              </button>
-
-              {showPreviousSheets && (
-                <div className="p-4 bg-gray-50 space-y-6">
-                  {previousSheets.map((sheet, sheetIndex) => {
-                    const sheetNumber = sheetIndex + 1;
-                    const dateRange = sheet.length > 0
-                      ? `${format(new Date(sheet[sheet.length - 1].assessment_date), "dd/MM/yyyy")} - ${format(new Date(sheet[0].assessment_date), "dd/MM/yyyy")}`
-                      : "";
-
-                    return (
-                      <div key={sheetIndex} className="bg-white border-2 border-gray-300 rounded-lg overflow-hidden">
-                        <div className="bg-gray-100 border-b-2 border-gray-300 p-3">
-                          <h3 className="font-bold text-sm">
-                            Assessment Sheet #{sheetNumber}
-                            {dateRange && (
-                              <span className="ml-2 text-gray-600 font-normal">
-                                ({dateRange})
-                              </span>
-                            )}
-                          </h3>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <div className="min-w-full">
-                            {/* Column Headers */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b-2 border-gray-300 bg-gray-100">
-                              <div className="p-2"></div>
-                              {sheet.map((_, idx) => (
-                                <div key={idx} className="p-2 text-center font-bold text-xs">
-                                  Assessment {idx + 1}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Date of Assessment */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 font-semibold text-xs">
-                                Date of Assessment
-                              </div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.assessment_date
-                                    ? format(new Date(assessment.assessment_date), "dd/MM/yyyy")
-                                    : "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Wound Number */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 font-semibold text-xs">
-                                Wound Number
-                              </div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.wound_number || "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Analgesia required */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 font-semibold text-xs">
-                                Analgesia required
-                              </div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.analgesia_required ? "✓" : "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Regular/on-going analgesia */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 text-xs">
-                                Regular/on-going analgesia
-                              </div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.regular_ongoing_analgesia ? "✓" : "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Pre-dressing only */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 text-xs">Pre-dressing only</div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.pre_dressing_only ? "✓" : "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Section Header */}
-                            <div className="p-2 bg-gray-100 font-bold text-xs border-t-2 border-gray-300">
-                              Wound Dimensions (enter size)
-                            </div>
-
-                            {/* Length */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 text-xs">Length (cm/mm)</div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.length_cm || "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Width */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 text-xs">Width (cm/mm)</div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.width_cm || "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Depth */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 text-xs">Depth (cm/mm)</div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.depth_cm || "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Tracking/Undermining */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 text-xs">Tracking/undermining</div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.tracking_undermining ? "✓" : "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Photograph taken date */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 text-xs">Photograph taken date</div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.photograph_taken_date
-                                    ? format(new Date(assessment.photograph_taken_date), "dd/MM/yyyy")
-                                    : "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Section Header - Tissue Types */}
-                            <div className="p-2 bg-gray-100 font-bold text-xs border-t-2 border-gray-300">
-                              Tissue type on wound bed (yes or no)
-                            </div>
-
-                            {/* Tissue Types */}
-                            {[
-                              { label: "Necrotic (Black)", key: "necrotic" },
-                              { label: "Sloughy (Yellow/Green)", key: "sloughy" },
-                              { label: "Granulating (Red)", key: "granulating" },
-                              { label: "Epithelialising (Pink)", key: "epithelialising" },
-                              { label: "Hypergranulating (Red)", key: "hypergranulating" },
-                              { label: "Haematoma", key: "haematoma" },
-                              { label: "Bone/tendon visible", key: "bone_tendon" },
-                            ].map((tissue) => (
-                              <div key={tissue.key} className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                                <div className="p-2 bg-gray-50 text-xs">
-                                  {tissue.label}
-                                </div>
-                                {sheet.map((assessment, idx) => (
-                                  <div key={idx} className="p-2 text-xs text-center">
-                                    {assessment[tissue.key] ? "✓" : "-"}
-                                  </div>
-                                ))}
-                                {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                  <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                                ))}
-                              </div>
-                            ))}
-
-                            {/* Section Header - Exudate */}
-                            <div className="p-2 bg-gray-100 font-bold text-xs border-t-2 border-gray-300">
-                              Exudate
-                            </div>
-
-                            {/* Exudate Amount */}
-                            {[
-                              { label: "Low", key: "exudate_low" },
-                              { label: "Moderate", key: "exudate_moderate" },
-                              { label: "High", key: "exudate_high" },
-                            ].map((exudate) => (
-                              <div key={exudate.key} className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                                <div className="p-2 bg-gray-50 text-xs">
-                                  {exudate.label}
-                                </div>
-                                {sheet.map((assessment, idx) => (
-                                  <div key={idx} className="p-2 text-xs text-center">
-                                    {assessment[exudate.key] ? "✓" : "-"}
-                                  </div>
-                                ))}
-                                {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                  <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                                ))}
-                              </div>
-                            ))}
-
-                            {/* Exudate Type */}
-                            {[
-                              { label: "Serous", key: "exudate_serous" },
-                              { label: "Haemoserous", key: "exudate_haemoserous" },
-                              { label: "Purulent", key: "exudate_purulent" },
-                            ].map((exudate) => (
-                              <div key={exudate.key} className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                                <div className="p-2 bg-gray-50 text-xs">
-                                  {exudate.label}
-                                </div>
-                                {sheet.map((assessment, idx) => (
-                                  <div key={idx} className="p-2 text-xs text-center">
-                                    {assessment[exudate.key] ? "✓" : "-"}
-                                  </div>
-                                ))}
-                                {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                  <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                                ))}
-                              </div>
-                            ))}
-
-                            {/* Section Header - Peri-wound Skin */}
-                            <div className="p-2 bg-gray-100 font-bold text-xs border-t-2 border-gray-300">
-                              Peri-wound skin
-                            </div>
-
-                            {[
-                              { label: "Macerated", key: "macerated" },
-                              { label: "Oedematous", key: "oedematous" },
-                              { label: "Erythema", key: "erythema" },
-                              { label: "Excoriated", key: "excoriated" },
-                              { label: "Fragile", key: "fragile" },
-                              { label: "Dry/scaly", key: "dry_scaly" },
-                              { label: "Healthy/intact", key: "healthy_intact" },
-                            ].map((skin) => (
-                              <div key={skin.key} className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                                <div className="p-2 bg-gray-50 text-xs">
-                                  {skin.label}
-                                </div>
-                                {sheet.map((assessment, idx) => (
-                                  <div key={idx} className="p-2 text-xs text-center">
-                                    {assessment[skin.key] ? "✓" : "-"}
-                                  </div>
-                                ))}
-                                {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                  <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                                ))}
-                              </div>
-                            ))}
-
-                            {/* Section Header - Signs of Infection */}
-                            <div className="p-2 bg-gray-100 font-bold text-xs border-t-2 border-gray-300">
-                              Signs of infection
-                            </div>
-
-                            {[
-                              { label: "Heat", key: "heat" },
-                              { label: "New slough/necrosis", key: "new_slough_necrosis" },
-                              { label: "Increasing pain", key: "increasing_pain" },
-                              { label: "Increasing exudate", key: "increasing_exudate" },
-                              { label: "Increasing odour", key: "increasing_odour" },
-                              { label: "Friable granulation", key: "friable_granulation" },
-                            ].map((sign) => (
-                              <div key={sign.key} className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                                <div className="p-2 bg-gray-50 text-xs">
-                                  {sign.label}
-                                </div>
-                                {sheet.map((assessment, idx) => (
-                                  <div key={idx} className="p-2 text-xs text-center">
-                                    {assessment[sign.key] ? "✓" : "-"}
-                                  </div>
-                                ))}
-                                {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                  <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                                ))}
-                              </div>
-                            ))}
-
-                            {/* Section Header - Treatment Objectives */}
-                            <div className="p-2 bg-gray-100 font-bold text-xs border-t-2 border-gray-300">
-                              Treatment objectives
-                            </div>
-
-                            {[
-                              { label: "Debridement", key: "debridement" },
-                              { label: "Absorption", key: "absorption" },
-                              { label: "Hydration", key: "hydration" },
-                              { label: "Protection", key: "protection" },
-                              { label: "Palliative/Conservative", key: "palliative_conservative" },
-                            ].map((treatment) => (
-                              <div key={treatment.key} className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                                <div className="p-2 bg-gray-50 text-xs">
-                                  {treatment.label}
-                                </div>
-                                {sheet.map((assessment, idx) => (
-                                  <div key={idx} className="p-2 text-xs text-center">
-                                    {assessment[treatment.key] ? "✓" : "-"}
-                                  </div>
-                                ))}
-                                {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                  <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                                ))}
-                              </div>
-                            ))}
-
-                            {/* Assessor Initials */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 font-semibold text-xs">
-                                Assessors Print Initials
-                              </div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.assessor_initials || "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Dressing renewed */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 font-semibold text-xs">
-                                Dressing renewed
-                              </div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.dressing_renewed ? "✓" : "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-
-                            {/* Re-assessment Date */}
-                            <div className="grid grid-cols-[250px_repeat(5,1fr)] divide-x divide-gray-300 border-b border-gray-300">
-                              <div className="p-2 bg-gray-50 font-semibold text-xs">
-                                Re-assessment date
-                              </div>
-                              {sheet.map((assessment, idx) => (
-                                <div key={idx} className="p-2 text-xs text-center">
-                                  {assessment.reassessment_date
-                                    ? format(new Date(assessment.reassessment_date), "dd/MM/yyyy")
-                                    : "-"}
-                                </div>
-                              ))}
-                              {Array.from({ length: 5 - sheet.length }).map((_, idx) => (
-                                <div key={`empty-${idx}`} className="p-2 bg-gray-50"></div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
+            <div className="mt-6 border-t-2 border-gray-300 p-4 bg-gray-50 space-y-3">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-gray-600" />
+                <span className="font-semibold text-gray-800">Saved Assessments (Grouped by 7)</span>
+              </div>
+              {previousSheets.map((group, groupIndex) => {
+                const start = groupIndex * 7 + 1;
+                const end = start + group.length - 1;
+                const isCollapsed = collapsedGroups.has(groupIndex);
+                return (
+                  <div key={groupIndex} className="bg-white border border-gray-300 rounded-md p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroupCollapse(groupIndex)}
+                        className="flex items-center gap-2 font-semibold text-sm text-left"
+                      >
+                        {isCollapsed ? (
+                          <ChevronDown className="w-4 h-4 text-gray-600" />
+                        ) : (
+                          <ChevronUp className="w-4 h-4 text-gray-600" />
+                        )}
+                        <span>Assessments {start} to {end}</span>
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => downloadGroupPdf(groupIndex, start, end)}
+                        >
+                          <Download className="w-3 h-3 mr-1" />
+                          Download PDF
+                        </Button>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    </div>
+                    {!isCollapsed && (
+                    <div className="rounded-md border border-gray-300 p-2">
+                      <div className="mb-2 flex items-center justify-between border-b border-gray-200 pb-2">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">Ongoing Wound Assessment (Appendix H)</p>
+                          <p className="text-xs text-gray-600">
+                            Assessments {start} to {end}
+                          </p>
+                        </div>
+                        {orgLogoUrl ? (
+                          <img
+                            src={orgLogoUrl}
+                            alt="Organization logo"
+                            className="h-10 w-auto object-contain"
+                            crossOrigin="anonymous"
+                          />
+                        ) : null}
+                      </div>
+                    <div className="w-full pb-2">
+                    <div id={`assessment-group-sheet-${groupIndex}`} className="w-full border border-gray-300 rounded-md">
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 bg-gray-100 border-b border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight font-semibold break-words">Field</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => {
+                          const assessmentNumber = start + colIdx;
+                          return (
+                            <div key={`head-${assessmentNumber}`} className="p-1 text-center text-[10px] leading-tight font-semibold break-words">
+                              Assessment {assessmentNumber}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight font-semibold bg-gray-50 break-words">Date of Assessment</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => {
+                          return (
+                            <div key={`date-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                              {renderGroupCell(group, colIdx, "assessment_date", "date")}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight font-semibold bg-gray-50 break-words">Wound Number</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => {
+                          return (
+                            <div key={`wound-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                              {renderGroupCell(group, colIdx, "wound_number")}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">Regular/on-going analgesia</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => (
+                          <div key={`analgesia-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                            {renderGroupCell(group, colIdx, "regular_ongoing_analgesia", "boolean")}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">Pre-dressing only</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => (
+                          <div key={`predressing-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                            {renderGroupCell(group, colIdx, "pre_dressing_only", "boolean")}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="p-1 text-[10px] leading-tight font-semibold bg-gray-100 border-b border-gray-300 break-words">Wound Dimensions</div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">Length (cm/mm)</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => (
+                          <div key={`length-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                            {renderGroupCell(group, colIdx, "length_cm")}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">Width (cm/mm)</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => (
+                          <div key={`width-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                            {renderGroupCell(group, colIdx, "width_cm")}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">Depth (cm/mm)</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => (
+                          <div key={`depth-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                            {renderGroupCell(group, colIdx, "depth_cm")}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">Tracking/undermining</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => (
+                          <div key={`tracking-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                            {renderGroupCell(group, colIdx, "tracking_undermining", "boolean")}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">Photograph taken date</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => (
+                          <div key={`photo-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                            {renderGroupCell(group, colIdx, "photograph_taken_date", "date")}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="p-2 text-xs font-semibold bg-gray-100 border-b border-gray-300">Tissue type on wound bed</div>
+                      {[
+                        ["Necrotic (Black)", "necrotic"],
+                        ["Sloughy (Yellow/Green)", "sloughy"],
+                        ["Granulating (Red)", "granulating"],
+                        ["Epithelialising (Pink)", "epithelialising"],
+                        ["Hypergranulating (Red)", "hypergranulating"],
+                        ["Haematoma", "haematoma"],
+                        ["Bone/tendon", "bone_tendon"],
+                      ].map(([label, key]) => (
+                        <div key={key} className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                          <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">{label}</div>
+                          {Array.from({ length: 7 }).map((_, colIdx) => (
+                            <div key={`${key}-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                              {renderGroupCell(group, colIdx, key, "boolean")}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+
+                      <div className="p-2 text-xs font-semibold bg-gray-100 border-b border-gray-300">Wound exudate levels/type</div>
+                      {[
+                        ["Low", "exudate_low"],
+                        ["Moderate", "exudate_moderate"],
+                        ["High", "exudate_high"],
+                        ["Serous (Straw)", "exudate_serous"],
+                        ["Haemoserous (Red/Straw)", "exudate_haemoserous"],
+                        ["Purulent (Green/Brown/Yellow)", "exudate_purulent"],
+                      ].map(([label, key]) => (
+                        <div key={key} className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                          <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">{label}</div>
+                          {Array.from({ length: 7 }).map((_, colIdx) => (
+                            <div key={`${key}-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                              {renderGroupCell(group, colIdx, key, "boolean")}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+
+                      <div className="p-2 text-xs font-semibold bg-gray-100 border-b border-gray-300">Peri-wound skin</div>
+                      {[
+                        ["Macerated (White)", "macerated"],
+                        ["Oedematous", "oedematous"],
+                        ["Erythema (Red)", "erythema"],
+                        ["Excoriated (Red)", "excoriated"],
+                        ["Fragile", "fragile"],
+                        ["Dry/scaly", "dry_scaly"],
+                        ["Healthy/intact", "healthy_intact"],
+                      ].map(([label, key]) => (
+                        <div key={key} className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                          <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">{label}</div>
+                          {Array.from({ length: 7 }).map((_, colIdx) => (
+                            <div key={`${key}-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                              {renderGroupCell(group, colIdx, key, "boolean")}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+
+                      <div className="p-2 text-xs font-semibold bg-gray-100 border-b border-gray-300">Signs of infection</div>
+                      {[
+                        ["Heat", "heat"],
+                        ["New slough/necrosis", "new_slough_necrosis"],
+                        ["Increasing pain", "increasing_pain"],
+                        ["Increasing exudate", "increasing_exudate"],
+                        ["Increasing odour", "increasing_odour"],
+                        ["Friable granulation tissue", "friable_granulation"],
+                      ].map(([label, key]) => (
+                        <div key={key} className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                          <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">{label}</div>
+                          {Array.from({ length: 7 }).map((_, colIdx) => (
+                            <div key={`${key}-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                              {renderGroupCell(group, colIdx, key, "boolean")}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+
+                      <div className="p-2 text-xs font-semibold bg-gray-100 border-b border-gray-300">Treatment objectives</div>
+                      {[
+                        ["Debridement", "debridement"],
+                        ["Absorption", "absorption"],
+                        ["Hydration", "hydration"],
+                        ["Protection", "protection"],
+                        ["Palliative / conservative", "palliative_conservative"],
+                      ].map(([label, key]) => (
+                        <div key={key} className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-b border-gray-300">
+                          <div className="p-1 text-[10px] leading-tight bg-gray-50 break-words">{label}</div>
+                          {Array.from({ length: 7 }).map((_, colIdx) => (
+                            <div key={`${key}-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                              {renderGroupCell(group, colIdx, key, "boolean")}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300">
+                        <div className="p-1 text-[10px] leading-tight font-semibold bg-gray-50 break-words">Assessor Initials</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => {
+                          return (
+                            <div key={`assessor-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                              {renderGroupCell(group, colIdx, "assessor_initials")}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-t border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight font-semibold bg-gray-50 break-words">Dressing renewed</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => (
+                          <div key={`dressing-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                            {renderGroupCell(group, colIdx, "dressing_renewed", "boolean")}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-t border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight font-semibold bg-gray-50 break-words">Re-assessment date</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => (
+                          <div key={`reassessment-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                            {renderGroupCell(group, colIdx, "reassessment_date", "date")}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-[90px_repeat(7,minmax(0,1fr))] divide-x divide-gray-300 border-t border-gray-300">
+                        <div className="p-1 text-[10px] leading-tight font-semibold bg-gray-50 break-words">Created at</div>
+                        {Array.from({ length: 7 }).map((_, colIdx) => {
+                          const item = group[colIdx];
+                          return (
+                            <div key={`created-${start + colIdx}`} className="p-1 text-center text-[10px] leading-tight break-words">
+                              {item?.created_at
+                                ? format(new Date(item.created_at), "dd/MM/yyyy HH:mm")
+                                : "-"}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    </div>
+                    </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -68,6 +68,7 @@ type ResidentData = {
   last_name: string;
   date_of_birth?: string;
   gender?: string;
+  room_number?: string;
 };
 
 type WoundFolder = {
@@ -807,6 +808,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 woundFolderId={folderId}
                 residentName={fullName}
                 residentDOB={resident?.date_of_birth}
+                orgLogoUrl={orgLogoUrl}
                 woundNumber={folder?.wound_number}
                 assessments={initialWoundAssessments}
                 isLoadingAssessments={isLoadingInitialAssessments}
@@ -838,7 +840,9 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 woundFolderId={folderId}
                 residentName={fullName}
                 residentDOB={resident?.date_of_birth}
+                roomNumber={resident?.room_number}
                 woundNumber={folder?.wound_number}
+                orgLogoUrl={orgLogoUrl}
                 evaluations={treatmentEvaluations}
                 onSaved={() => {
                   fetchTreatmentEvaluations();
@@ -851,6 +855,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 residentId={residentId}
                 woundFolderId={folderId}
                 residentName={fullName}
+                orgLogoUrl={orgLogoUrl}
                 woundNumber={folder?.wound_number}
                 evaluations={photographEvaluations}
                 isLoadingEvaluations={isLoadingPhotographs}

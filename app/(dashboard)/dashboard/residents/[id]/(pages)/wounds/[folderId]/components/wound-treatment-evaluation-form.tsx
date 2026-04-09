@@ -14,10 +14,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Save, Loader2, Plus } from "lucide-react";
+import { CalendarIcon, Save, Loader2, Plus, Download } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { generateWoundTreatmentEvaluationPDF } from "@/lib/wound-treatment-evaluation-pdf-utils";
 
 // --- Types ---
 type WoundTreatmentEvaluation = {
@@ -40,6 +41,7 @@ type WoundTreatmentEvaluationFormProps = {
   residentDOB?: string;
   roomNumber?: string;
   woundNumber?: number;
+  orgLogoUrl?: string;
   evaluations?: WoundTreatmentEvaluation[];
   onSaved?: () => void;
 };
@@ -51,6 +53,7 @@ export function WoundTreatmentEvaluationForm({
   residentDOB,
   roomNumber,
   woundNumber,
+  orgLogoUrl,
   onSaved,
 }: WoundTreatmentEvaluationFormProps) {
   const { profile } = useProfile();
@@ -185,6 +188,23 @@ export function WoundTreatmentEvaluationForm({
     }
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      await generateWoundTreatmentEvaluationPDF({
+        residentName,
+        residentDOB,
+        roomNumber,
+        woundNumber,
+        orgLogoUrl,
+        evaluations,
+      });
+      toast.success("PDF downloaded successfully");
+    } catch (error) {
+      console.error("Failed to generate wound treatment evaluation PDF:", error);
+      toast.error("Failed to generate PDF");
+    }
+  };
+
   return (
     <ScrollArea className="h-full">
       <div className="max-w-full mx-auto p-6">
@@ -239,6 +259,15 @@ export function WoundTreatmentEvaluationForm({
 
               {/* Action Buttons - Top Right */}
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadPDF}
+                  disabled={isLoading}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download PDF
+                </Button>
                 {!showNewEntry ? (
                   <Button onClick={() => setShowNewEntry(true)} size="sm">
                     <Plus className="w-4 h-4 mr-2" />
