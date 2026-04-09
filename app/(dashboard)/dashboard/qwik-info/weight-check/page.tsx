@@ -319,33 +319,33 @@ export default function WeightCheckPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
         <Card className="bg-blue-50 border-blue-100">
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardDescription className="text-xs text-blue-700 font-medium">Weekly Checks</CardDescription>
-            <CardTitle className="text-xl font-semibold text-blue-900">{weeklyData.length}</CardTitle>
+          <CardHeader className="pb-1 pt-3 px-3 space-y-0">
+            <CardDescription className="text-xs text-blue-700 font-medium mb-1">Weekly Checks</CardDescription>
+            <CardTitle className="text-lg font-semibold text-blue-900">{weeklyData.length}</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-3 pb-3 pt-0">
             <p className="text-xs text-red-600 font-medium">
               {weeklyData.filter(d => d.status === 'overdue').length} overdue
             </p>
           </CardContent>
         </Card>
         <Card className="bg-purple-50 border-purple-100">
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardDescription className="text-xs text-purple-700 font-medium">Monthly Checks</CardDescription>
-            <CardTitle className="text-xl font-semibold text-purple-900">{monthlyData.length}</CardTitle>
+          <CardHeader className="pb-1 pt-3 px-3 space-y-0">
+            <CardDescription className="text-xs text-purple-700 font-medium mb-1">Monthly Checks</CardDescription>
+            <CardTitle className="text-lg font-semibold text-purple-900">{monthlyData.length}</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-3 pb-3 pt-0">
             <p className="text-xs text-red-600 font-medium">
               {monthlyData.filter(d => d.status === 'overdue').length} overdue
             </p>
           </CardContent>
         </Card>
         <Card className="bg-green-50 border-green-100">
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardDescription className="text-xs text-green-700 font-medium">As Needed</CardDescription>
-            <CardTitle className="text-xl font-semibold text-green-900">{asNeededData.length}</CardTitle>
+          <CardHeader className="pb-1 pt-3 px-3 space-y-0">
+            <CardDescription className="text-xs text-green-700 font-medium mb-1">As Needed</CardDescription>
+            <CardTitle className="text-lg font-semibold text-green-900">{asNeededData.length}</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-3 pb-3 pt-0">
             <p className="text-xs text-green-700">
               Monitored as required
             </p>
