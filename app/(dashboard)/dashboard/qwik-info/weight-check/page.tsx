@@ -191,7 +191,7 @@ export default function WeightCheckPage() {
                       Resident Name {sortKey === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
                     </TableHead>
                     <TableHead>Room</TableHead>
-                    <TableHead>Last Weight (kg)</TableHead>
+                    <TableHead>Current Weight (kg)</TableHead>
                     <TableHead>Previous Weight (kg)</TableHead>
                     <TableHead
                       className="cursor-pointer hover:bg-gray-100"
