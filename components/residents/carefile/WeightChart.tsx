@@ -28,10 +28,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, TrendingUp, TrendingDown, Minus, Scale, Loader2 } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Minus, Scale, Loader2, Settings, CheckCircle2, Circle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 interface WeightRecord {
   id: string;
@@ -57,6 +65,8 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"weekly" | "monthly">("monthly");
+  const [checkFrequency, setCheckFrequency] = useState<"weekly" | "monthly" | "as-needed">("monthly");
+  const [isUpdatingFrequency, setIsUpdatingFrequency] = useState(false);
 
   // Form state
   const [weight, setWeight] = useState("");
@@ -64,6 +74,45 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
   const [measurementDate, setMeasurementDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  // Fetch weight check frequency setting
+  const fetchCheckFrequency = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("residents")
+        .select("weight_check_frequency")
+        .eq("id", residentId)
+        .single();
+
+      if (error) throw error;
+      if (data?.weight_check_frequency) {
+        setCheckFrequency(data.weight_check_frequency as "weekly" | "monthly" | "as-needed");
+      }
+    } catch (error) {
+      console.error("Error fetching check frequency:", error);
+    }
+  };
+
+  // Update weight check frequency
+  const updateCheckFrequency = async (frequency: "weekly" | "monthly" | "as-needed") => {
+    setIsUpdatingFrequency(true);
+    try {
+      const { error } = await supabase
+        .from("residents")
+        .update({ weight_check_frequency: frequency })
+        .eq("id", residentId);
+
+      if (error) throw error;
+
+      setCheckFrequency(frequency);
+      toast.success(`Weight check frequency updated to ${frequency}`);
+    } catch (error) {
+      console.error("Error updating check frequency:", error);
+      toast.error("Failed to update check frequency");
+    } finally {
+      setIsUpdatingFrequency(false);
+    }
+  };
 
   // Fetch weight records
   const fetchWeightRecords = async () => {
@@ -87,6 +136,7 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
 
   useEffect(() => {
     fetchWeightRecords();
+    fetchCheckFrequency();
   }, [residentId]);
 
   // Filter records based on view mode
@@ -179,10 +229,70 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
   return (
     <div className="space-y-4">
       {/* Header with toggle and record button */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Scale className="w-4 h-4 text-gray-500" />
-          <h3 className="text-sm font-medium text-gray-900">Weight Tracking</h3>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Scale className="w-4 h-4 text-gray-500" />
+            <h3 className="text-sm font-medium text-gray-900">Weight Tracking</h3>
+          </div>
+
+          {/* Check Frequency Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1.5 border-gray-200 hover:bg-gray-50"
+                disabled={isUpdatingFrequency}
+              >
+                <Settings className="w-3 h-3" />
+                Check: {checkFrequency === "as-needed" ? "As Needed" : checkFrequency.charAt(0).toUpperCase() + checkFrequency.slice(1)}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuLabel className="text-xs">Weight Check Frequency</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => updateCheckFrequency("weekly")}
+                className="text-xs cursor-pointer"
+              >
+                <div className="flex items-center gap-2 w-full">
+                  {checkFrequency === "weekly" ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                  ) : (
+                    <Circle className="w-3.5 h-3.5 text-gray-300" />
+                  )}
+                  <span>Weekly</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => updateCheckFrequency("monthly")}
+                className="text-xs cursor-pointer"
+              >
+                <div className="flex items-center gap-2 w-full">
+                  {checkFrequency === "monthly" ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                  ) : (
+                    <Circle className="w-3.5 h-3.5 text-gray-300" />
+                  )}
+                  <span>Monthly</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => updateCheckFrequency("as-needed")}
+                className="text-xs cursor-pointer"
+              >
+                <div className="flex items-center gap-2 w-full">
+                  {checkFrequency === "as-needed" ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                  ) : (
+                    <Circle className="w-3.5 h-3.5 text-gray-300" />
+                  )}
+                  <span>As Needed</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="flex items-center gap-2">
