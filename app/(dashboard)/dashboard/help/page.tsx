@@ -267,6 +267,12 @@ export default function HelpAndSupportPage() {
                   <p className="text-xs font-medium text-gray-900 mb-0.5">
                     Need immediate assistance?
                   </p>
+                  <a
+                    href="tel:+447741068115"
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors block mb-1"
+                  >
+                    +44 7741 068115
+                  </a>
                   <p className="text-xs text-gray-600">
                     Available Monday to Friday, 9:00 AM - 5:00 PM
                   </p>
