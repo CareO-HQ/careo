@@ -69,6 +69,9 @@ export const generateContinencePDF = async ({
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
   const margin = 14;
+  const docWithAutoTable = doc as jsPDF & {
+    lastAutoTable?: { finalY?: number };
+  };
 
   const loadImage = (src: string): Promise<HTMLImageElement> =>
     new Promise((resolve, reject) => {
@@ -172,7 +175,7 @@ export const generateContinencePDF = async ({
       : [["--", "--", "--", "No continence entries found for this period.", "--", "--"]];
 
   autoTable(doc, {
-    startY: (doc as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5,
+    startY: (docWithAutoTable.lastAutoTable?.finalY ?? 25) + 5,
     head: [["Date", "Time", "Type", "Details", "Comments", "Staff Name"]],
     body: tableBody,
     theme: "grid",

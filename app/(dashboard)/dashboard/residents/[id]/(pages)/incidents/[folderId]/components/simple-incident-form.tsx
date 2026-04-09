@@ -168,7 +168,7 @@ const IncidentFormSchema = z.object({
   dateCompleted: z.date(),
 });
 
-type IncidentFormData = z.infer<typeof IncidentFormSchema>;
+type IncidentFormData = z.input<typeof IncidentFormSchema>;
 
 // --- Options ---
 const INCIDENT_TYPE_OPTIONS = [

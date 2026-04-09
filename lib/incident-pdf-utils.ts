@@ -210,6 +210,7 @@ export const generateIncidentReportPDF = async ({
     if (!value) return "—";
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
+  const row = (label: string, value: string): [string, string] => [label, value];
 
   const addSectionTable = (
     title: string,
@@ -302,13 +303,16 @@ export const generateIncidentReportPDF = async ({
   ], "Yes/No");
 
   addSectionTable("5-6. Fall-Specific Questions", [
-    ["Fall Incident Selected", yesNo(hasFall)],
+    row("Fall Incident Selected", yesNo(hasFall)),
     ...(hasFall
       ? [
-          ["On Anticoagulant Medication?", normalizeLabelValue(i.anticoagulant_medication)],
-          ["Falls Pathway", normalizeLabelValue(i.fall_pathway)],
+          row(
+            "On Anticoagulant Medication?",
+            normalizeLabelValue(i.anticoagulant_medication)
+          ),
+          row("Falls Pathway", normalizeLabelValue(i.fall_pathway)),
         ]
-      : []),
+      : ([] as Array<[string, string]>)),
   ], "Yes/No");
 
   addSectionTable("7. Detailed Description", [
@@ -335,15 +339,15 @@ export const generateIncidentReportPDF = async ({
   ]);
 
   addSectionTable("12. Witnesses", [
-    ["Witnesses Present", yesNo(hasWitnesses)],
+    row("Witnesses Present", yesNo(hasWitnesses)),
     ...(hasWitnesses
       ? [
-          ["Witness 1 Name", renderValue(i.witness1_name)],
-          ["Witness 1 Contact", renderValue(i.witness1_contact)],
-          ["Witness 2 Name", renderValue(i.witness2_name)],
-          ["Witness 2 Contact", renderValue(i.witness2_contact)],
+          row("Witness 1 Name", renderValue(i.witness1_name)),
+          row("Witness 1 Contact", renderValue(i.witness1_contact)),
+          row("Witness 2 Name", renderValue(i.witness2_name)),
+          row("Witness 2 Contact", renderValue(i.witness2_contact)),
         ]
-      : []),
+      : ([] as Array<[string, string]>)),
   ], "Yes/No");
 
   addSectionTable("13. Further Actions by Nurse", [
@@ -359,43 +363,49 @@ export const generateIncidentReportPDF = async ({
   ]);
 
   addSectionTable("16-17. Notifications", [
-    ["Home Manager Informed", yesNo(isHomeManagerInformed)],
+    row("Home Manager Informed", yesNo(isHomeManagerInformed)),
     ...(isHomeManagerInformed
       ? [
-          ["Home Manager Informed By", renderValue(i.home_manager_informed_by)],
-          ["Home Manager Date & Time", fmtDateTime(i.home_manager_informed_date_time)],
+          row("Home Manager Informed By", renderValue(i.home_manager_informed_by)),
+          row(
+            "Home Manager Date & Time",
+            fmtDateTime(i.home_manager_informed_date_time)
+          ),
         ]
-      : []),
-    ["Out of Hours On-Call Contacted", yesNo(isOnCallContacted)],
+      : ([] as Array<[string, string]>)),
+    row("Out of Hours On-Call Contacted", yesNo(isOnCallContacted)),
     ...(isOnCallContacted
       ? [
-          ["On-Call Manager", renderValue(i.on_call_manager_name)],
-          ["On-Call Contacted Date & Time", fmtDateTime(i.on_call_contacted_date_time)],
+          row("On-Call Manager", renderValue(i.on_call_manager_name)),
+          row(
+            "On-Call Contacted Date & Time",
+            fmtDateTime(i.on_call_contacted_date_time)
+          ),
         ]
-      : []),
+      : ([] as Array<[string, string]>)),
   ], "Yes/No");
 
   addSectionTable("18. Next of Kin Informed", [
-    ["Next of Kin Informed", yesNo(isNokInformed)],
+    row("Next of Kin Informed", yesNo(isNokInformed)),
     ...(isNokInformed
       ? [
-          ["NOK Name", renderValue(i.nok_informed_who)],
-          ["Informed By", renderValue(i.nok_informed_by)],
-          ["Date & Time", fmtDateTime(i.nok_informed_date_time)],
+          row("NOK Name", renderValue(i.nok_informed_who)),
+          row("Informed By", renderValue(i.nok_informed_by)),
+          row("Date & Time", fmtDateTime(i.nok_informed_date_time)),
         ]
-      : []),
+      : ([] as Array<[string, string]>)),
   ], "Yes/No");
 
   addSectionTable("19. Trust Incident Form Recipients", [
-    ["Trust Recipients Informed", yesNo(hasTrustRecipients)],
+    row("Trust Recipients Informed", yesNo(hasTrustRecipients)),
     ...(hasTrustRecipients
       ? [
-          ["Care Manager", renderValue(i.trust_care_manager_name)],
-          ["Care Manager Email", renderValue(i.trust_care_manager_email)],
-          ["Key Worker", renderValue(i.trust_key_worker_name)],
-          ["Key Worker Email", renderValue(i.trust_key_worker_email)],
+          row("Care Manager", renderValue(i.trust_care_manager_name)),
+          row("Care Manager Email", renderValue(i.trust_care_manager_email)),
+          row("Key Worker", renderValue(i.trust_key_worker_name)),
+          row("Key Worker Email", renderValue(i.trust_key_worker_email)),
         ]
-      : []),
+      : ([] as Array<[string, string]>)),
   ], "Yes/No");
 
   addSectionTable("20. Completed By", [
