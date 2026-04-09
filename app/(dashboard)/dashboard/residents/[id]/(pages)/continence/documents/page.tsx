@@ -43,21 +43,25 @@ import {
   FileText,
   Filter,
   Download,
-  Eye,
   ChevronLeft,
   ChevronRight,
   Droplet,
   User,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useProfile } from "@/hooks/use-profile";
+import { generateContinencePDF, type ContinencePdfEntry } from "@/lib/continence-pdf-utils";
 
 type ContinenceDocumentsPageProps = {
   params: Promise<{ id: string }>;
 };
 
+type ContinenceSubtype = "bowel" | "urine";
+
 export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+  const { profile } = useProfile();
 
   // State for filters and search
   const [searchQuery, setSearchQuery] = useState("");
@@ -69,16 +73,19 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
 
   // Dialog state
   const [selectedReport, setSelectedReport] = useState<any>(null);
+  const [selectedSubtype, setSelectedSubtype] = useState<ContinenceSubtype | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isMonthlyReportDialogOpen, setIsMonthlyReportDialogOpen] = useState(false);
-  const [monthlyReportMonth, setMonthlyReportMonth] = useState("");
-  const [monthlyReportYear, setMonthlyReportYear] = useState("");
+  const [fromMonth, setFromMonth] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
+  const [fromYear, setFromYear] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
+  const [toMonth, setToMonth] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
+  const [toYear, setToYear] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   // Data state
   const [resident, setResident] = useState<any>(null);
   const [paginatedData, setPaginatedData] = useState<{
-    dates: Array<{ date: string; hasReport: boolean }>;
+    dates: Array<{ date: string; hasReport: boolean; bowelCount: number; urineCount: number }>;
     totalCount: number;
     totalPages: number;
   } | null>(null);
@@ -111,7 +118,7 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
     try {
       let query = supabase
         .from("continence_entries")
-        .select("date, created_at", { count: "exact" })
+        .select("date, entry_type, created_at", { count: "exact" })
         .eq("resident_id", id);
 
       // Apply date filters
@@ -141,16 +148,24 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
         return;
       }
 
-      // Get unique dates
-      const uniqueDates = new Set<string>();
+      // Get unique dates and per-type counts
+      const dateCounts: Record<string, { bowelCount: number; urineCount: number }> = {};
       entries?.forEach((entry: any) => {
-        uniqueDates.add(entry.date);
+        if (!dateCounts[entry.date]) {
+          dateCounts[entry.date] = { bowelCount: 0, urineCount: 0 };
+        }
+        if (entry.entry_type === "bowel") {
+          dateCounts[entry.date].bowelCount += 1;
+        } else if (entry.entry_type === "urine") {
+          dateCounts[entry.date].urineCount += 1;
+        }
       });
 
-      // Convert to array and sort
-      const datesArray = Array.from(uniqueDates).map(date => ({
+      const datesArray = Object.entries(dateCounts).map(([date, counts]) => ({
         date,
-        hasReport: true
+        hasReport: true,
+        bowelCount: counts.bowelCount,
+        urineCount: counts.urineCount,
       }));
 
       // Sort dates
@@ -268,7 +283,9 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
       date: dateObj.date,
       formattedDate: formatDateForDisplay(dateObj.date),
       _id: dateObj.date,
-      hasReport: dateObj.hasReport
+      hasReport: dateObj.hasReport,
+      bowelCount: dateObj.bowelCount,
+      urineCount: dateObj.urineCount
     }));
   }, [paginatedData]);
 
@@ -296,9 +313,55 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
   const paginatedReports = filteredReports;
 
   // Handlers
-  const handleViewReport = (report: any) => {
+  const handleViewReport = (report: any, subtype: ContinenceSubtype) => {
     setSelectedReport(report);
+    setSelectedSubtype(subtype);
     setIsViewDialogOpen(true);
+  };
+
+  const handleDownloadReport = async (report: any, subtype: ContinenceSubtype) => {
+    try {
+      const { data: entries, error } = await supabase
+        .from("continence_entries")
+        .select(`
+          *,
+          recorded_by_user:recorded_by (
+            id,
+            name,
+            email
+          )
+        `)
+        .eq("resident_id", id)
+        .eq("date", report.date)
+        .eq("entry_type", subtype)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching continence report for download:", error);
+        toast.error("Failed to load report data");
+        return;
+      }
+
+      if (!entries || entries.length === 0) {
+        toast.error(`No ${subtype} entries found for this date`);
+        return;
+      }
+
+      const subtypeLabel = subtype === "bowel" ? "Bowel" : "Urine";
+      const reportDate = formatInTimeZone(new Date(`${report.date}T00:00:00`), UK_TIMEZONE, "EEEE, MMMM d, yyyy");
+      await generateContinencePDF({
+        resident,
+        entries: entries as ContinencePdfEntry[],
+        title: `${subtypeLabel} Continence Record`,
+        periodLabel: `Day: ${reportDate}`,
+        orgLogoUrl: profile?.organization_logo_url || undefined,
+        careHomeName: profile?.care_home_name || resident?.care_home_name || undefined,
+      });
+      toast.success(`${subtypeLabel} report downloaded successfully`);
+    } catch (error) {
+      console.error("Error generating continence download:", error);
+      toast.error("Failed to generate report");
+    }
   };
 
   const handleExport = () => {
@@ -328,21 +391,26 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
   };
 
   const handleGenerateMonthlyReport = async () => {
-    if (!monthlyReportMonth || !monthlyReportYear) {
-      toast.error("Please select both month and year");
+    if (!fromMonth || !fromYear || !toMonth || !toYear) {
+      toast.error("Please select both From and To month/year");
       return;
     }
 
     setIsGeneratingReport(true);
     try {
-      const year = parseInt(monthlyReportYear);
-      const month = parseInt(monthlyReportMonth);
+      const startDate = `${fromYear}-${fromMonth.padStart(2, "0")}-01`;
+      const lastDay = new Date(parseInt(toYear), parseInt(toMonth), 0).getDate();
+      const endDate = `${toYear}-${toMonth.padStart(2, "0")}-${lastDay}`;
 
-      // Calculate start and end dates for the month
-      const startDate = new Date(year, month - 1, 1);
-      const endDate = new Date(year, month, 0, 23, 59, 59);
+      if (new Date(startDate) > new Date(endDate)) {
+        toast.error("From month cannot be after To month");
+        return;
+      }
 
-      // Fetch all entries for the selected month
+      const startDateObj = new Date(`${startDate}T00:00:00`);
+      const endDateObj = new Date(`${endDate}T23:59:59`);
+
+      // Fetch all entries for selected month range
       const { data: entries, error } = await supabase
         .from("continence_entries")
         .select(`
@@ -354,8 +422,8 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
           )
         `)
         .eq("resident_id", id)
-        .gte("created_at", startDate.toISOString())
-        .lte("created_at", endDate.toISOString())
+        .gte("created_at", startDateObj.toISOString())
+        .lte("created_at", endDateObj.toISOString())
         .order("date", { ascending: true })
         .order("time", { ascending: true });
 
@@ -366,335 +434,27 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
       }
 
       if (!entries || entries.length === 0) {
-        toast.error("No records found for the selected month");
+        toast.error("No records found for the selected period");
         return;
       }
 
-      // Generate PDF in bank statement style
-      const monthName = new Date(year, month - 1).toLocaleString('en-GB', { month: 'long' });
+      const fromLabel = new Date(parseInt(fromYear), parseInt(fromMonth) - 1, 1).toLocaleString("en-GB", { month: "long", year: "numeric" });
+      const toLabel = new Date(parseInt(toYear), parseInt(toMonth) - 1, 1).toLocaleString("en-GB", { month: "long", year: "numeric" });
+      await generateContinencePDF({
+        resident,
+        entries: entries as ContinencePdfEntry[],
+        title: "Continence Record Statement",
+        periodLabel: `Period: ${fromLabel} to ${toLabel}`,
+        orgLogoUrl: profile?.organization_logo_url || undefined,
+        careHomeName: profile?.care_home_name || resident?.care_home_name || undefined,
+      });
 
-      // Bristol Stool Chart Types
-      const stoolTypes = [
-        { id: "type_1", label: "Type 1", description: "Separate hard lumps" },
-        { id: "type_2", label: "Type 2", description: "Lumpy and sausage like" },
-        { id: "type_3", label: "Type 3", description: "A sausage shape with cracks in the surface" },
-        { id: "type_4", label: "Type 4", description: "Like a smooth, soft sausage or snake" },
-        { id: "type_5", label: "Type 5", description: "Soft blobs with clear-cut edges" },
-        { id: "type_6", label: "Type 6", description: "Mushy consistency with ragged edges" },
-        { id: "type_7", label: "Type 7", description: "Liquid consistency with no solid pieces" },
-      ];
-
-      const bowelCount = entries.filter((e: any) => e.entry_type === "bowel").length;
-      const urineCount = entries.filter((e: any) => e.entry_type === "urine").length;
-
-      // Generate HTML for PDF
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Continence Record Statement</title>
-          <style>
-            @page {
-              size: A4;
-              margin: 20mm;
-            }
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-            body {
-              font-family: Arial, sans-serif;
-              font-size: 11pt;
-              line-height: 1.4;
-              color: #333;
-            }
-            .header {
-              text-align: center;
-              border-bottom: 3px solid #0d9488;
-              padding-bottom: 15px;
-              margin-bottom: 20px;
-            }
-            .header h1 {
-              font-size: 20pt;
-              color: #0d9488;
-              margin-bottom: 10px;
-            }
-            .info-section {
-              background: #f0fdfa;
-              border: 1px solid #0d9488;
-              border-radius: 5px;
-              padding: 15px;
-              margin-bottom: 20px;
-            }
-            .info-row {
-              display: flex;
-              justify-content: space-between;
-              padding: 5px 0;
-              border-bottom: 1px solid #e0e0e0;
-            }
-            .info-row:last-child {
-              border-bottom: none;
-            }
-            .info-label {
-              font-weight: bold;
-              color: #0d9488;
-            }
-            .info-value {
-              color: #555;
-            }
-            .entries-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 20px;
-            }
-            .entries-table th {
-              background: #0d9488;
-              color: white;
-              padding: 10px 8px;
-              text-align: left;
-              font-weight: bold;
-              font-size: 10pt;
-              border: 1px solid #0a7268;
-            }
-            .entries-table td {
-              padding: 8px;
-              border: 1px solid #ddd;
-              font-size: 9pt;
-              vertical-align: top;
-            }
-            .entries-table tr:nth-child(even) {
-              background: #f9f9f9;
-            }
-            .bowel-row {
-              background: #fef3c7 !important;
-            }
-            .urine-row {
-              background: #dbeafe !important;
-            }
-            .summary-box {
-              background: #f0fdfa;
-              border: 2px solid #0d9488;
-              border-radius: 5px;
-              padding: 15px;
-              margin-top: 20px;
-            }
-            .summary-title {
-              font-size: 14pt;
-              font-weight: bold;
-              color: #0d9488;
-              margin-bottom: 10px;
-              text-align: center;
-            }
-            .summary-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr 1fr;
-              gap: 10px;
-              text-align: center;
-            }
-            .summary-item {
-              padding: 10px;
-              background: white;
-              border-radius: 3px;
-            }
-            .summary-number {
-              font-size: 24pt;
-              font-weight: bold;
-              color: #0d9488;
-            }
-            .summary-label {
-              font-size: 9pt;
-              color: #666;
-              margin-top: 5px;
-            }
-            .footer {
-              margin-top: 30px;
-              text-align: center;
-              font-size: 8pt;
-              color: #999;
-              border-top: 1px solid #ddd;
-              padding-top: 10px;
-            }
-            @media print {
-              .no-print {
-                display: none;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>CONTINENCE RECORD STATEMENT</h1>
-            <p style="color: #666; font-size: 10pt;">Monthly Report</p>
-          </div>
-
-          <div class="info-section">
-            <div class="info-row">
-              <span class="info-label">Resident Name:</span>
-              <span class="info-value">${fullName}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Statement Period:</span>
-              <span class="info-value">${monthName} ${year}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Report Generated:</span>
-              <span class="info-value">${formatInTimeZone(new Date(), UK_TIMEZONE, "dd/MM/yyyy HH:mm")}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Total Entries:</span>
-              <span class="info-value">${entries.length}</span>
-            </div>
-          </div>
-
-          <table class="entries-table">
-            <thead>
-              <tr>
-                <th style="width: 12%;">Date</th>
-                <th style="width: 8%;">Time</th>
-                <th style="width: 10%;">Type</th>
-                <th style="width: 50%;">Details</th>
-                <th style="width: 20%;">Recorded By</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(() => {
-                // Group entries by date
-                const entriesByDate = entries.reduce((acc: Record<string, any[]>, entry: any) => {
-                  const dateKey = entry.date;
-                  if (!acc[dateKey]) {
-                    acc[dateKey] = [];
-                  }
-                  acc[dateKey].push(entry);
-                  return acc;
-                }, {});
-
-                // Sort dates
-                const sortedDates = Object.keys(entriesByDate).sort();
-
-                let tableRows = '';
-
-                sortedDates.forEach((dateKey, dateIndex) => {
-                  const dayEntries = entriesByDate[dateKey];
-
-                  // Sort entries: bowel first, then urine
-                  const bowelEntries = dayEntries.filter((e: any) => e.entry_type === "bowel");
-                  const urineEntries = dayEntries.filter((e: any) => e.entry_type === "urine");
-                  const sortedDayEntries = [...bowelEntries, ...urineEntries];
-
-                  const formattedDate = formatInTimeZone(new Date(dateKey + "T00:00:00"), UK_TIMEZONE, "dd/MM/yyyy");
-
-                  sortedDayEntries.forEach((entry: any, entryIndex: number) => {
-                    const time = entry.time || "";
-                    const type = entry.entry_type === "bowel" ? "Bowel" : "Urine";
-                    const rowClass = entry.entry_type === "bowel" ? "bowel-row" : "urine-row";
-
-                    let details = "";
-                    if (entry.entry_type === "bowel") {
-                      const stoolType = stoolTypes.find(t => t.id === entry.stool_type);
-                      const parts: string[] = [];
-                      if (stoolType) parts.push(`<strong>${stoolType.label}:</strong> ${stoolType.description}`);
-                      if (entry.bowel_size) parts.push(`<strong>Size:</strong> ${entry.bowel_size.toUpperCase()}`);
-                      if (entry.notes) parts.push(`<strong>Notes:</strong> ${entry.notes}`);
-                      details = parts.join("<br>");
-                    } else {
-                      const parts: string[] = [];
-                      if (entry.urine_amount) parts.push(`<strong>Amount:</strong> ${entry.urine_amount}`);
-                      if (entry.urine_color) {
-                        const colorDisplay = entry.urine_color.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-                        parts.push(`<strong>Color:</strong> ${colorDisplay}`);
-                      }
-                      if (entry.continence_aid) {
-                        const aidDisplay = entry.continence_aid.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-                        parts.push(`<strong>Aid:</strong> ${aidDisplay}`);
-                      }
-                      if (entry.notes) parts.push(`<strong>Notes:</strong> ${entry.notes}`);
-                      details = parts.join("<br>");
-                    }
-
-                    const recordedBy = entry.recorded_by_user?.name || entry.recorded_by_user?.email || "Staff";
-
-                    // Only show date in the first row for each day
-                    const dateCell = entryIndex === 0
-                      ? `<td rowspan="${sortedDayEntries.length}" style="vertical-align: middle; font-weight: bold; background: #f0fdfa;">${formattedDate}</td>`
-                      : '';
-
-                    tableRows += `
-                      <tr class="${rowClass}">
-                        ${dateCell}
-                        <td>${time}</td>
-                        <td><strong>${type}</strong></td>
-                        <td>${details}</td>
-                        <td>${recordedBy}</td>
-                      </tr>
-                    `;
-                  });
-                });
-
-                return tableRows;
-              })()}
-            </tbody>
-          </table>
-
-          <div class="summary-box">
-            <div class="summary-title">SUMMARY</div>
-            <div class="summary-grid">
-              <div class="summary-item">
-                <div class="summary-number">${bowelCount}</div>
-                <div class="summary-label">Bowel Entries</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-number">${urineCount}</div>
-                <div class="summary-label">Urine Entries</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-number">${entries.length}</div>
-                <div class="summary-label">Total Entries</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="footer">
-            <p>This is an official continence care record generated by CareO Home Management Software</p>
-            <p>Generated on ${formatInTimeZone(new Date(), UK_TIMEZONE, "dd MMMM yyyy 'at' HH:mm")}</p>
-          </div>
-
-          <button onclick="window.print()" class="no-print" style="
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #0d9488;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 5px;
-            font-size: 14px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-          ">Print / Save as PDF</button>
-        </body>
-        </html>
-      `;
-
-      // Open in new window for printing
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        toast.error('Please allow popups to download the PDF');
-        return;
-      }
-
-      printWindow.document.write(htmlContent);
-      printWindow.document.close();
-
-      // Auto-trigger print dialog after a short delay
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
-
-      toast.success(`Monthly statement for ${monthName} ${year} opened for printing`);
+      toast.success(`Statement for ${fromLabel} to ${toLabel} downloaded successfully`);
       setIsMonthlyReportDialogOpen(false);
-      setMonthlyReportMonth("");
-      setMonthlyReportYear("");
+      setFromMonth(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
+      setFromYear(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
+      setToMonth(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
+      setToYear(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
     } catch (error) {
       console.error("Error generating monthly report:", error);
       toast.error("Failed to generate monthly report");
@@ -847,7 +607,7 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
               onClick={() => setIsMonthlyReportDialogOpen(true)}
             >
               <Download className="w-4 h-4 mr-2" />
-              Monthly Report
+              Month-to-Month PDF
             </Button>
           </CardTitle>
         </CardHeader>
@@ -949,9 +709,8 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
-                      <TableHead>Report Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>Bowel</TableHead>
+                      <TableHead>Urine</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -964,39 +723,65 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
                           </div>
                         </TableCell>
                         <TableCell>
-                          {report.hasReport ? (
-                            <div className="flex items-center space-x-2">
-                              <Droplet className="w-4 h-4 text-teal-600" />
-                              <span>Daily Continence Report</span>
+                          {report.bowelCount > 0 ? (
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2 w-28">
+                                <User className="w-4 h-4 text-amber-600" />
+                                <span className="text-sm font-medium">{report.bowelCount} entries</span>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewReport(report, "bowel")}
+                                  className="h-8"
+                                >
+                                  View
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDownloadReport(report, "bowel")}
+                                  className="h-8"
+                                >
+                                  <Download className="w-4 h-4 mr-2" />
+                                  Download
+                                </Button>
+                              </div>
                             </div>
                           ) : (
-                            <span className="text-sm text-gray-400">No report</span>
+                            <span className="text-muted-foreground text-sm">-</span>
                           )}
                         </TableCell>
                         <TableCell>
-                          {report.hasReport ? (
-                            <Badge className="bg-green-100 text-green-800 border-0">
-                              Archived
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-gray-100 text-gray-500 border-0">
-                              Not Recorded
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {report.hasReport ? (
-                            <div className="flex items-center justify-end space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleViewReport(report)}
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
+                          {report.urineCount > 0 ? (
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2 w-28">
+                                <Droplet className="w-4 h-4 text-blue-600" />
+                                <span className="text-sm font-medium">{report.urineCount} entries</span>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewReport(report, "urine")}
+                                  className="h-8"
+                                >
+                                  View
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDownloadReport(report, "urine")}
+                                  className="h-8"
+                                >
+                                  <Download className="w-4 h-4 mr-2" />
+                                  Download
+                                </Button>
+                              </div>
                             </div>
                           ) : (
-                            <span className="text-sm text-gray-400">—</span>
+                            <span className="text-muted-foreground text-sm">-</span>
                           )}
                         </TableCell>
                       </TableRow>
@@ -1064,10 +849,15 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
       </Card>
 
       {/* View Report Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+      <Dialog open={isViewDialogOpen} onOpenChange={(open) => {
+        setIsViewDialogOpen(open);
+        if (!open) setSelectedSubtype(null);
+      }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Continence Report - {selectedReport && formatDateForDisplay(selectedReport.date)}</DialogTitle>
+            <DialogTitle>
+              {selectedSubtype === "bowel" ? "Bowel" : selectedSubtype === "urine" ? "Urine" : "Continence"} Report - {selectedReport && formatDateForDisplay(selectedReport.date)}
+            </DialogTitle>
             <DialogDescription>
               Detailed view of all entries for this date
             </DialogDescription>
@@ -1081,23 +871,39 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
             ) : selectedReportData?.entries && selectedReportData.entries.length > 0 ? (
               <>
                 {/* Summary Stats */}
-                <div className="grid grid-cols-3 gap-3 pb-4 border-b">
+                <div className={`grid ${selectedSubtype ? "grid-cols-1" : "grid-cols-3"} gap-3 pb-4 border-b`}>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-teal-600">{selectedReportData.totalEntries}</p>
-                    <p className="text-xs text-muted-foreground">Total Entries</p>
+                    <p className="text-2xl font-bold text-teal-600">
+                      {selectedSubtype === "bowel"
+                        ? selectedReportData.bowelCount
+                        : selectedSubtype === "urine"
+                          ? selectedReportData.urineCount
+                          : selectedReportData.totalEntries}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedSubtype === "bowel"
+                        ? "Bowel Entries"
+                        : selectedSubtype === "urine"
+                          ? "Urine Entries"
+                          : "Total Entries"}
+                    </p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-amber-600">{selectedReportData.bowelCount}</p>
-                    <p className="text-xs text-muted-foreground">Bowel</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-blue-600">{selectedReportData.urineCount}</p>
-                    <p className="text-xs text-muted-foreground">Urine</p>
-                  </div>
+                  {!selectedSubtype && (
+                    <>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-amber-600">{selectedReportData.bowelCount}</p>
+                        <p className="text-xs text-muted-foreground">Bowel</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-blue-600">{selectedReportData.urineCount}</p>
+                        <p className="text-xs text-muted-foreground">Urine</p>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Bowel Entries */}
-                {selectedReportData.bowelEntries.length > 0 && (
+                {(selectedSubtype === null || selectedSubtype === "bowel") && selectedReportData.bowelEntries.length > 0 && (
                   <div className="space-y-2">
                     <h3 className="font-semibold text-sm flex items-center gap-2">
                       <User className="w-4 h-4 text-amber-600" />
@@ -1147,7 +953,7 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
                 )}
 
                 {/* Urine Entries */}
-                {selectedReportData.urineEntries.length > 0 && (
+                {(selectedSubtype === null || selectedSubtype === "urine") && selectedReportData.urineEntries.length > 0 && (
                   <div className="space-y-2">
                     <h3 className="font-semibold text-sm flex items-center gap-2">
                       <Droplet className="w-4 h-4 text-blue-600" />
@@ -1219,15 +1025,15 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
       <Dialog open={isMonthlyReportDialogOpen} onOpenChange={setIsMonthlyReportDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Generate Monthly Statement</DialogTitle>
+            <DialogTitle>Generate Month-to-Month Statement</DialogTitle>
             <DialogDescription>
-              Select a month to download a detailed continence report (similar to a bank statement)
+              Select a from and to month to download a detailed continence report (similar to a bank statement)
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Month</label>
-              <Select value={monthlyReportMonth} onValueChange={setMonthlyReportMonth}>
+              <label className="text-sm font-medium">From Month</label>
+              <Select value={fromMonth} onValueChange={setFromMonth}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select month" />
                 </SelectTrigger>
@@ -1249,8 +1055,45 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Year</label>
-              <Select value={monthlyReportYear} onValueChange={setMonthlyReportYear}>
+              <label className="text-sm font-medium">From Year</label>
+              <Select value={fromYear} onValueChange={setFromYear}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.map(year => (
+                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">To Month</label>
+              <Select value={toMonth} onValueChange={setToMonth}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select month" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">January</SelectItem>
+                  <SelectItem value="2">February</SelectItem>
+                  <SelectItem value="3">March</SelectItem>
+                  <SelectItem value="4">April</SelectItem>
+                  <SelectItem value="5">May</SelectItem>
+                  <SelectItem value="6">June</SelectItem>
+                  <SelectItem value="7">July</SelectItem>
+                  <SelectItem value="8">August</SelectItem>
+                  <SelectItem value="9">September</SelectItem>
+                  <SelectItem value="10">October</SelectItem>
+                  <SelectItem value="11">November</SelectItem>
+                  <SelectItem value="12">December</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">To Year</label>
+              <Select value={toYear} onValueChange={setToYear}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select year" />
                 </SelectTrigger>
@@ -1275,8 +1118,10 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
                 variant="outline"
                 onClick={() => {
                   setIsMonthlyReportDialogOpen(false);
-                  setMonthlyReportMonth("");
-                  setMonthlyReportYear("");
+                  setFromMonth(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
+                  setFromYear(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
+                  setToMonth(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
+                  setToYear(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
                 }}
                 disabled={isGeneratingReport}
               >
@@ -1284,7 +1129,7 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
               </Button>
               <Button
                 onClick={handleGenerateMonthlyReport}
-                disabled={isGeneratingReport || !monthlyReportMonth || !monthlyReportYear}
+                disabled={isGeneratingReport || !fromMonth || !fromYear || !toMonth || !toYear}
               >
                 {isGeneratingReport ? "Generating..." : "Generate PDF"}
               </Button>

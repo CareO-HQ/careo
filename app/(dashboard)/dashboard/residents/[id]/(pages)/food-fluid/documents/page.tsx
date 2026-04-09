@@ -45,15 +45,12 @@ import {
   FileText,
   Filter,
   Download,
-  Eye,
   Utensils,
   ChevronLeft,
   ChevronRight,
   Droplets,
   ClipboardList,
-  Clock,
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { useProfile } from "@/hooks/use-profile";
 import { generateFoodFluidPDF } from "@/lib/food-fluid-pdf-utils";
@@ -61,6 +58,16 @@ import { generateFoodFluidPDF } from "@/lib/food-fluid-pdf-utils";
 type FoodFluidDocumentsPageProps = {
   params: Promise<{ id: string }>;
 };
+
+type FoodFluidSubtype = "food" | "fluid";
+
+function isFluidLogEntry(log: { fluid_consumed_ml?: number | null; type_of_food_drink?: string | null }): boolean {
+  if (typeof log.fluid_consumed_ml === "number" && log.fluid_consumed_ml > 0) {
+    return true;
+  }
+  const type = (log.type_of_food_drink || "").toLowerCase();
+  return ["water", "tea", "coffee", "juice", "milk"].includes(type);
+}
 
 export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPageProps) {
   const { id } = React.use(params);
@@ -77,12 +84,13 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
 
   // Dialog state
   const [selectedReport, setSelectedReport] = useState<any>(null);
+  const [selectedSubtype, setSelectedSubtype] = useState<FoodFluidSubtype | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
   // Data state
   const [resident, setResident] = useState<any>(null);
   const [paginatedData, setPaginatedData] = useState<{
-    dates: Array<{ date: string; hasReport: boolean }>;
+    dates: Array<{ date: string; hasReport: boolean; foodCount: number; fluidCount: number }>;
     totalCount: number;
     totalPages: number;
   } | null>(null);
@@ -122,7 +130,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
       // Build query for food_fluid_logs
       let query = supabase
         .from("food_fluid_logs")
-        .select("date, timestamp", { count: "exact" })
+        .select("date, timestamp, fluid_consumed_ml, type_of_food_drink", { count: "exact" })
         .eq("resident_id", id);
 
       // Apply date filters
@@ -152,18 +160,25 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
         return;
       }
 
-      // Get unique dates
-      const uniqueDates = new Set<string>();
+      // Get unique dates and subtype counts
+      const dateCounts: Record<string, { foodCount: number; fluidCount: number }> = {};
       logs?.forEach((log: any) => {
-        // Convert timestamp to UK timezone date string
         const ukDate = formatInTimeZone(new Date(log.timestamp), UK_TIMEZONE, "yyyy-MM-dd");
-        uniqueDates.add(ukDate);
+        if (!dateCounts[ukDate]) {
+          dateCounts[ukDate] = { foodCount: 0, fluidCount: 0 };
+        }
+        if (isFluidLogEntry(log)) {
+          dateCounts[ukDate].fluidCount += 1;
+        } else {
+          dateCounts[ukDate].foodCount += 1;
+        }
       });
 
-      // Convert to array and sort
-      const datesArray = Array.from(uniqueDates).map(date => ({
+      const datesArray = Object.entries(dateCounts).map(([date, counts]) => ({
         date,
-        hasReport: true
+        hasReport: true,
+        foodCount: counts.foodCount,
+        fluidCount: counts.fluidCount,
       }));
 
       // Sort dates
@@ -288,7 +303,9 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
       date: dateObj.date,
       formattedDate: formatDateForDisplay(dateObj.date),
       _id: dateObj.date,
-      hasReport: dateObj.hasReport
+      hasReport: dateObj.hasReport,
+      foodCount: dateObj.foodCount,
+      fluidCount: dateObj.fluidCount,
     }));
   }, [paginatedData]);
 
@@ -317,8 +334,9 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
   const paginatedReports = filteredReports;
 
   // Handlers
-  const handleViewReport = (report: any) => {
+  const handleViewReport = (report: any, subtype: FoodFluidSubtype) => {
     setSelectedReport(report);
+    setSelectedSubtype(subtype);
     setIsViewDialogOpen(true);
   };
 
@@ -369,7 +387,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
     };
   }, [paginatedData, selectedYear, selectedMonth]);
 
-  const handleDownloadReport = async (report: any) => {
+  const handleDownloadReport = async (report: any, subtype: FoodFluidSubtype) => {
     if (!resident) {
       toast.error('Resident data not available');
       return;
@@ -402,8 +420,8 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
           timestamp: new Date(log.timestamp).getTime()
         }));
 
-        const foodEntries = transformedLogs.filter((log: any) => !log.fluidConsumedMl).length;
-        const fluidEntries = transformedLogs.filter((log: any) => log.fluidConsumedMl).length;
+        const foodEntries = transformedLogs.filter((log: any) => !isFluidLogEntry({ fluid_consumed_ml: log.fluidConsumedMl, type_of_food_drink: log.typeOfFoodDrink })).length;
+        const fluidEntries = transformedLogs.filter((log: any) => isFluidLogEntry({ fluid_consumed_ml: log.fluidConsumedMl, type_of_food_drink: log.typeOfFoodDrink })).length;
         const totalFluidMl = transformedLogs.reduce((sum: number, log: any) => sum + (log.fluidConsumedMl || 0), 0);
 
         reportToDownload = {
@@ -428,16 +446,36 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
       return;
     }
 
+    const filteredLogs = reportToDownload.logs.filter((log: any) => {
+      const logIsFluid = isFluidLogEntry({ fluid_consumed_ml: log.fluidConsumedMl, type_of_food_drink: log.typeOfFoodDrink });
+      return subtype === "fluid" ? logIsFluid : !logIsFluid;
+    });
+
+    if (filteredLogs.length === 0) {
+      toast.error(`No ${subtype} entries found for this date`);
+      return;
+    }
+
+    const filteredReport = {
+      logs: filteredLogs,
+      reportGenerated: true,
+      totalEntries: filteredLogs.length,
+      foodEntries: subtype === "food" ? filteredLogs.length : 0,
+      fluidEntries: subtype === "fluid" ? filteredLogs.length : 0,
+      totalFluidMl: filteredLogs.reduce((sum: number, log: any) => sum + (log.fluidConsumedMl || 0), 0),
+    };
+
     try {
       await generateFoodFluidPDF({
         resident,
         reports: [{
           date: report.date,
-          report: reportToDownload
+          report: filteredReport
         }],
         orgLogoUrl: profile?.organization_logo_url || undefined
       });
-      toast.success(`Food & Fluid report generated for ${formatInTimeZone(new Date(report.date + "T00:00:00"), UK_TIMEZONE, "dd MMM yyyy")}`);
+      const subtypeLabel = subtype === "food" ? "Food" : "Fluid";
+      toast.success(`${subtypeLabel} report generated for ${formatInTimeZone(new Date(report.date + "T00:00:00"), UK_TIMEZONE, "dd MMM yyyy")}`);
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast.error("Failed to generate PDF report");
@@ -678,7 +716,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
                 onClick={() => setIsBulkDownloadDialogOpen(true)}
               >
                 <FileText className="w-4 h-4 mr-2" />
-                Download PDF
+                Month-to-Month PDF
               </Button>
               <Button
                 variant="outline"
@@ -790,9 +828,8 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
-                      <TableHead>Report Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>Food</TableHead>
+                      <TableHead>Fluid</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -805,46 +842,65 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
                           </div>
                         </TableCell>
                         <TableCell>
-                          {report.hasReport ? (
-                            <div className="flex items-center space-x-2">
-                              <Utensils className="w-4 h-4 text-yellow-600" />
-                              <span>Daily Food & Fluid Report</span>
+                          {report.foodCount > 0 ? (
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2 w-28">
+                                <Utensils className="w-4 h-4 text-yellow-600" />
+                                <span className="text-sm font-medium">{report.foodCount} entries</span>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewReport(report, "food")}
+                                  className="h-8"
+                                >
+                                  View
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDownloadReport(report, "food")}
+                                  className="h-8"
+                                >
+                                  <Download className="w-4 h-4 mr-2" />
+                                  Download
+                                </Button>
+                              </div>
                             </div>
                           ) : (
-                            <span className="text-sm text-gray-400">No report</span>
+                            <span className="text-muted-foreground text-sm">-</span>
                           )}
                         </TableCell>
                         <TableCell>
-                          {report.hasReport ? (
-                            <Badge className="bg-green-100 text-green-800 border-0">
-                              Archived
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-gray-100 text-gray-500 border-0">
-                              Not Recorded
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {report.hasReport ? (
-                            <div className="flex items-center justify-end space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleViewReport(report)}
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDownloadReport(report)}
-                              >
-                                <Download className="w-4 h-4" />
-                              </Button>
+                          {report.fluidCount > 0 ? (
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2 w-28">
+                                <Droplets className="w-4 h-4 text-cyan-600" />
+                                <span className="text-sm font-medium">{report.fluidCount} entries</span>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewReport(report, "fluid")}
+                                  className="h-8"
+                                >
+                                  View
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDownloadReport(report, "fluid")}
+                                  className="h-8"
+                                >
+                                  <Download className="w-4 h-4 mr-2" />
+                                  Download
+                                </Button>
+                              </div>
                             </div>
                           ) : (
-                            <span className="text-sm text-gray-400">—</span>
+                            <span className="text-muted-foreground text-sm">-</span>
                           )}
                         </TableCell>
                       </TableRow>
@@ -912,10 +968,15 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
       </Card>
 
       {/* View Report Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+      <Dialog open={isViewDialogOpen} onOpenChange={(open) => {
+        setIsViewDialogOpen(open);
+        if (!open) setSelectedSubtype(null);
+      }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Food & Fluid Report - {selectedReport && formatDateForDisplay(selectedReport.date)}</DialogTitle>
+            <DialogTitle>
+              {selectedSubtype === "food" ? "Food" : selectedSubtype === "fluid" ? "Fluid" : "Food & Fluid"} Report - {selectedReport && formatDateForDisplay(selectedReport.date)}
+            </DialogTitle>
             <DialogDescription>
               Detailed view of all entries for this date
             </DialogDescription>
@@ -927,8 +988,14 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
                 <p className="mt-2 text-muted-foreground">Loading report...</p>
               </div>
             ) : selectedReportData?.logs && selectedReportData.logs.length > 0 ? (
-              selectedReportData.logs.map((log: any, index: number) => {
-                const isFluid = ['Water', 'Tea', 'Coffee', 'Juice', 'Milk'].includes(log.typeOfFoodDrink) || log.fluidConsumedMl;
+              selectedReportData.logs
+                .filter((log: any) => {
+                  if (!selectedSubtype) return true;
+                  const logIsFluid = isFluidLogEntry({ fluid_consumed_ml: log.fluidConsumedMl, type_of_food_drink: log.typeOfFoodDrink });
+                  return selectedSubtype === "fluid" ? logIsFluid : !logIsFluid;
+                })
+                .map((log: any, index: number) => {
+                const isFluid = isFluidLogEntry({ fluid_consumed_ml: log.fluidConsumedMl, type_of_food_drink: log.typeOfFoodDrink });
                 return (
                   <div key={index} className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
                     <div className="flex items-start justify-between gap-2 mb-1">
@@ -971,9 +1038,9 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
       <Dialog open={isBulkDownloadDialogOpen} onOpenChange={setIsBulkDownloadDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Download Food & Fluid Reports</DialogTitle>
+            <DialogTitle>Download Food & Fluid Month-to-Month Reports</DialogTitle>
             <DialogDescription>
-              Select a month range to generate a PDF report for {fullName}.
+              Select a from and to month to generate a PDF report for {fullName}.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-6 py-6 border-y my-4">

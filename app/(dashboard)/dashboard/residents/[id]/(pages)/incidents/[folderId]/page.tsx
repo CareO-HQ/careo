@@ -47,6 +47,7 @@ import { PostFallAssessmentForm } from "./components/post-fall-assessment-form";
 import { PostFallObservationChart } from "./components/post-fall-observation-chart";
 import { PostFallGuidelines } from "./components/post-fall-guidelines";
 import { FallProgressTracker } from "./components/fall-progress-tracker";
+import { canEditIncident } from "@/lib/permissions";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 
@@ -297,6 +298,7 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
 
   // Track whether incident report has been saved for this folder
   const [hasIncidentReport, setHasIncidentReport] = useState(false);
+  const [isEditingIncidentReport, setIsEditingIncidentReport] = useState(false);
 
   // Track saved trust/form reports from DB
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
@@ -313,6 +315,8 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
 
   const activeFile = uploadedFiles.find((f) => f.id === activeFileId) ?? null;
   const fullName = resident ? `${resident.first_name} ${resident.last_name}` : "";
+  const userCanEditIncident = canEditIncident(profile?.role);
+  const canShowIncidentEditButton = userCanEditIncident && profile?.role !== "nurse";
 
   // Helper: get saved report for a given form type
   const getSavedReport = (formKey: IncidentFormType): SavedReport | undefined =>
@@ -727,8 +731,13 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
             <FileViewer file={activeFile} />
           ) : activeFormKey === "incident-report" ? (
             <div className="flex-1 overflow-auto">
-              {hasIncidentReport ? (
-                <IncidentReportViewer folderId={folderId} orgLogoUrl={orgLogoUrl} />
+              {hasIncidentReport && !isEditingIncidentReport ? (
+                <IncidentReportViewer
+                  folderId={folderId}
+                  orgLogoUrl={orgLogoUrl}
+                  canEdit={canShowIncidentEditButton}
+                  onEdit={() => setIsEditingIncidentReport(true)}
+                />
               ) : (
                 <SimpleIncidentForm
                   residentId={residentId}
@@ -736,6 +745,7 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                   residentName={resident ? `${resident.first_name} ${resident.last_name}` : ""}
                   onSaved={() => {
                     setHasIncidentReport(true);
+                    setIsEditingIncidentReport(false);
                   }}
                 />
               )}

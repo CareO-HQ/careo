@@ -13,24 +13,27 @@ type ProgressStep = {
 
 type WoundProgressTrackerProps = {
   hasBodyMap: boolean;
+  hasInitialAssessment: boolean;
   hasPhotograph: boolean;
-  hasAssessment: boolean;
+  hasOngoingAssessment: boolean;
   hasEvaluation: boolean;
   hasCarePlan: boolean;
 };
 
 export function WoundProgressTracker({
   hasBodyMap,
+  hasInitialAssessment,
   hasPhotograph,
-  hasAssessment,
+  hasOngoingAssessment,
   hasEvaluation,
   hasCarePlan,
 }: WoundProgressTrackerProps) {
   const steps: ProgressStep[] = [
     { id: "bodymap", label: "Body Map", completed: hasBodyMap },
+    { id: "initial", label: "Initial Assessment", completed: hasInitialAssessment },
+    { id: "ongoing", label: "Ongoing Assessment", completed: hasOngoingAssessment },
+    { id: "evaluation", label: "Wound Treatment", completed: hasEvaluation },
     { id: "photograph", label: "Photograph", completed: hasPhotograph },
-    { id: "assessment", label: "Assessment", completed: hasAssessment },
-    { id: "evaluation", label: "Evaluation", completed: hasEvaluation },
     { id: "careplan", label: "Care Plan", completed: hasCarePlan },
   ];
 

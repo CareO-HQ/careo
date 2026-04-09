@@ -19,6 +19,7 @@ import {
   Mail,
   Loader2,
   Download,
+  Pencil,
 } from "lucide-react";
 
 // --- Options for label lookups ---
@@ -127,9 +128,16 @@ function SectionHeader({ title, icon }: { title: string; icon?: React.ReactNode 
 interface IncidentReportViewerProps {
   folderId: string;
   orgLogoUrl?: string;
+  canEdit?: boolean;
+  onEdit?: () => void;
 }
 
-export function IncidentReportViewer({ folderId, orgLogoUrl }: IncidentReportViewerProps) {
+export function IncidentReportViewer({
+  folderId,
+  orgLogoUrl,
+  canEdit = false,
+  onEdit,
+}: IncidentReportViewerProps) {
   const [incident, setIncident] = React.useState<any>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isDownloading, setIsDownloading] = React.useState(false);
@@ -212,6 +220,17 @@ export function IncidentReportViewer({ folderId, orgLogoUrl }: IncidentReportVie
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {canEdit && onEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onEdit}
+                  className="h-8 text-xs gap-1.5"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -393,18 +412,26 @@ export function IncidentReportViewer({ folderId, orgLogoUrl }: IncidentReportVie
         )}
 
         {/* Section 12: Witnesses */}
-        {(i.witness1_name || i.witness2_name) && (
-          <>
-            <Separator className="my-2" />
-            <SectionHeader title="Witnesses" />
-            <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 pl-1">
-              <ViewField label="Witness 1" value={i.witness1_name} icon={<User className="w-3 h-3" />} />
-              <ViewField label="Contact" value={i.witness1_contact} icon={<Phone className="w-3 h-3" />} />
-              <ViewField label="Witness 2" value={i.witness2_name} icon={<User className="w-3 h-3" />} />
-              <ViewField label="Contact" value={i.witness2_contact} icon={<Phone className="w-3 h-3" />} />
-            </div>
-          </>
-        )}
+        <>
+          <Separator className="my-2" />
+          <SectionHeader title="Witnesses" />
+          <div className="pl-1 space-y-1">
+            <ViewField
+              label="Witnesses present"
+              value={i.witness1_name || i.witness2_name ? "Yes" : "No"}
+            />
+            {i.witness1_name || i.witness2_name ? (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-0.5">
+                <ViewField label="Witness 1" value={i.witness1_name} icon={<User className="w-3 h-3" />} />
+                <ViewField label="Contact" value={i.witness1_contact} icon={<Phone className="w-3 h-3" />} />
+                <ViewField label="Witness 2" value={i.witness2_name} icon={<User className="w-3 h-3" />} />
+                <ViewField label="Contact" value={i.witness2_contact} icon={<Phone className="w-3 h-3" />} />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No witness</p>
+            )}
+          </div>
+        </>
 
         {/* Section 13: Nurse Actions */}
         {i.nurse_actions?.length > 0 && (
@@ -436,66 +463,102 @@ export function IncidentReportViewer({ folderId, orgLogoUrl }: IncidentReportVie
         )}
 
         {/* Section 16-17: Notifications */}
-        {(i.home_manager_informed_by || i.on_call_manager_name) && (
-          <>
-            <Separator className="my-2" />
-            <SectionHeader title="Notifications" icon={<Phone className="w-3.5 h-3.5" />} />
-            <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 pl-1">
-              <ViewField label="Home Manager Informed By" value={i.home_manager_informed_by} />
-              <ViewField
-                label="Date & Time"
-                value={
-                  i.home_manager_informed_date_time
-                    ? format(new Date(i.home_manager_informed_date_time), "dd/MM/yyyy HH:mm")
-                    : undefined
-                }
-              />
-              <ViewField label="On-Call Manager" value={i.on_call_manager_name} />
-              <ViewField
-                label="Date & Time"
-                value={
-                  i.on_call_contacted_date_time
-                    ? format(new Date(i.on_call_contacted_date_time), "dd/MM/yyyy HH:mm")
-                    : undefined
-                }
-              />
-            </div>
-          </>
-        )}
+        <>
+          <Separator className="my-2" />
+          <SectionHeader title="Notifications" icon={<Phone className="w-3.5 h-3.5" />} />
+          <div className="pl-1 space-y-2">
+            <ViewField
+              label="Home Manager Informed"
+              value={i.home_manager_informed_by || i.home_manager_informed_date_time ? "Yes" : "No"}
+            />
+            {(i.home_manager_informed_by || i.home_manager_informed_date_time) && (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-0.5">
+                <ViewField label="Home Manager Informed By" value={i.home_manager_informed_by} />
+                <ViewField
+                  label="Date & Time"
+                  value={
+                    i.home_manager_informed_date_time
+                      ? format(new Date(i.home_manager_informed_date_time), "dd/MM/yyyy HH:mm")
+                      : undefined
+                  }
+                />
+              </div>
+            )}
+            <ViewField
+              label="Out of Hours On-Call Contacted"
+              value={i.on_call_manager_name || i.on_call_contacted_date_time ? "Yes" : "No"}
+            />
+            {(i.on_call_manager_name || i.on_call_contacted_date_time) && (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-0.5">
+                <ViewField label="On-Call Manager" value={i.on_call_manager_name} />
+                <ViewField
+                  label="Date & Time"
+                  value={
+                    i.on_call_contacted_date_time
+                      ? format(new Date(i.on_call_contacted_date_time), "dd/MM/yyyy HH:mm")
+                      : undefined
+                  }
+                />
+              </div>
+            )}
+          </div>
+        </>
 
         {/* Section 18: NOK */}
-        {(i.nok_informed_who || i.nok_informed_by) && (
-          <>
-            <Separator className="my-2" />
-            <SectionHeader title="Next of Kin Informed" />
-            <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 pl-1">
-              <ViewField label="NOK Name" value={i.nok_informed_who} />
-              <ViewField label="Informed By" value={i.nok_informed_by} />
-              <ViewField
-                label="Date & Time"
-                value={
-                  i.nok_informed_date_time
-                    ? format(new Date(i.nok_informed_date_time), "dd/MM/yyyy HH:mm")
-                    : undefined
-                }
-              />
-            </div>
-          </>
-        )}
+        <>
+          <Separator className="my-2" />
+          <SectionHeader title="Next of Kin Informed" />
+          <div className="pl-1 space-y-1">
+            <ViewField
+              label="Next of Kin Informed"
+              value={i.nok_informed_who || i.nok_informed_by || i.nok_informed_date_time ? "Yes" : "No"}
+            />
+            {(i.nok_informed_who || i.nok_informed_by || i.nok_informed_date_time) && (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-0.5">
+                <ViewField label="NOK Name" value={i.nok_informed_who} />
+                <ViewField label="Informed By" value={i.nok_informed_by} />
+                <ViewField
+                  label="Date & Time"
+                  value={
+                    i.nok_informed_date_time
+                      ? format(new Date(i.nok_informed_date_time), "dd/MM/yyyy HH:mm")
+                      : undefined
+                  }
+                />
+              </div>
+            )}
+          </div>
+        </>
 
         {/* Section 19: Trust Recipients */}
-        {(i.trust_care_manager_name || i.trust_key_worker_name) && (
-          <>
-            <Separator className="my-2" />
-            <SectionHeader title="Trust Incident Form Recipients" icon={<Mail className="w-3.5 h-3.5" />} />
-            <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 pl-1">
-              <ViewField label="Care Manager" value={i.trust_care_manager_name} />
-              <ViewField label="Email" value={i.trust_care_manager_email} />
-              <ViewField label="Key Worker" value={i.trust_key_worker_name} />
-              <ViewField label="Email" value={i.trust_key_worker_email} />
-            </div>
-          </>
-        )}
+        <>
+          <Separator className="my-2" />
+          <SectionHeader title="Trust Incident Form Recipients" icon={<Mail className="w-3.5 h-3.5" />} />
+          <div className="pl-1 space-y-1">
+            <ViewField
+              label="Trust Incident Form Recipients"
+              value={
+                i.trust_care_manager_name ||
+                i.trust_care_manager_email ||
+                i.trust_key_worker_name ||
+                i.trust_key_worker_email
+                  ? "Yes"
+                  : "No"
+              }
+            />
+            {(i.trust_care_manager_name ||
+              i.trust_care_manager_email ||
+              i.trust_key_worker_name ||
+              i.trust_key_worker_email) && (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-0.5">
+                <ViewField label="Care Manager" value={i.trust_care_manager_name} />
+                <ViewField label="Email" value={i.trust_care_manager_email} />
+                <ViewField label="Key Worker" value={i.trust_key_worker_name} />
+                <ViewField label="Email" value={i.trust_key_worker_email} />
+              </div>
+            )}
+          </div>
+        </>
 
         <Separator className="my-2" />
 
