@@ -28,18 +28,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, TrendingUp, TrendingDown, Minus, Scale, Loader2, Settings, CheckCircle2, Circle } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Minus, Scale, Loader2, CheckCircle2, Circle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 
 interface WeightRecord {
   id: string;
@@ -230,69 +222,9 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
     <div className="space-y-4">
       {/* Header with toggle and record button */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Scale className="w-4 h-4 text-gray-500" />
-            <h3 className="text-sm font-medium text-gray-900">Weight Tracking</h3>
-          </div>
-
-          {/* Check Frequency Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs gap-1.5 border-gray-200 hover:bg-gray-50"
-                disabled={isUpdatingFrequency}
-              >
-                <Settings className="w-3 h-3" />
-                Check: {checkFrequency === "as-needed" ? "As Needed" : checkFrequency.charAt(0).toUpperCase() + checkFrequency.slice(1)}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48">
-              <DropdownMenuLabel className="text-xs">Weight Check Frequency</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => updateCheckFrequency("weekly")}
-                className="text-xs cursor-pointer"
-              >
-                <div className="flex items-center gap-2 w-full">
-                  {checkFrequency === "weekly" ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
-                  ) : (
-                    <Circle className="w-3.5 h-3.5 text-gray-300" />
-                  )}
-                  <span>Weekly</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => updateCheckFrequency("monthly")}
-                className="text-xs cursor-pointer"
-              >
-                <div className="flex items-center gap-2 w-full">
-                  {checkFrequency === "monthly" ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
-                  ) : (
-                    <Circle className="w-3.5 h-3.5 text-gray-300" />
-                  )}
-                  <span>Monthly</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => updateCheckFrequency("as-needed")}
-                className="text-xs cursor-pointer"
-              >
-                <div className="flex items-center gap-2 w-full">
-                  {checkFrequency === "as-needed" ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
-                  ) : (
-                    <Circle className="w-3.5 h-3.5 text-gray-300" />
-                  )}
-                  <span>As Needed</span>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="flex items-center gap-2">
+          <Scale className="w-4 h-4 text-gray-500" />
+          <h3 className="text-sm font-medium text-gray-900">Weight Tracking</h3>
         </div>
 
         <div className="flex items-center gap-2">
@@ -419,6 +351,65 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
               </form>
             </DialogContent>
           </Dialog>
+        </div>
+      </div>
+
+      {/* Check Frequency Selector */}
+      <div className="bg-white border border-gray-200 rounded-lg p-3">
+        <label className="text-xs font-medium text-gray-700 mb-2 block">
+          Weight Check Frequency
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            onClick={() => updateCheckFrequency("weekly")}
+            disabled={isUpdatingFrequency}
+            className={`flex items-center justify-center gap-2 p-2 rounded-lg border transition-all ${
+              checkFrequency === "weekly"
+                ? "border-blue-500 bg-blue-50 text-blue-700"
+                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
+            }`}
+          >
+            {checkFrequency === "weekly" ? (
+              <CheckCircle2 className="w-4 h-4" />
+            ) : (
+              <Circle className="w-4 h-4 text-gray-300" />
+            )}
+            <span className="text-xs font-medium">Weekly</span>
+          </button>
+
+          <button
+            onClick={() => updateCheckFrequency("monthly")}
+            disabled={isUpdatingFrequency}
+            className={`flex items-center justify-center gap-2 p-2 rounded-lg border transition-all ${
+              checkFrequency === "monthly"
+                ? "border-blue-500 bg-blue-50 text-blue-700"
+                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
+            }`}
+          >
+            {checkFrequency === "monthly" ? (
+              <CheckCircle2 className="w-4 h-4" />
+            ) : (
+              <Circle className="w-4 h-4 text-gray-300" />
+            )}
+            <span className="text-xs font-medium">Monthly</span>
+          </button>
+
+          <button
+            onClick={() => updateCheckFrequency("as-needed")}
+            disabled={isUpdatingFrequency}
+            className={`flex items-center justify-center gap-2 p-2 rounded-lg border transition-all ${
+              checkFrequency === "as-needed"
+                ? "border-blue-500 bg-blue-50 text-blue-700"
+                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
+            }`}
+          >
+            {checkFrequency === "as-needed" ? (
+              <CheckCircle2 className="w-4 h-4" />
+            ) : (
+              <Circle className="w-4 h-4 text-gray-300" />
+            )}
+            <span className="text-xs font-medium">As Needed</span>
+          </button>
         </div>
       </div>
 
