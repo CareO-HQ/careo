@@ -3,6 +3,68 @@ import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
+type CheckboxLike = boolean | "yes" | "no" | "" | undefined | null;
+
+interface MonthlyEvaluationData {
+  id?: string;
+  date?: number | string;
+  mustScoreChange?: CheckboxLike;
+  mustScoreChangeNotes?: string;
+  saltReferralRequired?: CheckboxLike;
+  saltReferralRequiredNotes?: string;
+  saltInputReceived?: CheckboxLike;
+  saltInputReceivedNotes?: string;
+  specialisedDietChange?: CheckboxLike;
+  specialisedDietChangeNotes?: string;
+  foodConsistencyChange?: CheckboxLike;
+  foodConsistencyChangeNotes?: string;
+  fluidConsistencyChange?: CheckboxLike;
+  fluidConsistencyChangeNotes?: string;
+  foodFortificationRequired?: CheckboxLike;
+  foodFortificationRequiredNotes?: string;
+  supplementsPrescribed?: CheckboxLike;
+  supplementsPrescribedNotes?: string;
+  assistanceRequired?: CheckboxLike;
+  assistanceRequiredNotes?: string;
+  completedBy?: string;
+}
+
+interface NutritionalAssessmentDetails {
+  residentName?: string;
+  dateOfBirth?: string;
+  bedroomNumber?: string;
+  height?: string;
+  weight?: string;
+  hasSaltInvolvement?: boolean;
+  saltTherapistName?: string;
+  saltContactDetails?: string;
+  hasDietitianInvolvement?: boolean;
+  dietitianName?: string;
+  dietitianContactDetails?: string;
+  foodFortificationRequired?: string;
+  supplementsPrescribed?: string;
+  assistanceRequired?: string;
+  jobRole?: string;
+  signature?: string;
+  monthlyEvaluations?: MonthlyEvaluationData[];
+}
+
+interface NutritionalAssessmentPdfData {
+  residentName?: string;
+  dateOfBirth?: string;
+  bedroomNumber?: string;
+  assessment_date?: string | number;
+  must_score?: string;
+  mustScore?: string;
+  completed_by?: string;
+  completedBy?: string;
+  food_consistency?: Record<string, boolean | undefined>;
+  fluid_consistency?: Record<string, boolean | undefined>;
+  assessment_details?: NutritionalAssessmentDetails;
+  assessment_data?: NutritionalAssessmentPdfData;
+  [key: string]: unknown;
+}
+
 function formatDate(dateString?: string | number): string {
   if (!dateString) return "Not provided";
   return new Date(dateString).toLocaleDateString("en-GB");
@@ -20,10 +82,43 @@ function formatDateTime(dateString?: string | number): string {
   );
 }
 
-function generateNutritionalAssessmentHTML(data: any): string {
+function displayValue(value?: string | number | null): string {
+  if (value === undefined || value === null || value === "") return "Not provided";
+  return String(value);
+}
+
+function checkboxToYesNo(value: CheckboxLike): "Yes" | "No" {
+  if (value === true || value === "yes") return "Yes";
+  return "No";
+}
+
+function formatFieldName(key: string): string {
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (char) => char.toUpperCase())
+    .replace("Iddsi", "IDDSI")
+    .trim();
+}
+
+function generateNutritionalAssessmentHTML(data: NutritionalAssessmentPdfData): string {
   const details = data.assessment_details || {};
   const foodConsistency = data.food_consistency || {};
   const fluidConsistency = data.fluid_consistency || {};
+  const monthlyEvaluations = details.monthlyEvaluations || [];
+  const foodConsistencyKeys = [
+    "level7EasyChew",
+    "level6SoftBiteSized",
+    "level5MincedMoist",
+    "level4Pureed",
+    "level3Liquidised"
+  ];
+  const fluidConsistencyKeys = [
+    "level4ExtremelyThick",
+    "level3ModeratelyThick",
+    "level2MildlyThick",
+    "level1SlightlyThick",
+    "level0Thin"
+  ];
 
   return `
     <!DOCTYPE html>
@@ -149,15 +244,15 @@ function generateNutritionalAssessmentHTML(data: any): string {
         <div class="grid grid-cols-2 info-box">
           <div>
             <div class="field-label">Resident Name</div>
-            <div class="field-value">${data.residentName || "Not specified"}</div>
+            <div class="field-value">${displayValue(data.residentName)}</div>
           </div>
           <div>
             <div class="field-label">Date of Birth</div>
-            <div class="field-value">${data.dateOfBirth || "Not specified"}</div>
+            <div class="field-value">${displayValue(data.dateOfBirth)}</div>
           </div>
           <div>
             <div class="field-label">Bedroom Number</div>
-            <div class="field-value">${data.bedroomNumber || "Not specified"}</div>
+            <div class="field-value">${displayValue(data.bedroomNumber)}</div>
           </div>
           <div>
             <div class="field-label">Assessment Date</div>
@@ -167,11 +262,11 @@ function generateNutritionalAssessmentHTML(data: any): string {
         <div class="grid grid-cols-3 info-box">
           <div>
             <div class="field-label">Height</div>
-            <div class="field-value">${details.height || data.height || "Not specified"}</div>
+            <div class="field-value">${displayValue(details.height as string | undefined)}</div>
           </div>
           <div>
             <div class="field-label">Weight</div>
-            <div class="field-value">${details.weight || data.weight || "Not specified"}</div>
+            <div class="field-value">${displayValue(details.weight as string | undefined)}</div>
           </div>
           <div>
             <div class="field-label">IDDSI Categories</div>
@@ -183,15 +278,15 @@ function generateNutritionalAssessmentHTML(data: any): string {
         <div class="grid grid-cols-2">
           <div class="info-box" style="margin-bottom: 0;">
             <h3 style="margin-top: 0;">SALT Involvement</h3>
-            <p style="margin: 4px 0;"><strong>Status:</strong> ${details.hasSaltInvolvement ? 'Active' : 'None'}</p>
-            ${details.saltTherapistName ? `<p style="margin: 4px 0;"><strong>Therapist:</strong> ${details.saltTherapistName}</p>` : ""}
-            ${details.saltContactDetails ? `<p style="margin: 4px 0;"><strong>Contact:</strong> ${details.saltContactDetails}</p>` : ""}
+            <p style="margin: 4px 0;"><strong>Involvement:</strong> ${checkboxToYesNo(details.hasSaltInvolvement)}</p>
+            <p style="margin: 4px 0;"><strong>Therapist:</strong> ${displayValue(details.saltTherapistName)}</p>
+            <p style="margin: 4px 0;"><strong>Contact:</strong> ${displayValue(details.saltContactDetails)}</p>
           </div>
           <div class="info-box" style="margin-bottom: 0;">
             <h3 style="margin-top: 0;">Dietitian Involvement</h3>
-            <p style="margin: 4px 0;"><strong>Status:</strong> ${details.hasDietitianInvolvement ? 'Active' : 'None'}</p>
-            ${details.dietitianName ? `<p style="margin: 4px 0;"><strong>Dietitian:</strong> ${details.dietitianName}</p>` : ""}
-            ${details.dietitianContactDetails ? `<p style="margin: 4px 0;"><strong>Contact:</strong> ${details.dietitianContactDetails}</p>` : ""}
+            <p style="margin: 4px 0;"><strong>Involvement:</strong> ${checkboxToYesNo(details.hasDietitianInvolvement)}</p>
+            <p style="margin: 4px 0;"><strong>Dietitian:</strong> ${displayValue(details.dietitianName)}</p>
+            <p style="margin: 4px 0;"><strong>Contact:</strong> ${displayValue(details.dietitianContactDetails)}</p>
           </div>
         </div>
       </div>
@@ -199,7 +294,7 @@ function generateNutritionalAssessmentHTML(data: any): string {
       <div class="section">
         <h2>Nutritional Risk (MUST)</h2>
         <div class="must-score">
-          MUST Score: ${data.must_score || data.mustScore || "Not specified"}
+          MUST Score: ${displayValue(data.must_score || data.mustScore)}
         </div>
       </div>
 
@@ -209,27 +304,21 @@ function generateNutritionalAssessmentHTML(data: any): string {
           <div class="info-box">
             <h3>Food Consistency</h3>
             <div class="consistency-list">
-              ${Object.entries(foodConsistency)
-      .filter(([_, value]) => value === true)
-      .map(([key, _]) => `
+              ${foodConsistencyKeys.map((key) => `
                   <div class="consistency-item">
-                    <span class="check-mark">✓</span>
-                    <span>${key.replace('level', 'Level ').replace(/([A-Z])/g, ' $1').trim()}</span>
+                    <span><strong>${key.replace('level', 'Level ').replace(/([A-Z])/g, ' $1').trim()}:</strong> ${checkboxToYesNo(foodConsistency[key])}</span>
                   </div>
-                `).join('') || "No requirements specified"}
+                `).join("")}
             </div>
           </div>
           <div class="info-box">
             <h3>Fluid Consistency</h3>
             <div class="consistency-list">
-              ${Object.entries(fluidConsistency)
-      .filter(([_, value]) => value === true)
-      .map(([key, _]) => `
+              ${fluidConsistencyKeys.map((key) => `
                   <div class="consistency-item">
-                    <span class="check-mark">✓</span>
-                    <span>${key.replace('level', 'Level ').replace(/([A-Z])/g, ' $1').trim()}</span>
+                    <span><strong>${key.replace('level', 'Level ').replace(/([A-Z])/g, ' $1').trim()}:</strong> ${checkboxToYesNo(fluidConsistency[key])}</span>
                   </div>
-                `).join('') || "No requirements specified"}
+                `).join("")}
             </div>
           </div>
         </div>
@@ -239,20 +328,16 @@ function generateNutritionalAssessmentHTML(data: any): string {
         <h2>Dietary Requirements & Assistance</h2>
         <div class="info-box">
           <h3>Assistance Required</h3>
-          <p>${details.assistanceRequired || data.assistanceRequired || "No specific assistance detailed"}</p>
+          <p>${displayValue(details.assistanceRequired)}</p>
         </div>
-        ${details.foodFortificationRequired ? `
         <div class="info-box">
           <h3>Food Fortification</h3>
-          <p>${details.foodFortificationRequired}</p>
+          <p>${displayValue(details.foodFortificationRequired)}</p>
         </div>
-        ` : ""}
-        ${details.supplementsPrescribed ? `
         <div class="info-box">
           <h3>Supplements Prescribed</h3>
-          <p>${details.supplementsPrescribed}</p>
+          <p>${displayValue(details.supplementsPrescribed)}</p>
         </div>
-        ` : ""}
       </div>
 
       <div class="section">
@@ -260,22 +345,64 @@ function generateNutritionalAssessmentHTML(data: any): string {
         <div class="info-box grid grid-cols-2">
           <div>
             <div class="field-label">Completed By</div>
-            <div class="field-value">${data.completed_by || data.completedBy}</div>
+            <div class="field-value">${displayValue(data.completed_by || data.completedBy)}</div>
             <div class="field-label" style="margin-top: 8px;">Job Role</div>
-            <div class="field-value">${details.jobRole || data.jobRole || "Not specified"}</div>
+            <div class="field-value">${displayValue(details.jobRole)}</div>
           </div>
           <div>
             <div class="field-label">Signature</div>
             <div class="field-value" style="font-style: italic; border-bottom: 1px solid #ccc; padding-top: 10px;">
-              ${details.signature || data.signature || data.completed_by}
+              ${displayValue(details.signature || (data.completed_by as string | undefined))}
             </div>
           </div>
         </div>
       </div>
 
+      ${monthlyEvaluations.length > 0
+      ? monthlyEvaluations
+        .map((evaluation, index) => `
+              <div class="section">
+                <h2>Monthly Review - Review ${index + 1}</h2>
+              <div class="info-box">
+                <div class="grid grid-cols-2">
+                  <div>
+                    <div class="field-label">Review Date</div>
+                    <div class="field-value">${formatDate(evaluation.date)}</div>
+                  </div>
+                  <div>
+                    <div class="field-label">Completed By</div>
+                    <div class="field-value">${displayValue(evaluation.completedBy)}</div>
+                  </div>
+                </div>
+                <div style="margin-top: 12px;">
+                  ${[
+          "mustScoreChange",
+          "saltReferralRequired",
+          "saltInputReceived",
+          "specialisedDietChange",
+          "foodConsistencyChange",
+          "fluidConsistencyChange",
+          "foodFortificationRequired",
+          "supplementsPrescribed",
+          "assistanceRequired"
+        ]
+          .map((key) => `
+                      <div style="border-top: 1px solid #e5e7eb; padding: 8px 0;">
+                        <div><strong>${formatFieldName(key)}:</strong> ${checkboxToYesNo(evaluation[key as keyof MonthlyEvaluationData] as CheckboxLike)}</div>
+                        <div><strong>Notes:</strong> ${displayValue(evaluation[`${key}Notes` as keyof MonthlyEvaluationData] as string | undefined)}</div>
+                      </div>
+                    `)
+          .join("")}
+                </div>
+              </div>
+              </div>
+            `)
+        .join("")
+      : ""}
+
       <div class="footer">
         <p>Generated on ${formatDateTime(Date.now())}</p>
-        <p>Nutritional Assessment Report - ${data.residentName}</p>
+        <p>Nutritional Assessment Report - ${displayValue(data.residentName)}</p>
       </div>
     </body>
     </html>
@@ -284,7 +411,7 @@ function generateNutritionalAssessmentHTML(data: any): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const assessmentData = await request.json();
+    const assessmentData = (await request.json()) as NutritionalAssessmentPdfData;
 
     if (!assessmentData) {
       return NextResponse.json(
@@ -293,18 +420,68 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Flatten the data: merge assessment_data and assessment_details into the top level
-    const flattenedData = {
+    const nestedAssessmentData =
+      assessmentData.assessment_data && typeof assessmentData.assessment_data === "object"
+        ? (assessmentData.assessment_data as Record<string, unknown>)
+        : {};
+
+    const getOptionalString = (value: unknown): string | undefined => {
+      if (typeof value === "string" && value.trim().length > 0) return value;
+      return undefined;
+    };
+
+    const getOptionalDateLike = (value: unknown): string | number | undefined => {
+      if (typeof value === "string" || typeof value === "number") return value;
+      return undefined;
+    };
+
+    const normalizeConsistency = (
+      value: unknown
+    ): Record<string, boolean | undefined> => {
+      if (!value || typeof value !== "object") return {};
+      const source = value as Record<string, unknown>;
+      const normalized: Record<string, boolean | undefined> = {};
+      for (const [key, entry] of Object.entries(source)) {
+        if (typeof entry === "boolean") normalized[key] = entry;
+      }
+      return normalized;
+    };
+
+    const nestedDetails =
+      nestedAssessmentData.assessment_details &&
+        typeof nestedAssessmentData.assessment_details === "object"
+        ? (nestedAssessmentData.assessment_details as NutritionalAssessmentDetails)
+        : undefined;
+
+    const flattenedData: NutritionalAssessmentPdfData = {
       ...assessmentData,
-      ...(assessmentData.assessment_data || {}),
-      ...(assessmentData.assessment_details || {}),
-      food_consistency: assessmentData.food_consistency || assessmentData.assessment_data?.food_consistency || {},
-      fluid_consistency: assessmentData.fluid_consistency || assessmentData.assessment_data?.fluid_consistency || {},
-      assessment_details: assessmentData.assessment_details || assessmentData.assessment_data?.assessment_details || {},
-      residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || assessmentData.assessment_details?.residentName || "Resident",
-      dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth || assessmentData.assessment_details?.dateOfBirth,
-      bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber || assessmentData.assessment_details?.bedroomNumber,
-      assessment_date: assessmentData.assessment_date || assessmentData.completion_date || assessmentData.created_at
+      food_consistency: normalizeConsistency(
+        assessmentData.food_consistency ?? nestedAssessmentData.food_consistency
+      ),
+      fluid_consistency: normalizeConsistency(
+        assessmentData.fluid_consistency ?? nestedAssessmentData.fluid_consistency
+      ),
+      assessment_details: assessmentData.assessment_details ?? nestedDetails ?? {},
+      residentName:
+        assessmentData.residentName ??
+        getOptionalString(nestedAssessmentData.residentName) ??
+        assessmentData.assessment_details?.residentName ??
+        nestedDetails?.residentName ??
+        "Resident",
+      dateOfBirth:
+        assessmentData.dateOfBirth ??
+        getOptionalString(nestedAssessmentData.dateOfBirth) ??
+        assessmentData.assessment_details?.dateOfBirth ??
+        nestedDetails?.dateOfBirth,
+      bedroomNumber:
+        assessmentData.bedroomNumber ??
+        getOptionalString(nestedAssessmentData.bedroomNumber) ??
+        assessmentData.assessment_details?.bedroomNumber ??
+        nestedDetails?.bedroomNumber,
+      assessment_date:
+        assessmentData.assessment_date ??
+        getOptionalDateLike(assessmentData.completion_date) ??
+        getOptionalDateLike(assessmentData.created_at)
     };
 
     const htmlContent = generateNutritionalAssessmentHTML(flattenedData);
@@ -332,7 +509,7 @@ export async function POST(request: NextRequest) {
 
       await browser.close();
 
-      return new NextResponse(pdfBuffer as any, {
+      return new NextResponse(pdfBuffer as BodyInit, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="nutritional-assessment-${flattenedData.residentName?.replace(/\s+/g, "-") || "resident"}.pdf"`,

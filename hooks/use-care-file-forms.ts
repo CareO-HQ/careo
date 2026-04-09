@@ -57,6 +57,7 @@ async function fetchFormsFromDB(residentId: string): Promise<CareFileFormsState>
     "v2-capacity-consent",
     "v2-specimen-log",
     "v2-general-risk",
+    "v2-must-assessment",
     "v2-personal-profile",
     "v2-abbey-pain"
   ];
@@ -94,6 +95,7 @@ async function fetchFormsFromDB(residentId: string): Promise<CareFileFormsState>
     "v2-night-obs-consent": "night_observation_consents",
     "v2-specimen-log": "specimen_records",
     "v2-general-risk": "general_risk_assessments",
+    "v2-must-assessment": "must_assessments",
     "v2-personal-profile": "personal_profiles",
     "v2-abbey-pain": "abbey_pain_assessments"
   };

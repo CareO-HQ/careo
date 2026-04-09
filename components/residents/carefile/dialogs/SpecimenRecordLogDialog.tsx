@@ -34,7 +34,7 @@ import { specimenRecordSchema, SpecimenRecordFormData } from "@/schemas/resident
 import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, Plus, Trash, Edit, Check } from "lucide-react";
+import { CalendarIcon, Loader2, Plus, Trash, Edit, Check, FileDown } from "lucide-react";
 import { useState, useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { cn } from "@/lib/utils";
@@ -97,6 +97,42 @@ export default function SpecimenRecordLogDialog({
     const [receivedDatePopoverOpen, setReceivedDatePopoverOpen] = useState(false);
     const [recordToDelete, setRecordToDelete] = useState<string | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+    const [resolvedLogoUrl, setResolvedLogoUrl] = useState<string | undefined>(orgLogoUrl);
+
+    useEffect(() => {
+        if (orgLogoUrl) {
+            setResolvedLogoUrl(orgLogoUrl);
+            return;
+        }
+        if (!organizationId) return;
+        supabase
+            .from("organizations")
+            .select("logo_url")
+            .eq("id", organizationId)
+            .single()
+            .then(({ data }) => {
+                if (data?.logo_url) setResolvedLogoUrl(data.logo_url);
+            });
+    }, [organizationId, orgLogoUrl, supabase]);
+
+    const handleGeneratePDF = async () => {
+        setIsGeneratingPDF(true);
+        try {
+            await generateCareFilePDF({
+                formName: "Specimen Record Log",
+                data: specimenRecords,
+                resident,
+                orgLogoUrl: resolvedLogoUrl,
+                careHomeName,
+            });
+        } catch (error) {
+            console.error("PDF generation error:", error);
+            toast.error("Failed to generate PDF. Please try again.");
+        } finally {
+            setIsGeneratingPDF(false);
+        }
+    };
 
     const defaultValues = {
         residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
@@ -409,16 +445,15 @@ export default function SpecimenRecordLogDialog({
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => generateCareFilePDF({
-                                formName: "Specimen Record Log",
-                                data: specimenRecords,
-                                resident: resident,
-                                orgLogoUrl: orgLogoUrl,
-                                careHomeName: careHomeName
-                            })}
-                            disabled={specimenRecords.length === 0}
+                            onClick={handleGeneratePDF}
+                            disabled={isGeneratingPDF}
                         >
-                            Generate PDF
+                            {isGeneratingPDF ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <FileDown className="mr-2 h-4 w-4" />
+                            )}
+                            {isGeneratingPDF ? "Generating…" : "Generate PDF"}
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => refreshRecords()} disabled={isRecordsLoading}>
                             Refresh

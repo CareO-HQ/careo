@@ -363,7 +363,7 @@ export default function ResidentValuables({
                     <div className="flex justify-between items-center">
                       <h4 className="text-sm font-medium">Clothing</h4>
                       <Button type="button" variant="outline" size="sm"
-                        onClick={() => appendClothing({ value: "" })}>
+                        onClick={() => appendClothing({ value: "", count: 1 })}>
                         <Plus className="h-4 w-4 mr-2" />Add Clothing
                       </Button>
                     </div>
@@ -375,6 +375,20 @@ export default function ResidentValuables({
                           <FormItem className="flex-1">
                             <FormControl>
                               {renderInput(field, { placeholder: "Clothing item description" })}
+                            </FormControl><FormMessage />
+                          </FormItem>)} />
+                      <FormField control={form.control} name={`clothing.${index}.count`}
+                        render={({ field }) => (
+                          <FormItem className="w-20">
+                            <FormControl>
+                              {renderInput(field, {
+                                type: "number",
+                                min: 1,
+                                placeholder: "Qty",
+                                value: field.value ?? 1,
+                                onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                                  field.onChange(e.target.valueAsNumber || 1)
+                              })}
                             </FormControl><FormMessage />
                           </FormItem>)} />
                       <Button type="button" variant="ghost" size="sm"
@@ -393,74 +407,38 @@ export default function ResidentValuables({
                     <div className="flex justify-between items-center">
                       <h4 className="text-sm font-medium">Other Items</h4>
                       <Button type="button" variant="outline" size="sm"
-                        onClick={() => appendOther({
-                          details: "", receivedBy: "", witnessedBy: "",
-                          date: Date.now(), time: "12:00"
-                        })}>
+                        onClick={() => appendOther({ value: "", count: 1 })}>
                         <Plus className="h-4 w-4 mr-2" />Add Other Item
                       </Button>
                     </div>
                   </div>
                   {otherFields.map((field, index) => (
-                    <div key={field.id} className="border rounded-md p-4 space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h4 className="font-medium">Item {index + 1}</h4>
-                        <Button type="button" variant="ghost" size="sm"
-                          onClick={() => removeOther(index)}>
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <FormField control={form.control} name={`other.${index}.details`}
+                    <div key={field.id} className="flex items-center gap-2">
+                      <FormField control={form.control} name={`other.${index}.value`}
                         render={({ field }) => (
-                          <FormItem><FormLabel>Item Details</FormLabel>
-                            <FormControl>{renderTextarea(field, { placeholder: "Describe the item" })}</FormControl>
-                            <FormMessage />
+                          <FormItem className="flex-1">
+                            <FormControl>
+                              {renderInput(field, { placeholder: "Other item description" })}
+                            </FormControl><FormMessage />
                           </FormItem>)} />
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField control={form.control} name={`other.${index}.receivedBy`}
-                          render={({ field }) => (
-                            <FormItem><FormLabel>Received By</FormLabel>
-                              <FormControl>{renderInput(field)}</FormControl><FormMessage />
-                            </FormItem>)} />
-                        <FormField control={form.control} name={`other.${index}.witnessedBy`}
-                          render={({ field }) => (
-                            <FormItem><FormLabel>Witnessed By</FormLabel>
-                              <FormControl>{renderInput(field)}</FormControl><FormMessage />
-                            </FormItem>)} />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField control={form.control} name={`other.${index}.date`}
-                          render={({ field }) => (
-                            <FormItem><FormLabel>Date</FormLabel>
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <FormControl>
-                                    <Button variant="outline"
-                                      className={cn("w-full pl-3 text-left font-normal",
-                                        !field.value && "text-muted-foreground")}>
-                                      {field.value ? format(new Date(field.value), "PPP")
-                                        : <span>Pick a date</span>}
-                                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                    </Button>
-                                  </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                  <Calendar mode="single"
-                                    selected={field.value ? new Date(field.value) : undefined}
-                                    onSelect={(date) => field.onChange(date?.getTime())}
-                                    disabled={(date) =>
-                                      date > new Date() || date < new Date("1900-01-01")} />
-                                </PopoverContent>
-                              </Popover>
-                              <FormMessage />
-                            </FormItem>)} />
-                        <FormField control={form.control} name={`other.${index}.time`}
-                          render={({ field }) => (
-                            <FormItem><FormLabel>Time</FormLabel>
-                              <FormControl><Input type="time" {...field} /></FormControl>
-                              <FormMessage />
-                            </FormItem>)} />
-                      </div>
+                      <FormField control={form.control} name={`other.${index}.count`}
+                        render={({ field }) => (
+                          <FormItem className="w-20">
+                            <FormControl>
+                              {renderInput(field, {
+                                type: "number",
+                                min: 1,
+                                placeholder: "Qty",
+                                value: field.value ?? 1,
+                                onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                                  field.onChange(e.target.valueAsNumber || 1)
+                              })}
+                            </FormControl><FormMessage />
+                          </FormItem>)} />
+                      <Button type="button" variant="ghost" size="sm"
+                        onClick={() => removeOther(index)}>
+                        <Trash className="h-4 w-4" />
+                      </Button>
                     </div>
                   ))}
                   {otherFields.length === 0 && (

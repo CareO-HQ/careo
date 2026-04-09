@@ -412,7 +412,7 @@ export const config = {
       description: "Nutrition, hydration, and choking risk management.",
       carePlan: true,
       forms: [
-        { type: "form", key: "v2-must-assessment", value: "MUST Assessment", isComingSoon: true },
+        { type: "form", key: "v2-must-assessment", value: "MUST Assessment" },
         { type: "link", key: "must-calculator", value: "MUST Calculator", url: "https://www.bapen.org.uk/must-and-self-screening/must-calculator/" },
         { type: "form", key: "v2-weight-chart", value: "Weight Chart", isComingSoon: true },
         { type: "form", key: "nutritional-assessment-form", value: "Nutrition Assessment + Monthly Review" },

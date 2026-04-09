@@ -395,7 +395,17 @@ export default function GenericFolderPage() {
 
     const handlePrint = async () => {
         if (!activeFormKey || !resident) return;
-        if (activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && !formDataForEdit) return;
+
+        const allowsHistoryOnlyPrint =
+            activeFormKey === "dependency-assessment" ||
+            activeFormKey === "fall-risk-assessment" ||
+            activeFormKey === "choking-risk-assessment-form" ||
+            activeFormKey === "v2-abbey-pain";
+
+        if (!allowsHistoryOnlyPrint && !formDataForEdit) {
+            toast.error("No form data available to print. Please save or open a completed record first.");
+            return;
+        }
 
         const formName = activeFormKey === "care-plan-form"
             ? (formDataForEdit.care_plan_type || "Care Plan")
@@ -458,6 +468,20 @@ export default function GenericFolderPage() {
                 .from('choking_risk_assessments')
                 .select('*')
                 .eq('resident_id', residentId)
+                .order('assessment_date', { ascending: false });
+
+            if (!error && history) {
+                dataToPrint.history = history;
+            }
+        }
+
+        // If it's Abbey Pain Tool, fetch all past assessments
+        if (activeFormKey === "v2-abbey-pain") {
+            const { data: history, error } = await supabase
+                .from('abbey_pain_assessments')
+                .select('*')
+                .eq('resident_id', residentId)
+                .eq('status', 'completed')
                 .order('assessment_date', { ascending: false });
 
             if (!error && history) {
@@ -655,7 +679,7 @@ export default function GenericFolderPage() {
                                             variant="outline"
                                             size="sm"
                                             onClick={handlePrint}
-                                            disabled={activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && !formDataForEdit}
+                                            disabled={activeFormKey !== "dependency-assessment" && activeFormKey !== "fall-risk-assessment" && activeFormKey !== "choking-risk-assessment-form" && activeFormKey !== "v2-abbey-pain" && !formDataForEdit}
                                             className="gap-2"
                                         >
                                             <Printer className="w-4 h-4" />

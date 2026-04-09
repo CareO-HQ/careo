@@ -298,6 +298,7 @@ export default function InfectionPreventionDialog({
           exposure_history: exposurePayload,
           isolation_required: values.isolationRequired,
           completed_by: values.completedBy,
+          signature: values.signature,
           assessment_date: new Date(values.assessmentDate || Date.now()).toISOString(),
           created_by: userId,
         };

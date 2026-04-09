@@ -3,6 +3,74 @@ import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
+type YesNo = "YES" | "NO";
+
+type BedRailsRiskAssessmentPayload = {
+  _id?: string;
+  id?: string;
+  residentName?: string;
+  bedroomNumber?: string;
+  dateOfBirth?: string | number;
+  assessment_date?: string | number;
+  assessmentDate?: string | number;
+  completed_by?: string;
+  completedBy?: string;
+  job_role?: string;
+  jobRole?: string;
+  signatureOfAssessor?: string;
+  signatureDate?: string | number;
+  alternativeEquipmentConsidered?: string;
+  reasonsAlternativesNotSuccessful?: string;
+  anyExclusionChecked?: boolean;
+  anySafetyCheckFailed?: boolean;
+  hasExtendedHeightRails?: boolean;
+  risks_identified?: {
+    residentRefuses?: boolean;
+    climbingRisk?: boolean;
+    entrapmentRisk?: boolean;
+    abnormalBodySize?: boolean;
+    restraintPurpose?: boolean;
+    freedomLimitation?: boolean;
+  };
+  benefits_identified?: {
+    residentRequests?: boolean;
+    mdtMeetingCompleted?: boolean;
+    riskOutweighsBenefit?: boolean;
+    alternativesExplored?: boolean;
+    bestInterestDecision?: boolean;
+  };
+  alternatives_considered?: {
+    considered?: string;
+    reasons?: string;
+  };
+  decision?: {
+    reasonExplainedToResident?: YesNo;
+    typeOfBed?: string;
+    typeOfMattress?: string;
+    typeOfBedrails?: string;
+    safetyChecklist?: {
+      gapBetweenRailAndMattress?: YesNo;
+      mattressCompressesEasily?: YesNo;
+      gapMoreThan60mm?: YesNo;
+      bedRailInsecure?: YesNo;
+      bedAgainstWall?: YesNo;
+    };
+    anySafetyCheckFailed?: boolean;
+    hasExtendedHeightRails?: boolean;
+    extendedHeightChecks?: {
+      positionedCorrectly?: YesNo;
+      securelyFastened?: YesNo;
+      correctBumpersInstalled?: YesNo;
+      mattressBelowPlimsollLine?: YesNo;
+      staffTrained?: YesNo;
+      checkedForDamage?: YesNo;
+    };
+    consentObtained?: YesNo;
+    carePlanCompleted?: YesNo;
+  };
+  assessment_data?: Partial<BedRailsRiskAssessmentPayload>;
+};
+
 function formatDate(dateString?: string | number): string {
   if (!dateString) return "Not provided";
   return new Date(dateString).toLocaleDateString("en-GB");
@@ -20,13 +88,29 @@ function formatDateTime(dateString?: string | number): string {
   );
 }
 
-function generateBedRailsRiskHTML(data: any): string {
+function stringValue(value?: string): string {
+  if (!value || !value.trim()) return "Not provided";
+  return value;
+}
+
+function yesNoFromBoolean(value?: boolean): "Yes" | "No" {
+  return value === true ? "Yes" : "No";
+}
+
+function yesNoFromChoice(value?: YesNo): "Yes" | "No" {
+  return value === "YES" ? "Yes" : "No";
+}
+
+function generateBedRailsRiskHTML(data: BedRailsRiskAssessmentPayload): string {
   const risks = data.risks_identified || {};
   const benefits = data.benefits_identified || {};
   const alternatives = data.alternatives_considered || {};
   const decision = data.decision || {};
   const safety = decision.safetyChecklist || {};
   const extended = decision.extendedHeightChecks || {};
+  const hasExtendedHeightRails = decision.hasExtendedHeightRails ?? data.hasExtendedHeightRails;
+  const anySafetyCheckFailed = decision.anySafetyCheckFailed ?? data.anySafetyCheckFailed;
+  const assessmentDate = data.assessment_date || data.assessmentDate;
 
   return `
     <!DOCTYPE html>
@@ -85,28 +169,20 @@ function generateBedRailsRiskHTML(data: any): string {
           padding: 12px;
           font-size: 0.9rem;
         }
-        .check-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          margin-bottom: 6px;
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        th, td {
+          border: 1px solid #e5e7eb;
+          padding: 8px;
+          text-align: left;
+          vertical-align: top;
           font-size: 0.85rem;
         }
-        .check-box {
-          width: 14px;
-          height: 14px;
-          border: 1px solid #94a3b8;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-top: 2px;
-          flex-shrink: 0;
-        }
-        .checked {
-          background-color: #ef4444;
-          border-color: #ef4444;
-          color: white;
-          font-size: 10px;
+        th {
+          background: #f8fafc;
+          width: 48%;
         }
         .danger-zone {
           border: 2px solid #ef4444;
@@ -142,82 +218,103 @@ function generateBedRailsRiskHTML(data: any): string {
       <div class="section">
         <h2>Administrative Details</h2>
         <div class="grid grid-cols-2 info-box">
-          <div><span class="label">Resident:</span> ${data.residentName || "N/A"}</div>
-          <div><span class="label">Bedroom:</span> ${data.bedroomNumber || "N/A"}</div>
-          <div><span class="label">Assessment Date:</span> ${formatDate(data.assessment_date)}</div>
-          <div><span class="label">Assessed By:</span> ${data.completed_by}</div>
+          <div><span class="label">Resident Name:</span> ${stringValue(data.residentName)}</div>
+          <div><span class="label">Bedroom Number:</span> ${stringValue(data.bedroomNumber)}</div>
+          <div><span class="label">Date of Birth:</span> ${formatDate(data.dateOfBirth)}</div>
+          <div><span class="label">Date of Assessment:</span> ${formatDate(assessmentDate)}</div>
+          <div><span class="label">Assessment Completed By:</span> ${stringValue(data.completed_by || data.completedBy)}</div>
+          <div><span class="label">Job Role:</span> ${stringValue(data.job_role || data.jobRole)}</div>
         </div>
       </div>
 
       <div class="section">
         <h2>Trial of Alternatives</h2>
         <div class="info-box">
-          <p><span class="label">Alternatives Considered:</span> ${alternatives.considered || "None recorded"}</p>
-          <p><span class="label">Result/Rationale:</span> ${alternatives.reasons || "N/A"}</p>
+          <p><span class="label">Alternative Equipment Considered/Trialled:</span> ${stringValue(
+            alternatives.considered || data.alternativeEquipmentConsidered
+          )}</p>
+          <p><span class="label">Reasons Why Alternatives Have Not Been Successful:</span> ${stringValue(
+            alternatives.reasons || data.reasonsAlternativesNotSuccessful
+          )}</p>
         </div>
       </div>
 
       <div class="section">
         <div class="danger-zone">
           <h3 style="color: #b91c1c; margin-top: 0; font-size: 1rem;">Exclusion Criteria (Bedrails CANNOT be used if any apply)</h3>
-          <div class="check-item"><div class="check-box ${risks.residentRefuses ? 'checked' : ''}">${risks.residentRefuses ? '✓' : ''}</div> Resident with capacity refuses</div>
-          <div class="check-item"><div class="check-box ${risks.climbingRisk ? 'checked' : ''}">${risks.climbingRisk ? '✓' : ''}</div> Risk of climbing over (leading to higher fall)</div>
-          <div class="check-item"><div class="check-box ${risks.entrapmentRisk ? 'checked' : ''}">${risks.entrapmentRisk ? '✓' : ''}</div> Risk of entrapment exceeds risk of falling</div>
-          <div class="check-item"><div class="check-box ${risks.abnormalBodySize ? 'checked' : ''}">${risks.abnormalBodySize ? '✓' : ''}</div> Small size resulting in entrapment danger</div>
-          <div class="check-item"><div class="check-box ${risks.restraintPurpose ? 'checked' : ''}">${risks.restraintPurpose ? '✓' : ''}</div> Primary purpose is to restrain violent movement</div>
+          <table>
+            <tr><th>Resident with capacity refuses</th><td>${yesNoFromBoolean(risks.residentRefuses)}</td></tr>
+            <tr><th>Risk of climbing over rails</th><td>${yesNoFromBoolean(risks.climbingRisk)}</td></tr>
+            <tr><th>Risk of head/limb entrapment</th><td>${yesNoFromBoolean(risks.entrapmentRisk)}</td></tr>
+            <tr><th>Abnormally small body size</th><td>${yesNoFromBoolean(risks.abnormalBodySize)}</td></tr>
+            <tr><th>Used for restraint of violent movement</th><td>${yesNoFromBoolean(risks.restraintPurpose)}</td></tr>
+            <tr><th>Used solely to prevent leaving bed</th><td>${yesNoFromBoolean(risks.freedomLimitation)}</td></tr>
+            <tr><th>Any Exclusion Criteria Checked</th><td>${yesNoFromBoolean(data.anyExclusionChecked)}</td></tr>
+          </table>
         </div>
       </div>
 
       <div class="section">
         <div class="success-zone">
           <h3 style="color: #065f46; margin-top: 0; font-size: 1rem;">Authorization Rationale (Bedrails CAN be used if applicable)</h3>
-          <div class="check-item"><div class="check-box ${benefits.residentRequests ? 'checked' : ''}">${benefits.residentRequests ? '✓' : ''}</div> Resident with capacity requests bedrails</div>
-          <div class="check-item"><div class="check-box ${benefits.mdtMeetingCompleted ? 'checked' : ''}">${benefits.mdtMeetingCompleted ? '✓' : ''}</div> MDT collective risk understanding</div>
-          <div class="check-item"><div class="check-box ${benefits.riskOutweighsBenefit ? 'checked' : ''}">${benefits.riskOutweighsBenefit ? '✓' : ''}</div> Injury risk from fall outweighs rail risk</div>
-          <div class="check-item"><div class="check-box ${benefits.bestInterestDecision ? 'checked' : ''}">${benefits.bestInterestDecision ? '✓' : ''}</div> Best Interest Decision for lacking capacity</div>
+          <table>
+            <tr><th>Resident with capacity requests</th><td>${yesNoFromBoolean(benefits.residentRequests)}</td></tr>
+            <tr><th>MDT meeting understands risks</th><td>${yesNoFromBoolean(benefits.mdtMeetingCompleted)}</td></tr>
+            <tr><th>Falling risk outweighs rail risk</th><td>${yesNoFromBoolean(benefits.riskOutweighsBenefit)}</td></tr>
+            <tr><th>All other alternatives unsuccessful</th><td>${yesNoFromBoolean(benefits.alternativesExplored)}</td></tr>
+            <tr><th>Best interest decision (if no capacity)</th><td>${yesNoFromBoolean(benefits.bestInterestDecision)}</td></tr>
+            <tr><th>Has the reason for using bed rails been explained to the Resident?</th><td>${yesNoFromChoice(decision.reasonExplainedToResident)}</td></tr>
+          </table>
         </div>
       </div>
 
       <div class="section">
         <h2>Equipment Configuration</h2>
         <div class="grid grid-cols-2 info-box">
-          <div><span class="label">Bed Type:</span> ${decision.typeOfBed || "N/A"}</div>
-          <div><span class="label">Mattress:</span> ${decision.typeOfMattress || "N/A"}</div>
-          <div><span class="label">Rail Type:</span> ${decision.typeOfBedrails || "N/A"}</div>
-          <div><span class="label">Consent:</span> ${decision.consentObtained || "NO"}</div>
+          <div><span class="label">Type of Bed:</span> ${stringValue(decision.typeOfBed)}</div>
+          <div><span class="label">Type of Mattress:</span> ${stringValue(decision.typeOfMattress)}</div>
+          <div><span class="label">Type of Bedrails:</span> ${stringValue(decision.typeOfBedrails)}</div>
+          <div><span class="label">Has Extended Height Bed Rails:</span> ${yesNoFromBoolean(hasExtendedHeightRails)}</div>
+          <div><span class="label">Obtained consent from Resident or consulted NOK?</span> ${yesNoFromChoice(decision.consentObtained)}</div>
+          <div><span class="label">Have you completed a care plan?</span> ${yesNoFromChoice(decision.carePlanCompleted)}</div>
         </div>
       </div>
 
       <div class="section">
         <h2>Safety Audit Checklist</h2>
-        <div class="info-box">
-          <p><span class="label">Gap Lower Bar/Mattress:</span> ${safety.gapBetweenRailAndMattress || "N/A"}</p>
-          <p><span class="label">Mattress Compresses Easily:</span> ${safety.mattressCompressesEasily || "N/A"}</p>
-          <p><span class="label">Gap > 60mm Headboard/Wall:</span> ${safety.gapMoreThan60mm || "N/A"}</p>
-          <p><span class="label">Insecure Rail:</span> ${safety.bedRailInsecure || "N/A"}</p>
-          <p><span class="label">Bed Against Wall:</span> ${safety.bedAgainstWall || "N/A"}</p>
-        </div>
+        <table class="info-box">
+          <tr><th>Gap between lower bar and top of mattress?</th><td>${yesNoFromChoice(safety.gapBetweenRailAndMattress)}</td></tr>
+          <tr><th>Does mattress compress easily at edge?</th><td>${yesNoFromChoice(safety.mattressCompressesEasily)}</td></tr>
+          <tr><th>Gap greater than 60mm between rail and headboard/wall?</th><td>${yesNoFromChoice(safety.gapMoreThan60mm)}</td></tr>
+          <tr><th>Is the bed rail insecure?</th><td>${yesNoFromChoice(safety.bedRailInsecure)}</td></tr>
+          <tr><th>Is the bed positioned against a wall?</th><td>${yesNoFromChoice(safety.bedAgainstWall)}</td></tr>
+          <tr><th>Any Safety Check Failed</th><td>${yesNoFromBoolean(anySafetyCheckFailed)}</td></tr>
+        </table>
       </div>
 
       <div class="section">
         <h2>EXTENDED HEIGHT BED RAILS</h2>
-        <div class="info-box">
-          <p><span class="label">Is the extended bed rail positioned correctly with a gap of less than 60mm?</span> ${extended.positionedCorrectly || "NO"}</p>
-          <p><span class="label">Is the extended height rail securely fastened?</span> ${extended.securelyFastened || "NO"}</p>
-          <p><span class="label">Are correct bumpers installed?</span> ${extended.correctBumpersInstalled || "NO"}</p>
-          <p><span class="label">Does the mattress come below the plimsoll line on the bumper?</span> ${extended.mattressBelowPlimsollLine || "NO"}</p>
-          <p><span class="label">Have staff been trained how to attach and remove the extended bed rail?</span> ${extended.staffTrained || "NO"}</p>
-          <p><span class="label">Has the bed and bed rails been checked for any signs of damage or wear and tear?</span> ${extended.checkedForDamage || "NO"}</p>
-        </div>
+        <table class="info-box">
+          <tr><th>Is the extended bed rail positioned as far to the head of the bed as possible with a gap of less than 60mm?</th><td>${yesNoFromChoice(extended.positionedCorrectly)}</td></tr>
+          <tr><th>Is the extended height bed rail securely fastened to the integrated bed rail?</th><td>${yesNoFromChoice(extended.securelyFastened)}</td></tr>
+          <tr><th>Are the correct bumpers installed?</th><td>${yesNoFromChoice(extended.correctBumpersInstalled)}</td></tr>
+          <tr><th>Does the mattress come below the plimsoll line on the bumper?</th><td>${yesNoFromChoice(extended.mattressBelowPlimsollLine)}</td></tr>
+          <tr><th>Have staff been trained how to attach and remove the extended bed rail?</th><td>${yesNoFromChoice(extended.staffTrained)}</td></tr>
+          <tr><th>Has the bed and bed rails been checked for any signs of damage or wear and tear?</th><td>${yesNoFromChoice(extended.checkedForDamage)}</td></tr>
+        </table>
       </div>
 
       <div class="section" style="margin-top: 40px;">
         <div class="grid grid-cols-2">
           <div style="border-top: 1px solid black; padding-top: 5px; margin-right: 20px;">
-            <p style="font-size: 0.8rem;"><span class="label">Signature of Assessor:</span> ${data.completed_by}</p>
+            <p style="font-size: 0.8rem;"><span class="label">Digital Signature (Assessor):</span> ${stringValue(
+              data.signatureOfAssessor || data.completed_by || data.completedBy
+            )}</p>
           </div>
           <div style="border-top: 1px solid black; padding-top: 5px;">
-            <p style="font-size: 0.8rem;"><span class="label">Date:</span> ${formatDate(data.assessment_date)}</p>
+            <p style="font-size: 0.8rem;"><span class="label">Signature Date:</span> ${formatDate(
+              data.signatureDate || assessmentDate
+            )}</p>
           </div>
         </div>
       </div>
@@ -233,21 +330,49 @@ function generateBedRailsRiskHTML(data: any): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const assessmentData = await request.json();
+    const assessmentData = (await request.json()) as BedRailsRiskAssessmentPayload;
 
     if (!assessmentData) {
       return NextResponse.json({ error: "Data is required" }, { status: 400 });
     }
 
     // Flatten the data: merge assessment_data into the top level
-    const flattenedData = {
+    const flattenedData: BedRailsRiskAssessmentPayload = {
       ...assessmentData,
       ...(assessmentData.assessment_data || {}),
       // Ensure resident details and common fields are at the top level
       residentName: assessmentData.residentName || assessmentData.assessment_data?.residentName || "Resident",
       bedroomNumber: assessmentData.bedroomNumber || assessmentData.assessment_data?.bedroomNumber,
-      assessment_date: assessmentData.assessment_date || assessmentData.created_at || Date.now(),
+      dateOfBirth: assessmentData.dateOfBirth || assessmentData.assessment_data?.dateOfBirth,
+      assessment_date:
+        assessmentData.assessment_date ||
+        assessmentData.assessmentDate ||
+        assessmentData.assessment_data?.assessmentDate ||
+        Date.now(),
       completed_by: assessmentData.completed_by || assessmentData.completedBy || assessmentData.assessment_data?.completed_by || "Not specified",
+      job_role: assessmentData.job_role || assessmentData.jobRole || assessmentData.assessment_data?.jobRole,
+      signatureOfAssessor:
+        assessmentData.signatureOfAssessor ||
+        assessmentData.assessment_data?.signatureOfAssessor ||
+        assessmentData.completed_by ||
+        assessmentData.completedBy,
+      signatureDate:
+        assessmentData.signatureDate ||
+        assessmentData.assessment_data?.signatureDate ||
+        assessmentData.assessment_date ||
+        assessmentData.assessmentDate,
+      alternativeEquipmentConsidered:
+        assessmentData.alternativeEquipmentConsidered ||
+        assessmentData.assessment_data?.alternativeEquipmentConsidered,
+      reasonsAlternativesNotSuccessful:
+        assessmentData.reasonsAlternativesNotSuccessful ||
+        assessmentData.assessment_data?.reasonsAlternativesNotSuccessful,
+      anyExclusionChecked:
+        assessmentData.anyExclusionChecked ?? assessmentData.assessment_data?.anyExclusionChecked,
+      anySafetyCheckFailed:
+        assessmentData.anySafetyCheckFailed ?? assessmentData.assessment_data?.anySafetyCheckFailed,
+      hasExtendedHeightRails:
+        assessmentData.hasExtendedHeightRails ?? assessmentData.assessment_data?.hasExtendedHeightRails,
       // Ensure nested objects are available for the template
       risks_identified: assessmentData.risks_identified || assessmentData.assessment_data?.risks_identified || {},
       benefits_identified: assessmentData.benefits_identified || assessmentData.assessment_data?.benefits_identified || {},
@@ -287,7 +412,7 @@ export async function POST(request: NextRequest) {
 
       const residentName = (flattenedData.residentName || "resident").replace(/\s+/g, "-");
 
-      return new NextResponse(pdfBuffer as any, {
+      return new NextResponse(pdfBuffer, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="bed-rails-risk-assessment-${residentName}.pdf"`,

@@ -210,10 +210,10 @@ function generateResidentValuablesHTML(data: any): string {
         <h2>Clothing Audit</h2>
         <table>
           <thead>
-            <tr><th>Item Description</th></tr>
+            <tr><th>Item Description</th><th style="width: 80px; text-align: center;">Count</th></tr>
           </thead>
           <tbody>
-            ${clothing.map((v: any) => `<tr><td>${v.value}</td></tr>`).join('') || '<tr><td style="color: #94a3b8; font-style: italic;">No items recorded</td></tr>'}
+            ${clothing.map((v: any) => `<tr><td>${v.value}</td><td style="text-align: center;">${v.count ?? 1}</td></tr>`).join('') || '<tr><td colspan="2" style="color: #94a3b8; font-style: italic;">No items recorded</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -222,20 +222,10 @@ function generateResidentValuablesHTML(data: any): string {
         <h2>Other Property / Items Received</h2>
         <table>
           <thead>
-            <tr>
-              <th>Item Details</th>
-              <th>Received By</th>
-              <th>Date</th>
-            </tr>
+            <tr><th>Item Description</th><th style="width: 80px; text-align: center;">Count</th></tr>
           </thead>
           <tbody>
-            ${otherItems.map((o: any) => `
-              <tr>
-                <td>${o.details}</td>
-                <td>${o.receivedBy}</td>
-                <td>${formatDate(o.date)}</td>
-              </tr>
-            `).join('') || '<tr><td colspan="3" style="color: #94a3b8; font-style: italic; text-align: center;">No other items recorded</td></tr>'}
+            ${otherItems.map((o: any) => `<tr><td>${o.value || o.details || ''}</td><td style="text-align: center;">${o.count ?? 1}</td></tr>`).join('') || '<tr><td colspan="2" style="color: #94a3b8; font-style: italic; text-align: center;">No other items recorded</td></tr>'}
           </tbody>
         </table>
       </div>

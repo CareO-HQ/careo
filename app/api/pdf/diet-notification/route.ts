@@ -20,11 +20,86 @@ function formatDateTime(dateString?: string | number): string {
   );
 }
 
-function generateDietNotificationHTML(data: any): string {
+type CheckboxMap = Record<string, boolean | undefined>;
+
+type DietNotificationPdfData = {
+  _id?: string;
+  id?: string;
+  residentName?: string;
+  roomNumber?: string;
+  bedroomNumber?: string;
+  completed_by?: string;
+  completedBy?: string;
+  print_name?: string;
+  printName?: string;
+  job_role?: string;
+  jobRole?: string;
+  signature?: string;
+  dateCompleted?: string | number;
+  date_completed?: string | number;
+  reviewDate?: string | number;
+  review_date?: string | number;
+  assessment_date?: string | number;
+  created_at?: string | number;
+  choking_risk?: string;
+  chokingRiskAssessment?: string;
+  preferred_meal_size?: string;
+  preferredMealSize?: string;
+  dietary_preferences?: {
+    dietType?: string;
+    likesFavouriteFoods?: string;
+    dislikes?: string;
+    foodsToBeAvoided?: string;
+    foodAllergyOrIntolerance?: string;
+    assistanceRequired?: string;
+    fluidRequirements?: string;
+  };
+  food_consistency?: {
+    level7Regular?: boolean;
+    level7EasyChew?: boolean;
+    level6SoftBiteSized?: boolean;
+    level5MincedMoist?: boolean;
+    level4Pureed?: boolean;
+    level3Liquidised?: boolean;
+  };
+  fluid_consistency?: {
+    level4ExtremelyThick?: boolean;
+    level3ModeratelyThick?: boolean;
+    level2MildlyThick?: boolean;
+    level1SlightlyThick?: boolean;
+    level0Thin?: boolean;
+  };
+  kitchen_review?: {
+    reviewedByCookChef?: string;
+    reviewerPrintName?: string;
+    reviewerJobTitle?: string;
+    reviewerSignature?: string;
+    reviewerDate?: string | number;
+  };
+  orgLogoUrl?: string;
+  careHomeName?: string;
+  assessment_data?: Partial<DietNotificationPdfData>;
+};
+
+const textValue = (value?: unknown): string => {
+  if (value === undefined || value === null || value === "") {
+    return "Not provided";
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return "Not provided";
+};
+
+const checkboxValue = (value?: boolean): string => (value ? "Yes" : "No");
+
+function generateDietNotificationHTML(data: DietNotificationPdfData): string {
   const dietaryPreferences = data.dietary_preferences || {};
-  const foodConsistency = data.food_consistency || {};
-  const fluidConsistency = data.fluid_consistency || {};
+  const foodConsistency = (data.food_consistency || {}) as CheckboxMap;
+  const fluidConsistency = (data.fluid_consistency || {}) as CheckboxMap;
   const kitchenReview = data.kitchen_review || {};
+  const reviewerCookChefValue =
+    kitchenReview.reviewedByCookChef ?? data.assessment_data?.kitchen_review?.reviewedByCookChef;
 
   return `
     <!DOCTYPE html>
@@ -43,16 +118,29 @@ function generateDietNotificationHTML(data: any): string {
           background: white;
         }
         .header {
-          border-bottom: 2px solid #f97316;
+          border-bottom: 2px solid #059669;
           padding-bottom: 24px;
           margin-bottom: 32px;
-          text-align: center;
+        }
+        .header-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+        }
+        .header-brand {
+          flex: 1;
+        }
+        .header-logo {
+          max-height: 56px;
+          max-width: 170px;
+          object-fit: contain;
         }
         h1 {
           font-size: 2rem;
           font-weight: bold;
           margin-bottom: 8px;
-          color: #c2410c;
+          color: #065f46;
         }
         h2 {
           font-size: 1.25rem;
@@ -68,32 +156,26 @@ function generateDietNotificationHTML(data: any): string {
           margin-bottom: 8px;
           color: #c2410c;
         }
-        .grid {
-          display: grid;
-          gap: 16px;
-        }
-        .grid-cols-2 {
-          grid-template-columns: 1fr 1fr;
-        }
         .section {
-          margin-bottom: 32px;
+          margin-bottom: 28px;
           page-break-inside: avoid;
         }
-        .info-box {
-          background-color: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 6px;
-          padding: 16px;
-          margin-bottom: 16px;
+        .plain-list {
+          margin-top: 6px;
         }
-        .field-label {
-          font-weight: 600;
-          color: #374151;
-          font-size: 0.875rem;
-        }
-        .field-value {
-          color: #111827;
+        .plain-line {
           font-size: 1rem;
+          color: #111827;
+          margin: 0 0 6px 0;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        .subheading {
+          font-size: 0.9rem;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          color: #374151;
+          margin: 14px 0 8px;
         }
         .risk-badge {
           display: inline-block;
@@ -106,18 +188,11 @@ function generateDietNotificationHTML(data: any): string {
         .risk-low { background-color: #dcfce7; color: #166534; }
         .risk-medium { background-color: #fef3c7; color: #92400e; }
         .risk-high { background-color: #fee2e2; color: #991b1b; }
-        .consistency-list {
-          list-style: none;
-          padding: 0;
+        .care-home {
+          color: #374151;
+          font-size: 0.9rem;
           margin: 0;
         }
-        .consistency-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 4px 0;
-        }
-        .check-mark { color: #f97316; font-weight: bold; }
         .footer {
           margin-top: 48px;
           padding-top: 24px;
@@ -126,113 +201,89 @@ function generateDietNotificationHTML(data: any): string {
           color: #6b7280;
           text-align: center;
         }
+        @media (max-width: 700px) {
+          body { padding: 14px; }
+        }
       </style>
     </head>
     <body>
       <div class="header">
-        <h1>Diet Notification</h1>
+        <div class="header-row">
+          <div class="header-brand">
+            <h1>Diet Notification</h1>
+            <p class="care-home">Care Home: ${textValue(data.careHomeName)}</p>
+          </div>
+          ${data.orgLogoUrl ? `<img class="header-logo" src="${data.orgLogoUrl}" alt="Care home logo" />` : ""}
+        </div>
       </div>
 
       <div class="section">
         <h2>Resident & Administrative Info</h2>
-        <div class="grid grid-cols-2 info-box">
-          <div>
-            <div class="field-label">Resident Name</div>
-            <div class="field-value">${data.residentName || "Not specified"}</div>
-          </div>
-          <div>
-            <div class="field-label">Room Number</div>
-            <div class="field-value">${data.roomNumber || "Not specified"}</div>
-          </div>
-          <div>
-            <div class="field-label">Completed By</div>
-            <div class="field-value">${data.completed_by || data.completedBy || "Not specified"}</div>
-          </div>
-          <div>
-            <div class="field-label">Job Role</div>
-            <div class="field-value">${data.job_role || data.jobRole || "Not specified"}</div>
-          </div>
+        <div class="plain-list">
+          <p class="plain-line">${textValue(data.residentName)}</p>
+          <p class="plain-line">${textValue(data.roomNumber)}</p>
+          <p class="plain-line">${textValue(data.completed_by || data.completedBy)}</p>
+          <p class="plain-line">${textValue(data.print_name || data.printName)}</p>
+          <p class="plain-line">${textValue(data.job_role || data.jobRole)}</p>
+          <p class="plain-line">${textValue(data.signature)}</p>
+          <p class="plain-line">${formatDate(data.dateCompleted || data.date_completed)}</p>
+          <p class="plain-line">${formatDate(data.reviewDate || data.review_date)}</p>
         </div>
       </div>
 
       <div class="section">
         <h2>Risk & Preferences</h2>
-        <div class="grid grid-cols-2">
-          <div class="info-box">
-            <h3>Choking Risk</h3>
-            <div class="risk-badge risk-${data.choking_risk?.toLowerCase().replace(' ', '-') || 'low'}">
-              ${data.choking_risk || "Low Risk"}
-            </div>
-          </div>
-          <div class="info-box">
-            <h3>Preferred Meal Size</h3>
-            <div class="field-value">${data.preferred_meal_size || "Standard"}</div>
-          </div>
-        </div>
-        <div class="info-box">
-          <h3>Dietary Preferences</h3>
-          <p><strong>Diet Type:</strong> ${dietaryPreferences.dietType || "Standard"}</p>
-          <p><strong>Likes/Favourite Foods:</strong> ${dietaryPreferences.likesFavouriteFoods || "None specified"}</p>
-          <p><strong>Dislikes:</strong> ${dietaryPreferences.dislikes || "None specified"}</p>
-          <p><strong>Foods to Avoid:</strong> ${dietaryPreferences.foodsToBeAvoided || "None specified"}</p>
-          <p><strong>Allergies/Intolerances:</strong> ${dietaryPreferences.foodAllergyOrIntolerance || "None specified"}</p>
+        <div class="plain-list">
+          <p class="plain-line">${textValue(dietaryPreferences.likesFavouriteFoods)}</p>
+          <p class="plain-line">${textValue(dietaryPreferences.dislikes)}</p>
+          <p class="plain-line">${textValue(dietaryPreferences.foodsToBeAvoided)}</p>
+          <p class="plain-line">${textValue(data.choking_risk || data.chokingRiskAssessment)}</p>
         </div>
       </div>
 
       <div class="section">
-        <h2>IDDSI Consistency Levels</h2>
-        <div class="grid grid-cols-2">
-          <div class="info-box">
-            <h3>Food Consistency</h3>
-            <div class="consistency-list">
-              ${Object.entries(foodConsistency)
-      .filter(([_, value]) => value === true)
-      .map(([key, _]) => `
-                  <div class="consistency-item">
-                    <span class="check-mark">✓</span>
-                    <span>${key.replace('level', 'Level ').replace(/([A-Z])/g, ' $1').trim()}</span>
-                  </div>
-                `).join('') || "Regular diet"}
-            </div>
-          </div>
-          <div class="info-box">
-            <h3>Fluid Consistency</h3>
-            <div class="consistency-list">
-              ${Object.entries(fluidConsistency)
-      .filter(([_, value]) => value === true)
-      .map(([key, _]) => `
-                  <div class="consistency-item">
-                    <span class="check-mark">✓</span>
-                    <span>${key.replace('level', 'Level ').replace(/([A-Z])/g, ' $1').trim()}</span>
-                  </div>
-                `).join('') || "Thin fluids"}
-            </div>
-          </div>
+        <h2>Meal & Fluid Specifications</h2>
+        <div class="plain-list">
+          <p class="plain-line">${textValue(data.preferred_meal_size || data.preferredMealSize)}</p>
+          <p class="plain-line">${textValue(dietaryPreferences.dietType)}</p>
+          <p class="plain-line">${textValue(dietaryPreferences.foodAllergyOrIntolerance)}</p>
         </div>
       </div>
 
       <div class="section">
-        <h2>Assistance & Fluid Requirements</h2>
-        <div class="info-box">
-          <p><strong>Assistance Required:</strong> ${dietaryPreferences.assistanceRequired || "Independent"}</p>
-          <p><strong>Fluid Requirements:</strong> ${dietaryPreferences.fluidRequirements || "Standard intake"}</p>
+        <h2>Food & Fluid Consistency</h2>
+        <div class="plain-list">
+          <div class="subheading">FOOD CONSISTENCY</div>
+          <p class="plain-line">Level 7 Regular: ${checkboxValue(foodConsistency.level7Regular)}</p>
+          <p class="plain-line">Level 7 Easy Chew: ${checkboxValue(foodConsistency.level7EasyChew)}</p>
+          <p class="plain-line">Level 6 Soft & Bite Sized: ${checkboxValue(foodConsistency.level6SoftBiteSized)}</p>
+          <p class="plain-line">Level 5 Minced & Moist: ${checkboxValue(foodConsistency.level5MincedMoist)}</p>
+          <p class="plain-line">Level 4 Pureed: ${checkboxValue(foodConsistency.level4Pureed)}</p>
+          <p class="plain-line">Level 3 Liquidised: ${checkboxValue(foodConsistency.level3Liquidised)}</p>
+
+          <div class="subheading">FLUID CONSISTENCY</div>
+          <p class="plain-line">Level 4 Extremely Thick: ${checkboxValue(fluidConsistency.level4ExtremelyThick)}</p>
+          <p class="plain-line">Level 3 Moderately Thick: ${checkboxValue(fluidConsistency.level3ModeratelyThick)}</p>
+          <p class="plain-line">Level 2 Mildly Thick: ${checkboxValue(fluidConsistency.level2MildlyThick)}</p>
+          <p class="plain-line">Level 1 Slightly Thick: ${checkboxValue(fluidConsistency.level1SlightlyThick)}</p>
+          <p class="plain-line">Level 0 Thin: ${checkboxValue(fluidConsistency.level0Thin)}</p>
         </div>
       </div>
 
       <div class="section">
         <h2>Kitchen Review</h2>
-        <div class="info-box">
-          <p><strong>Reviewed by Cook/Chef:</strong> ${kitchenReview.reviewedByCookChef || "Pending review"}</p>
-          ${kitchenReview.reviewerPrintName ? `<p><strong>Print Name:</strong> ${kitchenReview.reviewerPrintName}</p>` : ""}
-          ${kitchenReview.reviewerJobTitle ? `<p><strong>Job Title:</strong> ${kitchenReview.reviewerJobTitle}</p>` : ""}
-          ${kitchenReview.reviewerSignature ? `<p><strong>Signature:</strong> ${kitchenReview.reviewerSignature}</p>` : ""}
-          ${kitchenReview.reviewerDate ? `<p><strong>Date:</strong> ${formatDate(kitchenReview.reviewerDate)}</p>` : ""}
+        <div class="plain-list">
+          <p class="plain-line">${textValue(reviewerCookChefValue)}</p>
+          <p class="plain-line">${textValue(kitchenReview.reviewerPrintName)}</p>
+          <p class="plain-line">${textValue(kitchenReview.reviewerJobTitle)}</p>
+          <p class="plain-line">${textValue(kitchenReview.reviewerSignature)}</p>
+          <p class="plain-line">${formatDate(kitchenReview.reviewerDate)}</p>
         </div>
       </div>
 
       <div class="footer">
         <p>Generated on ${formatDateTime(Date.now())}</p>
-        <p>Diet Notification Report - ${data.residentName}</p>
+        <p>Diet Notification Report - ${textValue(data.residentName)}</p>
       </div>
     </body>
     </html>
@@ -241,7 +292,7 @@ function generateDietNotificationHTML(data: any): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const assessmentData = await request.json();
+    const assessmentData = (await request.json()) as DietNotificationPdfData;
 
     if (!assessmentData) {
       return NextResponse.json({ error: "Assessment data is required" }, { status: 400 });
@@ -256,7 +307,22 @@ export async function POST(request: NextRequest) {
       roomNumber: assessmentData.roomNumber || assessmentData.bedroomNumber || assessmentData.assessment_data?.roomNumber || assessmentData.assessment_data?.bedroomNumber,
       assessment_date: assessmentData.assessment_date || assessmentData.created_at || Date.now(),
       completed_by: assessmentData.completed_by || assessmentData.completedBy || assessmentData.assessment_data?.completed_by || "Not specified",
+      print_name: assessmentData.print_name || assessmentData.printName || assessmentData.assessment_data?.print_name || assessmentData.assessment_data?.printName,
       job_role: assessmentData.job_role || assessmentData.jobRole || assessmentData.assessment_data?.job_role || assessmentData.assessment_data?.jobRole || "Not specified",
+      signature: assessmentData.signature || assessmentData.assessment_data?.signature,
+      dateCompleted:
+        assessmentData.dateCompleted ||
+        assessmentData.date_completed ||
+        assessmentData.assessment_data?.dateCompleted ||
+        assessmentData.assessment_data?.date_completed,
+      reviewDate:
+        assessmentData.reviewDate ||
+        assessmentData.review_date ||
+        assessmentData.assessment_data?.reviewDate ||
+        assessmentData.assessment_data?.review_date,
+      chokingRiskAssessment:
+        assessmentData.chokingRiskAssessment || assessmentData.assessment_data?.chokingRiskAssessment,
+      preferredMealSize: assessmentData.preferredMealSize || assessmentData.assessment_data?.preferredMealSize,
       // Ensure nested objects are available for the template
       dietary_preferences: assessmentData.dietary_preferences || assessmentData.assessment_data?.dietary_preferences || {},
       food_consistency: assessmentData.food_consistency || assessmentData.assessment_data?.food_consistency || {},
@@ -294,7 +360,7 @@ export async function POST(request: NextRequest) {
 
       await browser.close();
 
-      return new NextResponse(pdfBuffer as any, {
+      return new NextResponse(pdfBuffer, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="diet-notification-${assessmentData.residentName?.replace(/\\s+/g, "-") || "resident"}.pdf"`,

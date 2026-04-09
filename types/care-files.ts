@@ -35,6 +35,7 @@ export type CareFileFormKey =
   | "v2-night-obs-consent"
   | "v2-capacity-consent"
   | "v2-general-risk"
+  | "v2-must-assessment"
   | "v2-abbey-pain"
   | "v2-personal-profile"
   | "progress-note-form"

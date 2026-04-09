@@ -133,8 +133,8 @@ export default function MovingHandlingDialog({
         equipmentUsed: initialData.equipment_needed || initialData.equipmentUsed || "",
 
         completedBy: initialData.completed_by || initialData.completedBy || userName,
-        jobRole: initialData.jobRole || "",
-        signature: initialData.signature || userName,
+        jobRole: initialData.jobRole || initialData.job_role || initialData.risk_factors?.jobRole || "",
+        signature: initialData.signature || initialData.staff_signature || initialData.risk_factors?.signature || userName,
         assessmentDate: initialData.assessment_date || initialData.completion_date || new Date().toISOString().split("T")[0]
       }
       : {
@@ -206,6 +206,8 @@ export default function MovingHandlingDialog({
         const riskFactors = {
           historyOfFalls: values.historyOfFalls,
           needsRiskStaff: values.needsRiskStaff,
+          jobRole: values.jobRole,
+          signature: values.signature,
           deafnessState: values.deafnessState,
           deafnessComments: values.deafnessComments,
           blindnessState: values.blindnessState,
