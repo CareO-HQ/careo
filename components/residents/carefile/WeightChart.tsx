@@ -600,7 +600,7 @@ export function WeightChart({ residentId, residentName, hideHeader = false }: We
           <div className="text-center py-8">
             <Scale className="w-8 h-8 mx-auto text-gray-300 mb-2" />
             <p className="text-sm text-gray-500">No weight records yet</p>
-            <p className="text-xs text-gray-400 mt-1">Click "Record" to add the first entry</p>
+            <p className="text-xs text-gray-400 mt-1">Click &quot;Record&quot; to add the first entry</p>
           </div>
         ) : (
           <Table>
