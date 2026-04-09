@@ -55,7 +55,7 @@ import {
 } from "@/lib/permissions";
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
-import HelpSupportDialog from "./HelpSupportDialog";
+
 import { LogoutButton } from "../auth/LogoutButton";
 
 export function AppSidebar() {
@@ -499,12 +499,14 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         )}
-        <HelpSupportDialog>
-          <SidebarMenuButton>
-            <MessageCircleQuestionMarkIcon />
-            <span>Help and Support</span>
+        <SidebarMenuItem className="list-none">
+          <SidebarMenuButton asChild>
+            <Link href="/dashboard/help">
+              <MessageCircleQuestionMarkIcon />
+              <span>Help and Support</span>
+            </Link>
           </SidebarMenuButton>
-        </HelpSupportDialog>
+        </SidebarMenuItem>
         <SidebarMenuItem className="list-none mt-2">
           <LogoutButton />
         </SidebarMenuItem>

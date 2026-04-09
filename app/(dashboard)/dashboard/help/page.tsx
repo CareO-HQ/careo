@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useProfile } from "@/hooks/use-profile";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -44,18 +45,33 @@ type SupportFormValues = z.infer<typeof supportFormSchema>;
 export default function HelpAndSupportPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { profile, isLoading: isProfileLoading } = useProfile();
 
   const form = useForm<SupportFormValues>({
     resolver: zodResolver(supportFormSchema),
     defaultValues: {
-      careHomeName: "",
-      staffName: "",
-      email: "",
-      contactNumber: "",
+      careHomeName: profile?.care_home_name || "",
+      staffName: profile?.name || "",
+      email: profile?.email || "",
+      contactNumber: profile?.phone || "",
       inquiryType: undefined,
       message: "",
     },
   });
+
+  // Update form values when profile loads
+  useEffect(() => {
+    if (profile) {
+      form.reset({
+        careHomeName: profile.care_home_name || "",
+        staffName: profile.name || "",
+        email: profile.email || "",
+        contactNumber: profile.phone || "",
+        inquiryType: form.getValues("inquiryType"),
+        message: form.getValues("message"),
+      });
+    }
+  }, [profile, form]);
 
   const onSubmit = async (data: SupportFormValues) => {
     setIsSubmitting(true);

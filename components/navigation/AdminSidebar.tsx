@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import HelpSupportDialog from "./HelpSupportDialog";
+
 import { LogoutButton } from "../auth/LogoutButton";
 
 export function AdminSidebar() {
@@ -123,12 +123,14 @@ export function AdminSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <HelpSupportDialog>
-          <SidebarMenuButton>
-            <MessageCircleQuestionMarkIcon />
-            <span>Help and Support</span>
+        <SidebarMenuItem className="list-none">
+          <SidebarMenuButton asChild>
+            <Link href="/dashboard/help">
+              <MessageCircleQuestionMarkIcon />
+              <span>Help and Support</span>
+            </Link>
           </SidebarMenuButton>
-        </HelpSupportDialog>
+        </SidebarMenuItem>
         <SidebarMenuItem className="list-none mt-2">
           <LogoutButton />
         </SidebarMenuItem>
