@@ -62,7 +62,7 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
   // Form state
   const [weight, setWeight] = useState("");
   const [unit, setUnit] = useState<"kg" | "lb">("kg");
-  const [measurementDate, setMeasurementDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [measurementDate, setMeasurementDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -152,7 +152,7 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
     return [...filteredRecords]
       .reverse()
       .map(record => ({
-        date: format(new Date(record.measurement_date), "MMM dd"),
+        date: format(new Date(record.measurement_date), 'MMM dd'),
         weight: parseFloat(record.weight_kg.toString()),
       }));
   }, [filteredRecords]);
@@ -216,7 +216,7 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
   const resetForm = () => {
     setWeight("");
     setUnit("kg");
-    setMeasurementDate(format(new Date(), "yyyy-MM-dd"));
+    setMeasurementDate(format(new Date(), 'yyyy-MM-dd'));
     setNotes("");
   };
 
@@ -504,7 +504,7 @@ export function WeightChart({ residentId, residentName }: WeightChartProps) {
                 return (
                   <TableRow key={record.id} className="hover:bg-gray-50">
                     <TableCell className="text-xs text-gray-900">
-                      {format(new Date(record.measurement_date), "dd MMM yyyy")}
+                      {format(new Date(record.measurement_date), 'dd MMM yyyy')}
                     </TableCell>
                     <TableCell className="text-xs font-medium text-gray-900">
                       {parseFloat(record.weight_kg.toString()).toFixed(1)} kg
