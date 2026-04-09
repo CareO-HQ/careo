@@ -187,6 +187,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   const fullName = `${resident.first_name} ${resident.last_name}`;
   const initials =
     `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
+  const lastUpdatedOn = resident.updated_at
+    ? formatTimestampToUKDateTime(resident.updated_at, "dd/MM/yyyy")
+    : null;
 
   const handleCardClick = (cardType: string) => {
     router.push(`/dashboard/residents/${id}/${cardType}` as Route);
@@ -233,6 +236,11 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <p className="text-muted-foreground text-sm">
               Room {resident.room_number} • NHS: {resident.nhs_health_number}
             </p>
+            {resident.image_url && lastUpdatedOn && (
+              <p className="text-muted-foreground text-xs mt-1">
+                Last update on: {lastUpdatedOn}
+              </p>
+            )}
           </div>
         </div>
         <Button

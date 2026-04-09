@@ -676,6 +676,17 @@ function DailyCarePage({ params }: DailyCarePageProps) {
   // Current user info for primary staff
   const currentUserName = user?.user?.name || user?.user?.email?.split('@')[0] || "";
 
+  const getAssignedStaffDisplayName = (staffIdentifier?: string) => {
+    if (!staffIdentifier) return "";
+    const normalizedIdentifier = staffIdentifier.toLowerCase();
+    const matchedUser = allUsers.find(
+      (staff) =>
+        staff.id === staffIdentifier ||
+        staff.email.toLowerCase() === normalizedIdentifier,
+    );
+    return matchedUser?.name || staffIdentifier;
+  };
+
   // Handle form submission
   const onSubmit = async (data: z.infer<typeof PersonalCareSchema>) => {
     try {
@@ -1327,7 +1338,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
                               {appointment.staffId && (
                                 <div className="text-[10px] text-blue-600 font-medium flex items-center space-x-1">
                                   <div className="w-1 h-1 rounded-full bg-blue-600 animate-pulse"></div>
-                                  <span>Assigned to: {appointment.staffId}</span>
+                                  <span>Assigned to: {getAssignedStaffDisplayName(appointment.staffId)}</span>
                                 </div>
                               )}
                             </div>

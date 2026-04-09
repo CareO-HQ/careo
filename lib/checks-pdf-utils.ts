@@ -19,7 +19,8 @@ const checkTypeLabels: Record<string, string> = {
     bed_rails: "Bed Rails Check",
     environmental: "Environmental Check",
     night_note: "Note",
-    cleaning: "Cleaning"
+    cleaning: "Cleaning",
+    personal_care: "Personal Care Activities",
 };
 
 export const generateChecksPDF = async ({
