@@ -1025,45 +1025,45 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
 
       {/* Monthly Report Dialog */}
       <Dialog open={isMonthlyReportDialogOpen} onOpenChange={setIsMonthlyReportDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-xs">
           <DialogHeader>
-            <DialogTitle>Generate Month-to-Month Statement</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-base">Generate Monthly Statement</DialogTitle>
+            <DialogDescription className="text-xs">
               {selectedMonthlyContinenceType ? 'Select month and year to download' : 'Select entry type to view records'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-3 py-3">
             {!selectedMonthlyContinenceType ? (
               <>
-                <h3 className="text-sm font-medium text-gray-600">Select an entry type:</h3>
-                <div className="grid grid-cols-1 gap-3">
+                <h3 className="text-xs font-medium text-gray-600">Select an entry type:</h3>
+                <div className="grid grid-cols-1 gap-2">
                   <Button
                     variant="outline"
-                    className="h-auto p-4 justify-start hover:shadow-md hover:border-teal-300 transition-all"
+                    className="h-auto p-3 justify-start hover:shadow-md hover:border-teal-300 transition-all"
                     onClick={() => setSelectedMonthlyContinenceType("bowel")}
                   >
-                    <div className="flex items-center space-x-3 w-full">
-                      <div className="p-2 rounded-lg bg-amber-100">
-                        <Droplet className="w-6 h-6 text-amber-600" />
+                    <div className="flex items-center space-x-2 w-full">
+                      <div className="p-1.5 rounded-lg bg-amber-100">
+                        <Droplet className="w-4 h-4 text-amber-600" />
                       </div>
                       <div className="flex flex-col items-start flex-1">
-                        <span className="font-semibold text-base">Bowel</span>
-                        <span className="text-xs text-gray-500">Bowel movement records</span>
+                        <span className="font-semibold text-sm">Bowel</span>
+                        <span className="text-[10px] text-gray-500">Bowel movement records</span>
                       </div>
                     </div>
                   </Button>
                   <Button
                     variant="outline"
-                    className="h-auto p-4 justify-start hover:shadow-md hover:border-blue-300 transition-all"
+                    className="h-auto p-3 justify-start hover:shadow-md hover:border-blue-300 transition-all"
                     onClick={() => setSelectedMonthlyContinenceType("urine")}
                   >
-                    <div className="flex items-center space-x-3 w-full">
-                      <div className="p-2 rounded-lg bg-blue-100">
-                        <Droplet className="w-6 h-6 text-blue-600" />
+                    <div className="flex items-center space-x-2 w-full">
+                      <div className="p-1.5 rounded-lg bg-blue-100">
+                        <Droplet className="w-4 h-4 text-blue-600" />
                       </div>
                       <div className="flex flex-col items-start flex-1">
-                        <span className="font-semibold text-base">Urine</span>
-                        <span className="text-xs text-gray-500">Urine output records</span>
+                        <span className="font-semibold text-sm">Urine</span>
+                        <span className="text-[10px] text-gray-500">Urine output records</span>
                       </div>
                     </div>
                   </Button>
@@ -1071,25 +1071,25 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
               </>
             ) : (
               <>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setSelectedMonthlyContinenceType(null)}
-                    className="text-gray-600 hover:text-gray-900"
+                    className="text-gray-600 hover:text-gray-900 text-xs h-7"
                   >
-                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    <ArrowLeft className="w-3 h-3 mr-1" />
                     Change type
                   </Button>
-                  <Badge variant="outline">
+                  <Badge variant="outline" className="text-xs">
                     {selectedMonthlyContinenceType === "bowel" ? "Bowel" : "Urine"}
                   </Badge>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Month</label>
+                  <label className="text-xs font-medium">Month</label>
                   <Select value={fromMonth} onValueChange={setFromMonth}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="Select month" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1110,9 +1110,9 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Year</label>
+                  <label className="text-xs font-medium">Year</label>
                   <Select value={fromYear} onValueChange={setFromYear}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="Select year" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1123,17 +1123,19 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
                   </Select>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-                  <p className="text-blue-800 font-medium mb-1">PDF Report Format</p>
-                  <p className="text-blue-700 text-xs">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 text-xs">
+                  <p className="text-blue-800 font-medium mb-0.5 text-[10px]">PDF Report Format</p>
+                  <p className="text-blue-700 text-[10px] leading-tight">
                     The statement will include: resident details, all {selectedMonthlyContinenceType} entries for the selected month,
                     timestamps, and staff names.
                   </p>
                 </div>
 
-                <div className="flex justify-end space-x-2 pt-2">
+                <div className="flex justify-end space-x-2 pt-1">
                   <Button
                     variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
                     onClick={() => {
                       setIsMonthlyReportDialogOpen(false);
                       setFromMonth(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
@@ -1145,6 +1147,8 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
                     Cancel
                   </Button>
                   <Button
+                    size="sm"
+                    className="h-8 text-xs"
                     onClick={handleGenerateMonthlyReport}
                     disabled={isGeneratingReport || !fromMonth || !fromYear}
                   >
