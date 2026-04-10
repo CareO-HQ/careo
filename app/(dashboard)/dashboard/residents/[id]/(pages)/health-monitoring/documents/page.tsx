@@ -380,50 +380,63 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
           return { ...vital, recordedByName: '--' };
         }
 
-        const { data: staffData } = await supabase
-          .from('profiles')
-          .select('name, email')
-          .eq('id', vital.recordedBy)
-          .single();
+        try {
+          const { data: staffData } = await supabase
+            .from('users')
+            .select('name, email')
+            .eq('id', vital.recordedBy)
+            .single();
 
-        return {
-          ...vital,
-          recordedByName: staffData?.name || staffData?.email?.split('@')[0] || '--'
-        };
+          return {
+            ...vital,
+            recordedByName: staffData?.name || staffData?.email?.split('@')[0] || '--'
+          };
+        } catch (err) {
+          console.warn("Could not fetch staff name for:", vital.recordedBy, err);
+          return {
+            ...vital,
+            recordedByName: '--'
+          };
+        }
       })
     );
 
     const vitalConfig = vitalTypeOptions[vitalType as keyof typeof vitalTypeOptions];
 
-    await generateHealthMonitoringPDF({
-      resident: {
-        first_name: resident.firstName,
-        middle_name: resident.middleName,
-        last_name: resident.lastName,
-        date_of_birth: resident.dateOfBirth,
-        room_number: resident.roomNumber,
-        care_home_name: resident.careHomeName
-      },
-      vitals: vitalsWithStaffNames.map(v => ({
-        ...v,
-        vitalType: v.vitalType,
-        recordDate: v.recordDate,
-        recordTime: v.recordTime,
-        value: v.value,
-        value2: v.value2,
-        unit: v.unit,
-        notes: v.notes,
-        recordedByName: v.recordedByName
-      })),
-      date: pdfDayVitals.date,
-      vitalType: vitalType,
-      vitalTypeLabel: vitalConfig?.label || vitalType,
-      orgLogoUrl: profile?.organization_logo_url || undefined,
-      careHomeName: profile?.care_home_name || undefined
-    });
+    try {
+      await generateHealthMonitoringPDF({
+        resident: {
+          first_name: resident.firstName,
+          middle_name: resident.middleName,
+          last_name: resident.lastName,
+          date_of_birth: resident.dateOfBirth,
+          room_number: resident.roomNumber,
+          care_home_name: resident.careHomeName
+        },
+        vitals: vitalsWithStaffNames.map(v => ({
+          ...v,
+          vitalType: v.vitalType,
+          recordDate: v.recordDate,
+          recordTime: v.recordTime,
+          value: v.value,
+          value2: v.value2,
+          unit: v.unit,
+          notes: v.notes,
+          recordedByName: v.recordedByName
+        })),
+        date: pdfDayVitals.date,
+        vitalType: vitalType,
+        vitalTypeLabel: vitalConfig?.label || vitalType,
+        orgLogoUrl: profile?.organization_logo_url || undefined,
+        careHomeName: profile?.care_home_name || undefined
+      });
 
-    setPdfSelectionDialogOpen(false);
-    toast.success("PDF downloaded successfully");
+      setPdfSelectionDialogOpen(false);
+      toast.success("PDF downloaded successfully");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF. Please try again.");
+    }
   };
 
   const handleGenerateMonthlyReport = async () => {
@@ -494,21 +507,37 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
             return { ...vital, recordedByName: '--' };
           }
 
-          const { data: staffData } = await supabase
-            .from('profiles')
-            .select('name, email')
-            .eq('id', vital.recordedBy)
-            .single();
+          try {
+            const { data: staffData } = await supabase
+              .from('users')
+              .select('name, email')
+              .eq('id', vital.recordedBy)
+              .single();
 
-          return {
-            ...vital,
-            recordedByName: staffData?.name || staffData?.email?.split('@')[0] || '--'
-          };
+            return {
+              ...vital,
+              recordedByName: staffData?.name || staffData?.email?.split('@')[0] || '--'
+            };
+          } catch (err) {
+            console.warn("Could not fetch staff name for:", vital.recordedBy, err);
+            return {
+              ...vital,
+              recordedByName: '--'
+            };
+          }
         })
       );
 
       const vitalConfig = vitalTypeOptions[selectedMonthlyVitalType as keyof typeof vitalTypeOptions];
       const monthName = new Date(year, month - 1).toLocaleString('en-GB', { month: 'long' });
+
+      console.log("Generating monthly PDF with:", {
+        residentName: `${resident.firstName} ${resident.lastName}`,
+        vitalCount: vitalsWithStaffNames.length,
+        vitalType: selectedMonthlyVitalType,
+        month: monthName,
+        year
+      });
 
       await generateHealthMonitoringPDF({
         resident: {
@@ -542,9 +571,10 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
       setMonthlyReportMonth("");
       setMonthlyReportYear("");
       setSelectedMonthlyVitalType(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating monthly report:", error);
-      toast.error("Failed to generate monthly report");
+      const errorMessage = error?.message || "Unknown error occurred";
+      toast.error(`Failed to generate monthly report: ${errorMessage}`);
     } finally {
       setIsGeneratingReport(false);
     }
