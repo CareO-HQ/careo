@@ -96,6 +96,10 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
   const [isDayDialogOpen, setIsDayDialogOpen] = useState(false);
   const [selectedVitalTypeInDialog, setSelectedVitalTypeInDialog] = useState<string | null>(null);
 
+  // PDF Selection Dialog State
+  const [pdfSelectionDialogOpen, setPdfSelectionDialogOpen] = useState(false);
+  const [pdfDayVitals, setPdfDayVitals] = useState<{ date: string; vitals: any[] } | null>(null);
+
   // Fetch data with Supabase
   const fetchData = useCallback(async () => {
     if (!id) return;
@@ -336,7 +340,7 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
     setIsDayDialogOpen(true);
   };
 
-  const generatePDF = (dateKey: string, vitals: any[]) => {
+  const generatePDF = (dateKey: string, vitals: any[], vitalType?: string) => {
     const doc = new jsPDF();
     const [year, month, day] = dateKey.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day);
@@ -347,7 +351,12 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
     doc.setFontSize(12);
     doc.text(`Resident: ${fullName}`, 14, 30);
 
-    let y = 40;
+    if (vitalType) {
+      const vitalConfig = vitalTypeOptions[vitalType as keyof typeof vitalTypeOptions];
+      doc.text(`Vital Type: ${vitalConfig?.label || vitalType}`, 14, 37);
+    }
+
+    let y = vitalType ? 47 : 40;
 
     vitals.forEach((vital, index) => {
       // Simple pagination check
@@ -376,11 +385,32 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
       y += 10;
     });
 
-    doc.save(`health-monitoring-${fullName.replace(/\s+/g, "-")}-${dateKey}.pdf`);
+    const filenamePart = vitalType ? `-${vitalType}` : '';
+    doc.save(`health-monitoring-${fullName.replace(/\s+/g, "-")}-${dateKey}${filenamePart}.pdf`);
   };
 
   const handleDailyPdfExport = (dateKey: string, dayVitals: any[]) => {
-    generatePDF(dateKey, dayVitals);
+    setPdfDayVitals({ date: dateKey, vitals: dayVitals });
+    setPdfSelectionDialogOpen(true);
+  };
+
+  const handlePdfDownload = (vitalType: string) => {
+    if (!pdfDayVitals) return;
+
+    // Filter vitals by selected type
+    const filteredVitals = pdfDayVitals.vitals.filter(v => v.vitalType === vitalType);
+
+    if (filteredVitals.length === 0) {
+      toast.error("No records found for this vital type");
+      return;
+    }
+
+    // Sort by time
+    const sortedVitals = [...filteredVitals].sort((a, b) => a.recordTime < b.recordTime ? 1 : -1);
+
+    generatePDF(pdfDayVitals.date, sortedVitals, vitalType);
+    setPdfSelectionDialogOpen(false);
+    toast.success("PDF downloaded successfully");
   };
 
   const handleExport = () => {
@@ -990,6 +1020,88 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
 
           <div className="flex justify-end pt-2 border-t">
             <Button variant="outline" onClick={() => setIsDayDialogOpen(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* PDF Selection Dialog */}
+      <Dialog open={pdfSelectionDialogOpen} onOpenChange={setPdfSelectionDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center">
+              <Download className="w-5 h-5 mr-2 text-primary" />
+              Select Vital Type to Download
+            </DialogTitle>
+            <DialogDescription>
+              Choose which vital type you want to export as PDF
+              {pdfDayVitals && (() => {
+                const [year, month, day] = pdfDayVitals.date.split('-').map(Number);
+                return ` for ${format(new Date(year, month - 1, day), "EEEE, d MMMM yyyy")}`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            {pdfDayVitals && (() => {
+              // Group vitals by type
+              const vitalsByType: Record<string, any[]> = {};
+              pdfDayVitals.vitals.forEach((vital) => {
+                if (!vitalsByType[vital.vitalType]) {
+                  vitalsByType[vital.vitalType] = [];
+                }
+                vitalsByType[vital.vitalType].push(vital);
+              });
+
+              // Define the order of vital types to display
+              const vitalOrder = ['temperature', 'bloodPressure', 'heartRate', 'respiratoryRate', 'oxygenSaturation'];
+
+              return (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-600">Select a vital type to download:</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {vitalOrder.map((vitalType) => {
+                      const vitals = vitalsByType[vitalType];
+                      const vitalConfig = vitalTypeOptions[vitalType as keyof typeof vitalTypeOptions];
+                      const Icon = vitalConfig?.icon || Activity;
+                      const count = vitals?.length || 0;
+
+                      return (
+                        <Button
+                          key={vitalType}
+                          variant="outline"
+                          className={`h-auto p-4 justify-start ${count === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md hover:border-primary'}`}
+                          disabled={count === 0}
+                          onClick={() => handlePdfDownload(vitalType)}
+                        >
+                          <div className="flex items-center space-x-3 w-full">
+                            <div className={`p-2 rounded-lg bg-${vitalConfig?.color}-100`}>
+                              <Icon className={`w-6 h-6 text-${vitalConfig?.color}-600`} />
+                            </div>
+                            <div className="flex flex-col items-start flex-1">
+                              <span className="font-semibold text-base">{vitalConfig?.label}</span>
+                              <span className="text-xs text-gray-500">
+                                {count} {count === 1 ? 'record' : 'records'}
+                              </span>
+                            </div>
+                            <Download className="w-4 h-4 text-gray-400" />
+                          </div>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  {Object.keys(vitalsByType).length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <Activity className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <p>No vitals available to download</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="flex justify-end pt-2 border-t">
+            <Button variant="outline" onClick={() => setPdfSelectionDialogOpen(false)}>Cancel</Button>
           </div>
         </DialogContent>
       </Dialog>
