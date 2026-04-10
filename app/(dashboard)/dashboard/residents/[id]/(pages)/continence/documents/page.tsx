@@ -1025,7 +1025,7 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
 
       {/* Monthly Report Dialog */}
       <Dialog open={isMonthlyReportDialogOpen} onOpenChange={setIsMonthlyReportDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Generate Month-to-Month Statement</DialogTitle>
             <DialogDescription>
