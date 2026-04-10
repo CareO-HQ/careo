@@ -559,7 +559,7 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
           notes: v.notes,
           recordedByName: v.recordedByName
         })),
-        date: `${monthName}-${year}`,
+        date: `${monthName} ${year}`,
         vitalType: selectedMonthlyVitalType,
         vitalTypeLabel: `${vitalConfig?.label || selectedMonthlyVitalType} - ${monthName} ${year}`,
         orgLogoUrl: profile?.organization_logo_url || undefined,

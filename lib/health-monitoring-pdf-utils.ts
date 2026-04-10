@@ -77,7 +77,23 @@ export const generateHealthMonitoringPDF = async ({
         }
     };
 
-    const formattedDate = format(new Date(date + 'T00:00:00'), "EEEE, MMMM d, yyyy");
+    // Handle both single date (YYYY-MM-DD) and month-year format (Month YYYY or Month-YYYY)
+    let formattedDate: string;
+    // Check if it looks like a monthly report (contains month name)
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const isMonthlyReport = monthNames.some(month => date.includes(month));
+
+    if (isMonthlyReport) {
+        // Monthly format like "March 2026" or "March-2026"
+        formattedDate = date;
+    } else {
+        // Single date format like "2026-03-15"
+        try {
+            formattedDate = format(new Date(date + 'T00:00:00'), "EEEE, MMMM d, yyyy");
+        } catch (e) {
+            formattedDate = date;
+        }
+    }
     const subTitle = `Report Date: ${formattedDate} | Vital Type: ${vitalTypeLabel}`;
 
     await drawHeader("Health Monitoring Report", subTitle);
@@ -125,7 +141,17 @@ export const generateHealthMonitoringPDF = async ({
         const value = formatVitalValue(vital);
         const notes = vital.notes || '--';
         const staffName = vital.recordedByName || '--';
-        const vitalDate = vital.recordDate ? format(parseISO(vital.recordDate), "dd/MM/yyyy") : '--';
+
+        // Handle date formatting safely
+        let vitalDate = '--';
+        if (vital.recordDate) {
+            try {
+                vitalDate = format(parseISO(vital.recordDate), "dd/MM/yyyy");
+            } catch (e) {
+                // Fallback if date parsing fails
+                vitalDate = vital.recordDate;
+            }
+        }
 
         return [vitalDate, time, value, notes, staffName];
     });
