@@ -94,6 +94,7 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
   // Day View Dialog State
   const [selectedDayVitals, setSelectedDayVitals] = useState<{ date: string; vitals: any[] } | null>(null);
   const [isDayDialogOpen, setIsDayDialogOpen] = useState(false);
+  const [selectedVitalTypeInDialog, setSelectedVitalTypeInDialog] = useState<string | null>(null);
 
   // Fetch data with Supabase
   const fetchData = useCallback(async () => {
@@ -331,6 +332,7 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
 
   const handleViewDay = (dateKey: string, dayVitals: any[]) => {
     setSelectedDayVitals({ date: dateKey, vitals: dayVitals });
+    setSelectedVitalTypeInDialog(null); // Reset selection when opening
     setIsDayDialogOpen(true);
   };
 
@@ -845,7 +847,7 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
               })()}
             </DialogTitle>
             <DialogDescription>
-              Vitals categorized by type for this day.
+              {selectedVitalTypeInDialog ? 'View detailed records' : 'Select a vital type to view records'}
             </DialogDescription>
           </DialogHeader>
 
@@ -863,72 +865,124 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
               // Define the order of vital types to display
               const vitalOrder = ['temperature', 'bloodPressure', 'heartRate', 'respiratoryRate', 'oxygenSaturation'];
 
+              // If no vital type selected, show selection grid
+              if (!selectedVitalTypeInDialog) {
+                return (
+                  <div className="space-y-4 px-2">
+                    <h3 className="text-sm font-medium text-gray-600">Select a vital type to view:</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {vitalOrder.map((vitalType) => {
+                        const vitals = vitalsByType[vitalType];
+                        const vitalConfig = vitalTypeOptions[vitalType as keyof typeof vitalTypeOptions];
+                        const Icon = vitalConfig?.icon || Activity;
+                        const count = vitals?.length || 0;
+
+                        return (
+                          <Button
+                            key={vitalType}
+                            variant="outline"
+                            className={`h-auto p-4 justify-start ${count === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md'}`}
+                            disabled={count === 0}
+                            onClick={() => setSelectedVitalTypeInDialog(vitalType)}
+                          >
+                            <div className="flex items-center space-x-3 w-full">
+                              <div className={`p-2 rounded-lg bg-${vitalConfig?.color}-100`}>
+                                <Icon className={`w-6 h-6 text-${vitalConfig?.color}-600`} />
+                              </div>
+                              <div className="flex flex-col items-start flex-1">
+                                <span className="font-semibold text-base">{vitalConfig?.label}</span>
+                                <span className="text-xs text-gray-500">
+                                  {count} {count === 1 ? 'record' : 'records'}
+                                </span>
+                              </div>
+                            </div>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    {Object.keys(vitalsByType).length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Activity className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                        <p>No vitals recorded for this day</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Show selected vital type data
+              const vitals = vitalsByType[selectedVitalTypeInDialog];
+              if (!vitals || vitals.length === 0) {
+                return (
+                  <div className="text-center py-8 text-gray-500">
+                    <Activity className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p>No records found</p>
+                  </div>
+                );
+              }
+
+              const vitalConfig = vitalTypeOptions[selectedVitalTypeInDialog as keyof typeof vitalTypeOptions];
+              const Icon = vitalConfig?.icon || Activity;
+              const sortedVitals = [...vitals].sort((a, b) => a.recordTime < b.recordTime ? 1 : -1);
+
               return (
-                <div className="space-y-6">
-                  {vitalOrder.map((vitalType) => {
-                    const vitals = vitalsByType[vitalType];
-                    if (!vitals || vitals.length === 0) return null;
+                <div className="space-y-4 px-2">
+                  <div className="flex items-center justify-between mb-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedVitalTypeInDialog(null)}
+                      className="text-gray-600 hover:text-gray-900"
+                    >
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Back to selection
+                    </Button>
+                  </div>
 
-                    const vitalConfig = vitalTypeOptions[vitalType as keyof typeof vitalTypeOptions];
-                    const Icon = vitalConfig?.icon || Activity;
-
-                    // Sort by time (newest first)
-                    const sortedVitals = [...vitals].sort((a, b) => a.recordTime < b.recordTime ? 1 : -1);
-
-                    return (
-                      <div key={vitalType} className="border rounded-lg overflow-hidden">
-                        <div className={`px-4 py-3 bg-${vitalConfig?.color}-50 border-b border-${vitalConfig?.color}-200`}>
-                          <div className="flex items-center space-x-2">
-                            <Icon className={`w-5 h-5 text-${vitalConfig?.color}-600`} />
-                            <h3 className={`font-semibold text-${vitalConfig?.color}-900`}>
-                              {vitalConfig?.label || vitalType}
-                            </h3>
-                            <Badge variant="outline" className="ml-2 bg-white">
-                              {vitals.length} {vitals.length === 1 ? 'record' : 'records'}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="divide-y">
-                          {sortedVitals.map((vital) => {
-                            const timeDisplay = vital.recordTime.slice(0, 5);
-                            return (
-                              <div key={vital._id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-start space-x-4 flex-1">
-                                    <div className="flex items-center space-x-2 min-w-[80px]">
-                                      <Clock className="w-4 h-4 text-gray-400" />
-                                      <span className="font-mono font-medium text-gray-700">{timeDisplay}</span>
-                                    </div>
-                                    <div className="flex flex-col flex-1">
-                                      <div className="font-bold text-lg text-gray-900">
-                                        {formatVitalValue(vital)}
-                                      </div>
-                                      {vital.notes && (
-                                        <p className="text-sm text-gray-600 mt-1 italic">
-                                          {vital.notes}
-                                        </p>
-                                      )}
-                                    </div>
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className={`px-4 py-3 bg-${vitalConfig?.color}-50 border-b border-${vitalConfig?.color}-200`}>
+                      <div className="flex items-center space-x-2">
+                        <Icon className={`w-5 h-5 text-${vitalConfig?.color}-600`} />
+                        <h3 className={`font-semibold text-${vitalConfig?.color}-900`}>
+                          {vitalConfig?.label || selectedVitalTypeInDialog}
+                        </h3>
+                        <Badge variant="outline" className="ml-2 bg-white">
+                          {vitals.length} {vitals.length === 1 ? 'record' : 'records'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="divide-y">
+                      {sortedVitals.map((vital) => {
+                        const timeDisplay = vital.recordTime.slice(0, 5);
+                        return (
+                          <div key={vital._id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start space-x-4 flex-1">
+                                <div className="flex items-center space-x-2 min-w-[80px]">
+                                  <Clock className="w-4 h-4 text-gray-400" />
+                                  <span className="font-mono font-medium text-gray-700">{timeDisplay}</span>
+                                </div>
+                                <div className="flex flex-col flex-1">
+                                  <div className="font-bold text-lg text-gray-900">
+                                    {formatVitalValue(vital)}
                                   </div>
-                                  <div className="flex items-center space-x-2 text-gray-400">
-                                    <User className="w-3 h-3" />
-                                    <span className="text-xs">{vital.recordedBy?.substring(0, 8)}...</span>
-                                  </div>
+                                  {vital.notes && (
+                                    <p className="text-sm text-gray-600 mt-1 italic">
+                                      {vital.notes}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {Object.keys(vitalsByType).length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <Activity className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                      <p>No vitals recorded for this day</p>
+                              <div className="flex items-center space-x-2 text-gray-400">
+                                <User className="w-3 h-3" />
+                                <span className="text-xs">{vital.recordedBy?.substring(0, 8)}...</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })()}
