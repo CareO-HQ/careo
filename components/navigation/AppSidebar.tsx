@@ -29,7 +29,8 @@ import {
   Pill,
   Zap,
   ChevronDown,
-  Scale
+  Scale,
+  Droplet
 } from "lucide-react";
 import {
   Collapsible,
@@ -442,12 +443,20 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <div className="pl-6 mt-1">
+                  <div className="pl-6 mt-1 space-y-1">
                     <SidebarMenuItem className="list-none">
                       <SidebarMenuButton asChild>
                         <Link href="/dashboard/qwik-info/weight-check" className="text-sm">
                           <Scale className="w-4 h-4" />
                           <span>Weight Check</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem className="list-none">
+                      <SidebarMenuButton asChild>
+                        <Link href="/dashboard/qwik-info/bowel-check" className="text-sm">
+                          <Droplet className="w-4 h-4" />
+                          <span>Bowel Monitor</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
