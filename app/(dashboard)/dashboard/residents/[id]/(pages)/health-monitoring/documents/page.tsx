@@ -6,7 +6,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { jsPDF } from "jspdf";
+import { generateHealthMonitoringPDF } from "@/lib/health-monitoring-pdf-utils";
 import {
   Card,
   CardContent,
@@ -108,7 +108,7 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
       // Fetch Resident
       const { data: residentData, error: residentError } = await supabase
         .from('residents')
-        .select('first_name, last_name, id')
+        .select('*')
         .eq('id', id)
         .single();
 
@@ -117,7 +117,11 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
       // Map resident data
       setResident({
         firstName: residentData.first_name,
+        middleName: residentData.middle_name,
         lastName: residentData.last_name,
+        dateOfBirth: residentData.date_of_birth,
+        roomNumber: residentData.room_number,
+        careHomeName: residentData.care_home_name,
         _id: residentData.id
       });
 
@@ -340,62 +344,16 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
     setIsDayDialogOpen(true);
   };
 
-  const generatePDF = (dateKey: string, vitals: any[], vitalType?: string) => {
-    const doc = new jsPDF();
-    const [year, month, day] = dateKey.split('-').map(Number);
-    const dateObj = new Date(year, month - 1, day);
-    const dateLabel = format(dateObj, "PPP");
-
-    doc.setFontSize(18);
-    doc.text(`Health Monitoring: ${dateLabel}`, 14, 20);
-    doc.setFontSize(12);
-    doc.text(`Resident: ${fullName}`, 14, 30);
-
-    if (vitalType) {
-      const vitalConfig = vitalTypeOptions[vitalType as keyof typeof vitalTypeOptions];
-      doc.text(`Vital Type: ${vitalConfig?.label || vitalType}`, 14, 37);
-    }
-
-    let y = vitalType ? 47 : 40;
-
-    vitals.forEach((vital, index) => {
-      // Simple pagination check
-      if (y > 270) {
-        doc.addPage();
-        y = 20;
-      }
-
-      const timeDisplay = vital.recordTime.slice(0, 5);
-      const vitalConfig = vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions];
-      const typeLabel = vitalConfig?.label || vital.vitalType;
-      const valueDisplay = formatVitalValue(vital);
-      const recordedBy = vital.recordedBy ? `(Recorded by: ${vital.recordedBy.slice(0, 8)}...)` : "";
-
-      doc.setFont("helvetica", "bold");
-      doc.text(`${timeDisplay} - ${typeLabel}: ${valueDisplay}`, 14, y);
-
-      if (vital.notes) {
-        y += 6;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.text(`Note: ${vital.notes}`, 20, y);
-        doc.setFontSize(12);
-      }
-
-      y += 10;
-    });
-
-    const filenamePart = vitalType ? `-${vitalType}` : '';
-    doc.save(`health-monitoring-${fullName.replace(/\s+/g, "-")}-${dateKey}${filenamePart}.pdf`);
-  };
-
   const handleDailyPdfExport = (dateKey: string, dayVitals: any[]) => {
     setPdfDayVitals({ date: dateKey, vitals: dayVitals });
     setPdfSelectionDialogOpen(true);
   };
 
-  const handlePdfDownload = (vitalType: string) => {
-    if (!pdfDayVitals) return;
+  const handlePdfDownload = async (vitalType: string) => {
+    if (!pdfDayVitals || !resident) {
+      toast.error("Required data not available");
+      return;
+    }
 
     // Filter vitals by selected type
     const filteredVitals = pdfDayVitals.vitals.filter(v => v.vitalType === vitalType);
@@ -405,10 +363,58 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
       return;
     }
 
-    // Sort by time
+    // Sort by time (newest first)
     const sortedVitals = [...filteredVitals].sort((a, b) => a.recordTime < b.recordTime ? 1 : -1);
 
-    generatePDF(pdfDayVitals.date, sortedVitals, vitalType);
+    // Fetch staff names for recordedBy IDs
+    const vitalsWithStaffNames = await Promise.all(
+      sortedVitals.map(async (vital) => {
+        if (!vital.recordedBy) {
+          return { ...vital, recordedByName: '--' };
+        }
+
+        const { data: staffData } = await supabase
+          .from('profiles')
+          .select('name, email')
+          .eq('id', vital.recordedBy)
+          .single();
+
+        return {
+          ...vital,
+          recordedByName: staffData?.name || staffData?.email?.split('@')[0] || '--'
+        };
+      })
+    );
+
+    const vitalConfig = vitalTypeOptions[vitalType as keyof typeof vitalTypeOptions];
+
+    await generateHealthMonitoringPDF({
+      resident: {
+        first_name: resident.firstName,
+        middle_name: resident.middleName,
+        last_name: resident.lastName,
+        date_of_birth: resident.dateOfBirth,
+        room_number: resident.roomNumber,
+        care_home_name: resident.careHomeName
+      },
+      vitals: vitalsWithStaffNames.map(v => ({
+        ...v,
+        vitalType: v.vitalType,
+        recordDate: v.recordDate,
+        recordTime: v.recordTime,
+        value: v.value,
+        value2: v.value2,
+        unit: v.unit,
+        notes: v.notes,
+        recordedByName: v.recordedByName
+      })),
+      date: pdfDayVitals.date,
+      vitalType: vitalType,
+      vitalTypeLabel: vitalConfig?.label || vitalType,
+      orgLogoUrl: profile?.organization_logo_url || undefined,
+      careHomeName: profile?.care_home_name || undefined
+    });
+
     setPdfSelectionDialogOpen(false);
     toast.success("PDF downloaded successfully");
   };
