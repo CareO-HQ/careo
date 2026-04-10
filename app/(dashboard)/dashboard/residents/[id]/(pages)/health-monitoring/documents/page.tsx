@@ -631,58 +631,58 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         <Card className="border-0 bg-gradient-to-br from-emerald-50 to-emerald-100">
-          <CardContent className="p-3">
+          <CardContent className="p-2">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-emerald-700">Total Records</p>
-                <p className="text-xl font-bold text-emerald-900">{vitalStats.total}</p>
+                <p className="text-[10px] font-medium text-emerald-700">Total Records</p>
+                <p className="text-lg font-bold text-emerald-900">{vitalStats.total}</p>
               </div>
-              <div className="p-1.5 bg-white rounded-lg">
-                <FileText className="w-4 h-4 text-emerald-600" />
+              <div className="p-1 bg-white rounded">
+                <FileText className="w-3.5 h-3.5 text-emerald-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-0 bg-gradient-to-br from-green-50 to-green-100">
-          <CardContent className="p-3">
+          <CardContent className="p-2">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-green-700">This Month</p>
-                <p className="text-xl font-bold text-green-900">{vitalStats.thisMonth}</p>
+                <p className="text-[10px] font-medium text-green-700">This Month</p>
+                <p className="text-lg font-bold text-green-900">{vitalStats.thisMonth}</p>
               </div>
-              <div className="p-1.5 bg-white rounded-lg">
-                <Calendar className="w-4 h-4 text-green-600" />
+              <div className="p-1 bg-white rounded">
+                <Calendar className="w-3.5 h-3.5 text-green-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-0 bg-gradient-to-br from-blue-50 to-blue-100">
-          <CardContent className="p-3">
+          <CardContent className="p-2">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-blue-700">Vital Types</p>
-                <p className="text-xl font-bold text-blue-900">{vitalStats.uniqueTypes}</p>
+                <p className="text-[10px] font-medium text-blue-700">Vital Types</p>
+                <p className="text-lg font-bold text-blue-900">{vitalStats.uniqueTypes}</p>
               </div>
-              <div className="p-1.5 bg-white rounded-lg">
-                <Activity className="w-4 h-4 text-blue-600" />
+              <div className="p-1 bg-white rounded">
+                <Activity className="w-3.5 h-3.5 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-0 bg-gradient-to-br from-purple-50 to-purple-100">
-          <CardContent className="p-3">
+          <CardContent className="p-2">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-purple-700">This Week</p>
-                <p className="text-xl font-bold text-purple-900">{vitalStats.thisWeek}</p>
+                <p className="text-[10px] font-medium text-purple-700">This Week</p>
+                <p className="text-lg font-bold text-purple-900">{vitalStats.thisWeek}</p>
               </div>
-              <div className="p-1.5 bg-white rounded-lg">
-                <Stethoscope className="w-4 h-4 text-purple-600" />
+              <div className="p-1 bg-white rounded">
+                <Stethoscope className="w-3.5 h-3.5 text-purple-600" />
               </div>
             </div>
           </CardContent>
