@@ -81,6 +81,7 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
   const [toMonth, setToMonth] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
   const [toYear, setToYear] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [selectedMonthlyContinenceType, setSelectedMonthlyContinenceType] = useState<ContinenceSubtype | null>(null);
 
   // Data state
   const [resident, setResident] = useState<any>(null);
@@ -391,26 +392,25 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
   };
 
   const handleGenerateMonthlyReport = async () => {
-    if (!fromMonth || !fromYear || !toMonth || !toYear) {
-      toast.error("Please select both From and To month/year");
+    if (!fromMonth || !fromYear || !selectedMonthlyContinenceType) {
+      toast.error("Please select month, year, and entry type");
       return;
     }
 
     setIsGeneratingReport(true);
     try {
-      const startDate = `${fromYear}-${fromMonth.padStart(2, "0")}-01`;
-      const lastDay = new Date(parseInt(toYear), parseInt(toMonth), 0).getDate();
-      const endDate = `${toYear}-${toMonth.padStart(2, "0")}-${lastDay}`;
+      const year = parseInt(fromYear);
+      const month = parseInt(fromMonth);
 
-      if (new Date(startDate) > new Date(endDate)) {
-        toast.error("From month cannot be after To month");
-        return;
-      }
+      // Calculate start and end dates for the month
+      const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDateStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-      const startDateObj = new Date(`${startDate}T00:00:00`);
-      const endDateObj = new Date(`${endDate}T23:59:59`);
+      const startDateObj = new Date(`${startDateStr}T00:00:00`);
+      const endDateObj = new Date(`${endDateStr}T23:59:59`);
 
-      // Fetch all entries for selected month range
+      // Fetch all entries for selected month and type
       const { data: entries, error } = await supabase
         .from("continence_entries")
         .select(`
@@ -422,10 +422,11 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
           )
         `)
         .eq("resident_id", id)
+        .eq("entry_type", selectedMonthlyContinenceType)
         .gte("created_at", startDateObj.toISOString())
         .lte("created_at", endDateObj.toISOString())
-        .order("date", { ascending: true })
-        .order("time", { ascending: true });
+        .order("date", { ascending: false })
+        .order("time", { ascending: false });
 
       if (error) {
         console.error("Error fetching monthly data:", error);
@@ -434,30 +435,31 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
       }
 
       if (!entries || entries.length === 0) {
-        toast.error("No records found for the selected period");
+        toast.error(`No ${selectedMonthlyContinenceType} records found for the selected month`);
         return;
       }
 
-      const fromLabel = new Date(parseInt(fromYear), parseInt(fromMonth) - 1, 1).toLocaleString("en-GB", { month: "long", year: "numeric" });
-      const toLabel = new Date(parseInt(toYear), parseInt(toMonth) - 1, 1).toLocaleString("en-GB", { month: "long", year: "numeric" });
+      const monthLabel = new Date(year, month - 1, 1).toLocaleString("en-GB", { month: "long", year: "numeric" });
+      const typeLabel = selectedMonthlyContinenceType === "bowel" ? "Bowel" : "Urine";
+
       await generateContinencePDF({
         resident,
         entries: entries as ContinencePdfEntry[],
-        title: "Continence Record Statement",
-        periodLabel: `Period: ${fromLabel} to ${toLabel}`,
+        title: `${typeLabel} Record Statement`,
+        periodLabel: `Period: ${monthLabel}`,
         orgLogoUrl: profile?.organization_logo_url || undefined,
         careHomeName: profile?.care_home_name || resident?.care_home_name || undefined,
       });
 
-      toast.success(`Statement for ${fromLabel} to ${toLabel} downloaded successfully`);
+      toast.success(`${typeLabel} statement for ${monthLabel} downloaded successfully`);
       setIsMonthlyReportDialogOpen(false);
       setFromMonth(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
       setFromYear(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
-      setToMonth(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
-      setToYear(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
-    } catch (error) {
+      setSelectedMonthlyContinenceType(null);
+    } catch (error: any) {
       console.error("Error generating monthly report:", error);
-      toast.error("Failed to generate monthly report");
+      const errorMessage = error?.message || "Unknown error occurred";
+      toast.error(`Failed to generate monthly report: ${errorMessage}`);
     } finally {
       setIsGeneratingReport(false);
     }
@@ -1027,113 +1029,120 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
           <DialogHeader>
             <DialogTitle>Generate Month-to-Month Statement</DialogTitle>
             <DialogDescription>
-              Select a from and to month to download a detailed continence report (similar to a bank statement)
+              {selectedMonthlyContinenceType ? 'Select month and year to download' : 'Select entry type to view records'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">From Month</label>
-              <Select value={fromMonth} onValueChange={setFromMonth}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select month" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">January</SelectItem>
-                  <SelectItem value="2">February</SelectItem>
-                  <SelectItem value="3">March</SelectItem>
-                  <SelectItem value="4">April</SelectItem>
-                  <SelectItem value="5">May</SelectItem>
-                  <SelectItem value="6">June</SelectItem>
-                  <SelectItem value="7">July</SelectItem>
-                  <SelectItem value="8">August</SelectItem>
-                  <SelectItem value="9">September</SelectItem>
-                  <SelectItem value="10">October</SelectItem>
-                  <SelectItem value="11">November</SelectItem>
-                  <SelectItem value="12">December</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {!selectedMonthlyContinenceType ? (
+              <>
+                <h3 className="text-sm font-medium text-gray-600">Select an entry type:</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    className="h-auto p-4 justify-start hover:shadow-md"
+                    onClick={() => setSelectedMonthlyContinenceType("bowel")}
+                  >
+                    <div className="flex flex-col items-start w-full">
+                      <span className="font-semibold text-base">Bowel</span>
+                      <span className="text-xs text-gray-500">Bowel movement records</span>
+                    </div>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto p-4 justify-start hover:shadow-md"
+                    onClick={() => setSelectedMonthlyContinenceType("urine")}
+                  >
+                    <div className="flex flex-col items-start w-full">
+                      <span className="font-semibold text-base">Urine</span>
+                      <span className="text-xs text-gray-500">Urine output records</span>
+                    </div>
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedMonthlyContinenceType(null)}
+                    className="text-gray-600 hover:text-gray-900"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Change type
+                  </Button>
+                  <Badge variant="outline">
+                    {selectedMonthlyContinenceType === "bowel" ? "Bowel" : "Urine"}
+                  </Badge>
+                </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">From Year</label>
-              <Select value={fromYear} onValueChange={setFromYear}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select year" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableYears.map(year => (
-                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Month</label>
+                  <Select value={fromMonth} onValueChange={setFromMonth}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">January</SelectItem>
+                      <SelectItem value="2">February</SelectItem>
+                      <SelectItem value="3">March</SelectItem>
+                      <SelectItem value="4">April</SelectItem>
+                      <SelectItem value="5">May</SelectItem>
+                      <SelectItem value="6">June</SelectItem>
+                      <SelectItem value="7">July</SelectItem>
+                      <SelectItem value="8">August</SelectItem>
+                      <SelectItem value="9">September</SelectItem>
+                      <SelectItem value="10">October</SelectItem>
+                      <SelectItem value="11">November</SelectItem>
+                      <SelectItem value="12">December</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">To Month</label>
-              <Select value={toMonth} onValueChange={setToMonth}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select month" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">January</SelectItem>
-                  <SelectItem value="2">February</SelectItem>
-                  <SelectItem value="3">March</SelectItem>
-                  <SelectItem value="4">April</SelectItem>
-                  <SelectItem value="5">May</SelectItem>
-                  <SelectItem value="6">June</SelectItem>
-                  <SelectItem value="7">July</SelectItem>
-                  <SelectItem value="8">August</SelectItem>
-                  <SelectItem value="9">September</SelectItem>
-                  <SelectItem value="10">October</SelectItem>
-                  <SelectItem value="11">November</SelectItem>
-                  <SelectItem value="12">December</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Year</label>
+                  <Select value={fromYear} onValueChange={setFromYear}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableYears.map(year => (
+                        <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">To Year</label>
-              <Select value={toYear} onValueChange={setToYear}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select year" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableYears.map(year => (
-                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                  <p className="text-blue-800 font-medium mb-1">PDF Report Format</p>
+                  <p className="text-blue-700 text-xs">
+                    The statement will include: resident details, all {selectedMonthlyContinenceType} entries for the selected month,
+                    timestamps, and staff names.
+                  </p>
+                </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-              <p className="text-blue-800 font-medium mb-1">PDF Report Format</p>
-              <p className="text-blue-700 text-xs">
-                The statement will include: resident details, all bowel and urine entries for the selected month,
-                timestamps, staff names, and a summary - formatted like a bank statement. Opens in a new window for printing/saving as PDF.
-              </p>
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsMonthlyReportDialogOpen(false);
-                  setFromMonth(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
-                  setFromYear(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
-                  setToMonth(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
-                  setToYear(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
-                }}
-                disabled={isGeneratingReport}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleGenerateMonthlyReport}
-                disabled={isGeneratingReport || !fromMonth || !fromYear || !toMonth || !toYear}
-              >
-                {isGeneratingReport ? "Generating..." : "Generate PDF"}
-              </Button>
-            </div>
+                <div className="flex justify-end space-x-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsMonthlyReportDialogOpen(false);
+                      setFromMonth(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
+                      setFromYear(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
+                      setSelectedMonthlyContinenceType(null);
+                    }}
+                    disabled={isGeneratingReport}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleGenerateMonthlyReport}
+                    disabled={isGeneratingReport || !fromMonth || !fromYear}
+                  >
+                    {isGeneratingReport ? "Generating..." : "Generate PDF"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
