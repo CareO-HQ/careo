@@ -1036,25 +1036,35 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
             {!selectedMonthlyContinenceType ? (
               <>
                 <h3 className="text-sm font-medium text-gray-600">Select an entry type:</h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <Button
                     variant="outline"
-                    className="h-auto p-4 justify-start hover:shadow-md"
+                    className="h-auto p-4 justify-start hover:shadow-md hover:border-teal-300 transition-all"
                     onClick={() => setSelectedMonthlyContinenceType("bowel")}
                   >
-                    <div className="flex flex-col items-start w-full">
-                      <span className="font-semibold text-base">Bowel</span>
-                      <span className="text-xs text-gray-500">Bowel movement records</span>
+                    <div className="flex items-center space-x-3 w-full">
+                      <div className="p-2 rounded-lg bg-amber-100">
+                        <Droplet className="w-6 h-6 text-amber-600" />
+                      </div>
+                      <div className="flex flex-col items-start flex-1">
+                        <span className="font-semibold text-base">Bowel</span>
+                        <span className="text-xs text-gray-500">Bowel movement records</span>
+                      </div>
                     </div>
                   </Button>
                   <Button
                     variant="outline"
-                    className="h-auto p-4 justify-start hover:shadow-md"
+                    className="h-auto p-4 justify-start hover:shadow-md hover:border-blue-300 transition-all"
                     onClick={() => setSelectedMonthlyContinenceType("urine")}
                   >
-                    <div className="flex flex-col items-start w-full">
-                      <span className="font-semibold text-base">Urine</span>
-                      <span className="text-xs text-gray-500">Urine output records</span>
+                    <div className="flex items-center space-x-3 w-full">
+                      <div className="p-2 rounded-lg bg-blue-100">
+                        <Droplet className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <div className="flex flex-col items-start flex-1">
+                        <span className="font-semibold text-base">Urine</span>
+                        <span className="text-xs text-gray-500">Urine output records</span>
+                      </div>
                     </div>
                   </Button>
                 </div>
