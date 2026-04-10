@@ -100,6 +100,13 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
   const [pdfSelectionDialogOpen, setPdfSelectionDialogOpen] = useState(false);
   const [pdfDayVitals, setPdfDayVitals] = useState<{ date: string; vitals: any[] } | null>(null);
 
+  // Monthly Report Dialog State
+  const [isMonthlyReportDialogOpen, setIsMonthlyReportDialogOpen] = useState(false);
+  const [monthlyReportMonth, setMonthlyReportMonth] = useState("");
+  const [monthlyReportYear, setMonthlyReportYear] = useState("");
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [selectedMonthlyVitalType, setSelectedMonthlyVitalType] = useState<string | null>(null);
+
   // Fetch data with Supabase
   const fetchData = useCallback(async () => {
     if (!id) return;
@@ -419,6 +426,130 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
     toast.success("PDF downloaded successfully");
   };
 
+  const handleGenerateMonthlyReport = async () => {
+    if (!monthlyReportMonth || !monthlyReportYear || !selectedMonthlyVitalType) {
+      toast.error("Please select month, year, and vital type");
+      return;
+    }
+
+    if (!resident) {
+      toast.error("Resident data not available");
+      return;
+    }
+
+    setIsGeneratingReport(true);
+    try {
+      const year = parseInt(monthlyReportYear);
+      const month = parseInt(monthlyReportMonth);
+
+      // Calculate start and end dates for the month
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59);
+
+      // Format dates as YYYY-MM-DD for query
+      const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDay = new Date(year, month, 0).getDate();
+      const endDateStr = `${year}-${String(month).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+
+      // Fetch all vitals for the selected month and vital type
+      const { data: vitalsData, error } = await supabase
+        .from('vitals')
+        .select('*')
+        .eq('resident_id', id)
+        .eq('vital_type', selectedMonthlyVitalType)
+        .gte('record_date', startDateStr)
+        .lte('record_date', endDateStr)
+        .order('record_date', { ascending: true })
+        .order('record_time', { ascending: true });
+
+      if (error) {
+        console.error("Error fetching monthly data:", error);
+        toast.error("Failed to fetch monthly data");
+        return;
+      }
+
+      if (!vitalsData || vitalsData.length === 0) {
+        toast.error("No records found for the selected month and vital type");
+        return;
+      }
+
+      // Transform vitals data
+      const transformedVitals = vitalsData.map(v => ({
+        _id: v.id,
+        vitalType: v.vital_type,
+        value: v.value,
+        value2: v.value2,
+        unit: v.unit,
+        notes: v.notes,
+        recordedBy: v.recorded_by,
+        recordDate: v.record_date,
+        recordTime: v.record_time,
+        residentId: v.resident_id
+      }));
+
+      // Fetch staff names
+      const vitalsWithStaffNames = await Promise.all(
+        transformedVitals.map(async (vital) => {
+          if (!vital.recordedBy) {
+            return { ...vital, recordedByName: '--' };
+          }
+
+          const { data: staffData } = await supabase
+            .from('profiles')
+            .select('name, email')
+            .eq('id', vital.recordedBy)
+            .single();
+
+          return {
+            ...vital,
+            recordedByName: staffData?.name || staffData?.email?.split('@')[0] || '--'
+          };
+        })
+      );
+
+      const vitalConfig = vitalTypeOptions[selectedMonthlyVitalType as keyof typeof vitalTypeOptions];
+      const monthName = new Date(year, month - 1).toLocaleString('en-GB', { month: 'long' });
+
+      await generateHealthMonitoringPDF({
+        resident: {
+          first_name: resident.firstName,
+          middle_name: resident.middleName,
+          last_name: resident.lastName,
+          date_of_birth: resident.dateOfBirth,
+          room_number: resident.roomNumber,
+          care_home_name: resident.careHomeName
+        },
+        vitals: vitalsWithStaffNames.map(v => ({
+          ...v,
+          vitalType: v.vitalType,
+          recordDate: v.recordDate,
+          recordTime: v.recordTime,
+          value: v.value,
+          value2: v.value2,
+          unit: v.unit,
+          notes: v.notes,
+          recordedByName: v.recordedByName
+        })),
+        date: `${monthName}-${year}`,
+        vitalType: selectedMonthlyVitalType,
+        vitalTypeLabel: `${vitalConfig?.label || selectedMonthlyVitalType} - ${monthName} ${year}`,
+        orgLogoUrl: profile?.organization_logo_url || undefined,
+        careHomeName: profile?.care_home_name || undefined
+      });
+
+      toast.success("Monthly report downloaded successfully");
+      setIsMonthlyReportDialogOpen(false);
+      setMonthlyReportMonth("");
+      setMonthlyReportYear("");
+      setSelectedMonthlyVitalType(null);
+    } catch (error) {
+      console.error("Error generating monthly report:", error);
+      toast.error("Failed to generate monthly report");
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
   const handleExport = () => {
     if (!filteredVitals || filteredVitals.length === 0) return;
 
@@ -600,15 +731,25 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
               <Filter className="w-5 h-5" />
               <span>Filter Vitals</span>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              disabled={filteredVitals.length === 0}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMonthlyReportDialogOpen(true)}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Monthly Report
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={filteredVitals.length === 0}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1108,6 +1249,128 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
 
           <div className="flex justify-end pt-2 border-t">
             <Button variant="outline" onClick={() => setPdfSelectionDialogOpen(false)}>Cancel</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Monthly Report Dialog */}
+      <Dialog open={isMonthlyReportDialogOpen} onOpenChange={setIsMonthlyReportDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generate Monthly Statement</DialogTitle>
+            <DialogDescription>
+              Select month, year, and vital type to download a detailed health monitoring report
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {!selectedMonthlyVitalType ? (
+              <>
+                <h3 className="text-sm font-medium text-gray-600">Select a vital type:</h3>
+                <div className="grid grid-cols-1 gap-3">
+                  {Object.entries(vitalTypeOptions).map(([key, option]) => {
+                    const Icon = option.icon;
+                    return (
+                      <Button
+                        key={key}
+                        variant="outline"
+                        className="h-auto p-4 justify-start hover:shadow-md"
+                        onClick={() => setSelectedMonthlyVitalType(key)}
+                      >
+                        <div className="flex items-center space-x-3 w-full">
+                          <div className={`p-2 rounded-lg bg-${option.color}-100`}>
+                            <Icon className={`w-6 h-6 text-${option.color}-600`} />
+                          </div>
+                          <span className="font-semibold text-base">{option.label}</span>
+                        </div>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedMonthlyVitalType(null)}
+                    className="text-gray-600 hover:text-gray-900"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Change vital type
+                  </Button>
+                  <Badge variant="outline">
+                    {vitalTypeOptions[selectedMonthlyVitalType as keyof typeof vitalTypeOptions]?.label}
+                  </Badge>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Month</label>
+                  <Select value={monthlyReportMonth} onValueChange={setMonthlyReportMonth}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">January</SelectItem>
+                      <SelectItem value="2">February</SelectItem>
+                      <SelectItem value="3">March</SelectItem>
+                      <SelectItem value="4">April</SelectItem>
+                      <SelectItem value="5">May</SelectItem>
+                      <SelectItem value="6">June</SelectItem>
+                      <SelectItem value="7">July</SelectItem>
+                      <SelectItem value="8">August</SelectItem>
+                      <SelectItem value="9">September</SelectItem>
+                      <SelectItem value="10">October</SelectItem>
+                      <SelectItem value="11">November</SelectItem>
+                      <SelectItem value="12">December</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Year</label>
+                  <Select value={monthlyReportYear} onValueChange={setMonthlyReportYear}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableYears.map(year => (
+                        <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                  <p className="text-blue-800 font-medium mb-1">PDF Report Format</p>
+                  <p className="text-blue-700 text-xs">
+                    The statement will include: resident details, all {vitalTypeOptions[selectedMonthlyVitalType as keyof typeof vitalTypeOptions]?.label.toLowerCase()} records for the selected month,
+                    timestamps, staff names, and measurements.
+                  </p>
+                </div>
+
+                <div className="flex justify-end space-x-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsMonthlyReportDialogOpen(false);
+                      setMonthlyReportMonth("");
+                      setMonthlyReportYear("");
+                      setSelectedMonthlyVitalType(null);
+                    }}
+                    disabled={isGeneratingReport}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleGenerateMonthlyReport}
+                    disabled={isGeneratingReport || !monthlyReportMonth || !monthlyReportYear}
+                  >
+                    {isGeneratingReport ? "Generating..." : "Generate PDF"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
