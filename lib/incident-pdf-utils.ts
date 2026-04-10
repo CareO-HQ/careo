@@ -64,15 +64,6 @@ const INCIDENT_LEVEL_LABELS: Record<string, string> = {
   near_miss: "Near Miss",
 };
 
-const PERSON_STATUS_LABELS: Record<string, string> = {
-  Resident: "Resident in Care",
-  Relative: "Relative",
-  Staff: "Staff Member",
-  AgencyStaff: "Agency Staff",
-  Visitor: "Visitor",
-  Contractor: "Contractor",
-};
-
 // --- Helpers ---
 function fmtDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -92,14 +83,57 @@ function fmtDateTime(val: string | null | undefined): string {
   }
 }
 
-function capitalize(s: string): string {
-  if (!s) return "—";
-  return s.charAt(0).toUpperCase() + s.slice(1);
+interface IncidentReportData {
+  date?: string | null;
+  time?: string | null;
+  home_name?: string | null;
+  unit?: string | null;
+  injured_person_first_name?: string | null;
+  injured_person_surname?: string | null;
+  injured_person_dob?: string | null;
+  resident_internal_id?: string | null;
+  date_of_admission?: string | null;
+  health_care_number?: string | null;
+  injured_person_status?: string[] | null;
+  contractor_employer?: string | null;
+  incident_types?: string[] | null;
+  type_other_details?: string | null;
+  anticoagulant_medication?: string | null;
+  fall_pathway?: string | null;
+  detailed_description?: string | null;
+  incident_level?: string | null;
+  injury_description?: string | null;
+  body_part_injured?: string | null;
+  treatment_types?: string[] | null;
+  treatment_details?: string | null;
+  vital_signs?: string | null;
+  treatment_refused?: boolean | null;
+  witness1_name?: string | null;
+  witness1_contact?: string | null;
+  witness2_name?: string | null;
+  witness2_contact?: string | null;
+  nurse_actions?: string[] | null;
+  further_actions_advised?: string | null;
+  prevention_measures?: string | null;
+  home_manager_informed_by?: string | null;
+  home_manager_informed_date_time?: string | null;
+  on_call_manager_name?: string | null;
+  on_call_contacted_date_time?: string | null;
+  nok_informed_who?: string | null;
+  nok_informed_by?: string | null;
+  nok_informed_date_time?: string | null;
+  trust_care_manager_name?: string | null;
+  trust_care_manager_email?: string | null;
+  trust_key_worker_name?: string | null;
+  trust_key_worker_email?: string | null;
+  completed_by_full_name?: string | null;
+  completed_by_job_title?: string | null;
+  completed_by_signature?: string | null;
+  date_completed?: string | null;
 }
 
-// --- Main Export ---
 interface GenerateIncidentPDFOptions {
-  incident: any;
+  incident: IncidentReportData;
   orgLogoUrl?: string;
 }
 
@@ -163,10 +197,51 @@ export const generateIncidentReportPDF = async ({
   }
 
   let yPos = 28;
-  const col2 = margin + contentWidth / 2;
-  const colWidth = contentWidth / 2 - 5;
 
-  // --- Helpers ---
+  const renderValue = (value: string | null | undefined): string =>
+    value && value.trim() ? value : "—";
+
+  const yesNo = (value: boolean): string => (value ? "Yes" : "No");
+
+  const yesNoFromArray = (value: string[] | null | undefined, key: string): string =>
+    yesNo((value || []).includes(key));
+
+  const normalizeLabelValue = (value: string | null | undefined): string => {
+    if (!value) return "—";
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  };
+  const row = (label: string, value: string): [string, string] => [label, value];
+
+  const addSectionTable = (
+    title: string,
+    rows: Array<[string, string]>,
+    valueHeader = "Value"
+  ) => {
+    autoTable(doc, {
+      startY: yPos,
+      margin: { left: margin, right: margin },
+      head: [[title, valueHeader]],
+      body: rows,
+      theme: "grid",
+      headStyles: {
+        fillColor: [243, 244, 246],
+        textColor: [31, 41, 55],
+        fontStyle: "bold",
+        fontSize: 9,
+      },
+      bodyStyles: { fontSize: 8, textColor: [17, 24, 39] },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: 75 },
+        1: { cellWidth: contentWidth - 75 },
+      },
+      styles: { cellPadding: 2.5, overflow: "linebreak" },
+      tableLineColor: [229, 231, 235],
+      tableLineWidth: 0.2,
+    });
+    const tableDoc = doc as jsPDF & { lastAutoTable?: { finalY: number } };
+    yPos = (tableDoc.lastAutoTable?.finalY || yPos) + 4;
+  };
+
   const checkPageBreak = (needed: number) => {
     if (yPos + needed > 275) {
       doc.addPage();
@@ -174,301 +249,171 @@ export const generateIncidentReportPDF = async ({
     }
   };
 
-  const addSectionTitle = (title: string) => {
-    checkPageBreak(14);
-    doc.setFillColor(243, 244, 246);
-    doc.rect(margin, yPos, contentWidth, 8, "F");
-    doc.setDrawColor(34, 197, 94);
-    doc.setLineWidth(0.5);
-    doc.line(margin, yPos, margin, yPos + 8);
-    doc.setTextColor(31, 41, 55);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text(title.toUpperCase(), margin + 4, yPos + 5.5);
-    doc.setTextColor(0, 0, 0);
-    yPos += 12;
-  };
-
-  const addField = (
-    label: string,
-    value: string | undefined | null,
-    x: number,
-    y: number,
-    width: number
-  ): number => {
-    if (!value || value === "—") return y;
-    checkPageBreak(14);
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(107, 114, 128);
-    doc.text(label.toUpperCase(), x, y);
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(17, 24, 39);
-    const lines = doc.splitTextToSize(value, width);
-    doc.text(lines, x, y + 4);
-    return y + 4 + lines.length * 4;
-  };
-
-  const addBadgeRow = (
-    label: string,
-    items: string[]
-  ) => {
-    if (!items || items.length === 0) return;
-    checkPageBreak(12);
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(107, 114, 128);
-    doc.text(label.toUpperCase(), margin, yPos);
-    yPos += 4;
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(17, 24, 39);
-    const text = items.join(", ");
-    const lines = doc.splitTextToSize(text, contentWidth);
-    doc.text(lines, margin, yPos);
-    yPos += lines.length * 4 + 2;
-  };
-
-  const addTextBlock = (label: string, value: string | null | undefined) => {
-    if (!value) return;
-    checkPageBreak(20);
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(107, 114, 128);
-    doc.text(label.toUpperCase(), margin, yPos);
-    yPos += 4;
-
-    doc.setFillColor(249, 250, 251);
-    const lines = doc.splitTextToSize(value, contentWidth - 6);
-    const blockH = lines.length * 4 + 6;
-    checkPageBreak(blockH + 2);
-    doc.rect(margin, yPos - 2, contentWidth, blockH, "F");
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(17, 24, 39);
-    doc.text(lines, margin + 3, yPos + 2);
-    yPos += blockH + 2;
-  };
-
   const i = incident;
-  const hasFall = i.incident_types?.some(
-    (t: string) => t === "FallWitnessed" || t === "FallUnwitnessed"
+  const hasFall = (i.incident_types || []).some(
+    (t) => t === "FallWitnessed" || t === "FallUnwitnessed"
+  );
+  const hasWitnesses = !!(i.witness1_name || i.witness2_name);
+  const isHomeManagerInformed = !!(
+    i.home_manager_informed_by || i.home_manager_informed_date_time
+  );
+  const isOnCallContacted = !!(i.on_call_manager_name || i.on_call_contacted_date_time);
+  const isNokInformed = !!(
+    i.nok_informed_who || i.nok_informed_by || i.nok_informed_date_time
+  );
+  const hasTrustRecipients = !!(
+    i.trust_care_manager_name ||
+    i.trust_care_manager_email ||
+    i.trust_key_worker_name ||
+    i.trust_key_worker_email
   );
 
-  // --- Section 1: Incident Details ---
-  addSectionTitle("Incident Details");
-  let y1 = addField("Date", fmtDate(i.date), margin, yPos, colWidth);
-  let y2 = addField("Time", i.time, col2, yPos, colWidth);
-  yPos = Math.max(y1, y2) + 2;
-  y1 = addField("Home Name", i.home_name, margin, yPos, colWidth);
-  y2 = addField("Unit", i.unit, col2, yPos, colWidth);
-  yPos = Math.max(y1, y2) + 4;
+  addSectionTable("1. Incident Details", [
+    ["Date", fmtDate(i.date)],
+    ["Time", renderValue(i.time)],
+    ["Home Name", renderValue(i.home_name)],
+    ["Unit", renderValue(i.unit)],
+  ]);
 
-  // --- Section 2: Injured Person ---
-  addSectionTitle("Injured Person Details");
-  y1 = addField("First Name", i.injured_person_first_name, margin, yPos, colWidth);
-  y2 = addField("Surname", i.injured_person_surname, col2, yPos, colWidth);
-  yPos = Math.max(y1, y2) + 2;
-  y1 = addField("Date of Birth", fmtDate(i.injured_person_dob), margin, yPos, colWidth);
-  y2 = addField("Resident ID", i.resident_internal_id, col2, yPos, colWidth);
-  yPos = Math.max(y1, y2) + 2;
-  y1 = addField("Date of Admission", fmtDate(i.date_of_admission), margin, yPos, colWidth);
-  y2 = addField("Health Care Number", i.health_care_number, col2, yPos, colWidth);
-  yPos = Math.max(y1, y2) + 4;
+  addSectionTable("2. Injured Person Details", [
+    ["First Name", renderValue(i.injured_person_first_name)],
+    ["Surname", renderValue(i.injured_person_surname)],
+    ["Date of Birth", fmtDate(i.injured_person_dob)],
+    ["Resident ID", renderValue(i.resident_internal_id)],
+    ["Date of Admission", fmtDate(i.date_of_admission)],
+    ["Health and Care Number", renderValue(i.health_care_number)],
+  ]);
 
-  // --- Section 3: Status ---
-  addSectionTitle("Status of Injured Person");
-  addBadgeRow(
-    "Status",
-    (i.injured_person_status || []).map(
-      (s: string) => PERSON_STATUS_LABELS[s] || s
-    )
-  );
-  if (i.contractor_employer) {
-    yPos = addField("Contractor/Employer", i.contractor_employer, margin, yPos, contentWidth) + 2;
-  }
-  yPos += 2;
+  addSectionTable("3. Status of Injured Person", [
+    ["Resident in Care", yesNoFromArray(i.injured_person_status, "Resident")],
+    ["Relative", yesNoFromArray(i.injured_person_status, "Relative")],
+    ["Staff Member", yesNoFromArray(i.injured_person_status, "Staff")],
+    ["Agency Staff", yesNoFromArray(i.injured_person_status, "AgencyStaff")],
+    ["Visitor", yesNoFromArray(i.injured_person_status, "Visitor")],
+    ["Contractor", yesNoFromArray(i.injured_person_status, "Contractor")],
+    ["Contractor Employer", renderValue(i.contractor_employer)],
+  ], "Yes/No");
 
-  // --- Section 4: Type of Incident ---
-  addSectionTitle("Type of Incident");
-  addBadgeRow(
-    "Types",
-    (i.incident_types || []).map(
-      (t: string) => INCIDENT_TYPE_LABELS[t] || t
-    )
-  );
-  if (i.type_other_details) {
-    yPos = addField("Other Details", i.type_other_details, margin, yPos, contentWidth) + 2;
-  }
-  yPos += 2;
+  addSectionTable("4. Type of Incident", [
+    ...Object.entries(INCIDENT_TYPE_LABELS).map(([key, label]) => [
+      label,
+      yesNoFromArray(i.incident_types, key),
+    ] as [string, string]),
+    ["Other Details", renderValue(i.type_other_details)],
+  ], "Yes/No");
 
-  // --- Section 5-6: Fall Questions ---
-  if (hasFall) {
-    addSectionTitle("Fall-Specific Questions");
-    y1 = addField(
-      "On Anticoagulant Medication?",
-      capitalize(i.anticoagulant_medication),
-      margin,
-      yPos,
-      colWidth
-    );
-    y2 = addField("Falls Pathway", capitalize(i.fall_pathway), col2, yPos, colWidth);
-    yPos = Math.max(y1, y2) + 4;
-  }
+  addSectionTable("5-6. Fall-Specific Questions", [
+    row("Fall Incident Selected", yesNo(hasFall)),
+    ...(hasFall
+      ? [
+          row(
+            "On Anticoagulant Medication?",
+            normalizeLabelValue(i.anticoagulant_medication)
+          ),
+          row("Falls Pathway", normalizeLabelValue(i.fall_pathway)),
+        ]
+      : ([] as Array<[string, string]>)),
+  ], "Yes/No");
 
-  // --- Section 7: Description ---
-  addSectionTitle("Detailed Description");
-  addTextBlock("Description", i.detailed_description);
-  yPos += 2;
+  addSectionTable("7. Detailed Description", [
+    ["Description", renderValue(i.detailed_description)],
+  ]);
 
-  // --- Section 8: Incident Level ---
-  addSectionTitle("Incident Level");
-  const levelLabel = INCIDENT_LEVEL_LABELS[i.incident_level] || i.incident_level;
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(17, 24, 39);
-  doc.text(levelLabel, margin, yPos);
-  yPos += 8;
+  addSectionTable("8. Incident Level", [
+    ["Incident Level", renderValue(INCIDENT_LEVEL_LABELS[i.incident_level || ""] || i.incident_level)],
+  ]);
 
-  // --- Section 9: Injury Details ---
-  if (i.injury_description || i.body_part_injured) {
-    addSectionTitle("Details of Injury");
-    y1 = addField("Injury Description", i.injury_description, margin, yPos, colWidth);
-    y2 = addField("Body Part Injured", i.body_part_injured, col2, yPos, colWidth);
-    yPos = Math.max(y1, y2) + 4;
-  }
+  addSectionTable("9. Details of the Injury", [
+    ["Injury Description", renderValue(i.injury_description)],
+    ["Body Part Injured", renderValue(i.body_part_injured)],
+  ]);
 
-  // --- Section 10-11: Treatment ---
-  if (
-    (i.treatment_types && i.treatment_types.length > 0) ||
-    i.treatment_details ||
-    i.vital_signs
-  ) {
-    addSectionTitle("Treatment");
-    addBadgeRow(
-      "Treatment Required",
-      (i.treatment_types || []).map(
-        (t: string) => TREATMENT_LABELS[t] || t
-      )
-    );
-    if (i.treatment_details) {
-      yPos = addField("Treatment Details", i.treatment_details, margin, yPos, contentWidth) + 2;
-    }
-    if (i.vital_signs) {
-      yPos = addField("Vital Signs", i.vital_signs, margin, yPos, contentWidth) + 2;
-    }
-    if (i.treatment_refused) {
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(220, 38, 38);
-      doc.text("TREATMENT REFUSED", margin, yPos);
-      yPos += 6;
-    }
-    yPos += 2;
-  }
+  addSectionTable("10-11. Treatment", [
+    ...Object.entries(TREATMENT_LABELS).map(([key, label]) => [
+      `${label} (checkbox)`,
+      yesNoFromArray(i.treatment_types, key),
+    ] as [string, string]),
+    ["Treatment Details", renderValue(i.treatment_details)],
+    ["Vital Signs", renderValue(i.vital_signs)],
+    ["Treatment Refused (checkbox)", yesNo(!!i.treatment_refused)],
+  ]);
 
-  // --- Section 12: Witnesses ---
-  if (i.witness1_name || i.witness2_name) {
-    addSectionTitle("Witnesses");
-    autoTable(doc, {
-      startY: yPos,
-      margin: { left: margin, right: margin },
-      head: [["Witness", "Name", "Contact"]],
-      body: [
-        ...(i.witness1_name
-          ? [["Witness 1", i.witness1_name || "—", i.witness1_contact || "—"]]
-          : []),
-        ...(i.witness2_name
-          ? [["Witness 2", i.witness2_name || "—", i.witness2_contact || "—"]]
-          : []),
-      ],
-      theme: "grid",
-      headStyles: {
-        fillColor: [243, 244, 246],
-        textColor: [31, 41, 55],
-        fontStyle: "bold",
-        fontSize: 8,
-      },
-      bodyStyles: { fontSize: 8 },
-      styles: { cellPadding: 2 },
-    });
-    yPos = (doc as any).lastAutoTable.finalY + 6;
-  }
+  addSectionTable("12. Witnesses", [
+    row("Witnesses Present", yesNo(hasWitnesses)),
+    ...(hasWitnesses
+      ? [
+          row("Witness 1 Name", renderValue(i.witness1_name)),
+          row("Witness 1 Contact", renderValue(i.witness1_contact)),
+          row("Witness 2 Name", renderValue(i.witness2_name)),
+          row("Witness 2 Contact", renderValue(i.witness2_contact)),
+        ]
+      : ([] as Array<[string, string]>)),
+  ], "Yes/No");
 
-  // --- Section 13: Nurse Actions ---
-  if (i.nurse_actions && i.nurse_actions.length > 0) {
-    addSectionTitle("Further Actions by Nurse");
-    addBadgeRow(
-      "Actions Taken",
-      i.nurse_actions.map((a: string) => NURSE_ACTION_LABELS[a] || a)
-    );
-    yPos += 2;
-  }
+  addSectionTable("13. Further Actions by Nurse", [
+    ...Object.entries(NURSE_ACTION_LABELS).map(([key, label]) => [
+      label,
+      yesNoFromArray(i.nurse_actions, key),
+    ] as [string, string]),
+  ], "Yes/No");
 
-  // --- Section 14-15: Further Actions & Prevention ---
-  if (i.further_actions_advised || i.prevention_measures) {
-    addSectionTitle("Further Actions & Prevention");
-    if (i.further_actions_advised) {
-      addTextBlock("Further Actions Advised", i.further_actions_advised);
-    }
-    if (i.prevention_measures) {
-      addTextBlock("Prevention Measures", i.prevention_measures);
-    }
-    yPos += 2;
-  }
+  addSectionTable("14-15. Further Actions & Prevention", [
+    ["Further Actions Advised", renderValue(i.further_actions_advised)],
+    ["Prevention Measures", renderValue(i.prevention_measures)],
+  ]);
 
-  // --- Section 16-17: Notifications ---
-  if (i.home_manager_informed_by || i.on_call_manager_name) {
-    addSectionTitle("Notifications");
-    y1 = addField("Home Manager Informed By", i.home_manager_informed_by, margin, yPos, colWidth);
-    y2 = addField(
-      "Date & Time",
-      fmtDateTime(i.home_manager_informed_date_time),
-      col2,
-      yPos,
-      colWidth
-    );
-    yPos = Math.max(y1, y2) + 2;
-    y1 = addField("On-Call Manager", i.on_call_manager_name, margin, yPos, colWidth);
-    y2 = addField(
-      "Date & Time",
-      fmtDateTime(i.on_call_contacted_date_time),
-      col2,
-      yPos,
-      colWidth
-    );
-    yPos = Math.max(y1, y2) + 4;
-  }
+  addSectionTable("16-17. Notifications", [
+    row("Home Manager Informed", yesNo(isHomeManagerInformed)),
+    ...(isHomeManagerInformed
+      ? [
+          row("Home Manager Informed By", renderValue(i.home_manager_informed_by)),
+          row(
+            "Home Manager Date & Time",
+            fmtDateTime(i.home_manager_informed_date_time)
+          ),
+        ]
+      : ([] as Array<[string, string]>)),
+    row("Out of Hours On-Call Contacted", yesNo(isOnCallContacted)),
+    ...(isOnCallContacted
+      ? [
+          row("On-Call Manager", renderValue(i.on_call_manager_name)),
+          row(
+            "On-Call Contacted Date & Time",
+            fmtDateTime(i.on_call_contacted_date_time)
+          ),
+        ]
+      : ([] as Array<[string, string]>)),
+  ], "Yes/No");
 
-  // --- Section 18: NOK ---
-  if (i.nok_informed_who || i.nok_informed_by) {
-    addSectionTitle("Next of Kin Informed");
-    y1 = addField("NOK Name", i.nok_informed_who, margin, yPos, colWidth);
-    y2 = addField("Informed By", i.nok_informed_by, col2, yPos, colWidth);
-    yPos = Math.max(y1, y2) + 2;
-    yPos = addField("Date & Time", fmtDateTime(i.nok_informed_date_time), margin, yPos, colWidth) + 4;
-  }
+  addSectionTable("18. Next of Kin Informed", [
+    row("Next of Kin Informed", yesNo(isNokInformed)),
+    ...(isNokInformed
+      ? [
+          row("NOK Name", renderValue(i.nok_informed_who)),
+          row("Informed By", renderValue(i.nok_informed_by)),
+          row("Date & Time", fmtDateTime(i.nok_informed_date_time)),
+        ]
+      : ([] as Array<[string, string]>)),
+  ], "Yes/No");
 
-  // --- Section 19: Trust Recipients ---
-  if (i.trust_care_manager_name || i.trust_key_worker_name) {
-    addSectionTitle("Trust Incident Form Recipients");
-    y1 = addField("Care Manager", i.trust_care_manager_name, margin, yPos, colWidth);
-    y2 = addField("Email", i.trust_care_manager_email, col2, yPos, colWidth);
-    yPos = Math.max(y1, y2) + 2;
-    y1 = addField("Key Worker", i.trust_key_worker_name, margin, yPos, colWidth);
-    y2 = addField("Email", i.trust_key_worker_email, col2, yPos, colWidth);
-    yPos = Math.max(y1, y2) + 4;
-  }
+  addSectionTable("19. Trust Incident Form Recipients", [
+    row("Trust Recipients Informed", yesNo(hasTrustRecipients)),
+    ...(hasTrustRecipients
+      ? [
+          row("Care Manager", renderValue(i.trust_care_manager_name)),
+          row("Care Manager Email", renderValue(i.trust_care_manager_email)),
+          row("Key Worker", renderValue(i.trust_key_worker_name)),
+          row("Key Worker Email", renderValue(i.trust_key_worker_email)),
+        ]
+      : ([] as Array<[string, string]>)),
+  ], "Yes/No");
 
-  // --- Section 20: Completion ---
-  addSectionTitle("Completed By");
-  y1 = addField("Full Name", i.completed_by_full_name, margin, yPos, colWidth);
-  y2 = addField("Job Title", i.completed_by_job_title, col2, yPos, colWidth);
-  yPos = Math.max(y1, y2) + 2;
-  y1 = addField("Signature", i.completed_by_signature, margin, yPos, colWidth);
-  y2 = addField("Date Completed", fmtDate(i.date_completed), col2, yPos, colWidth);
-  yPos = Math.max(y1, y2) + 6;
+  addSectionTable("20. Completed By", [
+    ["Full Name", renderValue(i.completed_by_full_name)],
+    ["Job Title", renderValue(i.completed_by_job_title)],
+    ["Signature", renderValue(i.completed_by_signature)],
+    ["Date Completed", fmtDate(i.date_completed)],
+  ]);
 
   // --- Footer ---
   checkPageBreak(12);

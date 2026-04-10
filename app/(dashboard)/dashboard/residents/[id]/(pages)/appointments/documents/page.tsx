@@ -59,6 +59,42 @@ type AppointmentsDocumentsPageProps = {
   params: Promise<{ id: string }>;
 };
 
+type AppointmentRecord = {
+  id?: string;
+  _id?: string;
+  title?: string;
+  description?: string;
+  location?: string;
+  status?: string;
+  createdAt?: string;
+  created_at?: string;
+  start_time?: string;
+  end_time?: string;
+  staff_id?: string;
+  startTime?: string;
+  endTime?: string;
+  staffId?: string;
+  [key: string]: unknown;
+};
+
+type ResidentRecord = {
+  firstName?: string;
+  lastName?: string;
+  [key: string]: unknown;
+};
+
+const getValidDate = (value: unknown): Date | null => {
+  if (!value) return null;
+  const parsedDate = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const safeFormatDate = (value: unknown, pattern: string, fallback = "—"): string => {
+  const parsedDate = getValidDate(value);
+  if (!parsedDate) return fallback;
+  return format(parsedDate, pattern);
+};
+
 export default function AppointmentsDocumentsPage({ params }: AppointmentsDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
@@ -73,11 +109,11 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   const itemsPerPage = 10;
 
   // Dialog state
-  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<AppointmentRecord | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
   // Fetch resident data from Supabase
-  const [resident, setResident] = useState<{ firstName?: string; lastName?: string;[key: string]: any } | null>(null);
+  const [resident, setResident] = useState<ResidentRecord | null>(null);
   const [residentLoading, setResidentLoading] = useState(true);
 
   useEffect(() => {
@@ -114,7 +150,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   }, [id, supabase]);
 
   // Get all appointments for this resident (archived appointments)
-  const [allAppointments, setAllAppointments] = useState<any[] | undefined>(undefined);
+  const [allAppointments, setAllAppointments] = useState<AppointmentRecord[] | undefined>(undefined);
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
 
   useEffect(() => {
@@ -123,7 +159,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
         setAppointmentsLoading(true);
         const result = await getAppointmentsByResident(id, { includeAll: true });
         // Transform appointments to include startTime for compatibility
-        const transformedAppointments = result.appointments?.map((apt: any) => ({
+        const transformedAppointments = result.appointments?.map((apt: AppointmentRecord) => ({
           ...apt,
           startTime: apt.start_time,
           endTime: apt.end_time,
@@ -149,9 +185,13 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   // Get unique years from appointments for filter
   const availableYears = useMemo(() => {
     if (!allAppointments || allAppointments.length === 0) return [];
-    const years = [...new Set(allAppointments.map(appointment =>
-      new Date(appointment.startTime).getFullYear()
-    ))];
+    const years = [
+      ...new Set(
+        allAppointments
+          .map((appointment) => getValidDate(appointment.startTime)?.getFullYear())
+          .filter((year): year is number => year !== undefined),
+      ),
+    ];
     return years.sort((a, b) => b - a);
   }, [allAppointments]);
 
@@ -163,8 +203,9 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
     const today = new Date();
     today.setHours(23, 59, 59, 999); // End of today
 
-    let filtered = [...allAppointments].filter(appointment => {
-      const appointmentDate = new Date(appointment.startTime);
+    let filtered = [...allAppointments].filter((appointment) => {
+      const appointmentDate = getValidDate(appointment.startTime);
+      if (!appointmentDate) return false;
       return appointmentDate <= today; // Only include today and past appointments
     });
 
@@ -180,24 +221,28 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
 
     // Apply month filter
     if (selectedMonth !== "all") {
-      filtered = filtered.filter(appointment => {
-        const appointmentMonth = new Date(appointment.startTime).getMonth() + 1;
+      filtered = filtered.filter((appointment) => {
+        const appointmentDate = getValidDate(appointment.startTime);
+        if (!appointmentDate) return false;
+        const appointmentMonth = appointmentDate.getMonth() + 1;
         return appointmentMonth === parseInt(selectedMonth);
       });
     }
 
     // Apply year filter
     if (selectedYear !== "all") {
-      filtered = filtered.filter(appointment => {
-        const appointmentYear = new Date(appointment.startTime).getFullYear();
+      filtered = filtered.filter((appointment) => {
+        const appointmentDate = getValidDate(appointment.startTime);
+        if (!appointmentDate) return false;
+        const appointmentYear = appointmentDate.getFullYear();
         return appointmentYear === parseInt(selectedYear);
       });
     }
 
     // Sort by date and time
     filtered.sort((a, b) => {
-      const dateA = new Date(a.startTime).getTime();
-      const dateB = new Date(b.startTime).getTime();
+      const dateA = getValidDate(a.startTime)?.getTime() ?? 0;
+      const dateB = getValidDate(b.startTime)?.getTime() ?? 0;
       return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
     });
 
@@ -212,10 +257,10 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
 
   // Group appointments by date
   const groupedAppointments = useMemo(() => {
-    const groups: { [key: string]: any[] } = {};
+    const groups: Record<string, AppointmentRecord[]> = {};
 
-    paginatedAppointments.forEach(appointment => {
-      const dateKey = format(new Date(appointment.startTime), "EEEE, d MMMM yyyy");
+    paginatedAppointments.forEach((appointment) => {
+      const dateKey = safeFormatDate(appointment.startTime, "EEEE, d MMMM yyyy", "Unknown date");
       if (!groups[dateKey]) {
         groups[dateKey] = [];
       }
@@ -226,7 +271,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   }, [paginatedAppointments]);
 
   // Handlers
-  const handleViewAppointment = (appointment: any) => {
+  const handleViewAppointment = (appointment: AppointmentRecord) => {
     setSelectedAppointment(appointment);
     setIsViewDialogOpen(true);
   };
@@ -236,9 +281,9 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
 
     // Create CSV content
     const headers = ["Date", "Time", "Title", "Description", "Location", "Staff", "Status"];
-    const rows = filteredAppointments.map(appointment => [
-      format(new Date(appointment.startTime), "yyyy-MM-dd"),
-      `${format(new Date(appointment.startTime), "HH:mm")} - ${format(new Date(appointment.endTime), "HH:mm")}`,
+    const rows = filteredAppointments.map((appointment) => [
+      safeFormatDate(appointment.startTime, "yyyy-MM-dd"),
+      `${safeFormatDate(appointment.startTime, "HH:mm")} - ${safeFormatDate(appointment.endTime, "HH:mm")}`,
       appointment.title,
       appointment.description || "",
       appointment.location || "",
@@ -278,13 +323,15 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   // Calculate stats
   const appointmentStats = {
     total: allAppointments.length,
-    thisMonth: allAppointments.filter(appointment => {
-      const appointmentDate = new Date(appointment.startTime);
+    thisMonth: allAppointments.filter((appointment) => {
+      const appointmentDate = getValidDate(appointment.startTime);
+      if (!appointmentDate) return false;
       const now = new Date();
       return appointmentDate.getMonth() === now.getMonth() && appointmentDate.getFullYear() === now.getFullYear();
     }).length,
-    thisWeek: allAppointments.filter(appointment => {
-      const appointmentDate = new Date(appointment.startTime);
+    thisWeek: allAppointments.filter((appointment) => {
+      const appointmentDate = getValidDate(appointment.startTime);
+      if (!appointmentDate) return false;
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       return appointmentDate >= weekAgo;
@@ -533,14 +580,17 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
                             </div>
                           </TableCell>
                         </TableRow>
-                        {appointments.map((appointment) => (
-                          <TableRow key={appointment._id} className="hover:bg-blue-50/30 transition-colors">
+                        {appointments.map((appointment, index) => (
+                          <TableRow
+                            key={appointment.id ?? appointment._id ?? `${date}-${String(appointment.startTime ?? "unknown")}-${index}`}
+                            className="hover:bg-blue-50/30 transition-colors"
+                          >
                             <TableCell className="font-medium">
                               <div className="flex flex-col">
-                                <span className="text-gray-900">{format(new Date(appointment.startTime), "dd MMM yyyy")}</span>
+                                <span className="text-gray-900">{safeFormatDate(appointment.startTime, "dd MMM yyyy")}</span>
                                 <div className="flex items-center space-x-1 text-xs text-gray-500">
                                   <Clock className="w-3 h-3 text-blue-400" />
-                                  <span>{format(new Date(appointment.startTime), "HH:mm")} - {format(new Date(appointment.endTime), "HH:mm")}</span>
+                                  <span>{safeFormatDate(appointment.startTime, "HH:mm")} - {safeFormatDate(appointment.endTime, "HH:mm")}</span>
                                 </div>
                               </div>
                             </TableCell>
@@ -685,10 +735,10 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
                     <div>
                       <p className="text-sm text-gray-500">Date & Time</p>
                       <p className="font-medium">
-                        {format(new Date(selectedAppointment.startTime), "PPP")}
+                        {safeFormatDate(selectedAppointment.startTime, "PPP")}
                       </p>
                       <p className="text-sm text-gray-600">
-                        {format(new Date(selectedAppointment.startTime), "HH:mm")} - {format(new Date(selectedAppointment.endTime), "HH:mm")}
+                        {safeFormatDate(selectedAppointment.startTime, "HH:mm")} - {safeFormatDate(selectedAppointment.endTime, "HH:mm")}
                       </p>
                     </div>
                     <div>
@@ -768,7 +818,9 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
                       <p className="text-sm text-gray-500">Created</p>
                       <div className="flex items-center space-x-2">
                         <Clock className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{format(new Date(selectedAppointment.createdAt), "PPP")}</p>
+                        <p className="font-medium">
+                          {safeFormatDate(selectedAppointment.createdAt ?? selectedAppointment.created_at, "PPP")}
+                        </p>
                       </div>
                     </div>
                   </div>

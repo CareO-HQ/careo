@@ -123,6 +123,7 @@ const IncidentFormSchema = z.object({
   treatmentRefused: z.boolean().optional(),
 
   // Section 12: Witnesses
+  hasWitnesses: z.enum(["yes", "no"]).default("no"),
   witness1Name: z.string().optional(),
   witness1Contact: z.string().optional(),
   witness2Name: z.string().optional(),
@@ -138,19 +139,23 @@ const IncidentFormSchema = z.object({
   preventionMeasures: z.string().optional(),
 
   // Section 16: Home Manager Informed
+  homeManagerInformed: z.enum(["yes", "no"]).default("no"),
   homeManagerInformedBy: z.string().optional(),
   homeManagerInformedDateTime: z.date().optional(),
 
   // Section 17: Out of Hours On-Call
+  onCallContacted: z.enum(["yes", "no"]).default("no"),
   onCallManagerName: z.string().optional(),
   onCallContactedDateTime: z.date().optional(),
 
   // Section 18: Next of Kin Informed
+  nokInformed: z.enum(["yes", "no"]).default("no"),
   nokInformedWho: z.string().optional(),
   nokInformedBy: z.string().optional(),
   nokInformedDateTime: z.date().optional(),
 
   // Section 19: Trust Incident Form Recipients
+  trustRecipientsInformed: z.enum(["yes", "no"]).default("no"),
   careManagerName: z.string().optional(),
   careManagerEmail: z.string().email().optional().or(z.literal("")),
   keyWorkerName: z.string().optional(),
@@ -163,7 +168,7 @@ const IncidentFormSchema = z.object({
   dateCompleted: z.date(),
 });
 
-type IncidentFormData = z.infer<typeof IncidentFormSchema>;
+type IncidentFormData = z.input<typeof IncidentFormSchema>;
 
 // --- Options ---
 const INCIDENT_TYPE_OPTIONS = [
@@ -377,6 +382,7 @@ export function SimpleIncidentForm({
       treatmentDetails: "",
       vitalSigns: "",
       treatmentRefused: false,
+      hasWitnesses: "no",
       witness1Name: "",
       witness1Contact: "",
       witness2Name: "",
@@ -384,13 +390,17 @@ export function SimpleIncidentForm({
       nurseActions: [],
       furtherActionsAdvised: "",
       preventionMeasures: "",
+      homeManagerInformed: "no",
       homeManagerInformedBy: "",
       homeManagerInformedDateTime: undefined,
+      onCallContacted: "no",
       onCallManagerName: "",
       onCallContactedDateTime: undefined,
+      nokInformed: "no",
       nokInformedWho: "",
       nokInformedBy: "",
       nokInformedDateTime: undefined,
+      trustRecipientsInformed: "no",
       careManagerName: "",
       careManagerEmail: "",
       keyWorkerName: "",
@@ -453,6 +463,7 @@ export function SimpleIncidentForm({
             treatmentDetails: inc.treatment_details || "",
             vitalSigns: inc.vital_signs || "",
             treatmentRefused: inc.treatment_refused || false,
+            hasWitnesses: inc.witness1_name || inc.witness2_name ? "yes" : "no",
             witness1Name: inc.witness1_name || "",
             witness1Contact: inc.witness1_contact || "",
             witness2Name: inc.witness2_name || "",
@@ -460,19 +471,40 @@ export function SimpleIncidentForm({
             nurseActions: inc.nurse_actions || [],
             furtherActionsAdvised: inc.further_actions_advised || "",
             preventionMeasures: inc.prevention_measures || "",
+            homeManagerInformed:
+              inc.home_manager_informed_by || inc.home_manager_informed_date_time
+                ? "yes"
+                : "no",
             homeManagerInformedBy: inc.home_manager_informed_by || "",
             homeManagerInformedDateTime: inc.home_manager_informed_date_time
               ? new Date(inc.home_manager_informed_date_time)
               : undefined,
+            onCallContacted:
+              inc.on_call_manager_name || inc.on_call_contacted_date_time
+                ? "yes"
+                : "no",
             onCallManagerName: inc.on_call_manager_name || "",
             onCallContactedDateTime: inc.on_call_contacted_date_time
               ? new Date(inc.on_call_contacted_date_time)
               : undefined,
+            nokInformed:
+              inc.nok_informed_who ||
+              inc.nok_informed_by ||
+              inc.nok_informed_date_time
+                ? "yes"
+                : "no",
             nokInformedWho: inc.nok_informed_who || "",
             nokInformedBy: inc.nok_informed_by || "",
             nokInformedDateTime: inc.nok_informed_date_time
               ? new Date(inc.nok_informed_date_time)
               : undefined,
+            trustRecipientsInformed:
+              inc.trust_care_manager_name ||
+              inc.trust_care_manager_email ||
+              inc.trust_key_worker_name ||
+              inc.trust_key_worker_email
+                ? "yes"
+                : "no",
             careManagerName: inc.trust_care_manager_name || "",
             careManagerEmail: inc.trust_care_manager_email || "",
             keyWorkerName: inc.trust_key_worker_name || "",
@@ -519,6 +551,7 @@ export function SimpleIncidentForm({
           treatmentDetails: "",
           vitalSigns: "",
           treatmentRefused: false,
+          hasWitnesses: "no",
           witness1Name: "",
           witness1Contact: "",
           witness2Name: "",
@@ -526,13 +559,17 @@ export function SimpleIncidentForm({
           nurseActions: [],
           furtherActionsAdvised: "",
           preventionMeasures: "",
+          homeManagerInformed: "no",
           homeManagerInformedBy: "",
           homeManagerInformedDateTime: undefined,
+          onCallContacted: "no",
           onCallManagerName: "",
           onCallContactedDateTime: undefined,
+          nokInformed: "no",
           nokInformedWho: resident?.next_of_kin?.name || "",
           nokInformedBy: "",
           nokInformedDateTime: undefined,
+          trustRecipientsInformed: "no",
           careManagerName:
             resident?.care_manager?.name || resident?.care_manager_name || "",
           careManagerEmail: resident?.care_manager?.email || "",
@@ -548,6 +585,11 @@ export function SimpleIncidentForm({
   }, [resident, isLoading, careHomeData, teamData, currentUserName, profile, form, residentId, existingIncidentId]);
 
   const watchedIncidentTypes = form.watch("incidentTypes");
+  const hasWitnesses = form.watch("hasWitnesses");
+  const homeManagerInformed = form.watch("homeManagerInformed");
+  const onCallContacted = form.watch("onCallContacted");
+  const nokInformed = form.watch("nokInformed");
+  const trustRecipientsInformed = form.watch("trustRecipientsInformed");
   const hasFallType =
     watchedIncidentTypes?.some(
       (type) => type === "FallWitnessed" || type === "FallUnwitnessed"
@@ -589,26 +631,43 @@ export function SimpleIncidentForm({
         treatment_details: values.treatmentDetails,
         vital_signs: values.vitalSigns,
         treatment_refused: values.treatmentRefused,
-        witness1_name: values.witness1Name,
-        witness1_contact: values.witness1Contact,
-        witness2_name: values.witness2Name,
-        witness2_contact: values.witness2Contact,
+        witness1_name: values.hasWitnesses === "yes" ? values.witness1Name : null,
+        witness1_contact:
+          values.hasWitnesses === "yes" ? values.witness1Contact : null,
+        witness2_name: values.hasWitnesses === "yes" ? values.witness2Name : null,
+        witness2_contact:
+          values.hasWitnesses === "yes" ? values.witness2Contact : null,
         nurse_actions: values.nurseActions,
         further_actions_advised: values.furtherActionsAdvised,
         prevention_measures: values.preventionMeasures,
-        home_manager_informed_by: values.homeManagerInformedBy,
+        home_manager_informed_by:
+          values.homeManagerInformed === "yes"
+            ? values.homeManagerInformedBy
+            : null,
         home_manager_informed_date_time:
-          values.homeManagerInformedDateTime?.toISOString(),
-        on_call_manager_name: values.onCallManagerName,
+          values.homeManagerInformed === "yes"
+            ? values.homeManagerInformedDateTime?.toISOString()
+            : null,
+        on_call_manager_name:
+          values.onCallContacted === "yes" ? values.onCallManagerName : null,
         on_call_contacted_date_time:
-          values.onCallContactedDateTime?.toISOString(),
-        nok_informed_who: values.nokInformedWho,
-        nok_informed_by: values.nokInformedBy,
-        nok_informed_date_time: values.nokInformedDateTime?.toISOString(),
-        trust_care_manager_name: values.careManagerName,
-        trust_care_manager_email: values.careManagerEmail,
-        trust_key_worker_name: values.keyWorkerName,
-        trust_key_worker_email: values.keyWorkerEmail,
+          values.onCallContacted === "yes"
+            ? values.onCallContactedDateTime?.toISOString()
+            : null,
+        nok_informed_who: values.nokInformed === "yes" ? values.nokInformedWho : null,
+        nok_informed_by: values.nokInformed === "yes" ? values.nokInformedBy : null,
+        nok_informed_date_time:
+          values.nokInformed === "yes"
+            ? values.nokInformedDateTime?.toISOString()
+            : null,
+        trust_care_manager_name:
+          values.trustRecipientsInformed === "yes" ? values.careManagerName : null,
+        trust_care_manager_email:
+          values.trustRecipientsInformed === "yes" ? values.careManagerEmail : null,
+        trust_key_worker_name:
+          values.trustRecipientsInformed === "yes" ? values.keyWorkerName : null,
+        trust_key_worker_email:
+          values.trustRecipientsInformed === "yes" ? values.keyWorkerEmail : null,
         completed_by_full_name: values.completedByFullName,
         completed_by_job_title: values.completedByJobTitle,
         completed_by_signature: values.completedBySignature,
@@ -1487,6 +1546,29 @@ export function SimpleIncidentForm({
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                <FormField
+                  control={form.control}
+                  name="hasWitnesses"
+                  render={({ field }) => (
+                    <FormItem className="mb-4">
+                      <FormLabel>Witnesses present? (Yes/No)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="yes">Yes</SelectItem>
+                          <SelectItem value="no">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {hasWitnesses === "yes" ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <h4 className="font-medium mb-3 text-sm">Witness 1</h4>
@@ -1552,6 +1634,9 @@ export function SimpleIncidentForm({
                     </div>
                   </div>
                 </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No witness</p>
+                )}
                 <p className="text-xs text-muted-foreground mt-3">
                   Attach statements if needed (can be added later via Documents)
                 </p>
@@ -1689,6 +1774,28 @@ export function SimpleIncidentForm({
                   <h4 className="font-medium mb-3 text-sm">
                     Home Manager Informed
                   </h4>
+                  <FormField
+                    control={form.control}
+                    name="homeManagerInformed"
+                    render={({ field }) => (
+                      <FormItem className="mb-3">
+                        <FormLabel>Home Manager Informed (Yes/No)</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select option" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="yes">Yes</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {homeManagerInformed === "yes" ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -1761,6 +1868,9 @@ export function SimpleIncidentForm({
                       )}
                     />
                   </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No</p>
+                  )}
                 </div>
 
                 <Separator />
@@ -1770,6 +1880,28 @@ export function SimpleIncidentForm({
                   <h4 className="font-medium mb-3 text-sm">
                     Out of Hours On-Call Contacted
                   </h4>
+                  <FormField
+                    control={form.control}
+                    name="onCallContacted"
+                    render={({ field }) => (
+                      <FormItem className="mb-3">
+                        <FormLabel>Out of Hours On-Call Contacted (Yes/No)</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select option" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="yes">Yes</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {onCallContacted === "yes" ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -1842,6 +1974,9 @@ export function SimpleIncidentForm({
                       )}
                     />
                   </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No</p>
+                  )}
                 </div>
 
                 <Separator />
@@ -1851,6 +1986,29 @@ export function SimpleIncidentForm({
                   <h4 className="font-medium mb-3 text-sm">
                     Next of Kin Informed
                   </h4>
+                  <FormField
+                    control={form.control}
+                    name="nokInformed"
+                    render={({ field }) => (
+                      <FormItem className="mb-3">
+                        <FormLabel>Next of Kin Informed (Yes/No)</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select option" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="yes">Yes</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {nokInformed === "yes" ? (
+                  <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                     <FormField
                       control={form.control}
@@ -1939,6 +2097,10 @@ export function SimpleIncidentForm({
                       </FormItem>
                     )}
                   />
+                  </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1952,6 +2114,29 @@ export function SimpleIncidentForm({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
+                <FormField
+                  control={form.control}
+                  name="trustRecipientsInformed"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Trust Incident Form Recipients (Yes/No)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="yes">Yes</SelectItem>
+                          <SelectItem value="no">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {trustRecipientsInformed === "yes" ? (
+                <>
                 <div>
                   <h4 className="font-medium mb-3 text-sm">Care Manager</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2031,6 +2216,10 @@ export function SimpleIncidentForm({
                     />
                   </div>
                 </div>
+                </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No</p>
+                )}
               </CardContent>
             </Card>
 

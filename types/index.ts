@@ -16,6 +16,8 @@ export {
 
 export type Resident = {
   id: string;
+  updated_at?: string;
+  updatedAt?: string; // Alias
   first_name: string;
   last_name: string;
   firstName?: string; // Alias for frontend consistency

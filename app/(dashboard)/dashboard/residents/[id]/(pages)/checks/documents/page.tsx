@@ -48,6 +48,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Moon,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { generateChecksPDF } from "@/lib/checks-pdf-utils";
@@ -55,6 +56,85 @@ import { generateChecksPDF } from "@/lib/checks-pdf-utils";
 type NightCheckDocumentsPageProps = {
   params: Promise<{ id: string }>;
 };
+
+type ReportSummary = {
+  date: string;
+  formattedDate: string;
+  _id: string;
+  hasData: boolean;
+};
+
+type CheckRecording = {
+  _id: string;
+  checkType: string;
+  recordTime: string;
+  recordDate: string;
+  checkData: Record<string, unknown> | null;
+  notes: string | null;
+  recordedByName: string | null;
+  recordedBy: string | null;
+};
+
+/** Display order for night record categories in history / download overlay */
+const NIGHT_CHECK_CATEGORY_ORDER = [
+  "night_check",
+  "positioning",
+  "pad_change",
+  "bed_rails",
+  "environmental",
+  "cleaning",
+  "personal_care",
+  "night_note",
+] as const;
+
+const NIGHT_CHECK_CATEGORY_LABELS: Record<string, string> = {
+  night_check: "Check",
+  positioning: "Positioning",
+  pad_change: "Pad Change",
+  bed_rails: "Bed Rails Check",
+  environmental: "Environmental Check",
+  night_note: "Note",
+  cleaning: "Cleaning",
+  personal_care: "Personal Care Activities",
+};
+
+function labelForNightCheckCategory(checkType: string): string {
+  return (
+    NIGHT_CHECK_CATEGORY_LABELS[checkType] ??
+    checkType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
+
+function buildCategoryOptionsFromRecordings(
+  recordings: CheckRecording[]
+): Array<{ checkType: string; label: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const r of recordings) {
+    counts.set(r.checkType, (counts.get(r.checkType) ?? 0) + 1);
+  }
+  const knownOrder = new Set<string>(NIGHT_CHECK_CATEGORY_ORDER as readonly string[]);
+  const ordered: Array<{ checkType: string; label: string; count: number }> = [];
+  for (const checkType of NIGHT_CHECK_CATEGORY_ORDER) {
+    const count = counts.get(checkType);
+    if (count && count > 0) {
+      ordered.push({
+        checkType,
+        label: labelForNightCheckCategory(checkType),
+        count,
+      });
+    }
+  }
+  for (const [checkType, count] of counts) {
+    if (!knownOrder.has(checkType)) {
+      ordered.push({
+        checkType,
+        label: labelForNightCheckCategory(checkType),
+        count,
+      });
+    }
+  }
+  return ordered;
+}
 
 export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsPageProps) {
   const { id } = React.use(params);
@@ -71,8 +151,15 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
   const itemsPerPage = 30;
 
   // Dialog state
-  const [selectedReport, setSelectedReport] = useState<any>(null);
+  const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+  const [downloadTargetReport, setDownloadTargetReport] = useState<ReportSummary | null>(null);
+  const [downloadCategoryOptions, setDownloadCategoryOptions] = useState<
+    Array<{ checkType: string; label: string; count: number }>
+  >([]);
+  const [isDownloadOptionsLoading, setIsDownloadOptionsLoading] = useState(false);
+  const [selectedDownloadCheckType, setSelectedDownloadCheckType] = useState<string>("");
 
   // Data state
   const [resident, setResident] = useState<any>(null);
@@ -82,7 +169,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     hasMore: boolean;
     earliestDate: string | null;
   } | null>(null);
-  const [selectedReportData, setSelectedReportData] = useState<any[]>([]);
+  const [selectedReportData, setSelectedReportData] = useState<CheckRecording[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch resident data
@@ -244,6 +331,64 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     };
   }, [fetchPaginatedData]);
 
+  const fetchRecordingsForDate = useCallback(async (dateValue: string): Promise<CheckRecording[]> => {
+    // Normalize date to YYYY-MM-DD format
+    const queryDate = dateValue.split("T")[0];
+
+    // Use UTC date calculation to avoid timezone issues
+    const [year, month, day] = queryDate.split("-").map(Number);
+    const queryDateObj = new Date(Date.UTC(year, month - 1, day));
+    const nextDayObj = new Date(queryDateObj);
+    nextDayObj.setUTCDate(nextDayObj.getUTCDate() + 1);
+    const nextDayStr = `${nextDayObj.getUTCFullYear()}-${String(nextDayObj.getUTCMonth() + 1).padStart(2, "0")}-${String(nextDayObj.getUTCDate()).padStart(2, "0")}`;
+
+    // Try equality query first
+    const { data: recDataEq, error: recErrorEq } = await supabase
+      .from("night_check_recordings")
+      .select("*")
+      .eq("resident_id", id)
+      .eq("record_date", queryDate)
+      .order("record_date_time", { ascending: false });
+
+    // Fallback to range query
+    const { data: recData, error: recError } = await supabase
+      .from("night_check_recordings")
+      .select("*")
+      .eq("resident_id", id)
+      .gte("record_date", queryDate)
+      .lt("record_date", nextDayStr)
+      .order("record_date_time", { ascending: false });
+
+    // Use whichever query returned data
+    const finalData = recDataEq && recDataEq.length > 0 ? recDataEq : recData;
+    const finalError = recErrorEq || recError;
+
+    if (finalError) {
+      console.error("Error fetching report data:", finalError);
+      return [];
+    }
+
+    return (finalData || []).map((r) => {
+      let normalizedDate = r.record_date;
+      if (typeof normalizedDate === "string") {
+        normalizedDate = normalizedDate.split("T")[0];
+      } else if (normalizedDate instanceof Date) {
+        normalizedDate = normalizedDate.toISOString().split("T")[0];
+      }
+
+      return {
+        _id: r.id,
+        checkType: r.check_type,
+        recordTime: r.record_time,
+        recordDate: String(normalizedDate),
+        checkData: r.check_data,
+        notes: r.notes,
+        recordedByName: r.recorded_by_name,
+        recordedBy: r.recorded_by,
+      };
+    });
+  }, [id]);
+
   // Fetch recordings for selected date
   useEffect(() => {
     const fetchReportData = async () => {
@@ -251,102 +396,11 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
         setSelectedReportData([]);
         return;
       }
-      // Ensure date is in YYYY-MM-DD format
-      let queryDate = selectedReport.date;
-      if (typeof queryDate === 'string') {
-        queryDate = queryDate.split('T')[0]; // Remove time part if present
-      } else if (queryDate instanceof Date) {
-        queryDate = queryDate.toISOString().split('T')[0];
-      } else {
-        queryDate = String(queryDate);
-      }
-      
-      console.log("Fetching recordings for date:", queryDate, "Type:", typeof queryDate, "resident_id:", id);
-      
-      // Use UTC date calculation to avoid timezone issues
-      const [year, month, day] = queryDate.split('-').map(Number);
-      const queryDateObj = new Date(Date.UTC(year, month - 1, day));
-      const nextDayObj = new Date(queryDateObj);
-      nextDayObj.setUTCDate(nextDayObj.getUTCDate() + 1);
-      const nextDayStr = `${nextDayObj.getUTCFullYear()}-${String(nextDayObj.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDayObj.getUTCDate()).padStart(2, '0')}`;
-      
-      console.log("Query date range: from", queryDate, "to", nextDayStr);
-      
-      // First, try a simple equality query
-      const { data: recDataEq, error: recErrorEq } = await supabase
-        .from('night_check_recordings')
-        .select('*')
-        .eq('resident_id', id)
-        .eq('record_date', queryDate)
-        .order('record_date_time', { ascending: false });
-      
-      console.log("Equality query result:", recDataEq?.length || 0, "records, error:", recErrorEq);
-      if (recDataEq && recDataEq.length > 0) {
-        console.log("Equality query found records with dates:", recDataEq.map(r => r.record_date));
-      }
-      
-      // Also try range query as fallback
-      const { data: recData, error: recError } = await supabase
-        .from('night_check_recordings')
-        .select('*')
-        .eq('resident_id', id)
-        .gte('record_date', queryDate)
-        .lt('record_date', nextDayStr)
-        .order('record_date_time', { ascending: false });
-      
-      console.log("Range query result:", recData?.length || 0, "records, error:", recError);
-      if (recData && recData.length > 0) {
-        console.log("Range query found records with dates:", recData.map(r => r.record_date));
-      }
-      
-      // Use whichever query returned data (prefer equality, fallback to range)
-      const finalData = (recDataEq && recDataEq.length > 0) ? recDataEq : recData;
-      const finalError = recErrorEq || recError;
-
-      if (finalError) {
-        console.error("Error fetching report data:", finalError);
-        setSelectedReportData([]);
-        return;
-      }
-
-      if (finalData) {
-        console.log("Fetched", finalData.length, "recordings for date", queryDate);
-        console.log("Sample record dates:", finalData.slice(0, 3).map(r => ({
-          id: r.id,
-          check_type: r.check_type,
-          record_date: r.record_date,
-          record_date_type: typeof r.record_date,
-          record_time: r.record_time
-        })));
-        
-        const formatted = finalData.map(r => {
-          // Normalize record_date to YYYY-MM-DD format
-          let normalizedDate = r.record_date;
-          if (typeof normalizedDate === 'string') {
-            normalizedDate = normalizedDate.split('T')[0];
-          } else if (normalizedDate instanceof Date) {
-            normalizedDate = normalizedDate.toISOString().split('T')[0];
-          }
-          
-          return {
-            _id: r.id,
-            checkType: r.check_type,
-            recordTime: r.record_time,
-            recordDate: normalizedDate,
-            checkData: r.check_data,
-            notes: r.notes,
-            recordedByName: r.recorded_by_name,
-            recordedBy: r.recorded_by,
-          };
-        });
-        setSelectedReportData(formatted);
-      } else {
-        console.log("No data returned from query");
-        setSelectedReportData([]);
-      }
+      const formatted = await fetchRecordingsForDate(selectedReport.date);
+      setSelectedReportData(formatted);
     };
     fetchReportData();
-  }, [selectedReport, id]);
+  }, [selectedReport, id, fetchRecordingsForDate]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -407,7 +461,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
   }, [paginatedData, reportObjects]);
 
   // Handlers
-  const handleViewReport = (report: any) => {
+  const handleViewReport = (report: ReportSummary) => {
     setSelectedReport(report);
     setIsViewDialogOpen(true);
   };
@@ -441,77 +495,31 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     window.URL.revokeObjectURL(url);
   };
 
-  const handleDownloadReport = async (report: any) => {
+  const openDownloadDialog = async (report: ReportSummary) => {
+    setDownloadTargetReport(report);
+    setSelectedDownloadCheckType("");
+    setDownloadCategoryOptions([]);
+    setIsDownloadDialogOpen(true);
+    setIsDownloadOptionsLoading(true);
+
+    const recordings = await fetchRecordingsForDate(report.date);
+    setDownloadCategoryOptions(buildCategoryOptionsFromRecordings(recordings));
+    setIsDownloadOptionsLoading(false);
+  };
+
+  const handleDownloadReport = async (report: ReportSummary, selectedCheckType?: string) => {
     if (!resident) {
       toast.error('Resident data not available');
       return;
     }
+    const allReportData = await fetchRecordingsForDate(report.date);
+    const reportToDownload = selectedCheckType
+      ? allReportData.filter((recording) => recording.checkType === selectedCheckType)
+      : allReportData;
 
-    // Fetch recordings for this date if not already loaded
-    let reportToDownload = selectedReportData;
-    if (!selectedReport || selectedReport.date !== report.date) {
-      // Normalize date to YYYY-MM-DD format
-      let queryDate = report.date;
-      if (typeof queryDate === 'string') {
-        queryDate = queryDate.split('T')[0];
-      } else if (queryDate instanceof Date) {
-        queryDate = queryDate.toISOString().split('T')[0];
-      } else {
-        queryDate = String(queryDate);
-      }
-      
-      // Use UTC date calculation to avoid timezone issues
-      const [year, month, day] = queryDate.split('-').map(Number);
-      const queryDateObj = new Date(Date.UTC(year, month - 1, day));
-      const nextDayObj = new Date(queryDateObj);
-      nextDayObj.setUTCDate(nextDayObj.getUTCDate() + 1);
-      const nextDayStr = `${nextDayObj.getUTCFullYear()}-${String(nextDayObj.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDayObj.getUTCDate()).padStart(2, '0')}`;
-      
-      // Try equality query first
-      const { data: recDataEq, error: recErrorEq } = await supabase
-        .from('night_check_recordings')
-        .select('*')
-        .eq('resident_id', id)
-        .eq('record_date', queryDate)
-        .order('record_date_time', { ascending: false });
-      
-      // Fallback to range query
-      const { data: recData, error: recError } = await supabase
-        .from('night_check_recordings')
-        .select('*')
-        .eq('resident_id', id)
-        .gte('record_date', queryDate)
-        .lt('record_date', nextDayStr)
-        .order('record_date_time', { ascending: false });
-      
-      // Use whichever query returned data
-      const finalData = (recDataEq && recDataEq.length > 0) ? recDataEq : recData;
-      const error = recErrorEq || recError;
-
-      if (!error && finalData) {
-        reportToDownload = finalData.map(r => {
-          // Normalize record_date to YYYY-MM-DD format
-          let normalizedDate = r.record_date;
-          if (typeof normalizedDate === 'string') {
-            normalizedDate = normalizedDate.split('T')[0];
-          } else if (normalizedDate instanceof Date) {
-            normalizedDate = normalizedDate.toISOString().split('T')[0];
-          }
-          
-          return {
-            _id: r.id,
-            checkType: r.check_type,
-            recordTime: r.record_time,
-            recordDate: normalizedDate,
-            checkData: r.check_data,
-            notes: r.notes,
-            recordedByName: r.recorded_by_name,
-            recordedBy: r.recorded_by,
-          };
-        });
-      } else {
-        reportToDownload = [];
-      }
+    if (reportToDownload.length === 0) {
+      toast.error("No check data available to download");
+      return;
     }
 
     await generateChecksPDF({
@@ -819,7 +827,7 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleDownloadReport(report)}
+                                onClick={() => openDownloadDialog(report)}
                                 className="h-8 w-8"
                               >
                                 <Download className="w-4 h-4" />
@@ -1099,6 +1107,75 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
                 </p>
               );
             })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Download by night record category */}
+      <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              Download by category
+            </DialogTitle>
+            <DialogDescription>
+              {downloadTargetReport
+                ? `Choose a night record category for ${format(new Date(downloadTargetReport.date + "T00:00:00"), "PPP")}. The PDF includes every entry of that type for that day.`
+                : "Choose a category to download."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            {isDownloadOptionsLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-2 text-muted-foreground">Loading categories...</p>
+              </div>
+            ) : downloadCategoryOptions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">No checks found for this date.</p>
+            ) : (
+              downloadCategoryOptions.map((option) => (
+                <button
+                  key={option.checkType}
+                  type="button"
+                  onClick={() => setSelectedDownloadCheckType(option.checkType)}
+                  className={`w-full text-left border rounded-md p-3 transition-colors ${
+                    selectedDownloadCheckType === option.checkType
+                      ? "border-primary bg-primary/5"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">{option.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {option.count} {option.count === 1 ? "entry" : "entries"} on this date
+                      </p>
+                    </div>
+                    {selectedDownloadCheckType === option.checkType && (
+                      <Check className="w-4 h-4 text-primary shrink-0" />
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsDownloadDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!downloadTargetReport || !selectedDownloadCheckType}
+              onClick={async () => {
+                if (!downloadTargetReport || !selectedDownloadCheckType) return;
+                await handleDownloadReport(downloadTargetReport, selectedDownloadCheckType);
+                setIsDownloadDialogOpen(false);
+              }}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download category
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

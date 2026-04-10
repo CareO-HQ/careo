@@ -40,11 +40,13 @@ import {
   AlertTriangle,
   Edit,
   Trash2,
+  Printer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { generateInitialWoundAssessmentPDF } from "@/lib/initial-wound-assessment-pdf-utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -114,6 +116,8 @@ type Props = {
   residentId: string;
   residentName: string;
   residentDOB?: string;
+  orgLogoUrl?: string;
+  woundNumber?: number;
   assessments?: Array<any>;
   isLoadingAssessments?: boolean;
   onSaved?: () => void;
@@ -124,6 +128,8 @@ export function InitialWoundAssessmentForm({
   residentId,
   residentName,
   residentDOB,
+  orgLogoUrl,
+  woundNumber,
   assessments = [],
   isLoadingAssessments = false,
   onSaved,
@@ -465,6 +471,46 @@ export function InitialWoundAssessmentForm({
     form.reset();
   };
 
+  const handlePrintAssessment = async () => {
+    if (!selectedAssessment) return;
+
+    try {
+      await generateInitialWoundAssessmentPDF({
+        residentName,
+        residentDOB,
+        orgLogoUrl,
+        woundNumber,
+        assessment: selectedAssessment,
+      });
+    } catch (error) {
+      console.error("Failed to generate initial wound assessment PDF:", error);
+      toast.error("Failed to generate PDF");
+    }
+  };
+
+  const formatDateValue = (value?: string | null, pattern = "dd-MM-yyyy"): string => {
+    if (!value) return "N/A";
+    return format(new Date(value), pattern);
+  };
+
+  const formatTextValue = (value?: string | null): string => {
+    if (!value) return "N/A";
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : "N/A";
+  };
+
+  const formatNumberValue = (
+    value?: number | string | null,
+    suffix?: string
+  ): string => {
+    if (value === null || value === undefined || value === "") return "N/A";
+    return suffix ? `${value} ${suffix}` : `${value}`;
+  };
+
+  const formatYesNo = (value?: boolean | null): "Yes" | "No" => {
+    return value === true ? "Yes" : "No";
+  };
+
   return (
     <ScrollArea className="h-full">
       <div className="max-w-5xl mx-auto p-6">
@@ -477,12 +523,28 @@ export function InitialWoundAssessmentForm({
 
         {/* Selected Assessment Viewer - Show existing assessment */}
         {!isLoadingAssessments && selectedAssessmentId && selectedAssessment && !isEditMode && (
-          <div className="bg-white border rounded-lg shadow-sm">
+          <div className="bg-white border rounded-lg shadow-sm print:shadow-none print:border-none print:rounded-none print:text-[11px] print:leading-tight">
             {/* Header with Action Buttons */}
-            <div className="border-b bg-slate-50 px-6 py-4">
+            <div className="border-b bg-slate-50 px-6 py-4 print:px-3 print:py-2">
               <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-bold text-center flex-1 border-2 border-black py-2">INITIAL WOUND ASSESSMENT</h1>
-                <div className="flex gap-2 ml-4">
+                <div className="flex items-center gap-3 flex-1">
+                  <h1 className="text-2xl font-bold text-center flex-1 border-2 border-black py-2">INITIAL WOUND ASSESSMENT</h1>
+                  {woundNumber && (
+                    <Badge variant="outline" className="font-mono font-semibold text-base">
+                      Wound #{woundNumber}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex gap-2 ml-4 print:hidden">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePrintAssessment}
+                    className="gap-2"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Print
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -513,16 +575,16 @@ export function InitialWoundAssessmentForm({
               </div>
             </div>
 
-            <div className="p-6 space-y-0">
+            <div className="p-6 space-y-0 print:px-3 print:py-2">
               {/* Assessment Info */}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
                   <span className="text-xs font-semibold">Assessment Completed by:</span>
-                  <p className="text-sm mt-1">{selectedAssessment.assessment_completed_by || "N/A"}</p>
+                  <p className="text-sm mt-1">{formatTextValue(selectedAssessment.assessment_completed_by)}</p>
                 </div>
                 <div>
                   <span className="text-xs font-semibold">Date:</span>
-                  <p className="text-sm mt-1">{selectedAssessment.assessment_date ? format(new Date(selectedAssessment.assessment_date), "dd-MM-yyyy") : "N/A"}</p>
+                  <p className="text-sm mt-1">{formatDateValue(selectedAssessment.assessment_date)}</p>
                 </div>
               </div>
 
@@ -538,17 +600,17 @@ export function InitialWoundAssessmentForm({
                 <div className="divide-y divide-gray-300">
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Date wound occurred/noted</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.date_wound_occurred ? format(new Date(selectedAssessment.date_wound_occurred), "dd/MM/yyyy") : "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatDateValue(selectedAssessment.date_wound_occurred, "dd/MM/yyyy")}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Wound location</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.wound_location || "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatTextValue(selectedAssessment.wound_location)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Type of wound</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.type_of_wound || "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatTextValue(selectedAssessment.type_of_wound)}</div>
                   </div>
                 </div>
 
@@ -560,17 +622,17 @@ export function InitialWoundAssessmentForm({
                 <div className="divide-y divide-gray-300">
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Maximum length</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.maximum_length || "N/A"} cm</div>
+                    <div className="px-3 py-1.5 text-xs">{formatNumberValue(selectedAssessment.maximum_length, "cm")}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Maximum width</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.maximum_width || "N/A"} cm</div>
+                    <div className="px-3 py-1.5 text-xs">{formatNumberValue(selectedAssessment.maximum_width, "cm")}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Maximum depth</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.maximum_depth || "N/A"} cm</div>
+                    <div className="px-3 py-1.5 text-xs">{formatNumberValue(selectedAssessment.maximum_depth, "cm")}</div>
                   </div>
                 </div>
 
@@ -602,7 +664,7 @@ export function InitialWoundAssessmentForm({
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Evidence of Infection (Y/N)</div>
-                    <div className="px-3 py-1.5 text-xs font-semibold">{selectedAssessment.evidence_of_infection ? "Yes" : "No"}</div>
+                    <div className="px-3 py-1.5 text-xs font-semibold">{formatYesNo(selectedAssessment.evidence_of_infection)}</div>
                   </div>
                 </div>
 
@@ -614,22 +676,22 @@ export function InitialWoundAssessmentForm({
                 <div className="divide-y divide-gray-300">
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Type</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.exudate_type || "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatTextValue(selectedAssessment.exudate_type)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Colour</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.exudate_colour || "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatTextValue(selectedAssessment.exudate_colour)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Volume (high/mod/low)</div>
-                    <div className="px-3 py-1.5 text-xs capitalize">{selectedAssessment.exudate_volume || "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs capitalize">{formatTextValue(selectedAssessment.exudate_volume)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Any Malodour noted?(Y/N)</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.any_malodour_noted ? "Yes" : "No"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatYesNo(selectedAssessment.any_malodour_noted)}</div>
                   </div>
                 </div>
 
@@ -641,32 +703,32 @@ export function InitialWoundAssessmentForm({
                 <div className="divide-y divide-gray-300">
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Colour</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.wound_margin_colour || "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatTextValue(selectedAssessment.wound_margin_colour)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Any Oedema? (Y/N)</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.any_oedema ? "Yes" : "No"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatYesNo(selectedAssessment.any_oedema)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Any Heat? (Y/N)</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.any_heat ? "Yes" : "No"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatYesNo(selectedAssessment.any_heat)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Is there surrounding erythema? (Y/N)</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.surrounding_erythema ? "Yes" : "No"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatYesNo(selectedAssessment.surrounding_erythema)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Maximum distance from wound margin (cm)</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.max_distance_from_margin || "N/A"} cm</div>
+                    <div className="px-3 py-1.5 text-xs">{formatNumberValue(selectedAssessment.max_distance_from_margin, "cm")}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Condition of surrounding skin</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.condition_of_surrounding_skin || "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatTextValue(selectedAssessment.condition_of_surrounding_skin)}</div>
                   </div>
                 </div>
 
@@ -678,17 +740,17 @@ export function InitialWoundAssessmentForm({
                 <div className="divide-y divide-gray-300">
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Any pain from wound?</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.any_pain_from_wound ? "Yes" : "No"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatYesNo(selectedAssessment.any_pain_from_wound)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Severity (1-10)</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.pain_severity || "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatNumberValue(selectedAssessment.pain_severity)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Frequency</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.pain_frequency || "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatTextValue(selectedAssessment.pain_frequency)}</div>
                   </div>
                 </div>
               </div>
@@ -703,37 +765,37 @@ export function InitialWoundAssessmentForm({
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Wound photographed?</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.wound_photographed ? "Yes" : "No"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatYesNo(selectedAssessment.wound_photographed)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Body Map completed?</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.body_map_completed ? "Yes" : "No"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatYesNo(selectedAssessment.body_map_completed)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Wound swab sent?</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.wound_swab_sent ? "Yes" : "No"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatYesNo(selectedAssessment.wound_swab_sent)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Braden re-evaluated</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.braden_reevaluated ? "Yes" : "No"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatYesNo(selectedAssessment.braden_reevaluated)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">Braden Score</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.braden_score || "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatNumberValue(selectedAssessment.braden_score)}</div>
                   </div>
 
                   <div className="grid grid-cols-2">
                     <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300 bg-gray-50">MUST score</div>
-                    <div className="px-3 py-1.5 text-xs">{selectedAssessment.must_score || "N/A"}</div>
+                    <div className="px-3 py-1.5 text-xs">{formatNumberValue(selectedAssessment.must_score)}</div>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg print:hidden">
                 <p className="text-sm text-blue-900">
                   <strong>Note:</strong> Initial assessment has been completed. Only one initial assessment is allowed per wound folder.
                 </p>
@@ -755,7 +817,14 @@ export function InitialWoundAssessmentForm({
                   </Badge>
                 </div>
               )}
-              <h1 className="text-2xl font-bold text-center border-2 border-black py-2">INITIAL WOUND ASSESSMENT</h1>
+              <div className="flex items-center justify-center gap-3">
+                <h1 className="text-2xl font-bold text-center border-2 border-black py-2 flex-1">INITIAL WOUND ASSESSMENT</h1>
+                {woundNumber && (
+                  <Badge variant="outline" className="font-mono font-semibold text-base">
+                    Wound #{woundNumber}
+                  </Badge>
+                )}
+              </div>
               <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="font-semibold">Name of Resident:</span> {residentName}

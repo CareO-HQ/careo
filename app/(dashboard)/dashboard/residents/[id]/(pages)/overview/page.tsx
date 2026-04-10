@@ -222,6 +222,10 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   const fullName = [resident.first_name, resident.last_name].filter(Boolean).join(" ");
   const initials =
     `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
+  const lastUpdatedOn = resident.updated_at
+    ? formatTimestampToUKDateTime(resident.updated_at, "dd/MM/yyyy")
+    : null;
+  const showLastUpdateCard = Boolean(resident.image_url && lastUpdatedOn);
 
   return (
     <>
@@ -287,7 +291,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-1 ${showLastUpdateCard ? "md:grid-cols-5" : "md:grid-cols-4"} gap-4`}>
             <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
               <div className="text-2xl font-bold text-blue-600">
                 {age}
@@ -315,6 +319,14 @@ export default function OverviewPage({ params }: OverviewPageProps) {
               </div>
               <p className="text-sm text-orange-700">Room Assigned</p>
             </div>
+            {showLastUpdateCard && (
+              <div className="text-center p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="text-sm font-semibold text-slate-700">
+                  {lastUpdatedOn}
+                </div>
+                <p className="text-sm text-slate-700">Last update on</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

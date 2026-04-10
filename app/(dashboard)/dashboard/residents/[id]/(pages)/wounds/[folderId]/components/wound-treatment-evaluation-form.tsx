@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { useProfile } from "@/hooks/use-profile";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
@@ -13,10 +14,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Save, Loader2, Plus } from "lucide-react";
+import { CalendarIcon, Save, Loader2, Plus, Download } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { generateWoundTreatmentEvaluationPDF } from "@/lib/wound-treatment-evaluation-pdf-utils";
 
 // --- Types ---
 type WoundTreatmentEvaluation = {
@@ -38,6 +40,8 @@ type WoundTreatmentEvaluationFormProps = {
   residentName?: string;
   residentDOB?: string;
   roomNumber?: string;
+  woundNumber?: number;
+  orgLogoUrl?: string;
   evaluations?: WoundTreatmentEvaluation[];
   onSaved?: () => void;
 };
@@ -48,6 +52,8 @@ export function WoundTreatmentEvaluationForm({
   residentName,
   residentDOB,
   roomNumber,
+  woundNumber,
+  orgLogoUrl,
   onSaved,
 }: WoundTreatmentEvaluationFormProps) {
   const { profile } = useProfile();
@@ -57,7 +63,7 @@ export function WoundTreatmentEvaluationForm({
   const [showNewEntry, setShowNewEntry] = useState(false);
   const [newEntry, setNewEntry] = useState({
     date: new Date(),
-    woundNumber: "",
+    woundNumber: woundNumber?.toString() || "",
     cleansingMethod: "",
     dressingChoice: "",
     frequency: "",
@@ -77,6 +83,20 @@ export function WoundTreatmentEvaluationForm({
       setShowNewEntry(evaluations.length === 0);
     }
   }, [evaluations.length, isLoading]);
+
+  // Update wound number when prop changes
+  useEffect(() => {
+    if (woundNumber && showNewEntry && !newEntry.woundNumber) {
+      setNewEntry(prev => ({ ...prev, woundNumber: woundNumber.toString() }));
+    }
+  }, [woundNumber, showNewEntry]);
+
+  // Update signature when profile loads
+  useEffect(() => {
+    if (profile?.name && !newEntry.signature) {
+      setNewEntry(prev => ({ ...prev, signature: profile.name || "" }));
+    }
+  }, [profile?.name]);
 
   const fetchEvaluations = async () => {
     setIsLoading(true);
@@ -148,7 +168,7 @@ export function WoundTreatmentEvaluationForm({
       setShowNewEntry(false);
       setNewEntry({
         date: new Date(),
-        woundNumber: "",
+        woundNumber: woundNumber?.toString() || "",
         cleansingMethod: "",
         dressingChoice: "",
         frequency: "",
@@ -165,6 +185,23 @@ export function WoundTreatmentEvaluationForm({
       toast.error("An error occurred while saving");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      await generateWoundTreatmentEvaluationPDF({
+        residentName,
+        residentDOB,
+        roomNumber,
+        woundNumber,
+        orgLogoUrl,
+        evaluations,
+      });
+      toast.success("PDF downloaded successfully");
+    } catch (error) {
+      console.error("Failed to generate wound treatment evaluation PDF:", error);
+      toast.error("Failed to generate PDF");
     }
   };
 
@@ -190,24 +227,77 @@ export function WoundTreatmentEvaluationForm({
         <div className="treatment-eval-form bg-white border-2 border-gray-300">
           {/* Header */}
           <div className="border-b-2 border-gray-300 p-4 bg-gray-50">
-            <h1 className="text-xl font-bold text-center mb-3">
-              Wound Treatment and Evaluation of Care
-            </h1>
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <h1 className="text-xl font-bold text-center">
+                Wound Treatment and Evaluation of Care
+              </h1>
+              {woundNumber && (
+                <Badge variant="outline" className="font-mono font-semibold text-base">
+                  Wound #{woundNumber}
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-center text-gray-600 mb-3">
               (To be completed when treatment or dressing type / regime / changed / Please record clearly)
             </p>
 
-            {/* Resident Info */}
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="font-semibold">Resident&apos;s name:</span> {residentName || "N/A"}
+            {/* Resident Info and Action Buttons */}
+            <div className="flex justify-between items-start">
+              {/* Resident Info */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-semibold">Resident&apos;s name:</span> {residentName || "N/A"}
+                </div>
+                <div>
+                  <span className="font-semibold">D.O.B:</span>{" "}
+                  {residentDOB ? format(new Date(residentDOB), "dd/MM/yyyy") : "N/A"}
+                </div>
+                <div>
+                  <span className="font-semibold">Rm. No.:</span> {roomNumber || "N/A"}
+                </div>
               </div>
-              <div>
-                <span className="font-semibold">D.O.B:</span>{" "}
-                {residentDOB ? format(new Date(residentDOB), "dd/MM/yyyy") : "N/A"}
-              </div>
-              <div>
-                <span className="font-semibold">Rm. No.:</span> {roomNumber || "N/A"}
+
+              {/* Action Buttons - Top Right */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadPDF}
+                  disabled={isLoading}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download PDF
+                </Button>
+                {!showNewEntry ? (
+                  <Button onClick={() => setShowNewEntry(true)} size="sm">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add New Evaluation
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowNewEntry(false)}
+                      disabled={isSaving}
+                    >
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleSave} disabled={isSaving}>
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" />
+                          Save Evaluation
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -229,7 +319,7 @@ export function WoundTreatmentEvaluationForm({
               <tbody>
                 {/* New Entry Row - Only show when adding */}
                 {showNewEntry && (
-                  <tr className="bg-yellow-50">
+                  <tr>
                     <td className="border-2 border-gray-300 p-1">
                       <Popover>
                         <PopoverTrigger asChild>
@@ -257,8 +347,8 @@ export function WoundTreatmentEvaluationForm({
                     <td className="border-2 border-gray-300 p-1">
                       <Input
                         value={newEntry.woundNumber}
-                        onChange={(e) => setNewEntry({ ...newEntry, woundNumber: e.target.value })}
-                        className="h-auto text-xs border-0 p-1"
+                        readOnly
+                        className="h-auto text-xs border-0 p-1 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none bg-gray-50"
                         placeholder="#"
                       />
                     </td>
@@ -266,7 +356,7 @@ export function WoundTreatmentEvaluationForm({
                       <Textarea
                         value={newEntry.cleansingMethod}
                         onChange={(e) => setNewEntry({ ...newEntry, cleansingMethod: e.target.value })}
-                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                         placeholder="Describe cleansing method and dressing..."
                       />
                     </td>
@@ -274,7 +364,7 @@ export function WoundTreatmentEvaluationForm({
                       <Input
                         value={newEntry.frequency}
                         onChange={(e) => setNewEntry({ ...newEntry, frequency: e.target.value })}
-                        className="h-auto text-xs border-0 p-1"
+                        className="h-auto text-xs border-0 p-1 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                         placeholder="e.g., Daily"
                       />
                     </td>
@@ -282,7 +372,7 @@ export function WoundTreatmentEvaluationForm({
                       <Textarea
                         value={newEntry.rationaleForChange}
                         onChange={(e) => setNewEntry({ ...newEntry, rationaleForChange: e.target.value })}
-                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                         placeholder="Reason for change..."
                       />
                     </td>
@@ -290,15 +380,15 @@ export function WoundTreatmentEvaluationForm({
                       <Textarea
                         value={newEntry.woundEvaluation}
                         onChange={(e) => setNewEntry({ ...newEntry, woundEvaluation: e.target.value })}
-                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                         placeholder="Wound status..."
                       />
                     </td>
                     <td className="border-2 border-gray-300 p-1">
                       <Input
                         value={newEntry.signature}
-                        onChange={(e) => setNewEntry({ ...newEntry, signature: e.target.value })}
-                        className="h-auto text-xs border-0 p-1"
+                        readOnly
+                        className="h-auto text-xs border-0 p-1 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none bg-gray-50"
                         placeholder="Sign"
                       />
                     </td>
@@ -312,49 +402,49 @@ export function WoundTreatmentEvaluationForm({
                       <Input
                         value={format(new Date(evaluation.evaluation_date), "dd/MM/yyyy")}
                         disabled
-                        className="h-auto text-xs border-0 p-1"
+                        className="h-auto text-xs border-0 p-1 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                       />
                     </td>
                     <td className="border-2 border-gray-300 p-1">
                       <Input
                         value={evaluation.wound_number}
                         disabled
-                        className="h-auto text-xs border-0 p-1"
+                        className="h-auto text-xs border-0 p-1 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                       />
                     </td>
                     <td className="border-2 border-gray-300 p-1">
                       <Textarea
                         value={evaluation.cleansing_method || ""}
                         disabled
-                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                       />
                     </td>
                     <td className="border-2 border-gray-300 p-1">
                       <Input
                         value={evaluation.frequency || ""}
                         disabled
-                        className="h-auto text-xs border-0 p-1"
+                        className="h-auto text-xs border-0 p-1 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                       />
                     </td>
                     <td className="border-2 border-gray-300 p-1">
                       <Textarea
                         value={evaluation.rationale_for_change || ""}
                         disabled
-                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                       />
                     </td>
                     <td className="border-2 border-gray-300 p-1">
                       <Textarea
                         value={evaluation.wound_evaluation || ""}
                         disabled
-                        className="min-h-[60px] text-xs border-0 p-1 resize-none"
+                        className="min-h-[60px] text-xs border-0 p-1 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                       />
                     </td>
                     <td className="border-2 border-gray-300 p-1">
                       <Input
                         value={evaluation.signature}
                         disabled
-                        className="h-auto text-xs border-0 p-1"
+                        className="h-auto text-xs border-0 p-1 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                       />
                     </td>
                   </tr>
@@ -364,14 +454,14 @@ export function WoundTreatmentEvaluationForm({
           </div>
 
           {/* Action Buttons */}
-          <div className="border-t-2 border-gray-300 p-4 bg-gray-50 flex justify-between items-center">
-            <div className="text-sm text-gray-600">
-              {evaluations.length} evaluation{evaluations.length !== 1 ? 's' : ''} recorded
-              {evaluations.length > 0 && <span className="ml-2 text-xs text-muted-foreground">(Most recent first)</span>}
-            </div>
-            <div className="flex gap-2">
-              {showNewEntry ? (
-                <>
+          <div className="border-t-2 border-gray-300 p-4 bg-gray-50 flex justify-end items-center">
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-600">
+                {evaluations.length} evaluation{evaluations.length !== 1 ? 's' : ''} recorded
+                {evaluations.length > 0 && <span className="ml-2 text-xs text-muted-foreground">(Most recent first)</span>}
+              </div>
+              {showNewEntry && (
+                <div className="flex gap-2">
                   <Button
                     variant="outline"
                     onClick={() => setShowNewEntry(false)}
@@ -392,12 +482,7 @@ export function WoundTreatmentEvaluationForm({
                       </>
                     )}
                   </Button>
-                </>
-              ) : (
-                <Button onClick={() => setShowNewEntry(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add New Evaluation
-                </Button>
+                </div>
               )}
             </div>
           </div>

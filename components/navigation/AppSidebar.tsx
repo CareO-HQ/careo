@@ -26,8 +26,16 @@ import {
   BellIcon,
   ListTodo,
   Heart,
-  Pill
+  Pill,
+  Zap,
+  ChevronDown,
+  Scale
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { TeamSwitcher } from "./TeamSwitcher";
@@ -47,11 +55,12 @@ import {
 } from "@/lib/permissions";
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
-import HelpSupportDialog from "./HelpSupportDialog";
+
 import { LogoutButton } from "../auth/LogoutButton";
 
 export function AppSidebar() {
   const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
+  const [isQwikInfoOpen, setIsQwikInfoOpen] = useState(false);
   const { profile, isLoading: isProfileLoading } = useProfile();
   const { supabase, user } = useSupabase();
 
@@ -417,6 +426,35 @@ export function AppSidebar() {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
+
+            {/* QwikInfo Collapsible */}
+            <Collapsible
+              open={isQwikInfoOpen}
+              onOpenChange={setIsQwikInfoOpen}
+              className="group/collapsible"
+            >
+              <SidebarMenuItem className="list-none">
+                <CollapsibleTrigger asChild>
+                  <SidebarMenuButton className="w-full">
+                    <Zap />
+                    <span>QwikInfo</span>
+                    <ChevronDown className={`ml-auto transition-transform duration-200 ${isQwikInfoOpen ? 'rotate-180' : ''}`} />
+                  </SidebarMenuButton>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="pl-6 mt-1">
+                    <SidebarMenuItem className="list-none">
+                      <SidebarMenuButton asChild>
+                        <Link href="/dashboard/qwik-info/weight-check" className="text-sm">
+                          <Scale className="w-4 h-4" />
+                          <span>Weight Check</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </div>
+                </CollapsibleContent>
+              </SidebarMenuItem>
+            </Collapsible>
           </SidebarGroupContent>
         </SidebarGroup>
 
@@ -461,12 +499,14 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         )}
-        <HelpSupportDialog>
-          <SidebarMenuButton>
-            <MessageCircleQuestionMarkIcon />
-            <span>Help and Support</span>
+        <SidebarMenuItem className="list-none">
+          <SidebarMenuButton asChild>
+            <Link href="/dashboard/help">
+              <MessageCircleQuestionMarkIcon />
+              <span>Help and Support</span>
+            </Link>
           </SidebarMenuButton>
-        </HelpSupportDialog>
+        </SidebarMenuItem>
         <SidebarMenuItem className="list-none mt-2">
           <LogoutButton />
         </SidebarMenuItem>
