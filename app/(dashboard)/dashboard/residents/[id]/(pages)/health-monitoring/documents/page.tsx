@@ -464,7 +464,7 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
       const endDay = new Date(year, month, 0).getDate();
       const endDateStr = `${year}-${String(month).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
 
-      // Fetch all vitals for the selected month and vital type
+      // Fetch all vitals for the selected month and vital type (most recent first)
       const { data: vitalsData, error } = await supabase
         .from('vitals')
         .select('*')
@@ -472,8 +472,8 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
         .eq('vital_type', selectedMonthlyVitalType)
         .gte('record_date', startDateStr)
         .lte('record_date', endDateStr)
-        .order('record_date', { ascending: true })
-        .order('record_time', { ascending: true });
+        .order('record_date', { ascending: false })
+        .order('record_time', { ascending: false });
 
       if (error) {
         console.error("Error fetching monthly data:", error);
