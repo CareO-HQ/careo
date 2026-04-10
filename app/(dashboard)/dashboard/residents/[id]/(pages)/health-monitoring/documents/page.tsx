@@ -550,40 +550,6 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
     }
   };
 
-  const handleExport = () => {
-    if (!filteredVitals || filteredVitals.length === 0) return;
-
-    // Quick CSV gen just for this function since I removed the helper
-    const vitals = filteredVitals;
-    const filename = `health-monitoring-${fullName.replace(/\s+/g, "-")}-${formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy-MM-dd")}.csv`;
-
-    const headers = ["Date", "Time", "Vital Type", "Value", "Unit", "Notes", "Recorded By"];
-    const rows = vitals.map(vital => [
-      vital.recordDate,
-      vital.recordTime,
-      vitalTypeOptions[vital.vitalType as keyof typeof vitalTypeOptions]?.label || vital.vitalType,
-      vital.vitalType === "bloodPressure" && vital.value2 ? `${vital.value}/${vital.value2}` : vital.value,
-      vital.unit || "",
-      vital.notes || "",
-      vital.recordedBy
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-  };
-
 
 
   // Loading state
@@ -731,25 +697,14 @@ export default function HealthMonitoringDocumentsPage({ params }: HealthMonitori
               <Filter className="w-5 h-5" />
               <span>Filter Vitals</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsMonthlyReportDialogOpen(true)}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Monthly Report
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExport}
-                disabled={filteredVitals.length === 0}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export CSV
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsMonthlyReportDialogOpen(true)}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Monthly Report
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
