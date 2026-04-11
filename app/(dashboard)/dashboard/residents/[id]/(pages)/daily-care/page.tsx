@@ -834,16 +834,19 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
           <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <Avatar className="w-10 h-10">
-            <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
-            <AvatarFallback className="text-sm bg-primary/10 text-primary">
+          <Avatar className="w-16 h-16">
+            <AvatarImage src={resident.image_url} alt={fullName} className="border" />
+            <AvatarFallback className="text-base bg-primary/10 text-primary">
               {initials}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold">Daily Care</h1>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-black text-xl">{fullName}</span>
+              <span className="text-muted-foreground">/ Daily Care</span>
+            </div>
             <p className="text-muted-foreground text-sm">
-              View care activities and dependencies for {resident.first_name} {resident.last_name}.
+              View care activities and dependencies
             </p>
           </div>
           <div className="flex flex-row gap-2">
