@@ -29,7 +29,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { CalendarIcon, FileText, MessageSquare, Users, Download } from "lucide-react";
-import { getCurrentShift, SHIFT_CONFIG } from "@/lib/config/shift-config";
+import { getCurrentShift, getShiftTimeRange } from "@/lib/config/shift-config";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
 import { getUKTodayDate } from "@/lib/date-utils";
@@ -191,9 +191,8 @@ export default function HandoverPage() {
       };
       const { startOfDayUTC, endOfDayUTC } = getFullDayBoundaries(selectedDate);
 
-      // Get shift config
-      const shiftConfig = SHIFT_CONFIG.find(s => s.value === selectedShift);
-      const shiftTimes = shiftConfig?.time || "";
+      // Get shift times
+      const shiftTimes = getShiftTimeRange(selectedShift);
 
       // Fetch handover data for each resident
       console.log("[Handover] Fetching handover data for", residents.length, "residents...");
