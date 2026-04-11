@@ -282,16 +282,19 @@ export default function ClinicalPage({ params }: ClinicalPageProps) {
           <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <Avatar className="w-10 h-10">
+          <Avatar className="w-16 h-16">
             <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
-            <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            <AvatarFallback className="text-base bg-primary/10 text-primary">
               {initials}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold">Clinical</h1>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-black text-xl">{fullName}</span>
+              <span className="text-muted-foreground">/ Clinical</span>
+            </div>
             <p className="text-muted-foreground text-sm">
-              View health conditions and medical information for {resident.firstName} {resident.lastName}.
+              View health conditions and medical information
             </p>
           </div>
           <div className="flex flex-row gap-2">

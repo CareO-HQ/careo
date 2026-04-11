@@ -57,13 +57,20 @@ export const generateHandoverPDF = async ({
   orgLogoUrl,
   careHomeName,
 }: GenerateHandoverPDFOptions): Promise<void> => {
-  const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.width;
-  const pageHeight = doc.internal.pageSize.height;
-  const margin = 14;
-  const docWithAutoTable = doc as jsPDF & {
-    lastAutoTable?: { finalY?: number };
-  };
+  try {
+    console.log("[Handover PDF] Starting PDF generation...");
+    console.log("[Handover PDF] Team:", teamName);
+    console.log("[Handover PDF] Date:", date);
+    console.log("[Handover PDF] Residents:", residents.length);
+    console.log("[Handover PDF] Handover data keys:", Object.keys(handoverData).length);
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 14;
+    const docWithAutoTable = doc as jsPDF & {
+      lastAutoTable?: { finalY?: number };
+    };
 
   const loadImage = (src: string): Promise<HTMLImageElement> =>
     new Promise((resolve, reject) => {
@@ -323,9 +330,14 @@ export const generateHandoverPDF = async ({
     const appointmentDetails = [];
     if (data?.appointments && data.appointments.length > 0) {
       data.appointments.forEach((apt) => {
-        const time = formatInTimeZone(new Date(apt.start_time), UK_TIMEZONE, "HH:mm");
-        const location = apt.location ? ` (${apt.location})` : "";
-        appointmentDetails.push(`${time} - ${apt.title}${location}`);
+        try {
+          const time = formatInTimeZone(new Date(apt.start_time), UK_TIMEZONE, "HH:mm");
+          const location = apt.location ? ` (${apt.location})` : "";
+          appointmentDetails.push(`${time} - ${apt.title}${location}`);
+        } catch (e) {
+          console.warn("[Handover PDF] Error formatting appointment time:", e);
+          appointmentDetails.push(`${apt.title}${apt.location ? ` (${apt.location})` : ""}`);
+        }
       });
     }
 
@@ -379,7 +391,19 @@ export const generateHandoverPDF = async ({
     },
   });
 
-  // Save PDF
-  const fileName = `Handover_${teamName.replace(/\s+/g, "_")}_${formatInTimeZone(date, UK_TIMEZONE, "yyyy-MM-dd")}_${shift}.pdf`;
-  doc.save(fileName);
+    // Save PDF
+    console.log("[Handover PDF] Generating filename...");
+    const fileName = `Handover_${teamName.replace(/\s+/g, "_")}_${formatInTimeZone(date, UK_TIMEZONE, "yyyy-MM-dd")}_${shift}.pdf`;
+    console.log("[Handover PDF] Filename:", fileName);
+    console.log("[Handover PDF] Saving PDF...");
+    doc.save(fileName);
+    console.log("[Handover PDF] PDF saved successfully!");
+  } catch (error) {
+    console.error("[Handover PDF] Error generating PDF:", error);
+    if (error instanceof Error) {
+      console.error("[Handover PDF] Error message:", error.message);
+      console.error("[Handover PDF] Error stack:", error.stack);
+    }
+    throw error;
+  }
 };

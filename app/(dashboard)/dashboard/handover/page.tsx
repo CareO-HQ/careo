@@ -142,15 +142,25 @@ export default function HandoverPage() {
   }, [isDialogOpen, selectedDate, selectedShift, activeTeamId, residents.length]);
 
   const handleDownloadPDF = async () => {
+    console.log("[Handover] Starting PDF download...");
     if (!activeTeamId || !activeTeam || !residents || !currentUser || !supabase) {
+      console.error("[Handover] Missing required information:", {
+        activeTeamId,
+        activeTeam: !!activeTeam,
+        residents: residents?.length,
+        currentUser: !!currentUser,
+        supabase: !!supabase,
+      });
       toast.error("Missing required information");
       return;
     }
 
     toast.info("Generating PDF...");
     try {
+      console.log("[Handover] Formatting date...");
       const dateString = format(selectedDate, 'yyyy-MM-dd');
       const UK_TIMEZONE = "Europe/London";
+      console.log("[Handover] Date string:", dateString);
 
       // Define shift boundaries
       const getShiftBoundaries = (date: Date, shift: "day" | "night") => {
@@ -186,9 +196,12 @@ export default function HandoverPage() {
       const shiftTimes = shiftConfig?.time || "";
 
       // Fetch handover data for each resident
+      console.log("[Handover] Fetching handover data for", residents.length, "residents...");
       const handoverDataMap: Record<string, any> = {};
 
-      for (const resident of residents) {
+      for (let i = 0; i < residents.length; i++) {
+        const resident = residents[i];
+        console.log(`[Handover] Processing resident ${i + 1}/${residents.length}:`, resident.first_name, resident.last_name);
         const fluidTypes = ["Water", "Tea", "Coffee", "Juice", "Milk"];
 
         // Fetch food/fluid logs
@@ -307,9 +320,20 @@ export default function HandoverPage() {
           dietInfo,
           handoverComment: commentData?.comment || "",
         };
+        console.log(`[Handover] Completed resident ${i + 1}/${residents.length}`);
       }
 
+      console.log("[Handover] All resident data collected. Total residents:", Object.keys(handoverDataMap).length);
+
       // Generate PDF
+      console.log("[Handover] Calling generateHandoverPDF with:", {
+        teamName: activeTeam.name,
+        residents: residents.length,
+        handoverDataKeys: Object.keys(handoverDataMap).length,
+        shift: selectedShift,
+        shiftTimes,
+      });
+
       await generateHandoverPDF({
         teamName: activeTeam.name,
         date: selectedDate,
@@ -324,9 +348,14 @@ export default function HandoverPage() {
         careHomeName: activeTeam.name,
       });
 
+      console.log("[Handover] PDF generation completed successfully!");
       toast.success("PDF downloaded successfully!");
     } catch (error) {
-      console.error("Error generating PDF:", error);
+      console.error("[Handover] Error generating PDF:", error);
+      if (error instanceof Error) {
+        console.error("[Handover] Error message:", error.message);
+        console.error("[Handover] Error stack:", error.stack);
+      }
       toast.error("Failed to generate PDF. Please try again.");
     }
   };

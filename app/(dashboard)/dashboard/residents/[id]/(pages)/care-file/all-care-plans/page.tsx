@@ -132,16 +132,19 @@ export default function AllCarePlansPage() {
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <Avatar className="w-10 h-10">
+        <Avatar className="w-16 h-16">
           <AvatarImage src={resident.imageUrl} alt={fullName} className="border" />
-          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+          <AvatarFallback className="text-base bg-primary/10 text-primary">
             {initials}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
-          <h1 className="text-xl sm:text-2xl font-bold">All Care Plans</h1>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-black text-xl">{fullName}</span>
+            <span className="text-muted-foreground">/ All Care Plans</span>
+          </div>
           <p className="text-muted-foreground text-sm">
-            View all care plans for {resident.first_name} {resident.last_name}
+            View all care plans
           </p>
         </div>
       </div>
