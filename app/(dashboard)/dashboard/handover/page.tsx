@@ -35,6 +35,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { getUKTodayDate } from "@/lib/date-utils";
 import { fromZonedTime } from "date-fns-tz";
 import { generateHandoverPDF } from "@/lib/handover-pdf-utils";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function HandoverPage() {
   const router = useRouter();
@@ -612,76 +613,86 @@ export default function HandoverPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-full w-full bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b px-6 py-4 print:hidden">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-semibold">Handover Sheet</h1>
-          <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-300 rounded-sm">
-            {format(new Date(), "EEEE, d MMMM yyyy")}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push("/dashboard/handover/documents")}
-            className="h-8"
-          >
-            All Handovers
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadPDF}
-            disabled={isLoadingResidents || residents.length === 0}
-            className="h-8"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Download PDF
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => setIsDialogOpen(true)}
-            disabled={isLoadingResidents || residents.length === 0}
-            className="h-8"
-          >
-            Save as Archive
-          </Button>
-        </div>
-      </div>
+    <div className="flex flex-col min-h-full w-full bg-muted/10">
+      <div className="flex-1 overflow-auto p-4 sm:p-6">
+        <div className="max-w-[1600px] mx-auto space-y-6">
+          {/* Header Card */}
+          <Card className="bg-background rounded-xl shadow-sm print:hidden">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <h1 className="text-xl font-semibold">Handover Sheet</h1>
+                  <Badge variant="table" className="bg-purple-50 text-purple-700 border-purple-200 rounded-md">
+                    {format(new Date(), "EEEE, d MMMM yyyy")}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push("/dashboard/handover/documents")}
+                    className="h-9 rounded-lg"
+                  >
+                    All Handovers
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadPDF}
+                    disabled={isLoadingResidents || residents.length === 0}
+                    className="h-9 rounded-lg"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download PDF
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setIsDialogOpen(true)}
+                    disabled={isLoadingResidents || residents.length === 0}
+                    className="h-9 rounded-lg"
+                  >
+                    Save as Archive
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Handover Sheet View */}
-      <div className="flex-1 overflow-auto">
-        {isLoadingResidents ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="mt-2 text-muted-foreground">Loading residents...</p>
-            </div>
-          </div>
-        ) : (
-          <HandoverSheetView
-            residents={residents || []}
-            teamId={activeTeamId ?? ""}
-            teamName={activeTeam?.name ?? "CEDAR UNIT"}
-            currentUserId={currentUser?.id}
-            currentUserName={currentUser?.name || "Unknown"}
-            organizationId={currentUser?.active_organization_id || undefined}
-            selectedDate={selectedDate}
-            setSelectedDate={setSelectedDate}
-            selectedShift={selectedShift}
-            setSelectedShift={setSelectedShift}
-            inCharge={inCharge}
-            setInCharge={setInCharge}
-            hospital={hospital}
-            setHospital={setHospital}
-            vacant={vacant}
-            setVacant={setVacant}
-            onPrint={handleDownloadPDF}
-          />
-        )}
+          {/* Handover Sheet View Card */}
+          <Card className="bg-background rounded-xl shadow-sm">
+            <CardContent className="p-0">
+              {isLoadingResidents ? (
+                <div className="flex items-center justify-center py-24">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <p className="mt-2 text-muted-foreground">Loading residents...</p>
+                  </div>
+                </div>
+              ) : (
+                <HandoverSheetView
+                  residents={residents || []}
+                  teamId={activeTeamId ?? ""}
+                  teamName={activeTeam?.name ?? "CEDAR UNIT"}
+                  currentUserId={currentUser?.id}
+                  currentUserName={currentUser?.name || "Unknown"}
+                  organizationId={currentUser?.active_organization_id || undefined}
+                  selectedDate={selectedDate}
+                  setSelectedDate={setSelectedDate}
+                  selectedShift={selectedShift}
+                  setSelectedShift={setSelectedShift}
+                  inCharge={inCharge}
+                  setInCharge={setInCharge}
+                  hospital={hospital}
+                  setHospital={setHospital}
+                  vacant={vacant}
+                  setVacant={setVacant}
+                  onPrint={handleDownloadPDF}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Save Handover Dialog */}

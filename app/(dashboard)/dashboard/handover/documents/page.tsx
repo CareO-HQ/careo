@@ -204,7 +204,7 @@ export default function HandoverDocumentsPage() {
                     {item.day ? (
                       <div className="flex items-center gap-1.5">
                       <Badge
-                         
+
                           className="h-5 px-1.5 text-xs cursor-pointer hover:bg-accent bg-green-100 text-black"
                           onClick={() => router.push(`/dashboard/handover/documents/${item.day.id}`)}
                         >

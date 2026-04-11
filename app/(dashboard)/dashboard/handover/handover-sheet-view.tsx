@@ -96,18 +96,18 @@ const ResidentRow = ({
   const hasHospitalTransfer = (handoverData?.hospitalTransferCount || 0) > 0;
 
   return (
-    <div className="border-b border-gray-300 print:break-inside-avoid">
+    <div className="bg-background rounded-lg border border-gray-100 print:break-inside-avoid hover:shadow-md transition-all">
       {/* Desktop Layout */}
       <div className="hidden md:grid md:grid-cols-[10%_50%_40%]">
         {/* Column 1: Room Number */}
-        <div className="border-r border-gray-300 p-4 flex items-center justify-center bg-gray-50">
+        <div className="p-6 flex items-center justify-center">
           <div className="text-lg font-bold text-center">
             {resident.room_number || "—"}
           </div>
         </div>
 
         {/* Column 2: Resident Details */}
-        <div className="border-r border-gray-300 p-4 space-y-3">
+        <div className="p-6 space-y-3 border-l border-gray-100">
           {/* Resident Name & Photo */}
           <div className="flex items-center gap-3">
             <Avatar className="w-10 h-10 border shadow-sm">
@@ -133,15 +133,15 @@ const ResidentRow = ({
               <div>• Diabetic {handoverData.dietInfo.diabeticStatus}</div>
             )}
             {handoverData?.appointments && handoverData.appointments.length > 0 && (
-              <div className="mt-2 text-purple-700 space-y-1">
-                <div className="font-bold flex items-center gap-1">
-                  <CalendarIcon className="w-3 h-3" />
+              <div className="mt-3 text-purple-700 space-y-1.5">
+                <div className="font-semibold flex items-center gap-1.5">
+                  <CalendarIcon className="w-3.5 h-3.5" />
                   Upcoming Appointments:
                 </div>
                 {handoverData.appointments.map((apt: any) => (
-                  <div key={apt.id} className="ml-2 text-xs border-l-2 border-purple-200 pl-2">
+                  <div key={apt.id} className="ml-2 text-xs pl-3 py-1 bg-purple-50/50 rounded">
                     <span className="font-semibold">{format(new Date(apt.start_time), "HH:mm")}</span> - {apt.title}
-                    {apt.location && <span className="text-gray-500 italic"> ({apt.location})</span>}
+                    {apt.location && <span className="text-muted-foreground italic"> ({apt.location})</span>}
                   </div>
                 ))}
               </div>
@@ -149,11 +149,11 @@ const ResidentRow = ({
           </div>
 
           {/* Auto-populated Data */}
-          <div className="space-y-1 text-sm border-t border-gray-300 pt-2 mt-2">
+          <div className="space-y-1.5 text-sm pt-3 mt-3 border-t border-gray-100">
             {handoverData && (
               <>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-600">Food Intake (Last 24h):</span>
+                  <span className="text-muted-foreground">Food Intake (24h):</span>
                   <span className={cn(
                     "font-semibold",
                     handoverData.foodIntakePercentage >= 75 ? "text-green-600" :
@@ -163,7 +163,7 @@ const ResidentRow = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-600">Fluid Intake (Last 24h):</span>
+                  <span className="text-muted-foreground">Fluid Intake (24h):</span>
                   <span className={cn(
                     "font-semibold",
                     handoverData.totalFluid >= 1500 ? "text-green-600" :
@@ -214,15 +214,15 @@ const ResidentRow = ({
         </div>
 
         {/* Column 3: Comments */}
-        <div className="p-2 relative bg-white">
+        <div className="p-6 relative border-l border-gray-100">
           <textarea
             placeholder="Add handover notes..."
-            className="w-full h-full min-h-[220px] text-sm border-0 resize-none focus:outline-none focus:ring-0 p-2"
+            className="w-full h-full min-h-[220px] text-sm border-0 resize-none focus:outline-none focus:ring-0 bg-transparent"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />
           {(isSaving || lastSavedText) && (
-            <div className="absolute bottom-2 right-2 text-[10px] text-muted-foreground italic">
+            <div className="absolute bottom-3 right-3 text-[10px] text-muted-foreground italic">
               {isSaving ? "Saving..." : lastSavedText}
             </div>
           )}
@@ -233,7 +233,7 @@ const ResidentRow = ({
       <div className="md:hidden">
         {/* Mobile Header - Always visible */}
         <div
-          className="flex items-center justify-between p-4 bg-gray-50 cursor-pointer border-b border-gray-300"
+          className="flex items-center justify-between p-4 cursor-pointer"
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="flex items-center gap-3">
@@ -571,17 +571,17 @@ export function HandoverSheetView({
   const dateString = format(selectedDate, "yyyy-MM-dd");
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white rounded-xl overflow-hidden">
       {/* Header Controls - Hidden on Print */}
-      <div className="border-b px-6 py-4 print:hidden bg-gray-50">
+      <div className="px-6 py-5 print:hidden">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Date</Label>
+          <div className="flex items-center gap-6">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8">
-                    <CalendarIcon className="w-3 h-3 mr-2" />
+                  <Button variant="outline" size="sm" className="h-9 rounded-lg">
+                    <CalendarIcon className="w-3.5 h-3.5 mr-2" />
                     {format(selectedDate, "PPP")}
                   </Button>
                 </PopoverTrigger>
@@ -596,13 +596,13 @@ export function HandoverSheetView({
               </Popover>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Shift</Label>
-              <div className="flex gap-1">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Shift</Label>
+              <div className="flex gap-1.5">
                 <Button
                   variant={selectedShift === "day" ? "default" : "outline"}
                   size="sm"
-                  className="h-8"
+                  className="h-9 rounded-lg"
                   onClick={() => setSelectedShift("day")}
                 >
                   Day
@@ -610,7 +610,7 @@ export function HandoverSheetView({
                 <Button
                   variant={selectedShift === "night" ? "default" : "outline"}
                   size="sm"
-                  className="h-8"
+                  className="h-9 rounded-lg"
                   onClick={() => setSelectedShift("night")}
                 >
                   Night
@@ -619,8 +619,8 @@ export function HandoverSheetView({
             </div>
           </div>
 
-          <Button onClick={handlePrint} size="sm" className="h-8">
-            <Printer className="w-3 h-3 mr-2" />
+          <Button onClick={handlePrint} size="sm" className="h-9 rounded-lg gap-2">
+            <Printer className="w-3.5 h-3.5" />
             Print Handover Sheet
           </Button>
         </div>
@@ -630,69 +630,69 @@ export function HandoverSheetView({
       <div className="flex-1 overflow-auto print:overflow-visible">
         <div className="max-w-[1400px] mx-auto bg-white print:max-w-full">
           {/* Header Section */}
-          <div className="border-b border-gray-300 p-6 print:p-4">
-            <h1 className="text-2xl font-bold text-center mb-4 print:text-xl uppercase">
+          <div className="p-6 print:p-4 mb-4">
+            <h1 className="text-2xl font-bold text-center mb-8 print:text-xl uppercase tracking-tight">
               {teamName} HANDOVER SHEET
             </h1>
 
-            <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm max-w-4xl mx-auto mb-6">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold min-w-[100px]">Date:</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 px-2">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-5 text-sm max-w-4xl mx-auto">
+              <div className="flex items-center gap-3">
+                <span className="font-medium min-w-[100px] text-muted-foreground">Date:</span>
+                <span className="border-b border-dotted border-gray-200 flex-1 px-2 py-1">
                   {format(selectedDate, "dd/MM/yyyy")}
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="font-semibold min-w-[100px]">In Charge:</span>
+              <div className="flex items-center gap-3">
+                <span className="font-medium min-w-[100px] text-muted-foreground">In Charge:</span>
                 <Input
                   value={inCharge}
                   onChange={(e) => setInCharge(e.target.value)}
-                  className="flex-1 h-7 border-b border-dotted border-gray-400 border-t-0 border-x-0 rounded-none px-2 print:border-b"
+                  className="flex-1 h-8 border-b border-dotted border-gray-200 border-t-0 border-x-0 rounded-none px-2 focus-visible:border-primary print:border-b"
                   placeholder="Name"
                 />
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="font-semibold min-w-[100px]">Hospital:</span>
+              <div className="flex items-center gap-3">
+                <span className="font-medium min-w-[100px] text-muted-foreground">Hospital:</span>
                 <Input
                   value={hospital}
                   onChange={(e) => setHospital(e.target.value)}
-                  className="flex-1 h-7 border-b border-dotted border-gray-400 border-t-0 border-x-0 rounded-none px-2 print:border-b"
+                  className="flex-1 h-8 border-b border-dotted border-gray-200 border-t-0 border-x-0 rounded-none px-2 focus-visible:border-primary print:border-b"
                   placeholder="Number"
                 />
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="font-semibold min-w-[100px]">Vacant:</span>
+              <div className="flex items-center gap-3">
+                <span className="font-medium min-w-[100px] text-muted-foreground">Vacant:</span>
                 <Input
                   value={vacant}
                   onChange={(e) => setVacant(e.target.value)}
-                  className="flex-1 h-7 border-b border-dotted border-gray-400 border-t-0 border-x-0 rounded-none px-2 print:border-b"
+                  className="flex-1 h-8 border-b border-dotted border-gray-200 border-t-0 border-x-0 rounded-none px-2 focus-visible:border-primary print:border-b"
                   placeholder="Room(s)"
                 />
               </div>
 
               <div className="col-span-2 flex items-center gap-4 pt-2">
-                <span className="font-semibold">Shift:</span>
+                <span className="font-medium text-muted-foreground">Shift:</span>
                 <div className="flex gap-10 items-center">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
                     <input
                       type="radio"
                       checked={selectedShift === "day"}
                       onChange={() => setSelectedShift("day")}
-                      className="w-4 h-4"
+                      className="w-4 h-4 accent-primary"
                     />
-                    <span>Day</span>
+                    <span className="text-sm">Day</span>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
                     <input
                       type="radio"
                       checked={selectedShift === "night"}
                       onChange={() => setSelectedShift("night")}
-                      className="w-4 h-4"
+                      className="w-4 h-4 accent-primary"
                     />
-                    <span>Night</span>
+                    <span className="text-sm">Night</span>
                   </label>
                 </div>
               </div>
@@ -700,29 +700,29 @@ export function HandoverSheetView({
 
             {/* Shift Summary Section */}
             {!isLoading && (
-              <div className="grid grid-cols-3 gap-4 max-w-4xl mx-auto py-3 px-4 border-2 border-gray-200 rounded-lg bg-gray-50/50">
-                <div className="text-center space-y-1 border-r border-gray-200">
-                  <div className="text-xs uppercase font-bold text-gray-500 tracking-wider">Total Incidents</div>
+              <div className="grid grid-cols-3 gap-8 max-w-4xl mx-auto py-6 px-6 rounded-xl bg-muted/5">
+                <div className="text-center space-y-2">
+                  <div className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">Total Incidents</div>
                   <div className={cn(
-                    "text-2xl font-black",
+                    "text-3xl font-bold",
                     Object.values(handoverData).reduce((sum, h) => sum + h.incidentCount, 0) > 0 ? "text-red-600" : "text-gray-400"
                   )}>
                     {Object.values(handoverData).reduce((sum, h) => sum + h.incidentCount, 0)}
                   </div>
                 </div>
-                <div className="text-center space-y-1 border-r border-gray-200">
-                  <div className="text-xs uppercase font-bold text-gray-500 tracking-wider">Total Falls</div>
+                <div className="text-center space-y-2">
+                  <div className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">Total Falls</div>
                   <div className={cn(
-                    "text-2xl font-black",
-                    Object.values(handoverData).reduce((sum, h) => sum + h.fallCount, 0) > 0 ? "text-red-600" : "text-gray-400"
+                    "text-3xl font-bold",
+                    Object.values(handoverData).reduce((sum, h) => sum + h.fallCount, 0) > 0 ? "text-orange-600" : "text-gray-400"
                   )}>
                     {Object.values(handoverData).reduce((sum, h) => sum + h.fallCount, 0)}
                   </div>
                 </div>
-                <div className="text-center space-y-1">
-                  <div className="text-xs uppercase font-bold text-gray-500 tracking-wider">Hospital Transport</div>
+                <div className="text-center space-y-2">
+                  <div className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">Hospital Transport</div>
                   <div className={cn(
-                    "text-2xl font-black",
+                    "text-3xl font-bold",
                     Object.values(handoverData).reduce((sum, h) => sum + h.hospitalTransferCount, 0) > 0 ? "text-blue-600" : "text-gray-400"
                   )}>
                     {Object.values(handoverData).reduce((sum, h) => sum + h.hospitalTransferCount, 0)}
@@ -732,18 +732,18 @@ export function HandoverSheetView({
             )}
           </div>
 
-          {/* Table */}
-          <div className="border border-gray-300">
+          {/* Residents List */}
+          <div className="space-y-3">
             {/* Table Header - Desktop */}
-            <div className="hidden md:grid md:grid-cols-[10%_50%_40%] border-b border-gray-300 bg-gray-100">
-              <div className="border-r border-gray-300 p-3 font-bold text-center text-sm uppercase">
-                ROOM NO
+            <div className="hidden md:grid md:grid-cols-[10%_50%_40%] px-4 py-2">
+              <div className="p-2 font-semibold text-center text-xs uppercase tracking-wider text-muted-foreground">
+                Room
               </div>
-              <div className="border-r border-gray-300 p-3 font-bold text-sm uppercase">
-                RESIDENT DETAILS
+              <div className="p-2 font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                Resident Details
               </div>
-              <div className="p-3 font-bold text-sm uppercase">
-                {selectedShift.toUpperCase()} COMMENTS
+              <div className="p-2 font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                {selectedShift} Comments
               </div>
             </div>
 
