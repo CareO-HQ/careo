@@ -146,6 +146,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const [isAddingDish, setIsAddingDish] = useState(false);
   const [dishName, setDishName] = useState("");
   const [dishCategory, setDishCategory] = useState<"food" | "fluid">("food");
+  const [isFluidTargetDialogOpen, setIsFluidTargetDialogOpen] = useState(false);
+  const [fluidTarget, setFluidTarget] = useState<string>("");
 
   const [typeComboOpen, setTypeComboOpen] = useState(false);
   const [typeComboSearchValue, setTypeComboSearchValue] = useState("");
@@ -175,7 +177,13 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         .eq("id", id)
         .single();
 
-      if (residentData) setResident(residentData as Resident);
+      if (residentData) {
+        setResident(residentData as Resident);
+        // Load existing fluid target if available
+        if (residentData.fluid_target) {
+          setFluidTarget(residentData.fluid_target.toString());
+        }
+      }
 
       // Fetch diet
       const { data: dietData } = await supabase
@@ -633,6 +641,15 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 Add Diet
               </Button>
             )}
+            {canManageDietActions && (
+              <Button
+                onClick={() => setIsFluidTargetDialogOpen(true)}
+                variant="outline"
+              >
+                <Droplets className="w-4 h-4 mr-2" />
+                Set Fluid Target
+              </Button>
+            )}
             {canManageMenuActions && (
               <Button
                 variant="outline"
@@ -1040,7 +1057,19 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-green-50 to-green-100 p-4 border border-green-200">
+                <div className="relative z-10">
+                  <div className="text-3xl font-bold text-green-600 mb-1">
+                    {fluidTarget || "--"}ml
+                  </div>
+                  <p className="text-sm font-medium text-green-700">Fluid Target</p>
+                </div>
+                <div className="absolute -right-2 -bottom-2 opacity-10">
+                  <Droplets className="w-16 h-16 text-green-600" />
+                </div>
+              </div>
+
               <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 p-4 border border-orange-200">
                 <div className="relative z-10">
                   <div className="text-3xl font-bold text-orange-600 mb-1">
@@ -1920,6 +1949,96 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 </div>
               </form>
             </Form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Set Fluid Target Dialog */}
+        <Dialog open={isFluidTargetDialogOpen} onOpenChange={(open) => {
+          setIsFluidTargetDialogOpen(open);
+          // Load existing target when opening dialog
+          if (open && resident?.fluid_target) {
+            setFluidTarget(resident.fluid_target.toString());
+          }
+        }}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Set Daily Fluid Target</DialogTitle>
+              <DialogDescription>
+                Set the daily fluid intake target in milliliters (ml) for {fullName}.
+                {resident?.fluid_target && (
+                  <span className="block mt-2 text-sm font-medium text-green-600">
+                    Current target: {resident.fluid_target}ml
+                  </span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="fluidTarget">Target (ml)</Label>
+                <Input
+                  id="fluidTarget"
+                  type="number"
+                  min="0"
+                  max="5000"
+                  step="50"
+                  value={fluidTarget}
+                  onChange={(e) => setFluidTarget(e.target.value)}
+                  placeholder="e.g., 2000"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Recommended daily intake: 1500-2000ml for most adults
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsFluidTargetDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  const targetValue = Number(fluidTarget);
+                  if (!fluidTarget || targetValue <= 0) {
+                    toast.error("Please enter a valid target amount");
+                    return;
+                  }
+
+                  try {
+                    // Save fluid target to database
+                    const { error } = await supabase
+                      .from('residents')
+                      .update({ fluid_target: targetValue })
+                      .eq('id', id);
+
+                    if (error) {
+                      console.error('Error saving fluid target:', error);
+
+                      // Check if it's a column doesn't exist error
+                      if (error.code === '42703') {
+                        toast.error('Database column not yet created. Please contact administrator to add fluid_target column to residents table.');
+                        console.warn('Run this SQL: ALTER TABLE residents ADD COLUMN fluid_target INTEGER;');
+                      } else {
+                        toast.error(`Failed to save fluid target: ${error.message}`);
+                      }
+                      return;
+                    }
+
+                    toast.success(`Fluid target set to ${targetValue}ml`);
+                    setIsFluidTargetDialogOpen(false);
+
+                    // Refresh resident data to update UI
+                    fetchData();
+                  } catch (err) {
+                    console.error('Error saving fluid target:', err);
+                    toast.error('Failed to save fluid target');
+                  }
+                }}
+              >
+                Save Target
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
 

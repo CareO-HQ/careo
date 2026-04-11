@@ -30,7 +30,8 @@ import {
   Zap,
   ChevronDown,
   Scale,
-  Droplet
+  Droplet,
+  Droplets
 } from "lucide-react";
 import {
   Collapsible,
@@ -457,6 +458,15 @@ export function AppSidebar() {
                         <Link href="/dashboard/qwik-info/bowel-check" className="text-sm">
                           <Droplet className="w-4 h-4" />
                           <span>Bowel Monitor</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem className="list-none">
+                      <SidebarMenuButton asChild>
+                        <Link href="/dashboard/qwik-info/fluid-check" className="text-sm">
+                          <Droplets className="w-4 h-4" />
+                          <span>Fluid Monitor</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
