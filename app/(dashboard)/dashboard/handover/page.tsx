@@ -28,12 +28,13 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon, FileText, MessageSquare, Users } from "lucide-react";
-import { getCurrentShift } from "@/lib/config/shift-config";
+import { CalendarIcon, FileText, MessageSquare, Users, Download } from "lucide-react";
+import { getCurrentShift, SHIFT_CONFIG } from "@/lib/config/shift-config";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
 import { getUKTodayDate } from "@/lib/date-utils";
 import { fromZonedTime } from "date-fns-tz";
+import { generateHandoverPDF } from "@/lib/handover-pdf-utils";
 
 export default function HandoverPage() {
   const router = useRouter();
@@ -139,6 +140,196 @@ export default function HandoverPage() {
       loadCommentsSummary();
     }
   }, [isDialogOpen, selectedDate, selectedShift, activeTeamId, residents.length]);
+
+  const handleDownloadPDF = async () => {
+    if (!activeTeamId || !activeTeam || !residents || !currentUser || !supabase) {
+      toast.error("Missing required information");
+      return;
+    }
+
+    toast.info("Generating PDF...");
+    try {
+      const dateString = format(selectedDate, 'yyyy-MM-dd');
+      const UK_TIMEZONE = "Europe/London";
+
+      // Define shift boundaries
+      const getShiftBoundaries = (date: Date, shift: "day" | "night") => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const nextDay = new Date(date);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const nextDayStr = format(nextDay, 'yyyy-MM-dd');
+
+        let shiftStartUTC, shiftEndUTC;
+        if (shift === "day") {
+          shiftStartUTC = fromZonedTime(`${dateStr}T08:00:00`, UK_TIMEZONE);
+          shiftEndUTC = fromZonedTime(`${dateStr}T20:00:00`, UK_TIMEZONE);
+        } else {
+          shiftStartUTC = fromZonedTime(`${dateStr}T20:00:00`, UK_TIMEZONE);
+          shiftEndUTC = fromZonedTime(`${nextDayStr}T08:00:00`, UK_TIMEZONE);
+        }
+        return { shiftStartUTC, shiftEndUTC };
+      };
+
+      const { shiftStartUTC, shiftEndUTC } = getShiftBoundaries(selectedDate, selectedShift);
+
+      const getFullDayBoundaries = (date: Date) => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        return {
+          startOfDayUTC: fromZonedTime(`${dateStr}T00:00:00`, UK_TIMEZONE),
+          endOfDayUTC: fromZonedTime(`${dateStr}T23:59:59`, UK_TIMEZONE)
+        };
+      };
+      const { startOfDayUTC, endOfDayUTC } = getFullDayBoundaries(selectedDate);
+
+      // Get shift config
+      const shiftConfig = SHIFT_CONFIG.find(s => s.value === selectedShift);
+      const shiftTimes = shiftConfig?.time || "";
+
+      // Fetch handover data for each resident
+      const handoverDataMap: Record<string, any> = {};
+
+      for (const resident of residents) {
+        const fluidTypes = ["Water", "Tea", "Coffee", "Juice", "Milk"];
+
+        // Fetch food/fluid logs
+        const { data: logs } = await supabase
+          .from("food_fluid_logs")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .gte("timestamp", startOfDayUTC.toISOString())
+          .lte("timestamp", endOfDayUTC.toISOString())
+          .eq("is_archived", false)
+          .order("timestamp", { ascending: false });
+
+        const foodLogs = (logs || []).filter(log =>
+          log.type_of_food_drink &&
+          !fluidTypes.includes(log.type_of_food_drink) &&
+          !log.fluid_consumed_ml &&
+          log.amount_eaten &&
+          log.amount_eaten !== "None" &&
+          log.amount_eaten.trim() !== ""
+        );
+
+        const fluidLogs = (logs || []).filter(log =>
+          fluidTypes.includes(log.type_of_food_drink) || (log.fluid_consumed_ml && log.fluid_consumed_ml > 0)
+        );
+
+        const totalFluid = fluidLogs.reduce((sum, log) => sum + (log.fluid_consumed_ml || 0), 0);
+
+        // Calculate food intake percentage (assuming 3 meals per day)
+        const foodIntakePercentage = Math.min(Math.round((foodLogs.length / 3) * 100), 100);
+
+        // Fetch diet info
+        const { data: dietData } = await supabase
+          .from("diet_menus")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .maybeSingle();
+
+        const dietInfo = dietData ? {
+          textureGrade: dietData.texture_grade,
+          fluidConsistency: dietData.fluid_consistency,
+          diabeticStatus: dietData.diabetic_status,
+        } : undefined;
+
+        // Fetch incidents
+        const { data: incidents } = await supabase
+          .from("incidents")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .gte("created_at", shiftStartUTC.toISOString())
+          .lt("created_at", shiftEndUTC.toISOString());
+
+        const { data: folders } = await supabase
+          .from("incident_folders")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .gte("created_at", shiftStartUTC.toISOString())
+          .lt("created_at", shiftEndUTC.toISOString());
+
+        // Fetch hospital transfers
+        const { data: transfers } = await supabase
+          .from("hospital_transfer_logs")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .gte("created_at", shiftStartUTC.toISOString())
+          .lt("created_at", shiftEndUTC.toISOString());
+
+        // Fetch active wounds
+        const { data: wounds } = await supabase
+          .from("wounds")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .neq("status", "healed");
+
+        // Fetch appointments
+        const { data: appointments } = await supabase
+          .from("appointments")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .gte("start_time", startOfDayUTC.toISOString())
+          .lte("start_time", endOfDayUTC.toISOString());
+
+        // Calculate counts
+        const fallsFromFolders = (folders || []).filter(f => f.folder_type === 'fall').length;
+        const incidentsFromFolders = (folders || []).filter(f => f.folder_type === 'incident').length;
+        const fallsFromIncidents = (incidents || []).filter(inc => {
+          if (inc.folder_id) return false;
+          const types = inc.incident_types || [];
+          return types.some((t: string) => t.toLowerCase() === 'fall' || t.toLowerCase() === 'falls');
+        }).length;
+        const nonFallIncidentsFromIncidents = (incidents || []).filter(inc => {
+          if (inc.folder_id) return false;
+          const types = inc.incident_types || [];
+          return !types.some((t: string) => t.toLowerCase() === 'fall' || t.toLowerCase() === 'falls');
+        }).length;
+
+        // Get handover comment
+        const { data: commentData } = await supabase
+          .from("handover_comments")
+          .select("*")
+          .eq("resident_id", resident.id)
+          .eq("date", dateString)
+          .eq("shift", selectedShift)
+          .maybeSingle();
+
+        handoverDataMap[resident.id] = {
+          residentId: resident.id,
+          foodIntakeCount: foodLogs.length,
+          foodIntakePercentage,
+          totalFluid,
+          incidentCount: incidentsFromFolders + nonFallIncidentsFromIncidents,
+          fallCount: fallsFromFolders + fallsFromIncidents,
+          woundCount: wounds?.length || 0,
+          hospitalTransferCount: transfers?.length || 0,
+          appointmentCount: appointments?.length || 0,
+          appointments: appointments || [],
+          dietInfo,
+          handoverComment: commentData?.comment || "",
+        };
+      }
+
+      // Generate PDF
+      await generateHandoverPDF({
+        teamName: activeTeam.name,
+        date: selectedDate,
+        shift: selectedShift,
+        shiftTimes,
+        inCharge,
+        hospital,
+        vacant,
+        residents,
+        handoverData: handoverDataMap,
+        orgLogoUrl: currentUser?.organization_logo_url,
+        careHomeName: activeTeam.name,
+      });
+
+      toast.success("PDF downloaded successfully!");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF. Please try again.");
+    }
+  };
 
   const handleSaveHandover = async () => {
     if (!activeTeamId || !activeTeam || !residents || !currentUser || !supabase) {
@@ -410,6 +601,16 @@ export default function HandoverPage() {
             className="h-8"
           >
             All Handovers
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadPDF}
+            disabled={isLoadingResidents || residents.length === 0}
+            className="h-8"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download PDF
           </Button>
           <Button
             variant="default"
