@@ -651,6 +651,7 @@ export default function HandoverPage() {
             setHospital={setHospital}
             vacant={vacant}
             setVacant={setVacant}
+            onPrint={handleDownloadPDF}
           />
         )}
       </div>

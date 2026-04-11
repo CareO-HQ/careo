@@ -35,6 +35,7 @@ interface HandoverSheetViewProps {
   setHospital: (val: string) => void;
   vacant: string;
   setVacant: (val: string) => void;
+  onPrint?: () => void;
 }
 
 interface ResidentHandoverData {
@@ -383,6 +384,7 @@ export function HandoverSheetView({
   setHospital,
   vacant,
   setVacant,
+  onPrint,
 }: HandoverSheetViewProps) {
   const { supabase } = useSupabase();
   const [handoverData, setHandoverData] = useState<Record<string, ResidentHandoverData>>({});
@@ -559,7 +561,11 @@ export function HandoverSheetView({
   }, [fetchHandoverData]);
 
   const handlePrint = () => {
-    window.print();
+    if (onPrint) {
+      onPrint();
+    } else {
+      window.print();
+    }
   };
 
   const dateString = format(selectedDate, "yyyy-MM-dd");
