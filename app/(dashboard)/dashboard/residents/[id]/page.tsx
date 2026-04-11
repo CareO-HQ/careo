@@ -238,7 +238,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </p>
             {resident.image_url && lastUpdatedOn && (
               <p className="text-muted-foreground text-xs mt-1">
-                Last update on: {lastUpdatedOn}
+                Picture Last update on: {lastUpdatedOn}
               </p>
             )}
           </div>

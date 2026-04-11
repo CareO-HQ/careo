@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useProfile } from '@/hooks/use-profile';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -13,9 +14,10 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, AlertTriangle, Activity, Calendar, Loader2, Clock } from 'lucide-react';
-import { format, formatDistanceToNow, differenceInDays } from 'date-fns';
+import { Search, AlertTriangle, Activity, Calendar, Loader2, Clock, RefreshCw, AlertCircle } from 'lucide-react';
+import { format, parseISO, isValid } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 type BowelCheckData = {
   residentId: string;
@@ -36,40 +38,54 @@ export default function BowelCheckPage() {
   const { profile, isLoading: isProfileLoading } = useProfile();
   const [bowelData, setBowelData] = useState<BowelCheckData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('daysSinceLastBowel');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const activeTeamId = profile?.active_team_id;
 
+  const fetchBowelCheckData = async () => {
+    if (!activeTeamId) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setError(null);
+      const response = await fetch(`/api/qwik-info/bowel-checks?teamId=${activeTeamId}`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch bowel check data');
+      }
+
+      const result = await response.json();
+      setBowelData(result.data || []);
+    } catch (error) {
+      console.error('Error fetching bowel check data:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load bowel check data';
+      setError(errorMessage);
+      setBowelData([]);
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchBowelCheckData = async () => {
-      if (!activeTeamId) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        setIsLoading(true);
-        const response = await fetch(`/api/qwik-info/bowel-checks?teamId=${activeTeamId}`);
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch bowel check data');
-        }
-
-        const result = await response.json();
-        setBowelData(result.data || []);
-      } catch (error) {
-        console.error('Error fetching bowel check data:', error);
-        setBowelData([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
+    setIsLoading(true);
     fetchBowelCheckData();
   }, [activeTeamId]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchBowelCheckData();
+    toast.success('Data refreshed successfully');
+  };
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -170,15 +186,61 @@ export default function BowelCheckPage() {
     );
   }
 
+  if (!activeTeamId) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Active Team</h2>
+          <p className="text-gray-500">Please select a team/unit to view bowel movement data.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Bowel Movement Monitor</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Unit-wide bowel movement tracking for all residents
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Bowel Movement Monitor</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Unit-wide bowel movement tracking for all residents
+          </p>
+        </div>
+        <Button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          variant="outline"
+          size="sm"
+        >
+          <RefreshCw className={cn("w-4 h-4 mr-2", isRefreshing && "animate-spin")} />
+          Refresh
+        </Button>
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-red-900">Error loading data</h3>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+                <Button
+                  onClick={handleRefresh}
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                >
+                  Try Again
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -370,22 +432,39 @@ export default function BowelCheckPage() {
                       <TableCell className="font-medium">{resident.name}</TableCell>
                       <TableCell>{resident.roomNumber || '—'}</TableCell>
                       <TableCell>
-                        <span
-                          className={cn(
-                            'font-semibold',
-                            resident.daysSinceLastBowel >= 5 && 'text-red-600',
-                            resident.daysSinceLastBowel >= 3 && resident.daysSinceLastBowel < 5 && 'text-orange-600',
-                            resident.daysSinceLastBowel === 2 && 'text-yellow-600',
-                            resident.daysSinceLastBowel < 2 && 'text-green-600'
-                          )}
-                        >
-                          {resident.daysSinceLastBowel} days
-                        </span>
+                        {resident.status === 'no-data' ? (
+                          <span className="text-gray-400 text-sm">No data</span>
+                        ) : resident.daysSinceLastBowel === 0 ? (
+                          <span className="font-semibold text-green-600">
+                            Done today{resident.lastBowelTime ? ` at ${resident.lastBowelTime}` : ''}
+                          </span>
+                        ) : (
+                          <span
+                            className={cn(
+                              'font-semibold',
+                              resident.daysSinceLastBowel >= 5 && 'text-red-600',
+                              resident.daysSinceLastBowel >= 3 && resident.daysSinceLastBowel < 5 && 'text-orange-600',
+                              resident.daysSinceLastBowel === 2 && 'text-yellow-600',
+                              resident.daysSinceLastBowel < 2 && 'text-green-600'
+                            )}
+                          >
+                            {resident.daysSinceLastBowel} {resident.daysSinceLastBowel === 1 ? 'day' : 'days'}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {resident.lastBowelDate ? (
                           <div className="text-sm">
-                            <div>{format(new Date(resident.lastBowelDate), 'MMM d, yyyy')}</div>
+                            <div>
+                              {(() => {
+                                try {
+                                  const date = parseISO(resident.lastBowelDate);
+                                  return isValid(date) ? format(date, 'MMM d, yyyy') : resident.lastBowelDate;
+                                } catch {
+                                  return resident.lastBowelDate;
+                                }
+                              })()}
+                            </div>
                             {resident.lastBowelTime && (
                               <div className="text-xs text-gray-500">{resident.lastBowelTime}</div>
                             )}

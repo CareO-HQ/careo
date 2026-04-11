@@ -63,11 +63,14 @@ import {
   StickyNote,
   RotateCw,
   X,
+
+  Scale,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge as BadgeComponent } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { getUKTodayDate, formatTimestampToUKTime } from "@/lib/date-utils";
+import { WeightChart } from "@/components/residents/carefile/WeightChart";
 
 // Types
 type NightCheckPageProps = {
@@ -1141,6 +1144,21 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                 )
               })}
             </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Weight Monitoring Section */}
+        <Card className="border-0">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-3">
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <Scale className="w-5 h-5 text-gray-600" />
+              </div>
+              <span className="text-gray-900">Weight Monitoring</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <WeightChart residentId={id} residentName={fullName} />
           </CardContent>
         </Card>
 

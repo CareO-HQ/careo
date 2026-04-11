@@ -661,6 +661,8 @@ export default function CareFileV2FolderPage() {
                     <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
+                    {resident && <span className="font-bold text-black">{resident.first_name} {resident.last_name}</span>}
+                    {resident && <span>/</span>}
                     <span>Care File</span> <span>/</span> <span className="font-medium text-foreground">{folder.value}</span>
                     {activeFormKey && <><span>/</span> <span className="text-foreground">{folder.forms.find(f => f.key === activeFormKey)?.value || "Form"}</span></>}
                     {activeFile && <><span>/</span> <span className="text-foreground">{activeFile.name}</span></>}

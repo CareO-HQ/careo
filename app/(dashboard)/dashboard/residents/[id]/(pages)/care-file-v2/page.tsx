@@ -101,7 +101,7 @@ export default function CareFileV2Page() {
                 <div className="flex-1">
                     <h1 className="text-xl sm:text-2xl font-bold">Care File</h1>
                     <p className="text-muted-foreground text-sm">
-                        View and manage care files for {resident.first_name} {resident.last_name}.
+                        View and manage care files for <span className="font-bold text-black">{resident.first_name} {resident.last_name}</span>.
                     </p>
                 </div>
             </div>

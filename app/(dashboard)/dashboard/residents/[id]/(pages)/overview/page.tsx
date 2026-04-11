@@ -324,7 +324,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                 <div className="text-sm font-semibold text-slate-700">
                   {lastUpdatedOn}
                 </div>
-                <p className="text-sm text-slate-700">Last update on</p>
+                <p className="text-sm text-slate-700">Picture Last update on</p>
               </div>
             )}
           </div>

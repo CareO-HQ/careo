@@ -66,11 +66,10 @@ import {
   Eye,
   Check,
   ChevronsUpDown,
-  Scale,
+
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { WeightChart } from "@/components/residents/carefile/WeightChart";
 
 // Diet Form Schema
 const DietFormSchema = z.object({
@@ -1081,21 +1080,6 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Weight Monitoring Section */}
-        <Card className="border-0">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-3">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <Scale className="w-5 h-5 text-gray-600" />
-              </div>
-              <span className="text-gray-900">Weight Monitoring</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <WeightChart residentId={id} residentName={fullName} />
           </CardContent>
         </Card>
 
