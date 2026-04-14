@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
+import { buildStorageObjectUrl } from "@/lib/storage";
 import ImageSelector from "../onboarding/profile/ImageSelector";
 
 interface OrganizationNameLogoFormProps {
@@ -82,11 +83,7 @@ export default function OrganizationNameLogoForm({
 
           if (uploadError) throw uploadError;
 
-          const { data: publicUrlData } = supabase.storage
-            .from('careo-public')
-            .getPublicUrl(filePath);
-
-          finalLogoUrl = publicUrlData.publicUrl;
+          finalLogoUrl = buildStorageObjectUrl("careo-public", filePath);
         }
 
         const { error } = await supabase

@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { buildStorageObjectUrl } from "@/lib/storage";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { generateWoundPhotographEvaluationPDF } from "@/lib/wound-photograph-evaluation-pdf-utils";
@@ -302,12 +303,7 @@ export function PhotographEvaluationForm({
           return;
         }
 
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from("wound-photos")
-          .getPublicUrl(filePath);
-
-        photographUrl = publicUrl;
+        photographUrl = buildStorageObjectUrl("wound-photos", filePath);
       }
 
       // Build site info

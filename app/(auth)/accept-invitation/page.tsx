@@ -9,6 +9,22 @@ import { supabase } from "@/lib/supabase";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
 
+type InvitationLookupResult = {
+  id: string;
+  email: string;
+  token: string;
+  role: string;
+  organization_id: string | null;
+  care_home_id: string | null;
+  team_id: string | null;
+  invited_by: string | null;
+  status: string;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+  organization_name: string | null;
+};
+
 function AcceptInvitationContent() {
   const router = useRouter();
   const [token] = useQueryState("token");
@@ -97,11 +113,14 @@ function AcceptInvitationContent() {
         console.log("Owner role set successfully");
       }
 
-      // 4. Mark invitation as accepted
-      await supabase
-        .from("invitations")
-        .update({ status: "accepted", updated_at: new Date().toISOString() })
-        .eq("token", token);
+      // 4. Mark invitation as accepted via a scoped RPC.
+      const { data: accepted, error: acceptError } = await supabase.rpc("accept_invitation", {
+        p_token: token,
+      });
+
+      if (acceptError || !accepted) {
+        throw acceptError ?? new Error("Failed to accept invitation");
+      }
 
       await refreshProfile();
       toast.success("Invitation accepted!");
@@ -120,16 +139,13 @@ function AcceptInvitationContent() {
 
     console.log("[DEBUG] Fetching invitation with token:", token);
 
-    // First, try to get the invitation without status filter to see if it exists
-    const { data: allInvitations, error: checkError } = await supabase
-      .from("invitations")
-      .select(`
-        *,
-        organizations (name)
-      `)
-      .eq("token", token);
+    const { data: invitationData, error: checkError } = await supabase
+      .rpc("get_invitation_by_token", { p_token: token })
+      .maybeSingle();
 
-    console.log("[DEBUG] Invitation query result:", { allInvitations, checkError });
+    const resolvedInvitation = invitationData as InvitationLookupResult | null;
+
+    console.log("[DEBUG] Invitation query result:", { invitationData: resolvedInvitation, checkError });
 
     if (checkError) {
       console.error("Error checking invitation:", checkError);
@@ -137,48 +153,47 @@ function AcceptInvitationContent() {
       return;
     }
 
-    if (!allInvitations || allInvitations.length === 0) {
+    if (!resolvedInvitation) {
       console.error("No invitation found with token:", token);
       toast.error("Invitation not found. The link may be invalid.");
       return;
     }
 
-    const invitationData = allInvitations[0];
-    console.log("[DEBUG] Found invitation:", invitationData);
+    console.log("[DEBUG] Found invitation:", resolvedInvitation);
 
     // Check if already accepted
-    if (invitationData.status === "accepted") {
+    if (resolvedInvitation.status === "accepted") {
       toast.info("This invitation has already been accepted");
       router.push("/dashboard");
       return;
     }
 
     // Check if expired
-    if (invitationData.expires_at && new Date(invitationData.expires_at) < new Date()) {
+    if (resolvedInvitation.expires_at && new Date(resolvedInvitation.expires_at) < new Date()) {
       toast.error("This invitation has expired");
       return;
     }
 
     // Check if pending
-    if (invitationData.status !== "pending") {
-      toast.error(`This invitation is ${invitationData.status}`);
+    if (resolvedInvitation.status !== "pending") {
+      toast.error(`This invitation is ${resolvedInvitation.status}`);
       return;
     }
 
     // Fetch inviter email separately if invited_by exists
     let inviterEmail = null;
-    if (invitationData.invited_by) {
+    if (resolvedInvitation.invited_by) {
       const { data: inviterData } = await supabase
         .from("users")
         .select("email")
-        .eq("id", invitationData.invited_by)
+        .eq("id", resolvedInvitation.invited_by)
         .single();
       inviterEmail = inviterData?.email;
     }
 
     setInvitation({
-      ...invitationData,
-      organizationName: (invitationData as any).organizations?.name,
+      ...resolvedInvitation,
+      organizationName: resolvedInvitation.organization_name,
       inviterEmail
     });
   }, [token, router]);

@@ -21,6 +21,7 @@ import { useTransition, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/lib/supabase";
+import { buildStorageObjectUrl } from "@/lib/storage";
 
 export default function CareHomeForm({
   step,
@@ -190,14 +191,12 @@ export default function CareHomeForm({
             throw uploadError;
           }
 
-          const { data: publicUrlData } = supabase.storage
-            .from('careo-public')
-            .getPublicUrl(filePath);
+          const finalLogoUrl = buildStorageObjectUrl("careo-public", filePath);
 
-          console.log("%c[DEBUG Supabase] STORAGE getPublicUrl - Response", "color: #059669", publicUrlData);
+          console.log("%c[DEBUG Supabase] STORAGE proxy URL", "color: #059669", finalLogoUrl);
 
           const logoUpdateData = {
-            logo_url: publicUrlData.publicUrl,
+            logo_url: finalLogoUrl,
             updated_at: new Date().toISOString()
           };
           console.log("%c[DEBUG Supabase] UPDATE organizations (logo) - Request", "color: #059669", logoUpdateData);

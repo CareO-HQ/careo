@@ -10,6 +10,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import z from "zod";
+import { buildStorageObjectUrl } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import {
   Popover,
@@ -238,11 +239,7 @@ export function CreateResidentForm({
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('careo-public')
-          .getPublicUrl(filePath);
-
-        imageUrl = publicUrl;
+        imageUrl = buildStorageObjectUrl("careo-public", filePath);
       }
 
       const residentPayload = {
