@@ -1,4 +1,4 @@
-﻿import { createServerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from 'next/server';
 
 // Helper to create Supabase client
@@ -53,6 +53,12 @@ export async function GET(request: NextRequest) {
     }
 
     const { supabase } = createSupabaseClient(request);
+
+    // --- Authentication ---
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Fetch all residents for the team
     const { data: residents, error: residentsError } = await supabase
