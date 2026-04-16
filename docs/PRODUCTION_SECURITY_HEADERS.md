@@ -6,6 +6,10 @@
 - Baseline security headers are set in `next.config.ts`.
 - The root app shell calls `headers()` in `app/layout.tsx` so Next.js renders with request-time nonces.
 
+## Related Production Controls
+
+- IP-based edge rate limiting is documented in `docs/VERCEL_WAF_IP_RATE_LIMITING.md`.
+
 ## Production CSP Notes
 
 - `script-src` uses a per-request nonce and `strict-dynamic`.

@@ -1,0 +1,167 @@
+[
+  {
+    "priority": 1,
+    "name": "api-pdf-proxy-image-ip",
+    "pathMatch": "/api/pdf/proxy-image",
+    "countingKey": "ip",
+    "windowSeconds": 60,
+    "requestLimit": 30,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Public upstream image proxy; strictest API rule."
+  },
+  {
+    "priority": 2,
+    "name": "api-help-support-ip",
+    "pathMatch": "/api/help-support",
+    "countingKey": "ip",
+    "windowSeconds": 600,
+    "requestLimit": 12,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Outbound email path with very low expected real traffic."
+  },
+  {
+    "priority": 3,
+    "name": "api-storage-object-ip",
+    "pathMatch": "/api/storage/object",
+    "countingKey": "ip",
+    "windowSeconds": 60,
+    "requestLimit": 180,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Signed URL generation; keep more generous than email or PDF."
+  },
+  {
+    "priority": 4,
+    "name": "api-pdf-family-ip",
+    "pathMatch": "/api/pdf/*",
+    "countingKey": "ip",
+    "windowSeconds": 600,
+    "requestLimit": 40,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Covers expensive PDF generation endpoints as a family."
+  },
+  {
+    "priority": 5,
+    "name": "api-appointments-family-ip",
+    "pathMatch": "/api/appointments/*",
+    "countingKey": "ip",
+    "windowSeconds": 60,
+    "requestLimit": 180,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Shared-IP friendly starting point for appointment workflows."
+  },
+  {
+    "priority": 6,
+    "name": "api-appointment-notes-family-ip",
+    "pathMatch": "/api/appointment-notes/*",
+    "countingKey": "ip",
+    "windowSeconds": 60,
+    "requestLimit": 180,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "CRUD profile similar to appointments."
+  },
+  {
+    "priority": 7,
+    "name": "api-progress-notes-family-ip",
+    "pathMatch": "/api/progress-notes/*",
+    "countingKey": "ip",
+    "windowSeconds": 60,
+    "requestLimit": 180,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Includes list, stats, and broad reads."
+  },
+  {
+    "priority": 8,
+    "name": "api-manager-audit-family-ip",
+    "pathMatch": "/api/manager-audit/*",
+    "countingKey": "ip",
+    "windowSeconds": 60,
+    "requestLimit": 120,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Lower-volume audit traffic."
+  },
+  {
+    "priority": 9,
+    "name": "api-qwik-info-family-ip",
+    "pathMatch": "/api/qwik-info/*",
+    "countingKey": "ip",
+    "windowSeconds": 60,
+    "requestLimit": 120,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Read-oriented route family."
+  },
+  {
+    "priority": 10,
+    "name": "api-baseline-ip",
+    "pathMatch": "/api/*",
+    "countingKey": "ip",
+    "windowSeconds": 60,
+    "requestLimit": 240,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Broad baseline flood protection after endpoint-specific rules."
+  },
+  {
+    "priority": 11,
+    "name": "page-login-ip",
+    "pathMatch": "/login",
+    "countingKey": "ip",
+    "windowSeconds": 600,
+    "requestLimit": 60,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Protects the page surface only."
+  },
+  {
+    "priority": 12,
+    "name": "page-signup-ip",
+    "pathMatch": "/signup",
+    "countingKey": "ip",
+    "windowSeconds": 600,
+    "requestLimit": 30,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Low expected real usage."
+  },
+  {
+    "priority": 13,
+    "name": "page-accept-invitation-ip",
+    "pathMatch": "/accept-invitation",
+    "countingKey": "ip",
+    "windowSeconds": 600,
+    "requestLimit": 40,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Invitation opens should be low-frequency."
+  },
+  {
+    "priority": 14,
+    "name": "page-reset-password-ip",
+    "pathMatch": "/reset-password",
+    "countingKey": "ip",
+    "windowSeconds": 600,
+    "requestLimit": 30,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Low expected real usage."
+  },
+  {
+    "priority": 15,
+    "name": "page-new-password-ip",
+    "pathMatch": "/new-password",
+    "countingKey": "ip",
+    "windowSeconds": 600,
+    "requestLimit": 30,
+    "initialAction": "log",
+    "enforcedAction": "429",
+    "notes": "Low expected real usage."
+  }
+]
