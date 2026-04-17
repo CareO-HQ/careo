@@ -848,12 +848,35 @@ function ManagerAuditPage() {
   const handleViewHistory = async (auditId: string) => {
     // For Care File Audit (ID: 0), show resident selector first
     if (auditId === "0") {
-      // Load residents
+      // Load residents in active care home only
       if (activeOrganizationId) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        const userId = user?.id;
+
+        if (!userId) {
+          toast.error("User context not found");
+          return;
+        }
+
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('active_care_home_id')
+          .eq('id', userId)
+          .single();
+
+        const activeCareHomeId = userProfile?.active_care_home_id;
+        if (!activeCareHomeId) {
+          toast.error("Care home context not found");
+          return;
+        }
+
         const { data: resData } = await supabase
           .from('residents')
           .select('*')
-          .eq('organization_id', activeOrganizationId);
+          .eq('organization_id', activeOrganizationId)
+          .eq('care_home_id', activeCareHomeId);
 
         if (resData) {
           const mapped = resData.map((r: any) => ({

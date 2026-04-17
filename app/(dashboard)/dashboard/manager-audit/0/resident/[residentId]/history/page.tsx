@@ -59,6 +59,7 @@ function ResidentCareFileHistoryPage({ params }: ResidentCareFileHistoryPageProp
         .from('residents')
         .select('*')
         .eq('id', residentId)
+        .eq('care_home_id', activeCareHomeId)
         .single();
 
       if (resData) {
@@ -69,6 +70,9 @@ function ResidentCareFileHistoryPage({ params }: ResidentCareFileHistoryPageProp
           roomNumber: resData.room_number || resData.roomNumber,
           imageUrl: resData.image_url || resData.imageUrl
         });
+      } else {
+        setResident(null);
+        toast.error("Resident not found in active care home");
       }
     } catch (error) {
       console.error("Error loading resident:", error);

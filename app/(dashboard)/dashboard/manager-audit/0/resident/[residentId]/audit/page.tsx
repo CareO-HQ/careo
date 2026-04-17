@@ -97,6 +97,7 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
         .from('residents')
         .select('*')
         .eq('id', residentId)
+        .eq('care_home_id', chId)
         .single();
 
       if (resData) {
@@ -136,6 +137,9 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
           if (stateData.answers) setAnswers(stateData.answers as Answer[]);
           if (stateData.fixed_column_data) setFixedColumnData(stateData.fixed_column_data as any);
         }
+      } else {
+        setResident(null);
+        toast.error("Resident not found in active care home");
       }
 
     } catch (err) {
