@@ -167,10 +167,6 @@ export default function CareHomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-muted-foreground">Care home ID</p>
-              <p className="font-mono break-all">{careHome.id}</p>
-            </div>
-            <div>
               <p className="text-muted-foreground">Created</p>
               <p>{careHome.createdAt ? new Date(careHome.createdAt).toLocaleDateString() : "Unknown"}</p>
             </div>

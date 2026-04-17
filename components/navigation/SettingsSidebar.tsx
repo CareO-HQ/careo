@@ -21,10 +21,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useProfile } from "@/hooks/use-profile";
+import { usePathname } from "next/navigation";
 
 export function SettingsSidebar() {
   const { profile } = useProfile();
-  const currentCareHomeName = profile?.care_home_name ?? "No care home selected";
+  const pathname = usePathname();
+  const isOrganizationPage = pathname === "/settings/organization";
+  const contextLabel = isOrganizationPage ? "Organization" : "Care Home";
+  const contextName = isOrganizationPage
+    ? profile?.organization_name ?? "No organization selected"
+    : profile?.care_home_name ?? "No care home selected";
 
   return (
     <Sidebar>
@@ -37,9 +43,7 @@ export function SettingsSidebar() {
             <ArrowLeftIcon className="size-3" />
             <span className="text-xs font-medium">Back to app</span>
           </Link>
-          <p className="mt-2 text-xs text-muted-foreground truncate">
-            Care Home: {currentCareHomeName}
-          </p>
+          <p className="mt-2 text-xs text-muted-foreground truncate">{contextLabel}: {contextName}</p>
         </SidebarHeader>
         <SidebarGroup>
           <SidebarGroupLabel>Settings</SidebarGroupLabel>
