@@ -22,12 +22,14 @@ import { useProfile } from "@/hooks/use-profile";
 interface OrganizationDetailsFormProps {
   metadata: Record<string, string>;
   isPending: boolean;
+  canEdit: boolean;
   onSuccess?: () => void;
 }
 
 export default function OrganizationDetailsForm({
   metadata,
   isPending,
+  canEdit,
   onSuccess
 }: OrganizationDetailsFormProps) {
   const { supabase } = useSupabase();
@@ -47,6 +49,10 @@ export default function OrganizationDetailsForm({
   const onSubmit = (values: z.infer<typeof organizationDetailsSchema>) => {
     startTransition(async () => {
       if (!supabase || !profile?.active_organization_id) return;
+      if (!canEdit) {
+        toast.error("Only owners can update organization details");
+        return;
+      }
 
       const { data, error } = await supabase
         .from('organizations')
@@ -91,7 +97,7 @@ export default function OrganizationDetailsForm({
               <FormLabel>Address</FormLabel>
               <FormControl>
                 <Input
-                  disabled={isLoading}
+                  disabled={!canEdit || isLoading}
                   placeholder={isPending ? "Loading..." : undefined}
                   {...field}
                 />
@@ -108,7 +114,7 @@ export default function OrganizationDetailsForm({
               <FormLabel>Phone</FormLabel>
               <FormControl>
                 <Input
-                  disabled={isLoading}
+                  disabled={!canEdit || isLoading}
                   placeholder={isPending ? "Loading..." : undefined}
                   {...field}
                 />
@@ -125,7 +131,7 @@ export default function OrganizationDetailsForm({
               <FormLabel>Email</FormLabel>
               <FormControl>
                 <Input
-                  disabled={isLoading}
+                  disabled={!canEdit || isLoading}
                   placeholder={isPending ? "Loading..." : undefined}
                   {...field}
                 />
@@ -142,7 +148,7 @@ export default function OrganizationDetailsForm({
               <FormLabel>Website</FormLabel>
               <FormControl>
                 <Input
-                  disabled={isLoading}
+                  disabled={!canEdit || isLoading}
                   placeholder={isPending ? "Loading..." : "https://example.com"}
                   {...field}
                 />
@@ -151,7 +157,7 @@ export default function OrganizationDetailsForm({
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isLoading || isPending}>
+        <Button type="submit" disabled={!canEdit || isLoading || isPending}>
           Save
         </Button>
       </form>

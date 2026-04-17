@@ -22,12 +22,14 @@ import { useProfile } from "@/hooks/use-profile";
 interface OrganizationSocialMediaFormProps {
   metadata: Record<string, string>;
   isPending: boolean;
+  canEdit: boolean;
   onSuccess?: () => void;
 }
 
 export default function OrganizationSocialMediaForm({
   metadata,
   isPending,
+  canEdit,
   onSuccess
 }: OrganizationSocialMediaFormProps) {
   const { supabase } = useSupabase();
@@ -47,6 +49,10 @@ export default function OrganizationSocialMediaForm({
   const onSubmit = (values: z.infer<typeof organizationSocialMediaSchema>) => {
     startTransition(async () => {
       if (!supabase || !profile?.active_organization_id) return;
+      if (!canEdit) {
+        toast.error("Only owners can update organization details");
+        return;
+      }
 
       const { data, error } = await supabase
         .from('organizations')
@@ -91,7 +97,7 @@ export default function OrganizationSocialMediaForm({
               <FormLabel>Facebook</FormLabel>
               <FormControl>
                 <Input
-                  disabled={isLoading}
+                  disabled={!canEdit || isLoading}
                   placeholder={isPending ? "Loading..." : undefined}
                   {...field}
                 />
@@ -108,7 +114,7 @@ export default function OrganizationSocialMediaForm({
               <FormLabel>Instagram</FormLabel>
               <FormControl>
                 <Input
-                  disabled={isLoading}
+                  disabled={!canEdit || isLoading}
                   placeholder={isPending ? "Loading..." : undefined}
                   {...field}
                 />
@@ -125,7 +131,7 @@ export default function OrganizationSocialMediaForm({
               <FormLabel>X (Twitter)</FormLabel>
               <FormControl>
                 <Input
-                  disabled={isLoading}
+                  disabled={!canEdit || isLoading}
                   placeholder={isPending ? "Loading..." : undefined}
                   {...field}
                 />
@@ -142,7 +148,7 @@ export default function OrganizationSocialMediaForm({
               <FormLabel>LinkedIn</FormLabel>
               <FormControl>
                 <Input
-                  disabled={isLoading}
+                  disabled={!canEdit || isLoading}
                   placeholder={isPending ? "Loading..." : undefined}
                   {...field}
                 />
@@ -151,7 +157,7 @@ export default function OrganizationSocialMediaForm({
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isLoading || isPending}>
+        <Button type="submit" disabled={!canEdit || isLoading || isPending}>
           Save
         </Button>
       </form>

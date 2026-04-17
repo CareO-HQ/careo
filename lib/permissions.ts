@@ -109,7 +109,7 @@ export function canViewOverview(role?: string): boolean {
 }
 
 export function canEditOverview(role?: string): boolean {
-  return role === "owner" || role === "manager" || role === "saas_admin";
+  return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin";
 }
 
 // Care File
