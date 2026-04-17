@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { PrnAdministrationModal } from "./PrnAdministrationModal";
+import { resolveStorageObjectUrl } from "@/lib/storage";
 
 interface PrnMarSheetProps {
   residentId: string;
@@ -36,6 +37,7 @@ export function PrnMarSheet({
   resident,
   careHomeName,
 }: PrnMarSheetProps) {
+  const residentImageUrl = resolveStorageObjectUrl("careo-public", resident?.image_url);
   const [selectedCell, setSelectedCell] = useState<{
     medication: any;
     date: number;
@@ -126,9 +128,9 @@ export function PrnMarSheet({
           <div className="grid grid-cols-[auto_1fr_1fr] gap-0">
             {/* Resident Photo */}
             <div className="border-r-2 border-black p-2 flex items-center justify-center">
-              {resident?.image_url ? (
+              {residentImageUrl ? (
                 <img
-                  src={resident.image_url}
+                  src={residentImageUrl}
                   alt={residentName}
                   className="w-24 h-24 object-cover rounded border-2 border-gray-300"
                 />

@@ -13,7 +13,7 @@ import { CreateMultipleTeamsSchema } from "@/schemas/CreateMultipleTeamsSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlusIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useRef, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
@@ -28,6 +28,7 @@ export default function CreateMultipleTeams({
   setStep: (step: number) => void;
 }) {
   const [isLoading, startTransition] = useTransition();
+  const isSubmittingRef = useRef(false);
   const { profile, refresh: refreshProfile } = useProfile();
   const router = useRouter();
 
@@ -44,34 +45,77 @@ export default function CreateMultipleTeams({
 
   function onSubmit(values: z.infer<typeof CreateMultipleTeamsSchema>) {
     startTransition(async () => {
+      if (isSubmittingRef.current) {
+        return;
+      }
+
       if (!profile || !profile.active_organization_id || !profile.active_care_home_id) {
         toast.error("Missing profile context (organization or care home)");
         return;
       }
 
+      isSubmittingRef.current = true;
+
       try {
-        const teamsWithNames = values.teams.filter(
-          (team) => team?.name && team.name.trim() !== ""
+        const normalizedToOriginal = new Map<string, string>();
+        for (const team of values.teams) {
+          const trimmedName = team.name.trim();
+          if (!trimmedName) continue;
+
+          const normalized = trimmedName.toLowerCase();
+          if (!normalizedToOriginal.has(normalized)) {
+            normalizedToOriginal.set(normalized, trimmedName);
+          }
+        }
+
+        const uniqueTeamNames = Array.from(normalizedToOriginal.values());
+
+        if (uniqueTeamNames.length === 0) {
+          toast.error("Add at least one valid team name");
+          return;
+        }
+
+        const { data: existingTeams, error: existingTeamsError } = await supabase
+          .from("teams")
+          .select("name")
+          .eq("organization_id", profile.active_organization_id)
+          .eq("care_home_id", profile.active_care_home_id);
+
+        if (existingTeamsError) {
+          throw existingTeamsError;
+        }
+
+        const existingNameSet = new Set(
+          (existingTeams ?? []).map((team) => team.name.trim().toLowerCase())
         );
+
+        const teamNamesToCreate = uniqueTeamNames.filter(
+          (name) => !existingNameSet.has(name.toLowerCase())
+        );
+
+        const skippedCount = uniqueTeamNames.length - teamNamesToCreate.length;
 
         let createdCount = 0;
         let errorCount = 0;
 
-        for (const team of teamsWithNames) {
-          const { error } = await supabase
-            .from("teams")
-            .insert({
-              organization_id: profile.active_organization_id,
-              care_home_id: profile.active_care_home_id,
-              name: team.name,
-              created_by: profile.id
-            });
+        if (teamNamesToCreate.length > 0) {
+          const insertPayload = teamNamesToCreate.map((name) => ({
+            organization_id: profile.active_organization_id,
+            care_home_id: profile.active_care_home_id,
+            name,
+            created_by: profile.id
+          }));
 
-          if (!error) {
-            createdCount++;
+          const { data: insertedTeams, error: insertError } = await supabase
+            .from("teams")
+            .insert(insertPayload)
+            .select("id");
+
+          if (insertError) {
+            console.error("Error creating teams:", insertError);
+            errorCount = teamNamesToCreate.length;
           } else {
-            errorCount++;
-            console.error("Error creating team:", error);
+            createdCount = insertedTeams?.length ?? teamNamesToCreate.length;
           }
         }
 
@@ -84,6 +128,12 @@ export default function CreateMultipleTeams({
         if (errorCount > 0) {
           toast.error(
             `Failed to create ${errorCount} team${errorCount > 1 ? "s" : ""}`
+          );
+        }
+
+        if (skippedCount > 0) {
+          toast.info(
+            `Skipped ${skippedCount} duplicate team${skippedCount > 1 ? "s" : ""}`
           );
         }
 
@@ -101,9 +151,13 @@ export default function CreateMultipleTeams({
         await refreshProfile();
         toast.success("Onboarding complete!");
         router.push("/dashboard");
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Error completing onboarding:", error);
-        toast.error(error.message || "An unexpected error occurred");
+        const message =
+          error instanceof Error ? error.message : "An unexpected error occurred";
+        toast.error(message);
+      } finally {
+        isSubmittingRef.current = false;
       }
     });
   }

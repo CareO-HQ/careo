@@ -2,6 +2,7 @@
 
 import React from "react";
 import { format } from "date-fns";
+import { resolveStorageObjectUrl } from "@/lib/storage";
 
 interface MedicationMarSheetProps {
   residentId: string;
@@ -32,6 +33,7 @@ export function MedicationMarSheet({
   resident,
   careHomeName,
 }: MedicationMarSheetProps) {
+  const residentImageUrl = resolveStorageObjectUrl("careo-public", resident?.image_url);
 
   // Generate array of days [1, 2, 3, ..., daysInMonth]
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
@@ -205,9 +207,9 @@ export function MedicationMarSheet({
           <div className="grid grid-cols-[auto_1fr_1fr] gap-0">
             {/* Resident Photo */}
             <div className="border-r-2 border-black p-2 flex items-center justify-center">
-              {resident?.image_url ? (
+              {residentImageUrl ? (
                 <img
-                  src={resident.image_url}
+                  src={residentImageUrl}
                   alt={residentName}
                   className="w-24 h-24 object-cover rounded border-2 border-gray-300"
                 />
