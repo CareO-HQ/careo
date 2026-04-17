@@ -64,10 +64,11 @@ const getCroppedPngImage = async (
 
   const scaleX = imageSrc.naturalWidth / imageSrc.width;
   const scaleY = imageSrc.naturalHeight / imageSrc.height;
+  const safeScaleFactor = Math.max(scaleFactor, 0.1);
 
   ctx.imageSmoothingEnabled = false;
-  canvas.width = pixelCrop.width;
-  canvas.height = pixelCrop.height;
+  canvas.width = Math.max(1, Math.floor(pixelCrop.width * safeScaleFactor));
+  canvas.height = Math.max(1, Math.floor(pixelCrop.height * safeScaleFactor));
 
   ctx.drawImage(
     imageSrc,
@@ -81,20 +82,36 @@ const getCroppedPngImage = async (
     canvas.height
   );
 
-  const croppedImageUrl = canvas.toDataURL("image/png");
-  const response = await fetch(croppedImageUrl);
-  const blob = await response.blob();
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/png");
+  });
+
+  if (!blob) {
+    throw new Error("Failed to generate cropped image blob.");
+  }
 
   if (blob.size > maxImageSize) {
     return await getCroppedPngImage(
       imageSrc,
-      scaleFactor * 0.9,
+      safeScaleFactor * 0.9,
       pixelCrop,
       maxImageSize
     );
   }
 
-  return croppedImageUrl;
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        resolve(result);
+        return;
+      }
+      reject(new Error("Failed to read cropped image data URL."));
+    };
+    reader.onerror = () => reject(new Error("Failed to read cropped image blob."));
+    reader.readAsDataURL(blob);
+  });
 };
 
 type ImageCropContextType = {

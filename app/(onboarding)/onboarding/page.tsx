@@ -10,12 +10,13 @@ import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const OWNER_TOTAL_STEPS = 3;
-  const MANAGER_TOTAL_STEPS = 2;
+  const MANAGER_PROFILE_ONLY_STEPS = 1;
+  const MANAGER_WITH_TEAM_SETUP_STEPS = 2;
   const NURSE_TOTAL_STEPS = 1;
   const CARE_ASSISTANT_TOTAL_STEPS = 1;
 
@@ -27,6 +28,8 @@ export default function OnboardingPage() {
   const isSaasAdmin = profile?.is_saas_admin === true || user?.app_metadata?.role === 'saas_admin' || user?.app_metadata?.is_saas_admin === true;
   const userRole = profile?.role || (user?.app_metadata?.role as string);
   const isOnboardingComplete = profile?.is_onboarding_complete === true;
+  const [managerNeedsTeamCreation, setManagerNeedsTeamCreation] = useState(false);
+  const [isCheckingManagerTeams, setIsCheckingManagerTeams] = useState(false);
 
   console.log("[DEBUG onboarding] state:", {
     isProfileLoading,
@@ -53,8 +56,48 @@ export default function OnboardingPage() {
     }
   }, [isSaasAdmin, userRole, isOnboardingComplete, isProfileLoading, router]);
 
+  useEffect(() => {
+    const checkManagerTeams = async () => {
+      if (isProfileLoading || userRole !== "manager") {
+        setManagerNeedsTeamCreation(false);
+        setIsCheckingManagerTeams(false);
+        return;
+      }
+
+      if (!profile?.active_care_home_id) {
+        setManagerNeedsTeamCreation(false);
+        setIsCheckingManagerTeams(false);
+        return;
+      }
+
+      setIsCheckingManagerTeams(true);
+      try {
+        const { data, error } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("care_home_id", profile.active_care_home_id)
+          .limit(1);
+
+        if (error) {
+          console.error("Failed to check existing teams during onboarding:", error);
+          setManagerNeedsTeamCreation(false);
+          return;
+        }
+
+        setManagerNeedsTeamCreation((data?.length ?? 0) === 0);
+      } catch (error) {
+        console.error("Unexpected error while checking manager teams:", error);
+        setManagerNeedsTeamCreation(false);
+      } finally {
+        setIsCheckingManagerTeams(false);
+      }
+    };
+
+    checkManagerTeams();
+  }, [isProfileLoading, userRole, profile?.active_care_home_id]);
+
   // Show loading while checking onboarding status
-  if (isAuthLoading || isProfileLoading) {
+  if (isAuthLoading || isProfileLoading || (userRole === "manager" && isCheckingManagerTeams)) {
     return (
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-center items-center h-full">
@@ -187,19 +230,35 @@ export default function OnboardingPage() {
             <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
           </span>
           {/* Stepper */}
-          <Stepper step={step} totalSteps={MANAGER_TOTAL_STEPS} />
+          <Stepper
+            step={step}
+            totalSteps={
+              managerNeedsTeamCreation
+                ? MANAGER_WITH_TEAM_SETUP_STEPS
+                : MANAGER_PROFILE_ONLY_STEPS
+            }
+          />
           <p className="text-2xl font-bold mt-4">
             {step === 1 && "Set up your profile"}
-            {step === 2 && "Create teams"}
+            {step === 2 && managerNeedsTeamCreation && "Create teams"}
           </p>
           <p className="text-muted-foreground my-2">
             {step === 1 &&
               "Check if the profile information is correct. You'll be able to change this later in the account settings page."}
             {step === 2 &&
+              managerNeedsTeamCreation &&
               "Create your first teams for your care home. You'll be able to create more teams and invite members to them later."}
           </p>
-          {step === 1 && <ProfileForm step={step} setStep={setStep} />}
-          {step === 2 && <CreateMultipleTeams step={step} setStep={setStep} />}
+          {step === 1 && (
+            <ProfileForm
+              step={step}
+              setStep={setStep}
+              isLastStep={!managerNeedsTeamCreation}
+            />
+          )}
+          {step === 2 && managerNeedsTeamCreation && (
+            <CreateMultipleTeams step={step} setStep={setStep} />
+          )}
         </div>
       </ContentWrapper>
     );
