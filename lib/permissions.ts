@@ -160,6 +160,27 @@ export function canLogDailyCare(role?: string): boolean {
   );
 }
 
+// Continence (Bowel & Bladder Care)
+export function canViewContinence(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "saas_admin"
+  );
+}
+
+export function canLogContinence(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "saas_admin"
+  );
+}
+
 // Night Check
 export function canAddNightCheck(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin";
@@ -305,7 +326,7 @@ export function canViewResidentSection(section: string, role?: string): boolean 
     case "wounds":
       return canViewClinical(role);
     case "continence":
-      return canLogDailyCare(role);
+      return canViewContinence(role);
     case "lifestyle-social":
       return canViewLifestyleSocial(role);
     case "hospital-transfer":
