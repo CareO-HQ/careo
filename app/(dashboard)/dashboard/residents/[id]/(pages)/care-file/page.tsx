@@ -102,16 +102,19 @@ export default function CareFilePage() {
         <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${residentId}`)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <Avatar className="w-10 h-10">
+        <Avatar className="w-16 h-16">
           <AvatarImage src={resident.image_url} alt={fullName} className="border" />
-          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+          <AvatarFallback className="text-base bg-primary/10 text-primary">
             {initials}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
-          <h1 className="text-xl sm:text-2xl font-bold">Care File</h1>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-black text-xl">{fullName}</span>
+            <span className="text-muted-foreground">/ Care File</span>
+          </div>
           <p className="text-muted-foreground text-sm">
-            View and manage care files for {resident.first_name} {resident.last_name}.
+            View and manage care files
           </p>
         </div>
       </div>

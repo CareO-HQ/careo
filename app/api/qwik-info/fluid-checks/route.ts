@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch all residents for the team
     // Try to include fluid_target, but gracefully fallback if column doesn't exist
-    let residentsQuery = supabase
+    const residentsQuery = supabase
       .from('residents')
       .select('id, first_name, middle_name, last_name, room_number, fluid_target')
       .eq('team_id', teamId)

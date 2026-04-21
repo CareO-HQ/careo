@@ -63,11 +63,14 @@ import {
   StickyNote,
   RotateCw,
   X,
+
+  Scale,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge as BadgeComponent } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { getUKTodayDate, formatTimestampToUKTime } from "@/lib/date-utils";
+import { WeightChart } from "@/components/residents/carefile/WeightChart";
 
 // Types
 type NightCheckPageProps = {
@@ -849,16 +852,19 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <Avatar className="w-10 h-10">
+          <Avatar className="w-16 h-16">
             <AvatarImage src={resident.image_url} alt={fullName} className="border" />
-            <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            <AvatarFallback className="text-base bg-primary/10 text-primary">
               {initials}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold">Checks</h1>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-black text-xl">{fullName}</span>
+              <span className="text-muted-foreground">/ Checks</span>
+            </div>
             <p className="text-muted-foreground text-sm">
-              View night monitoring and wellness checks for {fullName}.
+              View night monitoring and wellness checks
             </p>
           </div>
           <div className="flex flex-row gap-2">
@@ -1141,6 +1147,21 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                 )
               })}
             </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Weight Monitoring Section */}
+        <Card className="border-0">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-3">
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <Scale className="w-5 h-5 text-gray-600" />
+              </div>
+              <span className="text-gray-900">Weight Monitoring</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <WeightChart residentId={id} residentName={fullName} />
           </CardContent>
         </Card>
 

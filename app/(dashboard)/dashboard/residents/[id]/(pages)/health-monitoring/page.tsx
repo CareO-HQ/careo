@@ -56,9 +56,7 @@ import {
   Thermometer,
   Activity,
   Wind,
-  Droplets,
-  TrendingUp,
-  AlertTriangle
+  Droplets
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -82,11 +80,7 @@ const SingleVitalSchema = z.object({
     "bloodPressure",
     "heartRate",
     "respiratoryRate",
-    "oxygenSaturation",
-    "weight",
-    "height",
-    "glucoseLevel",
-    "painLevel"
+    "oxygenSaturation"
   ]),
   value: z.string().min(1, "Value is required"),
   value2: z.string().optional(), // For blood pressure diastolic
@@ -169,43 +163,6 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
       units: [{ value: "percent", label: "%" }],
       placeholder: "98",
       color: "cyan"
-    },
-    weight: {
-      label: "Weight",
-      icon: TrendingUp,
-      units: [
-        { value: "kg", label: "kg" },
-        { value: "lbs", label: "lbs" }
-      ],
-      placeholder: "70.5",
-      color: "orange"
-    },
-    height: {
-      label: "Height",
-      icon: TrendingUp,
-      units: [
-        { value: "cm", label: "cm" },
-        { value: "inches", label: "inches" }
-      ],
-      placeholder: "170",
-      color: "indigo"
-    },
-    glucoseLevel: {
-      label: "Blood Sugar",
-      icon: Activity,
-      units: [
-        { value: "mg/dl", label: "mg/dl" },
-        { value: "mmol/l", label: "mmol/l" }
-      ],
-      placeholder: "100",
-      color: "pink"
-    },
-    painLevel: {
-      label: "Pain Level (0-10)",
-      icon: AlertTriangle,
-      units: [{ value: "scale", label: "0-10 scale" }],
-      placeholder: "0",
-      color: "yellow"
     }
   };
 
@@ -361,16 +318,19 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
           <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${id}`)}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <Avatar className="w-10 h-10">
+          <Avatar className="w-16 h-16">
             <AvatarImage src={resident.image_url} alt={fullName} className="border" />
-            <AvatarFallback className="text-sm bg-primary/10 text-primary">
+            <AvatarFallback className="text-base bg-primary/10 text-primary">
               {initials}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold">Health & Monitoring</h1>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-black text-xl">{fullName}</span>
+              <span className="text-muted-foreground">/ Health & Monitoring</span>
+            </div>
             <p className="text-muted-foreground text-sm">
-              View vital signs and health tracking for {fullName}.
+              View vital signs and health tracking
             </p>
           </div>
           <div className="flex flex-row gap-2">
@@ -449,7 +409,7 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
                   <Thermometer className="w-5 h-5 text-red-600 mx-auto mb-2" />
                   <div className="text-lg font-bold text-red-600">{formatVitalValue(latestVitals?.temperature)}</div>
@@ -469,16 +429,6 @@ export default function HealthMonitoringPage({ params }: HealthMonitoringPagePro
                   <Wind className="w-5 h-5 text-purple-600 mx-auto mb-2" />
                   <div className="text-lg font-bold text-purple-600">{formatVitalValue(latestVitals?.respiratoryRate)}</div>
                   <p className="text-xs text-purple-700">Respiratory Rate</p>
-                </div>
-                <div className="text-center p-3 bg-pink-50 rounded-lg border border-pink-200">
-                  <Activity className="w-5 h-5 text-pink-600 mx-auto mb-2" />
-                  <div className="text-lg font-bold text-pink-600">{formatVitalValue(latestVitals?.glucoseLevel)}</div>
-                  <p className="text-xs text-pink-700">Blood Sugar</p>
-                </div>
-                <div className="text-center p-3 bg-orange-50 rounded-lg border border-orange-200">
-                  <TrendingUp className="w-5 h-5 text-orange-600 mx-auto mb-2" />
-                  <div className="text-lg font-bold text-orange-600">{formatVitalValue(latestVitals?.weight)}</div>
-                  <p className="text-xs text-orange-700">Weight</p>
                 </div>
               </div>
             )}

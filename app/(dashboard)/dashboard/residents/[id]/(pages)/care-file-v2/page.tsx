@@ -92,16 +92,19 @@ export default function CareFileV2Page() {
                 <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${residentId}`)}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Avatar className="w-10 h-10">
+                <Avatar className="w-16 h-16">
                     <AvatarImage src={resident.image_url} alt={fullName} className="border" />
-                    <AvatarFallback className="text-sm bg-primary/10 text-primary">
+                    <AvatarFallback className="text-base bg-primary/10 text-primary">
                         {initials}
                     </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                    <h1 className="text-xl sm:text-2xl font-bold">Care File</h1>
+                    <div className="flex items-center gap-2">
+                        <span className="font-bold text-black text-xl">{fullName}</span>
+                        <span className="text-muted-foreground">/ Care File</span>
+                    </div>
                     <p className="text-muted-foreground text-sm">
-                        View and manage care files for {resident.first_name} {resident.last_name}.
+                        View and manage care files
                     </p>
                 </div>
             </div>
@@ -133,7 +136,7 @@ export default function CareFileV2Page() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* All Care Plans */}
                 <div
-                    className="w-full aspect-[2/1] flex flex-col justify-center gap-1 border-2 border-[#86D7DD] hover:bg-[#86D7DD]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
+                    className="w-full aspect-[5/2] flex flex-col justify-center gap-1 border-2 border-[#86D7DD] hover:bg-[#86D7DD]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
                     onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-care-plans?v=v2`)}
                 >
                     <p className="text-[#007C89] text-lg font-bold">All Care Plans</p>
@@ -142,7 +145,7 @@ export default function CareFileV2Page() {
 
                 {/* All Assessments */}
                 <div
-                    className="w-full aspect-[2/1] flex flex-col justify-center gap-1 border-2 border-[#A5F3FC] hover:bg-[#A5F3FC]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
+                    className="w-full aspect-[5/2] flex flex-col justify-center gap-1 border-2 border-[#A5F3FC] hover:bg-[#A5F3FC]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
                     onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/all-risk-assessments?v=v2`)}
                 >
                     <p className="text-[#0E7490] text-lg font-bold">All Assessments</p>
@@ -151,7 +154,7 @@ export default function CareFileV2Page() {
 
                 {/* Archived Care Plans */}
                 <div
-                    className="w-full aspect-[2/1] flex flex-col justify-center gap-1 border-2 border-[#FEF08A] hover:bg-[#FEF08A]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
+                    className="w-full aspect-[5/2] flex flex-col justify-center gap-1 border-2 border-[#FEF08A] hover:bg-[#FEF08A]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
                     onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-care-plans?v=v2`)}
                 >
                     <p className="text-[#A16207] text-lg font-bold">Archived Care Plans</p>
@@ -160,7 +163,7 @@ export default function CareFileV2Page() {
 
                 {/* Archived Assessments */}
                 <div
-                    className="w-full aspect-[2/1] flex flex-col justify-center gap-1 border-2 border-[#E5E7EB] hover:bg-[#E5E7EB]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
+                    className="w-full aspect-[5/2] flex flex-col justify-center gap-1 border-2 border-[#E5E7EB] hover:bg-[#E5E7EB]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
                     onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-risk-assessments?v=v2`)}
                 >
                     <p className="text-[#374151] text-lg font-bold">Archived Assessments</p>

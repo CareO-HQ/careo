@@ -284,22 +284,19 @@ export default function PastRecordsPage() {
                 >
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Avatar className="w-10 h-10">
+                <Avatar className="w-16 h-16">
                     <AvatarImage src={resident.image_url} alt={fullName} className="border" />
-                    <AvatarFallback className="text-sm bg-primary/10 text-primary">
+                    <AvatarFallback className="text-base bg-primary/10 text-primary">
                         {initials}
                     </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                     <div className="flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-primary" />
-                        <h1 className="text-xl sm:text-2xl font-bold">
-                            Past Records — {folder.value}
-                        </h1>
+                        <span className="font-bold text-black text-xl">{fullName}</span>
+                        <span className="text-muted-foreground">/ <Clock className="w-4 h-4 inline text-primary" /> Past Records — {folder.value}</span>
                     </div>
                     <p className="text-muted-foreground text-sm">
-                        Previous versions of forms and care plans for {resident.first_name}{" "}
-                        {resident.last_name}
+                        Previous versions of forms and care plans
                     </p>
                 </div>
             </div>

@@ -413,7 +413,7 @@ export default function FluidCheckPage() {
                     className="cursor-pointer hover:bg-gray-50"
                     onClick={() => toggleSort('todayIntake')}
                   >
-                    Today's Intake {sortKey === 'todayIntake' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    Today&apos;s Intake {sortKey === 'todayIntake' && (sortOrder === 'asc' ? '↑' : '↓')}
                   </TableHead>
                   <TableHead
                     className="cursor-pointer hover:bg-gray-50"
