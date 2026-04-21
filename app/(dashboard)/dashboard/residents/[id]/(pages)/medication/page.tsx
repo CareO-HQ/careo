@@ -58,6 +58,27 @@ type GroupedIntake = {
 
 // UK_TIMEZONE is now imported from @/lib/date-utils
 
+const normalizeTimeToHHmm = (value: string | null | undefined): string | null => {
+  if (!value) return null;
+
+  const timeOnlyMatch = value.match(/^(\d{2}):(\d{2})(:\d{2})?$/);
+  if (timeOnlyMatch) {
+    return `${timeOnlyMatch[1]}:${timeOnlyMatch[2]}`;
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: UK_TIMEZONE,
+    });
+  }
+
+  return null;
+};
+
 // Helper function to find the nearest medication time
 const getNearestMedicationTime = (): string | null => {
   const now = new Date();
@@ -97,6 +118,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
   const [resident, setResident] = useState<Resident | null>(null);
   const [selectedDateIntakes, setSelectedDateIntakes] = useState<any[]>([]);
+  const [topicalAdministrations, setTopicalAdministrations] = useState<any[]>([]);
   const [prnOrTopicalMedications, setPrnOrTopicalMedications] = useState<any[]>([]);
   const [topicalMedications, setTopicalMedications] = useState<any[]>([]);
   const [supplementMedications, setSupplementMedications] = useState<any[]>([]);
@@ -279,6 +301,26 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         ));
         setDiscontinuedMedications(meds.filter(m => m.status === 'discontinued'));
         setCompletedCancelledMedications(meds.filter(m => m.status === 'completed' || m.status === 'cancelled'));
+      }
+
+      const { data: topicalSheets } = await supabase
+        .from("emar_sheets")
+        .select("id")
+        .eq("resident_id", id)
+        .eq("type", "topical");
+
+      const topicalSheetIds = (topicalSheets || []).map((sheet) => sheet.id);
+      if (topicalSheetIds.length > 0) {
+        const { data: administrations, error: administrationsError } = await supabase
+          .from("emar_administrations")
+          .select("medication_id, scheduled_time, status, administration_date, administered_at")
+          .in("emar_sheet_id", topicalSheetIds)
+          .eq("administration_date", startOfDayStr);
+
+        if (administrationsError) throw administrationsError;
+        setTopicalAdministrations(administrations || []);
+      } else {
+        setTopicalAdministrations([]);
       }
 
 
@@ -515,26 +557,60 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       ? fromZonedTime(`${getUKTodayDate()}T${time}:00`, UK_TIMEZONE).toISOString()
       : new Date().toISOString();
 
-    // Save to medication_intakes table
-    const { data, error } = await supabase
+    // Save to medication_intakes table.
+    // If an intake already exists for the same medication + scheduled timestamp,
+    // update it instead of inserting to avoid unique-constraint collisions.
+    const intakePayload = {
+      medication_id: medicationId,
+      resident_id: residentId,
+      scheduled_time: administrationTimestamp,
+      status: status,
+      quantity: quantity,
+      comment: notes,
+      administered_by_id: profile?.id,
+      administered_at: administrationTimestamp,
+      witness_id: witnessId || null,
+      witness_at: witnessId ? administrationTimestamp : null,
+      organization_id: profile?.active_organization_id,
+      care_home_id: profile?.active_care_home_id
+    };
+
+    const { data: existingIntake } = await supabase
       .from("medication_intakes")
-      .insert({
-        medication_id: medicationId,
-        resident_id: residentId,
-        scheduled_time: administrationTimestamp,
-        status: status,
-        quantity: quantity,
-        comment: notes,
-        administered_by_id: profile?.id,
-        administered_at: administrationTimestamp,
-        witness_id: witnessId || null,
-        witness_at: witnessId ? administrationTimestamp : null,
-        organization_id: profile?.active_organization_id,
-        care_home_id: profile?.active_care_home_id
-      })
-      .select()
-      .single();
-    if (error) throw error;
+      .select("id")
+      .eq("medication_id", medicationId)
+      .eq("scheduled_time", administrationTimestamp)
+      .maybeSingle();
+
+    let data: any = null;
+
+    if (existingIntake?.id) {
+      const { data: updatedIntake, error: updateError } = await supabase
+        .from("medication_intakes")
+        .update({
+          status: intakePayload.status,
+          quantity: intakePayload.quantity,
+          comment: intakePayload.comment,
+          administered_by_id: intakePayload.administered_by_id,
+          administered_at: intakePayload.administered_at,
+          witness_id: intakePayload.witness_id,
+          witness_at: intakePayload.witness_at
+        })
+        .eq("id", existingIntake.id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+      data = updatedIntake;
+    } else {
+      const { data: insertedIntake, error: insertError } = await supabase
+        .from("medication_intakes")
+        .insert(intakePayload)
+        .select()
+        .single();
+      if (insertError) throw insertError;
+      data = insertedIntake;
+    }
 
     // For topical and PRN medications, also save to emar_administrations table
     if (isTopical || isPRN) {
@@ -829,16 +905,35 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const administeredTimesToday = useMemo(() => {
     const map: Record<string, string[]> = {};
     selectedDateIntakes.forEach(intake => {
-      if (intake.status === 'taken') {
-        const time = formatTimestampToUKTime(intake.scheduled_time);
+      const intakeStatus = intake.status || intake.state;
+      const isAdministeredOutcome = intakeStatus && intakeStatus !== 'scheduled' && intakeStatus !== 'pending';
+      if (isAdministeredOutcome) {
+        const time = normalizeTimeToHHmm(intake.scheduled_time) || formatTimestampToUKTime(intake.scheduled_time);
         if (!map[intake.medication_id]) map[intake.medication_id] = [];
         if (!map[intake.medication_id].includes(time)) {
           map[intake.medication_id].push(time);
         }
       }
     });
+
+    topicalAdministrations.forEach((administration) => {
+      const status = administration.status;
+      const isAdministeredOutcome = status && status !== "scheduled" && status !== "pending";
+      if (!isAdministeredOutcome) return;
+
+      const time = normalizeTimeToHHmm(administration.scheduled_time) || normalizeTimeToHHmm(administration.administered_at);
+      if (!time) return;
+
+      if (!map[administration.medication_id]) {
+        map[administration.medication_id] = [];
+      }
+      if (!map[administration.medication_id].includes(time)) {
+        map[administration.medication_id].push(time);
+      }
+    });
+
     return map;
-  }, [selectedDateIntakes]);
+  }, [selectedDateIntakes, topicalAdministrations]);
 
   const prnTopicalColumns = useMemo(
     () => createMedicationColumns(
@@ -858,9 +953,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       true,
       availableMembers,
       profile ? { name: profile.name || "", userId: profile.id } : undefined,
-      administeredTimesToday
+      administeredTimesToday,
+      selectedTime
     ),
-    [availableMembers, profile, administeredTimesToday]
+    [availableMembers, profile, administeredTimesToday, selectedTime]
   );
 
   const allActiveMedicationColumns = useMemo(
@@ -963,13 +1059,21 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     []
   );
 
+  // Topical medications filtered by selected time
+  const filteredTopicalMedications = useMemo(() => {
+    if (!selectedTime) return [];
+    return topicalMedications.filter((med) =>
+      med.times && med.times.includes(selectedTime)
+    );
+  }, [topicalMedications, selectedTime]);
+
   useEffect(() => {
     if (selectedTime && selectedDateIntakes) {
       const filtered = selectedDateIntakes.filter((intake) => {
         const intakeTime = formatTimestampToUKTime(intake.scheduled_time);
         const match = intakeTime === selectedTime;
 
-        // Exclude topical medications from Today's Medications
+        // Exclude topical medications from Today's Medications (they have their own section)
         if (intake.medication?.schedule_type === 'Topical') {
           return false;
         }
@@ -1270,6 +1374,25 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           )}
 
           <div className="flex flex-col gap-4 mt-4">
+            <div className="flex items-center gap-2">
+              <p className="font-semibold">Topical Medications</p>
+              {selectedTime && (
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  Showing for {selectedTime}
+                </span>
+              )}
+            </div>
+            {filteredTopicalMedications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-8 text-center border rounded-lg">
+                <p className="text-sm font-medium text-muted-foreground">No topical medications for {selectedTime || 'this time'}</p>
+                <p className="text-xs text-muted-foreground">Topical medications scheduled at this time will appear here.</p>
+              </div>
+            ) : (
+              <DataTable columns={topicalMedicationColumns} data={filteredTopicalMedications} />
+            )}
+          </div>
+
+          <div className="flex flex-col gap-4 mt-4">
             <p className="font-semibold">PRN Medications</p>
             {prnOrTopicalMedications.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border rounded-lg">
@@ -1278,18 +1401,6 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               </div>
             ) : (
               <DataTable columns={prnTopicalColumns} data={prnOrTopicalMedications} />
-            )}
-          </div>
-
-          <div className="flex flex-col gap-4 mt-6">
-            <p className="font-semibold">Topical Medications</p>
-            {topicalMedications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border rounded-lg">
-                <p className="text-sm font-medium text-muted-foreground">No topical medications</p>
-                <p className="text-xs text-muted-foreground">Topical medications will appear here.</p>
-              </div>
-            ) : (
-              <DataTable columns={topicalMedicationColumns} data={topicalMedications} />
             )}
           </div>
         </TabsContent>

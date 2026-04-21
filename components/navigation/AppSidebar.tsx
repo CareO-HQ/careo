@@ -53,7 +53,9 @@ import {
   canViewSidebarResidents,
   canViewSidebarStaff,
   canViewSidebarHome,
-  canCreateResident
+  canCreateResident,
+  canViewClinical,
+  canViewMedication
 } from "@/lib/permissions";
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
@@ -411,23 +413,27 @@ export function AppSidebar() {
           <SidebarGroupLabel>Clinical</SidebarGroupLabel>
           <SidebarGroupContent>
             {/* Wounds */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/wounds">
-                  <Heart />
-                  <span>Wounds</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {canViewClinical(effectiveRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/wounds">
+                    <Heart />
+                    <span>Wounds</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
             {/* Medications */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/medications">
-                  <Pill />
-                  <span>Medications</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {canViewMedication(effectiveRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/medications">
+                    <Pill />
+                    <span>Medications</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* QwikInfo Collapsible */}
             <Collapsible

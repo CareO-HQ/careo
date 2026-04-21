@@ -151,8 +151,7 @@ export default function MedicationsPage() {
     const resMeds = medications.filter(m => 
       m.resident_id === resident.id && 
       m.times?.includes(selectedTime) && 
-      m.schedule_type !== 'PRN (As Needed)' && 
-      m.schedule_type !== 'Topical'
+      m.schedule_type !== 'PRN (As Needed)'
     );
 
     // Filter to only the ones that are pending
