@@ -31,6 +31,7 @@ import {
   Users,
   Utensils,
   NotebookPen,
+  Scale,
   X,
   Droplet,
   Bandage
@@ -350,6 +351,30 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                       <h3 className="font-semibold">Medication</h3>
                       <p className="text-sm text-muted-foreground">
                         Prescriptions & schedules
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {/* Weight Monitoring Card (CA ONLY) */}
+          {userRole === "care_assistant" && (
+            <Card
+              className="cursor-pointer shadow-none"
+              onClick={() => handleCardClick("weight-monitoring")}
+            >
+              <CardContent className="p-2">
+                <div className="flex items-center justify-between p-3">
+                  <div className="flex flex-col items-start justify-start gap-2 space-x-3">
+                    <div className="p-2 bg-blue-50 rounded-lg">
+                      <Scale className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Weight monitoring</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Record weight & track trends
                       </p>
                     </div>
                   </div>
