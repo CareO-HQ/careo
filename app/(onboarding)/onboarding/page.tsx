@@ -131,7 +131,11 @@ export default function OnboardingPage() {
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-start items-start mt-4">
           <span className="flex justify-center items-center w-full">
-            <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
+            <img
+              src="/images/CareO_Logo.png"
+              alt="CareO"
+              className="h-8 w-auto max-w-[140px] object-contain object-left"
+            />
           </span>
           {/* Stepper */}
           <Stepper step={step} totalSteps={SAAS_ADMIN_TOTAL_STEPS} />
@@ -182,7 +186,11 @@ export default function OnboardingPage() {
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-start items-start mt-4">
           <span className="flex justify-center items-center w-full">
-            <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
+            <img
+              src="/images/CareO_Logo.png"
+              alt="CareO"
+              className="h-8 w-auto max-w-[140px] object-contain object-left"
+            />
           </span>
           {/* Stepper */}
           <Stepper step={step} totalSteps={OWNER_TOTAL_STEPS} />
@@ -227,7 +235,11 @@ export default function OnboardingPage() {
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-start items-start mt-4">
           <span className="flex justify-center items-center w-full">
-            <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
+            <img
+              src="/images/CareO_Logo.png"
+              alt="CareO"
+              className="h-8 w-auto max-w-[140px] object-contain object-left"
+            />
           </span>
           {/* Stepper */}
           <Stepper
@@ -284,7 +296,11 @@ export default function OnboardingPage() {
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-start items-start mt-4">
           <span className="flex justify-center items-center w-full">
-            <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
+            <img
+              src="/images/CareO_Logo.png"
+              alt="CareO"
+              className="h-8 w-auto max-w-[140px] object-contain object-left"
+            />
           </span>
           {/* Stepper */}
           <Stepper step={step} totalSteps={NURSE_TOTAL_STEPS} />
@@ -327,7 +343,11 @@ export default function OnboardingPage() {
       <ContentWrapper className="max-w-xl w-full">
         <div className="flex flex-col justify-start items-start mt-4">
           <span className="flex justify-center items-center w-full">
-            <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
+            <img
+              src="/images/CareO_Logo.png"
+              alt="CareO"
+              className="h-8 w-auto max-w-[140px] object-contain object-left"
+            />
           </span>
           {/* Stepper */}
           <Stepper step={step} totalSteps={CARE_ASSISTANT_TOTAL_STEPS} />
@@ -359,7 +379,11 @@ export default function OnboardingPage() {
     <ContentWrapper className="max-w-xl w-full">
       <div className="flex flex-col justify-start items-start mt-4">
         <span className="flex justify-center items-center w-full">
-          <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
+          <img
+            src="/images/CareO_Logo.png"
+            alt="CareO"
+            className="h-8 w-auto max-w-[140px] object-contain object-left"
+          />
         </span>
         {/* Stepper */}
         <Stepper step={step} totalSteps={NEW_USER_TOTAL_STEPS} />

@@ -116,8 +116,7 @@ export default function OwnersPage() {
 
     try {
       setIsLoading(true);
-      // Fetch profiles that are likely owners (have an active organization and are not saas admin)
-      // Note: In a real app, you might want a more explicit check for 'owner' role
+      // Organization owners only: explicit role, active org, not platform admin
       const { data: usersData, error: usersError } = await supabase
         .from("users")
         .select(`
@@ -133,7 +132,8 @@ export default function OwnersPage() {
           )
         `)
         .not("active_organization_id", "is", null)
-        .eq("is_saas_admin", false);
+        .eq("is_saas_admin", false)
+        .eq("role", "owner");
 
       if (usersError) throw usersError;
 

@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   title: "CareO",
   description: "Comprehensive healthcare management platform",
   icons: {
-    icon: "/careo_favicon.jpeg",
+    icon: "/images/CareO_Logo.png",
   }
 };
 

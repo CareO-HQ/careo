@@ -11,7 +11,11 @@ export default function NewPasswordCard() {
   return (
     <>
       <div className="flex items-center gap-2">
-        <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
+        <img
+          src="/images/CareO_Logo.png"
+          alt="CareO"
+          className="h-8 w-auto max-w-[140px] object-contain object-left"
+        />
         <p className="font-semibold">Acme Inc.</p>
       </div>
       <Card className="w-full max-w-sm my-4">
