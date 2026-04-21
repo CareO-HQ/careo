@@ -1,6 +1,5 @@
 "use client";
 
-import LeaveWorkspaceModal from "@/components/settings/LeaveWorkspaceModal";
 import PersonalDetailsForm from "@/components/settings/PersonalDetailsForm";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -34,17 +33,6 @@ export default function ProfilePage() {
       <Separator />
       {/* Theme selector - TODO: Move to a separate component */}
       {/* ... (Theme selector content) ... */}
-      <Separator />
-      {/* Workspace access */}
-      <div className="w-full">
-        <p className="font-medium">Workspace access</p>
-        <div className="w-full flex flex-row justify-between items-center">
-          <p className="text-sm text-muted-foreground">
-            Remove yourself from the workspace
-          </p>
-          <LeaveWorkspaceModal orgId={profile?.active_organization_id ?? undefined} />
-        </div>
-      </div>
     </div>
   );
 }

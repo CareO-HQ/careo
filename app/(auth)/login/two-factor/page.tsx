@@ -21,7 +21,11 @@ export default function TwoFactorPage() {
   return (
     <div className="flex flex-col justify-center items-center h-dvh px-4 w-full">
       <div className="flex items-center gap-2 mb-6">
-        <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
+        <img
+          src="/images/CareO_Logo.png"
+          alt="CareO"
+          className="h-8 w-auto max-w-[140px] object-contain object-left"
+        />
         <p className="font-semibold">Acme Inc.</p>
       </div>
 

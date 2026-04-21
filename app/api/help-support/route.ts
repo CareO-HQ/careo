@@ -1,8 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import resend from "@/lib/resend";
+
+function createSupabaseClient(request: NextRequest) {
+  let response = NextResponse.next({ request: { headers: request.headers } });
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) { return request.cookies.get(name)?.value; },
+        set(name: string, value: string, options: any) {
+          response = NextResponse.next({ request: { headers: request.headers } });
+          response.cookies.set({ name, value, ...options });
+        },
+        remove(name: string, options: any) {
+          response = NextResponse.next({ request: { headers: request.headers } });
+          response.cookies.delete(name);
+        },
+      },
+    }
+  );
+  return { supabase, response };
+}
 
 export async function POST(request: NextRequest) {
   try {
+    // --- Authentication ---
+    const { supabase } = createSupabaseClient(request);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { careHomeName, staffName, email, contactNumber, inquiryType, message } = body;
 

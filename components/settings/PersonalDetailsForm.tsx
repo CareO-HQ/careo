@@ -19,6 +19,7 @@ import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
+import { buildStorageObjectUrl } from "@/lib/storage";
 
 interface PersonalDetailsFormProps {
   name: string;
@@ -69,11 +70,7 @@ export default function PersonalDetailsForm({
 
           if (uploadError) throw uploadError;
 
-          const { data: publicUrlData } = supabase.storage
-            .from('careo-public')
-            .getPublicUrl(filePath);
-
-          finalImageUrl = publicUrlData.publicUrl;
+          finalImageUrl = buildStorageObjectUrl("careo-public", filePath);
         }
 
         // 2. Update user in public.users table

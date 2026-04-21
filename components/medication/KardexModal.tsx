@@ -11,6 +11,7 @@ import {
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { FileText, Printer, X } from "lucide-react";
+import { resolveStorageObjectUrl } from "@/lib/storage";
 
 // --- Types ---------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -163,6 +164,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
   const now = toZonedTime(new Date(), UK_TIMEZONE);
   const monthLabel = format(now, "MMMM yyyy");
   const timeSlotEntries = Object.entries(TIME_SLOTS);
+  const residentImageUrl = resolveStorageObjectUrl("careo-public", resident.image_url);
 
   const activeMeds = medications.filter((m) => m.status === "active");
   const prn = activeMeds.filter((m) => m.schedule_type === "PRN (As Needed)");
@@ -189,10 +191,10 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
         </div>
         <div className="grid grid-cols-3 border-t border-black">
           <div className="p-2 border-r border-black flex items-center gap-2">
-            {resident.image_url ? (
+            {residentImageUrl ? (
               <div className="flex-shrink-0 text-center">
                 <img
-                  src={resident.image_url}
+                  src={residentImageUrl}
                   alt={`${resident.first_name} ${resident.last_name}`}
                   className="w-20 h-20 rounded-full object-cover border border-gray-300"
                 />

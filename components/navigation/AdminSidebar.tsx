@@ -33,7 +33,11 @@ export function AdminSidebar() {
       <SidebarContent>
         {/* Logo/Brand */}
         <div className="flex items-center gap-2 px-4 py-4 border-b">
-          <img src="/logo.svg" alt="Logo" className="w-8 h-8" />
+          <img
+            src="/images/CareO_Logo.png"
+            alt="CareO"
+            className="h-8 w-auto max-w-[120px] object-contain object-left"
+          />
           <div>
             <p className="font-semibold">Platform Admin</p>
             <p className="text-xs text-muted-foreground">SaaS Administration</p>

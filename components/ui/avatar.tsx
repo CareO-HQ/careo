@@ -3,6 +3,7 @@
 import * as React from "react"
 import * as AvatarPrimitive from "@radix-ui/react-avatar"
 
+import { resolveStorageObjectUrl } from "@/lib/storage"
 import { cn } from "@/lib/utils"
 
 function Avatar({
@@ -25,11 +26,40 @@ function AvatarImage({
   className,
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Image>) {
+  const normalizedSrc = React.useMemo(() => {
+    if (typeof props.src !== "string") {
+      return props.src
+    }
+
+    const trimmedSrc = props.src.trim()
+    if (!trimmedSrc) {
+      return undefined
+    }
+
+    const isCareoPublicStorageReference =
+      trimmedSrc.startsWith("/api/storage/object?bucket=careo-public") ||
+      trimmedSrc.includes("/storage/v1/object/public/careo-public/") ||
+      trimmedSrc.startsWith("careo-public/") ||
+      trimmedSrc.startsWith("residents/") ||
+      trimmedSrc.startsWith("avatars/") ||
+      trimmedSrc.startsWith("profile-images/") ||
+      trimmedSrc.startsWith("organization-logos/") ||
+      trimmedSrc.startsWith("org-logos/") ||
+      trimmedSrc.startsWith("care-home-logos/")
+
+    if (!isCareoPublicStorageReference) {
+      return trimmedSrc
+    }
+
+    return resolveStorageObjectUrl("careo-public", trimmedSrc) ?? undefined
+  }, [props.src])
+
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
       className={cn("aspect-square size-full", className)}
       {...props}
+      src={normalizedSrc}
     />
   )
 }

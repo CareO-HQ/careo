@@ -10,6 +10,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import z from "zod";
+import { buildStorageObjectUrl } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import {
   Popover,
@@ -99,7 +100,7 @@ export function CreateResidentForm({
             address: ec.address || "",
             isPrimary: ec.is_primary ?? false
           }))
-          : [{ name: "", phoneNumber: "", relationship: "", address: "", isPrimary: true }],
+          : [],
         gpDetails: {
           name: residentData.gp_name || "",
           address: residentData.gp_address || "",
@@ -238,11 +239,7 @@ export function CreateResidentForm({
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('careo-public')
-          .getPublicUrl(filePath);
-
-        imageUrl = publicUrl;
+        imageUrl = buildStorageObjectUrl("careo-public", filePath);
       }
 
       const residentPayload = {
@@ -290,7 +287,7 @@ export function CreateResidentForm({
           .delete()
           .eq("resident_id", residentId);
 
-        if (values.emergencyContacts) {
+        if (values.emergencyContacts && values.emergencyContacts.length > 0) {
           const contactsPayload = values.emergencyContacts.map(contact => ({
             resident_id: residentId,
             name: contact.name,
@@ -320,7 +317,7 @@ export function CreateResidentForm({
         if (createError) throw createError;
         residentId = newResident.id;
 
-        if (residentId && values.emergencyContacts) {
+        if (residentId && values.emergencyContacts && values.emergencyContacts.length > 0) {
           const contactsPayload = values.emergencyContacts.map(contact => ({
             resident_id: residentId,
             name: contact.name,
@@ -935,7 +932,7 @@ export function CreateResidentForm({
                 <div>
                   <h3 className="font-medium">Emergency Contacts</h3>
                   <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
-                    Add one or more emergency contacts
+                    Add emergency contacts if available (optional)
                   </div>
                 </div>
 
@@ -968,7 +965,7 @@ export function CreateResidentForm({
                       <h4 className="font-medium text-sm text-muted-foreground">
                         Contact {index + 1}
                       </h4>
-                      {fields.length > 1 && (
+                      {fields.length > 0 && (
                         <Button
                           type="button"
                           variant="ghost"

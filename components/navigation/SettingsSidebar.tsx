@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/sidebar";
 import {
   ArrowLeftIcon,
-  Building2Icon,
   BuildingIcon,
   KeyRoundIcon,
   TagsIcon,
@@ -21,12 +20,22 @@ import {
   WarehouseIcon
 } from "lucide-react";
 import Link from "next/link";
+import { useProfile } from "@/hooks/use-profile";
+import { usePathname } from "next/navigation";
 
 export function SettingsSidebar() {
+  const { profile } = useProfile();
+  const pathname = usePathname();
+  const isOrganizationPage = pathname === "/settings/organization";
+  const contextLabel = isOrganizationPage ? "Organization" : "Care Home";
+  const contextName = isOrganizationPage
+    ? profile?.organization_name ?? "No organization selected"
+    : profile?.care_home_name ?? "No care home selected";
+
   return (
     <Sidebar>
       <SidebarContent className="p-2">
-        <SidebarHeader className="w-fit">
+        <SidebarHeader className="w-full">
           <Link
             href="/dashboard"
             className="flex items-center justify-start flex-row gap-2 text-muted-foreground hover:text-foreground transition-colors"
@@ -34,6 +43,7 @@ export function SettingsSidebar() {
             <ArrowLeftIcon className="size-3" />
             <span className="text-xs font-medium">Back to app</span>
           </Link>
+          <p className="mt-2 text-xs text-muted-foreground truncate">{contextLabel}: {contextName}</p>
         </SidebarHeader>
         <SidebarGroup>
           <SidebarGroupLabel>Settings</SidebarGroupLabel>
@@ -55,10 +65,10 @@ export function SettingsSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Administration</SidebarGroupLabel>
           <SidebarMenu>
-            <SidebarMenuButton className="group/company" asChild>
-              <Link href="/settings/company">
-                <Building2Icon className="text-muted-foreground group-hover/company:text-foreground transition-colors" />
-                Company
+            <SidebarMenuButton className="group/care-home" asChild>
+              <Link href="/settings/care-home">
+                <BuildingIcon className="text-muted-foreground group-hover/care-home:text-foreground transition-colors" />
+                Care Home
               </Link>
             </SidebarMenuButton>
             <SidebarMenuButton className="group/organization" asChild>

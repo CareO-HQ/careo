@@ -5,6 +5,7 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 import { useProfile } from "@/hooks/use-profile";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { supabase } from "@/lib/supabase";
+import { resolveStorageObjectUrl } from "@/lib/storage";
 import {
   ArrowLeft,
   Download,
@@ -506,43 +507,10 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
         .order("created_at", { ascending: false });
 
       if (!error && data) {
-        // Check if bucket is public or private and handle accordingly
-        const evaluationsWithUrls = await Promise.all(
-          data.map(async (evaluation) => {
-            if (evaluation.photograph_url) {
-              const url = evaluation.photograph_url;
-
-              // Try to extract storage path from URL
-              let path = "";
-
-              // Handle full Supabase storage URL format
-              // Format: https://{project}.supabase.co/storage/v1/object/public/wound-photos/{path}
-              if (url.includes("/storage/v1/object/public/wound-photos/")) {
-                path = url.split("/storage/v1/object/public/wound-photos/")[1] || "";
-              } else if (url.includes("wound-photos/")) {
-                // Fallback: split on bucket name
-                path = url.split("wound-photos/")[1] || "";
-              } else {
-                // Assume it's already just the path
-                path = url;
-              }
-
-              // Try to generate signed URL (for private buckets)
-              const { data: signedData, error: signError } = await supabase.storage
-                .from("wound-photos")
-                .createSignedUrl(path, 3600);
-
-              if (!signError && signedData?.signedUrl) {
-                return { ...evaluation, signedUrl: signedData.signedUrl };
-              } else {
-                // If signed URL fails, bucket might be public, use original URL
-                console.log("Using public URL for photograph:", url);
-                return { ...evaluation, signedUrl: url };
-              }
-            }
-            return evaluation;
-          })
-        );
+        const evaluationsWithUrls = data.map((evaluation) => ({
+          ...evaluation,
+          signedUrl: resolveStorageObjectUrl("wound-photos", evaluation.photograph_url) ?? evaluation.photograph_url,
+        }));
         setPhotographEvaluations(evaluationsWithUrls);
       }
     } catch (err) {

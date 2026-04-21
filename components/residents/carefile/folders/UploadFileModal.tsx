@@ -17,6 +17,7 @@ import { FileIcon, Upload, X } from "lucide-react";
 import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { buildStorageObjectUrl } from "@/lib/storage";
 
 interface UploadFileModalProps {
   folderName: string;
@@ -131,13 +132,6 @@ export default function UploadFileModal({
 
       console.log("File uploaded successfully:", uploadData);
 
-      // Get public URL
-      const { data: publicUrlData } = supabase.storage
-        .from("resident-files")
-        .getPublicUrl(storagePath);
-
-      const publicUrl = publicUrlData?.publicUrl || "";
-
       // Save file metadata to database
       console.log("Saving file metadata to database...");
       const { error: insertError } = await supabase
@@ -149,7 +143,7 @@ export default function UploadFileModal({
             file_type: selectedFile.type || "application/pdf",
             file_size: selectedFile.size,
             storage_path: storagePath,
-            public_url: publicUrl,
+            public_url: buildStorageObjectUrl("resident-files", storagePath),
             resident_id: residentId,
             organization_id: activeOrgId,
             folder_name: folderName,

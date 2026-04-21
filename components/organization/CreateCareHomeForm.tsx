@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import z from "zod";
 import { useProfile } from "@/hooks/use-profile";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { buildStorageObjectUrl } from "@/lib/storage";
 import LogoSelector from "../onboarding/organization/LogoSelector";
 
 const CreateCareHomeSchema = CreateNewOrgSchema.extend({
@@ -95,13 +96,9 @@ export default function CreateCareHomeForm({
             .upload(filePath, selectedFile);
 
           if (!uploadError) {
-            const { data: publicUrlData } = supabase.storage
-              .from('careo-public')
-              .getPublicUrl(filePath);
-
             // Update care home with logo URL (if care_homes table has logo_url column)
             // For now, we can store it in a separate files table or skip
-            console.log("Logo uploaded:", publicUrlData.publicUrl);
+            console.log("Logo uploaded:", buildStorageObjectUrl("careo-public", filePath));
           } else {
             console.error("Logo upload error:", uploadError);
           }

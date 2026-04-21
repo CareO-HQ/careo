@@ -20,6 +20,7 @@ import z from "zod";
 import ImageSelector from "./ImageSelector";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { buildStorageObjectUrl } from "@/lib/storage";
 
 // Type for user data returned from getCurrentUser query
 type User = {
@@ -82,17 +83,13 @@ export default function ProfileForm({
           const fileName = `${profile.id}-${Math.random()}.${fileExt}`;
           const filePath = `avatars/${fileName}`;
 
-          const { error: uploadError, data: uploadData } = await supabase.storage
+          const { error: uploadError } = await supabase.storage
             .from('careo-public')
             .upload(filePath, selectedFile);
 
           if (uploadError) throw uploadError;
 
-          const { data: { publicUrl } } = supabase.storage
-            .from('careo-public')
-            .getPublicUrl(filePath);
-
-          finalImageUrl = publicUrl;
+          finalImageUrl = buildStorageObjectUrl("careo-public", filePath);
         }
 
         const { error: updateError } = await supabase

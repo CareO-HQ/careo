@@ -255,11 +255,6 @@ export default function DocumentsPage({ params }: DocumentsPageProps) {
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: publicUrlData } = supabase.storage
-        .from("resident-files")
-        .getPublicUrl(filePath);
-
       // Create file record in database
       const { error: dbError } = await supabase.from("files").insert([
         {

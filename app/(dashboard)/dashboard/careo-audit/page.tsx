@@ -115,7 +115,16 @@ function CareOAuditPageContent() {
           setLatestCompletions(completions);
 
           // Fetch residents (simple fetch)
-          const { data: resData } = await supabase.from('residents').select('*').eq('team_id', activeTeamId);
+          if (!profile?.active_care_home_id) {
+            setResidents([]);
+            return;
+          }
+
+          const { data: resData } = await supabase
+            .from('residents')
+            .select('*')
+            .eq('team_id', activeTeamId)
+            .eq('care_home_id', profile.active_care_home_id);
           // Manually mapping Supabase response to Resident interface
           if (resData) {
             const mappedResidents = resData.map((r: any) => ({
@@ -160,7 +169,7 @@ function CareOAuditPageContent() {
       console.error("Error fetching audit data:", error);
       toast.error("Failed to load audit data");
     }
-  }, [activeOrganizationId, activeTeamId, activeTab]);
+  }, [activeOrganizationId, activeTeamId, activeTab, profile?.active_care_home_id]);
 
   useEffect(() => {
     fetchData();

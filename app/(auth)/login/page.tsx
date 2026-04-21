@@ -103,11 +103,11 @@ function LoginContent() {
             <div className="flex items-center justify-center">
               <Link href="/">
                 <Image
-                  src="/careo_favicon.jpeg"
-                  alt="CareO Logo"
-                  width={140}
-                  height={47}
-                  className="object-contain cursor-pointer"
+                  src="/images/CareO_Logo.png"
+                  alt="CareO"
+                  width={180}
+                  height={56}
+                  className="object-contain cursor-pointer max-h-14 w-auto"
                 />
               </Link>
             </div>
@@ -140,11 +140,11 @@ function LoginContent() {
           <div className="hidden lg:flex items-center justify-center">
             <Link href="/">
               <Image
-                src="/careo_favicon.jpeg"
-                alt="CareO Logo"
-                width={150}
-                height={50}
-                className="object-contain cursor-pointer"
+                src="/images/CareO_Logo.png"
+                alt="CareO"
+                width={200}
+                height={60}
+                className="object-contain cursor-pointer max-h-16 w-auto"
               />
             </Link>
           </div>

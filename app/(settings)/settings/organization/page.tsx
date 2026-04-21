@@ -7,12 +7,15 @@ import { Separator } from "@/components/ui/separator";
 import { useCallback, useState, useEffect } from "react";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useProfile } from "@/hooks/use-profile";
 
 export default function OrganizationPage() {
   const { activeOrganizationId } = useActiveTeam();
   const { supabase } = useSupabase();
+  const { profile } = useProfile();
   const [activeOrganization, setActiveOrganization] = useState<any>(null);
   const [isPending, setIsPending] = useState(true);
+  const canEditOrganization = profile?.role === "owner";
 
   const refetch = useCallback(async () => {
     if (!activeOrganizationId) return;
@@ -41,12 +44,18 @@ export default function OrganizationPage() {
   return (
     <div className="flex flex-col justify-start items-start gap-8">
       <p className="font-semibold text-xl">Organization</p>
+      {!canEditOrganization && (
+        <p className="text-sm text-muted-foreground">
+          Organization settings are read-only. Only owners can edit these details.
+        </p>
+      )}
       <div className="flex flex-col justify-start items-start gap-4 w-full">
         <p className="font-medium">Logo and name</p>
         <OrganizationNameLogoForm
           isPending={isPending || !activeOrganization}
           name={activeOrganization?.name ?? ""}
           logoUrl={activeOrganization?.logo_url ?? ""}
+          canEdit={canEditOrganization}
           onSuccess={handleFormSuccess}
         />
       </div>
@@ -56,6 +65,7 @@ export default function OrganizationPage() {
         <OrganizationDetailsForm
           isPending={isPending || !activeOrganization}
           metadata={organizationMetadata}
+          canEdit={canEditOrganization}
           onSuccess={handleFormSuccess}
         />
       </div>
@@ -70,6 +80,7 @@ export default function OrganizationPage() {
         <OrganizationSocialMediaForm
           isPending={isPending || !activeOrganization}
           metadata={organizationMetadata}
+          canEdit={canEditOrganization}
           onSuccess={handleFormSuccess}
         />
       </div>

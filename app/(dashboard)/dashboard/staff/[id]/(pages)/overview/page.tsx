@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/popover";
 import { cn, formatRoleName } from "@/lib/utils";
 import { canViewStaffList, UserRole } from "@/lib/permissions";
+import { buildStorageObjectUrl } from "@/lib/storage";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Select,
@@ -142,11 +143,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('careo-public')
-          .getPublicUrl(filePath);
-
-        imageUrl = publicUrl;
+        imageUrl = buildStorageObjectUrl("careo-public", filePath);
       }
 
       // Update staff details

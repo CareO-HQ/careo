@@ -44,18 +44,20 @@ export const generateFoodFluidPDF = async ({ resident, reports, orgLogoUrl }: Fo
     });
   };
 
-  const logoUrl = orgLogoUrl || window.location.origin + '/Logo_CareO.png';
   let logoDataUrl: string | null = null;
-  try {
-    const logoImg = await loadImage(logoUrl);
-    const canvas = document.createElement('canvas');
-    canvas.width = logoImg.naturalWidth;
-    canvas.height = logoImg.naturalHeight;
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(logoImg, 0, 0);
-    logoDataUrl = canvas.toDataURL('image/png');
-  } catch (e) {
-    console.warn("Logo load failed", e);
+  const orgLogo = orgLogoUrl?.trim();
+  if (orgLogo) {
+    try {
+      const logoImg = await loadImage(orgLogo);
+      const canvas = document.createElement("canvas");
+      canvas.width = logoImg.naturalWidth;
+      canvas.height = logoImg.naturalHeight;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(logoImg, 0, 0);
+      logoDataUrl = canvas.toDataURL("image/png");
+    } catch (e) {
+      console.warn("Logo load failed", e);
+    }
   }
 
   for (let i = 0; i < reports.length; i++) {

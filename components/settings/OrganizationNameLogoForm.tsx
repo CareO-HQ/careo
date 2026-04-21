@@ -18,12 +18,14 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
+import { buildStorageObjectUrl } from "@/lib/storage";
 import ImageSelector from "../onboarding/profile/ImageSelector";
 
 interface OrganizationNameLogoFormProps {
   name: string;
   logoUrl: string;
   isPending: boolean;
+  canEdit: boolean;
   onSuccess?: () => void;
 }
 
@@ -31,14 +33,13 @@ export default function OrganizationNameLogoForm({
   name,
   logoUrl,
   isPending,
+  canEdit,
   onSuccess
 }: OrganizationNameLogoFormProps) {
   const { supabase } = useSupabase();
   const { profile } = useProfile();
   const [isLoading, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-  const canManageOrganization = profile?.role === "owner" || profile?.role === "manager" || profile?.role === "saas_admin";
 
   const form = useForm<z.infer<typeof organizationNameSchema>>({
     resolver: zodResolver(organizationNameSchema),
@@ -62,7 +63,7 @@ export default function OrganizationNameLogoForm({
     startTransition(async () => {
       if (!supabase || !profile?.active_organization_id) return;
 
-      if (!canManageOrganization) {
+      if (!canEdit) {
         toast.error("You don't have permission to update organization settings");
         return;
       }
@@ -82,11 +83,7 @@ export default function OrganizationNameLogoForm({
 
           if (uploadError) throw uploadError;
 
-          const { data: publicUrlData } = supabase.storage
-            .from('careo-public')
-            .getPublicUrl(filePath);
-
-          finalLogoUrl = publicUrlData.publicUrl;
+          finalLogoUrl = buildStorageObjectUrl("careo-public", filePath);
         }
 
         const { error } = await supabase
@@ -112,7 +109,7 @@ export default function OrganizationNameLogoForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 w-full">
-        <div className={!canManageOrganization ? "pointer-events-none opacity-60" : ""}>
+        <div className={!canEdit ? "pointer-events-none opacity-60" : ""}>
           <ImageSelector
             currentImageUrl={logoUrl}
             fileId={undefined}
@@ -130,7 +127,7 @@ export default function OrganizationNameLogoForm({
               <FormControl>
                 <Input
                   placeholder={isPending ? "Loading..." : "Organization Name"}
-                  disabled={!canManageOrganization || isLoading || isPending}
+                  disabled={!canEdit || isLoading || isPending}
                   {...field}
                 />
               </FormControl>
@@ -138,7 +135,7 @@ export default function OrganizationNameLogoForm({
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={!canManageOrganization || isLoading || isPending}>
+        <Button type="submit" disabled={!canEdit || isLoading || isPending}>
           {isLoading ? "Saving..." : "Save"}
         </Button>
       </form>

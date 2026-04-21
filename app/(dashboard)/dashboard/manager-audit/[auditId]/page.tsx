@@ -243,9 +243,13 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       // 1. Context already available via hook!
       setCareHomeId(activeCareHomeId);
 
-      // 2. Load ALL residents from the entire organization
+      // 2. Load residents scoped to the active care home
       let allResidentsData: any[] = [];
-      const { data: resData } = await supabase.from('residents').select('*').eq('organization_id', activeOrganizationId);
+      const { data: resData } = await supabase
+        .from('residents')
+        .select('*')
+        .eq('organization_id', activeOrganizationId)
+        .eq('care_home_id', activeCareHomeId);
       if (resData) {
         const mapped = resData.map((r: any) => ({
           _id: r.id,

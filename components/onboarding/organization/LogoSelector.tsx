@@ -20,6 +20,24 @@ import Image from "next/image";
 import { useState } from "react";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 
+function dataUrlToFile(dataUrl: string, fileName: string): File {
+  const [metadata, base64Payload] = dataUrl.split(",");
+  if (!metadata || !base64Payload) {
+    throw new Error("Invalid data URL format");
+  }
+
+  const mimeMatch = metadata.match(/data:(.*?);base64/);
+  const mimeType = mimeMatch?.[1] ?? "image/png";
+  const binary = atob(base64Payload);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new File([bytes], fileName, { type: mimeType });
+}
+
 export default function LogoSelector({
   selectedFile,
   setSelectedFile,
@@ -60,17 +78,9 @@ export default function LogoSelector({
     setCroppedImage(croppedImageData);
     setIsModalOpen(false);
 
-    // Convert cropped image data to File object
+    // Convert data URL to File without network fetch (CSP-safe).
     try {
-      const response = await fetch(croppedImageData);
-      const blob = await response.blob();
-      const croppedFile = new File(
-        [blob],
-        selectedFile?.name || "cropped-logo.png",
-        {
-          type: blob.type || "image/png"
-        }
-      );
+      const croppedFile = dataUrlToFile(croppedImageData, selectedFile?.name || "cropped-logo.png");
       setSelectedFile(croppedFile);
     } catch {
       console.error("Failed to process cropped image");
