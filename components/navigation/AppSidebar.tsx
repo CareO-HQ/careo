@@ -29,7 +29,9 @@ import {
   Pill,
   Zap,
   ChevronDown,
-  Scale
+  Scale,
+  Droplet,
+  Droplets
 } from "lucide-react";
 import {
   Collapsible,
@@ -51,7 +53,9 @@ import {
   canViewSidebarResidents,
   canViewSidebarStaff,
   canViewSidebarHome,
-  canCreateResident
+  canCreateResident,
+  canViewClinical,
+  canViewMedication
 } from "@/lib/permissions";
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
@@ -409,23 +413,27 @@ export function AppSidebar() {
           <SidebarGroupLabel>Clinical</SidebarGroupLabel>
           <SidebarGroupContent>
             {/* Wounds */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/wounds">
-                  <Heart />
-                  <span>Wounds</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {canViewClinical(effectiveRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/wounds">
+                    <Heart />
+                    <span>Wounds</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
             {/* Medications */}
-            <SidebarMenuItem className="list-none">
-              <SidebarMenuButton asChild>
-                <Link href="/dashboard/medications">
-                  <Pill />
-                  <span>Medications</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {canViewMedication(effectiveRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href="/dashboard/medications">
+                    <Pill />
+                    <span>Medications</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* QwikInfo Collapsible */}
             <Collapsible
@@ -442,12 +450,29 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <div className="pl-6 mt-1">
+                  <div className="pl-6 mt-1 space-y-1">
                     <SidebarMenuItem className="list-none">
                       <SidebarMenuButton asChild>
                         <Link href="/dashboard/qwik-info/weight-check" className="text-sm">
                           <Scale className="w-4 h-4" />
                           <span>Weight Check</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem className="list-none">
+                      <SidebarMenuButton asChild>
+                        <Link href="/dashboard/qwik-info/bowel-check" className="text-sm">
+                          <Droplet className="w-4 h-4" />
+                          <span>Bowel Monitor</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem className="list-none">
+                      <SidebarMenuButton asChild>
+                        <Link href="/dashboard/qwik-info/fluid-check" className="text-sm">
+                          <Droplets className="w-4 h-4" />
+                          <span>Fluid Monitor</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

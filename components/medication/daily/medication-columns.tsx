@@ -62,7 +62,8 @@ export const createMedicationColumns = (
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },
   useSimplifiedTopicalDialog: boolean = true,
-  administeredTimesToday: Record<string, string[]> = {}
+  administeredTimesToday: Record<string, string[]> = {},
+  preSelectedTime?: string | null
 ): ColumnDef<Medication>[] => [
     {
       id: "medication",
@@ -264,12 +265,23 @@ export const createMedicationColumns = (
             const medication = row.original;
 
             const AdministrateDialog = () => {
+              const isTopical = medication.schedule_type === "Topical";
+              // For topical meds with a pre-selected time, initialize to that time
+              const getInitialTime = () => {
+                if (isTopical && preSelectedTime) {
+                  const [h, m] = preSelectedTime.split(":").map(Number);
+                  const d = new Date();
+                  d.setHours(h || 0, m || 0, 0, 0);
+                  return d;
+                }
+                return new Date();
+              };
               const [isOpen, setIsOpen] = useState(false);
               const [notes, setNotes] = useState("");
               const [prnReason, setPrnReason] = useState("");
               const [prnOutcome, setPrnOutcome] = useState("");
               const [witnessedBy, setWitnessedBy] = useState("");
-              const [time, setTime] = useState<Date>(new Date());
+              const [time, setTime] = useState<Date>(getInitialTime);
               const [units, setUnits] = useState<number | "">(1);
               const [applicationStatus, setApplicationStatus] = useState<
     "taken" | "refused" | "not_required" | "hospitalised" | "social_leave" | "refused_destroyed" | "made_available"
@@ -277,10 +289,14 @@ export const createMedicationColumns = (
 
               const administeredForMedication = administeredTimesToday[medication.id] || [];
 
-              const isTopical = medication.schedule_type === "Topical";
               const isPRN = medication.schedule_type === "PRN (As Needed)";
               const useSimplifiedTopical = isTopical && useSimplifiedTopicalDialog;
               const useSimplifiedDialog = isTopical || isPRN; // Use simplified form for both topical and PRN
+              // When preSelectedTime is provided for topicals, hide time picker
+              const topicalTimeFixed = isTopical && !!preSelectedTime;
+              const selectedAdministrationTime = preSelectedTime || format(time, "HH:mm");
+              const isAlreadyAdministeredAtTime =
+                administeredForMedication.includes(selectedAdministrationTime);
 
               // Determine unit label and type based on frequency field (for PRN/Supplements) or dosage form
               const getUnitInfo = () => {
@@ -403,8 +419,13 @@ export const createMedicationColumns = (
               return (
                 <Dialog open={isOpen} onOpenChange={setIsOpen}>
                   <DialogTrigger asChild>
-                    <Button variant="default" size="sm">
-                      Administrate
+                    <Button
+                      variant="default"
+                      size="sm"
+                      disabled={isAlreadyAdministeredAtTime}
+                      title={isAlreadyAdministeredAtTime ? `Already administered at ${selectedAdministrationTime}` : undefined}
+                    >
+                      {isAlreadyAdministeredAtTime ? "Administered" : "Administrate"}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className={useSimplifiedDialog ? "max-w-md max-h-[90vh] overflow-y-auto" : ""}>
@@ -546,7 +567,7 @@ export const createMedicationColumns = (
 
                       {useSimplifiedTopical ? (
                         <>
-                          {/* Topical Medication: Only show Staff, Time, and Status */}
+                          {/* Topical Medication: Show Staff, Time (read-only from time bar), and Status */}
                           <div className="space-y-2">
                             <Label htmlFor="staffName">Staff Name</Label>
                             <div className="rounded-md border p-3">
@@ -554,60 +575,17 @@ export const createMedicationColumns = (
                             </div>
                           </div>
 
+                          {/* Time: always read-only, taken from the selected time bar */}
                           <div className="space-y-2">
-                            <Label htmlFor="time">
-                              Time <span className="text-red-500">*</span>
-                            </Label>
-                            {medication.times && medication.times.length > 0 ? (
-                              <Select
-                                value={format(time, "HH:mm")}
-                                onValueChange={(value) => {
-                                  const [hours, minutes] = value.split(":").map(Number);
-                                  const newTime = new Date();
-                                  newTime.setHours(hours || 0);
-                                  newTime.setMinutes(minutes || 0);
-                                  newTime.setSeconds(0);
-                                  newTime.setMilliseconds(0);
-                                  setTime(newTime);
-                                }}
-                              >
-                                <SelectTrigger id="time">
-                                  <SelectValue placeholder="Select prescribed time" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {medication.times.map((prescribedTime: string) => {
-                                    const isAlreadyAdministered = administeredForMedication.includes(prescribedTime);
-                                    return (
-                                      <SelectItem
-                                        key={prescribedTime}
-                                        value={prescribedTime}
-                                        disabled={isAlreadyAdministered}
-                                      >
-                                        {prescribedTime} {isAlreadyAdministered && "(Administered)"}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Input
-                                type="time"
-                                id="time"
-                                value={format(time, "HH:mm")}
-                                onChange={(e) => {
-                                  const [hours, minutes] = e.target.value
-                                    .split(":")
-                                    .map(Number);
-                                  const newTime = new Date();
-                                  newTime.setHours(hours || 0);
-                                  newTime.setMinutes(minutes || 0);
-                                  newTime.setSeconds(0);
-                                  newTime.setMilliseconds(0);
-                                  setTime(newTime);
-                                }}
-                                className="bg-background"
-                              />
-                            )}
+                            <Label>Time</Label>
+                            <div className="rounded-md border p-3 bg-muted/40">
+                              <p className="text-sm font-medium">
+                                {preSelectedTime || format(time, "HH:mm")}
+                              </p>
+                              {preSelectedTime && (
+                                <p className="text-xs text-muted-foreground">Selected from time bar</p>
+                              )}
+                            </div>
                           </div>
 
                           <div className="space-y-2">
@@ -638,59 +616,12 @@ export const createMedicationColumns = (
                           {/* Topical Medication: Two-column layout */}
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
-                              <Label htmlFor="time" className="text-xs text-muted-foreground">
-                                Time <span className="text-red-500">*</span>
+                              <Label className="text-xs text-muted-foreground">
+                                Time
                               </Label>
-                              {medication.times && medication.times.length > 0 ? (
-                                <Select
-                                  value={format(time, "HH:mm")}
-                                  onValueChange={(value) => {
-                                    const [hours, minutes] = value.split(":").map(Number);
-                                    const newTime = new Date();
-                                    newTime.setHours(hours || 0);
-                                    newTime.setMinutes(minutes || 0);
-                                    newTime.setSeconds(0);
-                                    newTime.setMilliseconds(0);
-                                    setTime(newTime);
-                                  }}
-                                >
-                                  <SelectTrigger id="time" className="h-8">
-                                    <SelectValue placeholder="Select time" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {medication.times.map((prescribedTime: string) => {
-                                      const isAlreadyAdministered = administeredForMedication.includes(prescribedTime);
-                                      return (
-                                        <SelectItem
-                                          key={prescribedTime}
-                                          value={prescribedTime}
-                                          disabled={isAlreadyAdministered}
-                                        >
-                                          {prescribedTime} {isAlreadyAdministered && "(Administered)"}
-                                        </SelectItem>
-                                      );
-                                    })}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <Input
-                                  type="time"
-                                  id="time"
-                                  value={format(time, "HH:mm")}
-                                  onChange={(e) => {
-                                    const [hours, minutes] = e.target.value
-                                      .split(":")
-                                      .map(Number);
-                                    const newTime = new Date();
-                                    newTime.setHours(hours || 0);
-                                    newTime.setMinutes(minutes || 0);
-                                    newTime.setSeconds(0);
-                                    newTime.setMilliseconds(0);
-                                    setTime(newTime);
-                                  }}
-                                  className="bg-background h-8"
-                                />
-                              )}
+                              <div className="text-sm font-medium h-8 flex items-center px-3 border rounded-md bg-muted/40">
+                                {preSelectedTime || format(time, "HH:mm")}
+                              </div>
                             </div>
 
                             <div className="space-y-1">
@@ -895,16 +826,18 @@ export const createTopicalMedicationColumns = (
   showAdministrateButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },
-  administeredTimesToday: Record<string, string[]> = {}
+  administeredTimesToday: Record<string, string[]> = {},
+  preSelectedTime?: string | null
 ): ColumnDef<Medication>[] => {
-  // Get base columns
+  // Get base columns — pass preSelectedTime so topical admin dialog uses it
   const baseColumns = createMedicationColumns(
     createAndAdministerMedicationIntake,
     showAdministrateButton,
     teamMembers,
     currentUser,
     false,
-    administeredTimesToday
+    administeredTimesToday,
+    preSelectedTime
   );
 
   // Remove prescriber column and extract action columns

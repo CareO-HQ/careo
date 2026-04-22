@@ -89,10 +89,10 @@ export function WeightChart({ residentId, residentName, hideHeader = false }: We
   const updateCheckFrequency = async (frequency: "weekly" | "monthly" | "as-needed") => {
     setIsUpdatingFrequency(true);
     try {
-      const { error } = await supabase
-        .from("residents")
-        .update({ weight_check_frequency: frequency })
-        .eq("id", residentId);
+      const { error } = await supabase.rpc("set_resident_weight_check_frequency", {
+        p_resident_id: residentId,
+        p_frequency: frequency
+      });
 
       if (error) throw error;
 

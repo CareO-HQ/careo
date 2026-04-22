@@ -71,4 +71,5 @@ export type Resident = {
   organization_id?: string;
   organizationId?: string; // Alias
   status?: string;
+  fluid_target?: number;
 };

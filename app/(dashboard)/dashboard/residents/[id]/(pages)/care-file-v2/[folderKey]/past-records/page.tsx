@@ -167,15 +167,24 @@ export default function PastRecordsPage() {
                         .from("care_plan_assessments")
                         .select("*")
                         .eq("resident_id", residentId)
-                        .eq("folder_key", folderKey)
                         .eq("status", "archived")
                         .order("created_at", { ascending: false });
 
-                    const mapped = (cpData || []).map(cp => ({
-                        ...cp,
-                        _id: cp.id,
-                        _creationTime: new Date(cp.created_at).getTime(),
-                    }));
+                    const mapped = (cpData || [])
+                        .filter((cp: any) => {
+                            const savedFolderKey = cp?.goals?.folderKey || cp?.folder_key;
+                            return savedFolderKey === folderKey;
+                        })
+                        .map(cp => ({
+                            ...cp,
+                            _id: cp.id,
+                            _creationTime: new Date(cp.created_at).getTime(),
+                        }))
+                        .sort((a, b) => {
+                            const aTime = new Date(a.archived_at || a.created_at).getTime();
+                            const bTime = new Date(b.archived_at || b.created_at).getTime();
+                            return bTime - aTime;
+                        });
                     setArchivedCarePlans(mapped);
                 }
             } catch (err) {
@@ -284,22 +293,19 @@ export default function PastRecordsPage() {
                 >
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Avatar className="w-10 h-10">
+                <Avatar className="w-16 h-16">
                     <AvatarImage src={resident.image_url} alt={fullName} className="border" />
-                    <AvatarFallback className="text-sm bg-primary/10 text-primary">
+                    <AvatarFallback className="text-base bg-primary/10 text-primary">
                         {initials}
                     </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                     <div className="flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-primary" />
-                        <h1 className="text-xl sm:text-2xl font-bold">
-                            Past Records — {folder.value}
-                        </h1>
+                        <span className="font-bold text-black text-xl">{fullName}</span>
+                        <span className="text-muted-foreground">/ <Clock className="w-4 h-4 inline text-primary" /> Past Records — {folder.value}</span>
                     </div>
                     <p className="text-muted-foreground text-sm">
-                        Previous versions of forms and care plans for {resident.first_name}{" "}
-                        {resident.last_name}
+                        Previous versions of forms and care plans
                     </p>
                 </div>
             </div>

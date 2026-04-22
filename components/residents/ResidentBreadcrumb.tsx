@@ -107,7 +107,7 @@ export default function ResidentBreadcrumb({
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbLink href={`/dashboard/residents/${residentId}`}>
+          <BreadcrumbLink href={`/dashboard/residents/${residentId}`} className="font-bold">
             {resident ? `${resident.firstName} ${resident.lastName}` : "Loading..."}
           </BreadcrumbLink>
         </BreadcrumbItem>

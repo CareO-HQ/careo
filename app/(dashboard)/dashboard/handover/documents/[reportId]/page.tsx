@@ -337,6 +337,7 @@ export default function HandoverReportDetailPage() {
         </div>
       </div>
 
+
       {/* Print Styles */}
       <style jsx global>{`
         @media print {

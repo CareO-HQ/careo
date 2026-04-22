@@ -60,6 +60,7 @@ import {
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type IncidentsPageProps = {
   params: Promise<{ id: string }>;
@@ -159,6 +160,10 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
     return `${resident.first_name} ${resident.last_name}`;
   }, [resident]);
 
+  const initials = useMemo(() => {
+    if (!resident?.first_name || !resident?.last_name) return "??";
+    return `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
+  }, [resident]);
 
   // Get unique years from incidents for filter
   const availableYears = useMemo(() => {
@@ -419,16 +424,20 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-red-100 rounded-lg">
-            <AlertTriangle className="w-6 h-6 text-red-600" />
+        <Avatar className="w-16 h-16">
+          <AvatarImage src={resident?.image_url} alt={fullName} className="border" />
+          <AvatarFallback className="text-base bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-black text-xl">{fullName}</span>
+            <span className="text-muted-foreground">/ Incidents & Falls</span>
           </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Incidents & Falls</h1>
-            <p className="text-muted-foreground text-sm">
-              Complete history of incidents and safety reports for {fullName}
-            </p>
-          </div>
+          <p className="text-muted-foreground text-sm">
+            Complete history of incidents and safety reports
+          </p>
         </div>
       </div>
 

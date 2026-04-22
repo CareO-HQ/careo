@@ -144,7 +144,10 @@ export default function InfectionPreventionDialog({
 
         completedBy: initialData.completed_by || userName,
         jobRole: initialData.symptoms?.details?.jobRole || initialData.jobRole || "",
-        signature: initialData.signature || userName,
+        signature:
+          initialData.symptoms?.details?.signature ||
+          initialData.signature ||
+          userName,
         assessmentDate: (initialData.assessment_date || initialData.completion_date) ? new Date(initialData.assessment_date || initialData.completion_date).getTime() : Date.now()
       }
       : {
@@ -226,6 +229,7 @@ export default function InfectionPreventionDialog({
             informationProvidedBy: values.informationProvidedBy,
             consultantGP: values.consultantGP,
             jobRole: values.jobRole,
+            signature: values.signature,
           },
           respiratory: {
             newContinuousCough: values.newContinuousCough,
@@ -298,7 +302,6 @@ export default function InfectionPreventionDialog({
           exposure_history: exposurePayload,
           isolation_required: values.isolationRequired,
           completed_by: values.completedBy,
-          signature: values.signature,
           assessment_date: new Date(values.assessmentDate || Date.now()).toISOString(),
           created_by: userId,
         };

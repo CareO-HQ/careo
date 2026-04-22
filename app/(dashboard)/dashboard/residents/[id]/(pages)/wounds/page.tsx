@@ -66,6 +66,7 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 import { authClient } from "@/lib/auth-client";
 import { InteractiveBodyMap } from "@/components/body-map/InteractiveBodyMap";
 import { BodyRegion } from "@/types/body-map";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type WoundsPageProps = {
   params: Promise<{ id: string }>;
@@ -196,6 +197,11 @@ export default function WoundsPage({ params }: WoundsPageProps) {
   const fullName = useMemo(() => {
     if (!resident?.first_name || !resident?.last_name) return "Unknown Resident";
     return `${resident.first_name} ${resident.last_name}`;
+  }, [resident]);
+
+  const initials = useMemo(() => {
+    if (!resident?.first_name || !resident?.last_name) return "??";
+    return `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
   }, [resident]);
 
   // Get unique wound types for filter
@@ -506,16 +512,20 @@ export default function WoundsPage({ params }: WoundsPageProps) {
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-red-100 rounded-lg">
-            <Bandage className="w-6 h-6 text-red-600" />
+        <Avatar className="w-16 h-16">
+          <AvatarImage src={resident?.image_url} alt={fullName} className="border" />
+          <AvatarFallback className="text-base bg-primary/10 text-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-black text-xl">{fullName}</span>
+            <span className="text-muted-foreground">/ Wounds</span>
           </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Wounds</h1>
-            <p className="text-muted-foreground text-sm">
-              Complete history of wounds and assessments for {fullName}
-            </p>
-          </div>
+          <p className="text-muted-foreground text-sm">
+            Complete history of wounds and assessments
+          </p>
         </div>
       </div>
 

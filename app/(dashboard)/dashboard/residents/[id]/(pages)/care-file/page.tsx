@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { config } from "@/config";
 import { useProfile } from "@/hooks/use-profile";
 import { canFillCareFileForms } from "@/lib/permissions";
-import { ArrowLeft, FolderIcon, Archive } from "lucide-react";
+import { ArrowLeft, FolderIcon } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -102,16 +102,19 @@ export default function CareFilePage() {
         <Button variant="outline" size="icon" onClick={() => router.push(`/dashboard/residents/${residentId}`)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <Avatar className="w-10 h-10">
+        <Avatar className="w-16 h-16">
           <AvatarImage src={resident.image_url} alt={fullName} className="border" />
-          <AvatarFallback className="text-sm bg-primary/10 text-primary">
+          <AvatarFallback className="text-base bg-primary/10 text-primary">
             {initials}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
-          <h1 className="text-xl sm:text-2xl font-bold">Care File</h1>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-black text-xl">{fullName}</span>
+            <span className="text-muted-foreground">/ Care File</span>
+          </div>
           <p className="text-muted-foreground text-sm">
-            View and manage care files for {resident.first_name} {resident.last_name}.
+            View and manage care files
           </p>
         </div>
       </div>
@@ -155,24 +158,6 @@ export default function CareFilePage() {
         >
           <FolderIcon className="size-12 text-muted-foreground/70 group-hover:text-primary" />
           <p className="text-primary text-2xl font-semibold">All Assessments</p>
-        </div>
-
-        {/* Archived Care Plans */}
-        <div
-          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
-          onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-care-plans`)}
-        >
-          <Archive className="size-12 text-muted-foreground/70 group-hover:text-primary" />
-          <p className="text-primary text-2xl font-semibold">Archived Care Plans</p>
-        </div>
-
-        {/* Archived Assessments */}
-        <div
-          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
-          onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-risk-assessments`)}
-        >
-          <Archive className="size-12 text-muted-foreground/70 group-hover:text-primary" />
-          <p className="text-primary text-2xl font-semibold">Archived Assessments</p>
         </div>
       </div>
     </div>

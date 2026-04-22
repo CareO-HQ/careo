@@ -200,31 +200,48 @@ export default function CarePlanDialog({
         };
 
         if (isEditMode && initialData?.id) {
-          // Update the existing care plan in-place so evaluations stay linked
-          const { error: updateError } = await supabase
+          const archivedAt = new Date().toISOString();
+          const oldVersion = Number(initialData.version_number) || 1;
+          const newVersion = oldVersion + 1;
+
+          // Archive the previous version first so it appears in past records.
+          const { error: archiveError } = await supabase
             .from('care_plan_assessments')
             .update({
-              care_plan_type: values.nameOfCarePlan,
-              need_identified: values.identifiedNeeds,
-              interventions: values.plannedCareDate as any,
-              goals: {
-                aims: values.aims,
-                discussedWith: values.discussedWith || "",
-                signature: values.signature || "",
-                staffSignature: values.staffSignature || "",
-                residentName: values.residentName,
-                dob: values.dob,
-                bedroomNumber: values.bedroomNumber,
-                writtenBy: values.writtenBy,
-                dateWritten: values.dateWritten,
-                carePlanNumber: values.carePlanNumber,
-                folderKey: folderKey
-              },
-              updated_at: new Date().toISOString()
+              status: 'archived',
+              archived_at: archivedAt,
+              updated_at: archivedAt
             })
             .eq('id', initialData.id);
 
-          if (updateError) throw updateError;
+          if (archiveError) throw archiveError;
+
+          const newPayload = {
+            ...payload,
+            version_number: newVersion,
+            previous_version_id: initialData.id,
+            previous_care_plan_id: initialData.id,
+            created_at: archivedAt,
+            updated_at: archivedAt
+          };
+
+          const { error: insertError } = await supabase
+            .from('care_plan_assessments')
+            .insert(newPayload);
+
+          if (insertError) {
+            // Best-effort rollback to avoid losing the active row if insert fails.
+            await supabase
+              .from('care_plan_assessments')
+              .update({
+                status: 'active',
+                archived_at: null,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', initialData.id);
+
+            throw insertError;
+          }
 
           toast.success("Care plan assessment updated successfully.");
         } else {

@@ -214,7 +214,14 @@ export default function CareFileV2FolderPage() {
     // SidebarTrigger handles the left sidebar, hook used for state if needed.
     const { toggleSidebar, state: leftSidebarState } = useSidebar();
 
-    const folderFormKeys = (folder?.forms || []).map(f => f.key as CareFileFormKey);
+    const filteredForms = (folder?.forms || []).filter(form => {
+        if (profile?.role === 'care_assistant' && form.key === 'v2-weight-chart') {
+            return false;
+        }
+        return true;
+    });
+
+    const folderFormKeys = filteredForms.map(f => f.key as CareFileFormKey);
 
     const {
         activeCarePlanForms = [],
@@ -295,7 +302,9 @@ export default function CareFileV2FolderPage() {
             return;
         }
 
-        const v2Form = folder?.forms.find(f => f.key === key);
+        const v2Form = filteredForms.find(f => f.key === key);
+        if (!v2Form) return;
+
         if ((v2Form as any)?.isComingSoon) {
             toast.info("Coming Soon", { description: "This form is currently being developed." });
             return;
@@ -424,7 +433,7 @@ export default function CareFileV2FolderPage() {
                 ? (formDataForEdit.care_plan_type || "Care Plan")
                 : activeFormKey === "v2-general-risk"
                     ? "General Risk Assessment"
-                    : (folder?.forms.find(f => f.key === activeFormKey)?.value || "Form");
+                    : (filteredForms.find(f => f.key === activeFormKey)?.value || "Form");
 
             toast.info(`Generating PDF for ${formName}...`);
 
@@ -661,8 +670,10 @@ export default function CareFileV2FolderPage() {
                     <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
+                    {resident && <span className="font-bold text-black">{resident.first_name} {resident.last_name}</span>}
+                    {resident && <span>/</span>}
                     <span>Care File</span> <span>/</span> <span className="font-medium text-foreground">{folder.value}</span>
-                    {activeFormKey && <><span>/</span> <span className="text-foreground">{folder.forms.find(f => f.key === activeFormKey)?.value || "Form"}</span></>}
+                    {activeFormKey && <><span>/</span> <span className="text-foreground">{filteredForms.find(f => f.key === activeFormKey)?.value || "Form"}</span></>}
                     {activeFile && <><span>/</span> <span className="text-foreground">{activeFile.name}</span></>}
                 </div>
 
@@ -700,7 +711,7 @@ export default function CareFileV2FolderPage() {
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-primary/10 rounded-lg"><FileText className="w-5 h-5 text-primary" /></div>
                                         <div>
-                                            <h2 className="text-lg font-bold leading-none">{activeFormKey === "care-plan-form" ? (formDataForEdit?.care_plan_type || "Care Plan") : (folder.forms.find(f => f.key === activeFormKey)?.value || "Form")}</h2>
+                                            <h2 className="text-lg font-bold leading-none">{activeFormKey === "care-plan-form" ? (formDataForEdit?.care_plan_type || "Care Plan") : (filteredForms.find(f => f.key === activeFormKey)?.value || "Form")}</h2>
                                             {isViewOnly && formDataForEdit && <p className="text-xs text-muted-foreground mt-1">Completed on {new Date(formDataForEdit.created_at || formDataForEdit._creationTime).toLocaleDateString()}</p>}
                                         </div>
                                     </div>
@@ -763,7 +774,7 @@ export default function CareFileV2FolderPage() {
                                     ) : (
                                         <Dialog open={true} modal={false}>
                                             <DialogPrimitive.Title className="sr-only">
-                                                {activeFormKey === "care-plan-form" ? (formDataForEdit?.care_plan_type || "Care Plan") : (folder.forms.find(f => f.key === activeFormKey)?.value || "Form")}
+                                                {activeFormKey === "care-plan-form" ? (formDataForEdit?.care_plan_type || "Care Plan") : (filteredForms.find(f => f.key === activeFormKey)?.value || "Form")}
                                             </DialogPrimitive.Title>
                                             <DialogPrimitive.Content asChild>
                                                 <div className="relative">
@@ -796,7 +807,7 @@ export default function CareFileV2FolderPage() {
                 <aside className={`flex-shrink-0 border-l bg-background h-full transition-all duration-300 ease-in-out ${isSidebarCollapsed ? "w-0 opacity-0 invisible" : "w-[200px] opacity-100"
                     } overflow-y-auto overflow-x-hidden p-3`}>
                     <div className="flex flex-col gap-6">
-                        {folder.forms.length > 0 && (
+                        {filteredForms.length > 0 && (
                             <div>
                                 <div className="flex items-center justify-between px-1 mb-2">
                                     <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Forms</p>
@@ -805,7 +816,7 @@ export default function CareFileV2FolderPage() {
                                     )}
                                 </div>
                                 <div className="flex flex-col gap-1">
-                                    {folder.forms.map((form) => {
+                                    {filteredForms.map((form) => {
                                         const isActive = activeFormKey === form.key;
                                         const formState = formsLoading ? { status: "not-started" as const, hasData: false, isAudited: false } : getFormState(form.key as CareFileFormKey);
                                         const isLink = form.type === "link";
