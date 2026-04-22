@@ -666,6 +666,7 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
         { label: "Aware of Infection", path: "exposure_history.awarenessOfInfection", fmt: "bool" },
         { label: "Last Flu Vaccination", path: "exposure_history.lastFluVaccinationDate", fmt: "date" },
         { label: "Completed By", path: "completed_by" },
+        { label: "Digital Signature", path: "symptoms.details.signature" },
         { label: "Assessment Date", path: "assessment_date", fmt: "date" },
       ],
     },

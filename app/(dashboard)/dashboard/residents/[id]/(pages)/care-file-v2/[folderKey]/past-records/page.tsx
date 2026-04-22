@@ -167,15 +167,24 @@ export default function PastRecordsPage() {
                         .from("care_plan_assessments")
                         .select("*")
                         .eq("resident_id", residentId)
-                        .eq("folder_key", folderKey)
                         .eq("status", "archived")
                         .order("created_at", { ascending: false });
 
-                    const mapped = (cpData || []).map(cp => ({
-                        ...cp,
-                        _id: cp.id,
-                        _creationTime: new Date(cp.created_at).getTime(),
-                    }));
+                    const mapped = (cpData || [])
+                        .filter((cp: any) => {
+                            const savedFolderKey = cp?.goals?.folderKey || cp?.folder_key;
+                            return savedFolderKey === folderKey;
+                        })
+                        .map(cp => ({
+                            ...cp,
+                            _id: cp.id,
+                            _creationTime: new Date(cp.created_at).getTime(),
+                        }))
+                        .sort((a, b) => {
+                            const aTime = new Date(a.archived_at || a.created_at).getTime();
+                            const bTime = new Date(b.archived_at || b.created_at).getTime();
+                            return bTime - aTime;
+                        });
                     setArchivedCarePlans(mapped);
                 }
             } catch (err) {

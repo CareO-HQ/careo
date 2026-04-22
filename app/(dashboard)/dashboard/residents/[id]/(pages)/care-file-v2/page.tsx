@@ -10,7 +10,6 @@ import { ArrowLeft } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Archive, FolderIcon } from "lucide-react";
 
 export default function CareFileV2Page() {
     const careFiles = config.careFilesV2;
@@ -150,24 +149,6 @@ export default function CareFileV2Page() {
                 >
                     <p className="text-[#0E7490] text-lg font-bold">All Assessments</p>
                     <p className="text-[#6B7280] text-sm">View all risk assessments</p>
-                </div>
-
-                {/* Archived Care Plans */}
-                <div
-                    className="w-full aspect-[5/2] flex flex-col justify-center gap-1 border-2 border-[#FEF08A] hover:bg-[#FEF08A]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
-                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-care-plans?v=v2`)}
-                >
-                    <p className="text-[#A16207] text-lg font-bold">Archived Care Plans</p>
-                    <p className="text-[#6B7280] text-sm">View archived plans</p>
-                </div>
-
-                {/* Archived Assessments */}
-                <div
-                    className="w-full aspect-[5/2] flex flex-col justify-center gap-1 border-2 border-[#E5E7EB] hover:bg-[#E5E7EB]/5 cursor-pointer transition-all rounded-2xl px-6 py-4 group"
-                    onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-risk-assessments?v=v2`)}
-                >
-                    <p className="text-[#374151] text-lg font-bold">Archived Assessments</p>
-                    <p className="text-[#6B7280] text-sm">View archived assessments</p>
                 </div>
             </div>
         </div>

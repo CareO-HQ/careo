@@ -307,7 +307,7 @@ function generateInfectionPreventionHTML(data: any): string {
 
       <!-- Footer -->
       <div class="footer">
-        <p>Document generated on ${formatDateTime(Date.now())} | Signature: ${data.signature || "Digitally Signed"}</p>
+        <p>Document generated on ${formatDateTime(Date.now())} | Signature: ${data.symptoms?.details?.signature || data.signature || "Digitally Signed"}</p>
         <p>Infection Prevention Assessment - ${data.name || details.name}</p>
       </div>
     </body>

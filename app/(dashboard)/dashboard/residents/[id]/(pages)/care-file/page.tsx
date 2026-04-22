@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { config } from "@/config";
 import { useProfile } from "@/hooks/use-profile";
 import { canFillCareFileForms } from "@/lib/permissions";
-import { ArrowLeft, FolderIcon, Archive } from "lucide-react";
+import { ArrowLeft, FolderIcon } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -158,24 +158,6 @@ export default function CareFilePage() {
         >
           <FolderIcon className="size-12 text-muted-foreground/70 group-hover:text-primary" />
           <p className="text-primary text-2xl font-semibold">All Assessments</p>
-        </div>
-
-        {/* Archived Care Plans */}
-        <div
-          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
-          onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-care-plans`)}
-        >
-          <Archive className="size-12 text-muted-foreground/70 group-hover:text-primary" />
-          <p className="text-primary text-2xl font-semibold">Archived Care Plans</p>
-        </div>
-
-        {/* Archived Assessments */}
-        <div
-          className="w-full flex flex-row items-center gap-4 hover:bg-muted/50 hover:text-primary cursor-pointer transition-colors rounded-lg px-6 py-6 group"
-          onClick={() => router.push(`/dashboard/residents/${residentId}/care-file/archived-risk-assessments`)}
-        >
-          <Archive className="size-12 text-muted-foreground/70 group-hover:text-primary" />
-          <p className="text-primary text-2xl font-semibold">Archived Assessments</p>
         </div>
       </div>
     </div>
