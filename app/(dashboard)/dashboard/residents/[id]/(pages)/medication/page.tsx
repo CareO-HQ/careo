@@ -292,10 +292,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         setAllActiveMedications(meds.filter(m => m.status === 'active'));
         setPrnOrTopicalMedications(meds.filter(m =>
           m.status === 'active' && m.schedule_type === 'PRN (As Needed)'
-        ));
+        ).sort((a, b) => (a.is_controlled_drug && !b.is_controlled_drug ? -1 : !a.is_controlled_drug && b.is_controlled_drug ? 1 : 0)));
         setTopicalMedications(meds.filter(m =>
           m.status === 'active' && (m.schedule_type === 'Topical' || m.route === 'Topical')
-        ));
+        ).sort((a, b) => (a.is_controlled_drug && !b.is_controlled_drug ? -1 : !a.is_controlled_drug && b.is_controlled_drug ? 1 : 0)));
         setSupplementMedications(meds.filter(m =>
           m.status === 'active' && m.schedule_type === 'Supplement'
         ));
@@ -1090,6 +1090,12 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         }
 
         return match;
+      }).sort((a, b) => {
+        const aControlled = a.medication?.is_controlled_drug;
+        const bControlled = b.medication?.is_controlled_drug;
+        if (aControlled && !bControlled) return -1;
+        if (!aControlled && bControlled) return 1;
+        return 0;
       });
       setFilteredIntakes(filtered);
     } else {

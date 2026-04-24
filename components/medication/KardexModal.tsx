@@ -34,6 +34,19 @@ interface Medication {
   status: string;
 }
 
+const getMedUnitLabel = (med: Medication, quantity: number) => {
+  const df = med.dosage_form?.toLowerCase() || "";
+  if (df.includes("liquid") || df.includes("syrup")) return "mL";
+  if (df.includes("drops")) return quantity === 1 ? "drop" : "drops";
+  if (df.includes("inhaler") || df.includes("spray")) return quantity === 1 ? "puff" : "puffs";
+  if (df.includes("injection")) return "mL";
+  if (df.includes("tablet")) return quantity === 1 ? "tab" : "tabs";
+  if (df.includes("capsule")) return quantity === 1 ? "cap" : "caps";
+  if (df.includes("patch")) return quantity === 1 ? "patch" : "patches";
+  if (df.includes("cream") || df.includes("ointment") || df.includes("gel") || df.includes("lotion")) return "app";
+  return "";
+};
+
 interface Resident {
   id: string;
   first_name: string;
@@ -98,6 +111,7 @@ const PRINT_STYLES = `
   .bg-gray-50   { background-color: #f9fafb !important; }
   .bg-white     { background-color: #ffffff !important; }
   .bg-blue-50   { background-color: #eff6ff !important; }
+  .bg-red-100   { background-color: #fee2e2 !important; }
   .text-white   { color: #ffffff !important; }
   .text-red-700 { color: #b91c1c !important; }
   .text-blue-900 { color: #1e3a5f !important; }
@@ -287,7 +301,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
               {scheduled.map((med, idx) => {
                 const qty = (time: string) => med.time_quantities?.[time] ?? 1;
                 return (
-                  <tr key={med.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <tr key={med.id} className={med.is_controlled_drug ? "bg-red-100" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50")}>
                     <td className="border border-black px-1 py-0.5 align-top">
                       <p className="font-bold leading-tight">{med.name}</p>
                       {med.is_controlled_drug && <p className="text-red-700 font-bold">⚠️ CD</p>}
@@ -305,17 +319,6 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                       times.map((time) => {
                         const isScheduled = med.times.includes(time);
                         const quantity = qty(time);
-                        const getUnitLabel = () => {
-                          const df = med.dosage_form?.toLowerCase() || "";
-                          if (df.includes("liquid") || df.includes("syrup")) return "mL";
-                          if (df.includes("drops")) return quantity === 1 ? "drop" : "drops";
-                          if (df.includes("inhaler") || df.includes("spray")) return quantity === 1 ? "puff" : "puffs";
-                          if (df.includes("injection")) return "mL";
-                          if (df.includes("tablet")) return quantity === 1 ? "tab" : "tabs";
-                          if (df.includes("capsule")) return quantity === 1 ? "cap" : "caps";
-                          if (df.includes("patch")) return quantity === 1 ? "patch" : "patches";
-                          return "";
-                        };
                         return (
                           <td
                             key={`${period}-${time}`}
@@ -325,7 +328,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                             {isScheduled ? (
                               <div className="flex flex-col items-center justify-center">
                                 <p className="font-bold text-[9px] text-blue-900">{quantity}</p>
-                                <p className="text-[7px] text-gray-600">{getUnitLabel()}</p>
+                                <p className="text-[7px] text-gray-600">{getMedUnitLabel(med, quantity)}</p>
                               </div>
                             ) : (
                               <span className="text-gray-300 text-[7px]">-</span>
@@ -419,7 +422,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
             </thead>
             <tbody>
               {prn.map((med, idx) => (
-                <tr key={med.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                <tr key={med.id} className={med.is_controlled_drug ? "bg-red-100" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50")}>
                   <td className="border border-black px-1 py-0.5 align-top">
                     <p className="font-bold leading-tight">{med.name}</p>
                     <p className="text-gray-600">{med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""} {med.dosage_form}</p>
@@ -469,7 +472,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
             </thead>
             <tbody>
               {topical.map((med, idx) => (
-                <tr key={med.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                <tr key={med.id} className={med.is_controlled_drug ? "bg-red-100" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50")}>
                   <td className="border border-black px-1 py-0.5 align-top">
                     <p className="font-bold leading-tight">{med.name}</p>
                     <p className="text-gray-600">{med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""} {med.dosage_form}</p>
@@ -481,6 +484,8 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                   {timeSlotEntries.map(([period, times]) =>
                     times.map((time) => {
                       const isScheduled = Array.isArray(med.times) && med.times.includes(time);
+                      const quantity = med.time_quantities?.[time] ?? 1;
+                      
                       return (
                         <td 
                           key={`${period}-${time}`} 
@@ -489,7 +494,8 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                         >
                           {isScheduled ? (
                             <div className="flex flex-col items-center justify-center h-full">
-                              <p className="font-bold text-[8px] text-blue-900 leading-none">Apply</p>
+                              <p className="font-bold text-[9px] text-blue-900">{quantity}</p>
+                              <p className="text-[7px] text-gray-600">{getMedUnitLabel(med, quantity)}</p>
                             </div>
                           ) : (
                             <span className="text-gray-300 text-[7px]">-</span>

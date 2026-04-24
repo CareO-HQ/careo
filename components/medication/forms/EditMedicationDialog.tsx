@@ -91,7 +91,8 @@ const UpdateMedicationSchema = z.object({
   prescriberName: z.string().optional(),
   startDate: z.date().optional(),
   status: z.enum(["active", "completed", "cancelled", "discontinued"]).optional(),
-  revertToActive: z.boolean().optional()
+  revertToActive: z.boolean().optional(),
+  isControlledDrug: z.boolean().optional()
 });
 
 interface Medication {
@@ -112,6 +113,7 @@ interface Medication {
   end_date?: string;
   status: string;
   total_count: number;
+  is_controlled_drug?: boolean;
 }
 
 interface EditMedicationDialogProps {
@@ -154,7 +156,8 @@ export default function EditMedicationDialog({
         prescriberName: medication.prescriber_name,
         startDate: medication.start_date ? new Date(medication.start_date) : new Date(),
         status: medication.status as any,
-        revertToActive: false
+        revertToActive: false,
+        isControlledDrug: medication.is_controlled_drug || false
       });
     } else if (!open) {
       // Dialog closing - reset form to default empty state
@@ -200,6 +203,10 @@ export default function EditMedicationDialog({
         updates.status = 'active';
       } else if (values.status !== undefined) {
         updates.status = values.status;
+      }
+
+      if (values.isControlledDrug !== undefined) {
+        updates.is_controlled_drug = values.isControlledDrug;
       }
 
       const { error } = await supabase
@@ -296,6 +303,27 @@ export default function EditMedicationDialog({
                       <Input placeholder="e.g., Aspirin" {...field} />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="isControlledDrug"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2 mt-5">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Controlled Medication</FormLabel>
+                      <FormDescription className="text-[10px]">
+                        Mark if this is a controlled drug
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />
