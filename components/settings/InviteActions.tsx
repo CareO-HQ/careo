@@ -69,6 +69,9 @@ export default function InviteActions({
           organizations (
             id,
             name
+          ),
+          care_homes (
+            name
           )
         `)
         .eq('id', invitationId)
@@ -78,14 +81,16 @@ export default function InviteActions({
         throw new Error("Invitation not found");
       }
 
-      const organizationName = (invite.organizations as any)?.name || "your organization";
+      const careHomeNameFromDb = (invite.care_homes as any)?.name;
+      const organizationNameFromDb = (invite.organizations as any)?.name;
+      const emailOrganizationName = careHomeNameFromDb || organizationNameFromDb || "your organization";
       const organizationId = (invite.organizations as any)?.id || "";
 
       // 2. Call the email action
       const result = await sendInvitationEmail({
         email: invite.email,
         organizationId: organizationId,
-        organizationName: organizationName,
+        careHomeName: emailOrganizationName,
         inviterName: profile?.name || "A team member",
         token: invite.token,
         role: invite.role as string

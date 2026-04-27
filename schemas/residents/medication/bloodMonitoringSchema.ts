@@ -10,7 +10,7 @@ export const BloodMonitoringSchema = z.object({
   bloodSugar: z.string().min(1, "Blood sugar is required"),
   ketones: z.string().optional(),
   mealStatus: z.string().min(1, "Pre/Post meal is required"),
-  insulinAdministered: z.boolean().default(false),
+  insulinAdministered: z.boolean(),
   siteUsed: z.string().optional(),
   signature1: z.string().min(1, "Signature 1 is required"),
   signature2: z.string().optional(),

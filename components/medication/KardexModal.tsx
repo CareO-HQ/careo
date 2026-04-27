@@ -382,9 +382,27 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600"><div>{med.frequency || "-"}</div></td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.prescriber_name || "-"}</td>
                   {timeSlotEntries.map(([period, times]) =>
-                    times.map((time) => (
-                      <td key={`${period}-${time}`} className="border border-black text-center align-top" style={{ minWidth: "22px", height: "32px" }} />
-                    ))
+                    times.map((time) => {
+                      const isScheduled = Array.isArray(med.times) && med.times.includes(time);
+                      const quantity = med.time_quantities?.[time] ?? 1;
+
+                      return (
+                        <td
+                          key={`${period}-${time}`}
+                          className={`border border-black text-center align-middle ${!isScheduled ? "bg-gray-100" : "bg-blue-50"}`}
+                          style={{ minWidth: "22px", height: "32px" }}
+                        >
+                          {isScheduled ? (
+                            <div className="flex flex-col items-center justify-center">
+                              <p className="font-bold text-[9px] text-blue-900">{quantity}</p>
+                              <p className="text-[7px] text-gray-600">{getMedUnitLabel(med, quantity)}</p>
+                            </div>
+                          ) : (
+                            <span className="text-gray-300 text-[7px]">-</span>
+                          )}
+                        </td>
+                      );
+                    })
                   )}
                 </tr>
               ))}

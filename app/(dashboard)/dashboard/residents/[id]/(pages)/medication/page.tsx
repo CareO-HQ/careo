@@ -220,7 +220,6 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           const activeScheduledMeds = meds.filter(m =>
             m.status === 'active' &&
             m.schedule_type !== 'PRN (As Needed)' &&
-            m.schedule_type !== 'Topical' &&
             m.times && m.times.length > 0
           );
 
@@ -477,6 +476,68 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         ? { ...intake, status: state, administered_by_id: profile?.id, administered_at: now }
         : intake
     ));
+
+    // Sync with eMAR if it's topical or PRN
+    const intake = selectedDateIntakes.find(i => i.id === intakeId);
+    const isTopical = intake?.medication?.schedule_type === 'Topical' || intake?.medication?.route === 'Topical';
+    const isPRN = intake?.medication?.schedule_type === 'PRN (As Needed)';
+
+    if (isTopical || isPRN) {
+      try {
+        const administrationDate = format(new Date(intake.scheduled_time), "yyyy-MM-dd");
+        const time = normalizeTimeToHHmm(intake.scheduled_time);
+
+        // Get or create the appropriate eMAR sheet
+        const sheetType = isTopical ? 'topical' : 'prn';
+        const { data: emarSheet } = await supabase
+          .rpc('get_or_create_emar_sheet', {
+            p_resident_id: intake.resident_id,
+            p_type: sheetType,
+            p_organization_id: intake.organization_id || profile?.active_organization_id || "",
+            p_care_home_id: intake.care_home_id || profile?.active_care_home_id || "",
+          });
+
+        if (emarSheet) {
+          // Check if record exists
+          const { data: existingAdmin } = await supabase
+            .from("emar_administrations")
+            .select("id")
+            .eq("emar_sheet_id", emarSheet)
+            .eq("medication_id", intake.medication_id)
+            .eq("administration_date", administrationDate)
+            .eq("scheduled_time", time)
+            .maybeSingle();
+
+          if (existingAdmin) {
+            await supabase
+              .from("emar_administrations")
+              .update({
+                status: state,
+                administered_at: now,
+                administered_by: profile?.id
+              })
+              .eq("id", existingAdmin.id);
+          } else {
+            await supabase
+              .from("emar_administrations")
+              .insert({
+                emar_sheet_id: emarSheet,
+                medication_id: intake.medication_id,
+                administration_date: administrationDate,
+                scheduled_time: time,
+                administered_at: now,
+                administered_by: profile?.id,
+                status: state,
+                quantity: intake.quantity || 1,
+                organization_id: intake.organization_id || profile?.active_organization_id,
+                care_home_id: intake.care_home_id || profile?.active_care_home_id
+              });
+          }
+        }
+      } catch (err) {
+        console.error("Error syncing with eMAR:", err);
+      }
+    }
   };
 
   const saveMedicationIntakeComment = async (intakeId: string, comment: string) => {
@@ -856,6 +917,12 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
   const handleCompleteMedicationRound = async () => {
     if (!id || !selectedTime || !profile) return;
+
+    if (!allMedicationsAddressed) {
+      toast.error("Please address all medications before completing the round");
+      return;
+    }
+
     try {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
       const { error } = await supabase
@@ -1073,11 +1140,6 @@ export default function MedicationPage({ params }: MedicationPageProps) {
         const intakeTime = formatTimestampToUKTime(intake.scheduled_time);
         const match = intakeTime === selectedTime;
 
-        // Exclude topical medications from Today's Medications (they have their own section)
-        if (intake.medication?.schedule_type === 'Topical') {
-          return false;
-        }
-
         // Issue 7: Show intakes even if parent medication is completed/cancelled IF:
         // 1. The intake itself has been acted upon (not just scheduled/pending)
         // 2. OR the entire medication round for this slot is already completed
@@ -1102,6 +1164,20 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       setFilteredIntakes([]);
     }
   }, [selectedTime, selectedDateIntakes, medicationRoundStatus]);
+
+  const allMedicationsAddressed = useMemo(() => {
+    const regularPending = filteredIntakes.some(i => i.status === 'scheduled' || i.status === 'pending');
+
+    const topicalPending = filteredTopicalMedications.some(med => {
+      const admin = topicalAdministrations.find(a =>
+        a.medication_id === med.id &&
+        (normalizeTimeToHHmm(a.scheduled_time) === selectedTime)
+      );
+      return !admin || admin.status === 'scheduled' || admin.status === 'pending';
+    });
+
+    return !regularPending && !topicalPending;
+  }, [filteredIntakes, filteredTopicalMedications, topicalAdministrations, selectedTime]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><p>Loading...</p></div>;
@@ -1326,12 +1402,14 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           </div>
 
           {(() => {
-            // Separate regular medications from supplements
+            // Separate regular medications, supplements, and topicals
             const regularMeds = filteredIntakes.filter((intake) => {
               const isSupplement = intake.medication?.schedule_type === 'Supplement' ||
                                   intake.medication?.type === 'Supplement' ||
                                   intake.medication?.category === 'Supplement';
-              return !isSupplement;
+              const isTopical = intake.medication?.schedule_type === 'Topical' ||
+                               intake.medication?.route === 'Topical';
+              return !isSupplement && !isTopical;
             });
 
             const supplementIntakes = filteredIntakes.filter((intake) => {
@@ -1341,9 +1419,17 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               return isSupplement;
             });
 
-            // Combine with a divider marker
+            const topicalIntakes = filteredIntakes.filter((intake) => {
+              const isTopical = intake.medication?.schedule_type === 'Topical' ||
+                               intake.medication?.route === 'Topical';
+              return isTopical;
+            });
+
+            // Combine with dividers
             const combinedData = [
               ...regularMeds,
+              ...(topicalIntakes.length > 0 ? [{ isDivider: true, dividerLabel: 'Topical Medications' }] : []),
+              ...topicalIntakes,
               ...(supplementIntakes.length > 0 ? [{ isDivider: true, dividerLabel: 'Supplements' }] : []),
               ...supplementIntakes
             ];
@@ -1369,34 +1455,24 @@ export default function MedicationPage({ params }: MedicationPageProps) {
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
                   <div>
                     <p className="font-semibold text-sm">Complete Medication Round</p>
-                    <p className="text-xs text-muted-foreground">Ensure all medications are administered before completing.</p>
+                    <p className="text-xs text-muted-foreground">
+                      {allMedicationsAddressed
+                        ? "Ensure all medications are administered before completing."
+                        : "Some medications are still pending. Please address them to complete the round."}
+                    </p>
                   </div>
-                  <Button onClick={handleCompleteMedicationRound} size="sm" className="px-4 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">
+                  <Button
+                    onClick={handleCompleteMedicationRound}
+                    size="sm"
+                    className="px-4 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
+                    disabled={!allMedicationsAddressed}
+                  >
                     <CheckCircle className="w-3 h-3 mr-1.5" />Complete Round
                   </Button>
                 </div>
               )}
             </div>
           )}
-
-          <div className="flex flex-col gap-4 mt-4">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold">Topical Medications</p>
-              {selectedTime && (
-                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                  Showing for {selectedTime}
-                </span>
-              )}
-            </div>
-            {filteredTopicalMedications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-8 text-center border rounded-lg">
-                <p className="text-sm font-medium text-muted-foreground">No topical medications for {selectedTime || 'this time'}</p>
-                <p className="text-xs text-muted-foreground">Topical medications scheduled at this time will appear here.</p>
-              </div>
-            ) : (
-              <DataTable columns={topicalMedicationColumns} data={filteredTopicalMedications} />
-            )}
-          </div>
 
           <div className="flex flex-col gap-4 mt-4">
             <p className="font-semibold">PRN Medications</p>

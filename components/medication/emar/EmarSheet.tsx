@@ -8,9 +8,11 @@ import { format, getDaysInMonth, startOfMonth, endOfMonth, eachDayOfInterval } f
 import { MedicationMarSheet } from "./MedicationMarSheet";
 import { PrnMarSheet } from "./PrnMarSheet";
 import { TopicalMarSheet } from "./TopicalMarSheet";
+import { RefusedMarSheet } from "./RefusedMarSheet";
 import { EmarPdfExport } from "./EmarPdfExport";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { useProfile } from "@/hooks/use-profile";
 
 interface EmarSheetProps {
   residentId: string;
@@ -25,8 +27,9 @@ export function EmarSheet({
   organizationId,
   careHomeId,
 }: EmarSheetProps) {
+  const { profile } = useProfile();
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const [activeTab, setActiveTab] = useState<"medication" | "prn" | "topical">("medication");
+  const [activeTab, setActiveTab] = useState<"medication" | "prn" | "topical" | "refused">("medication");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -489,7 +492,7 @@ export function EmarSheet({
 
       {/* Tabs for Medication MAR and PRN MAR */}
       {!error && (
-        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "medication" | "prn" | "topical")}>
+        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "medication" | "prn" | "topical" | "refused")}>
           <TabsList className="w-full justify-start">
           <TabsTrigger value="medication">
             Medication MAR
@@ -514,6 +517,9 @@ export function EmarSheet({
                 {topicalMedications.length}
               </span>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="refused">
+            Refused MAR
           </TabsTrigger>
         </TabsList>
 
@@ -563,6 +569,19 @@ export function EmarSheet({
             daysInMonth={daysInMonth}
             isReadOnly={!isCurrentMonth()}
             onRefresh={fetchOrCreateMarSheets}
+            resident={resident}
+            careHomeName={careHomeName}
+          />
+        </TabsContent>
+
+        <TabsContent value="refused" className="mt-4">
+          <RefusedMarSheet
+            residentId={residentId}
+            residentName={residentName}
+            organizationId={organizationId}
+            teamId={profile?.active_team_id || undefined}
+            userId={profile?.id || ""}
+            userName={profile?.name || ""}
             resident={resident}
             careHomeName={careHomeName}
           />
