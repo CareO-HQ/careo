@@ -58,9 +58,13 @@ interface BloodMonitoringRecord {
   id: string;
   date: string;
   time: string;
-  bm_level: string;
-  site_used: string;
-  signature: string;
+  blood_sugar: string;
+  ketones?: string;
+  meal_status: string;
+  insulin_administered: boolean;
+  site_used?: string;
+  signature1: string;
+  signature2?: string;
 }
 
 export default function BloodMonitoringChartForm({
@@ -95,9 +99,13 @@ export default function BloodMonitoringChartForm({
         const hour12 = h % 12 === 0 ? 12 : h % 12;
         return `${String(hour12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
       })(),
-      bmLevel: "",
+      bloodSugar: "",
+      ketones: "",
+      mealStatus: "",
+      insulinAdministered: false,
       siteUsed: "",
-      signature: userName,
+      signature1: userName,
+      signature2: "",
     },
   });
 
@@ -105,7 +113,7 @@ export default function BloodMonitoringChartForm({
     setLoading(true);
     const { data, error } = await supabase
       .from("blood_monitoring_records")
-      .select("id, date, time, bm_level, site_used, signature")
+      .select("id, date, time, blood_sugar, ketones, meal_status, insulin_administered, site_used, signature1, signature2")
       .eq("resident_id", residentId)
       .order("date", { ascending: false })
       .order("time", { ascending: false });
@@ -153,9 +161,13 @@ export default function BloodMonitoringChartForm({
               else if (period === "PM" && h !== 12) h += 12;
               return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
             })(),
-            bm_level: values.bmLevel,
+            blood_sugar: values.bloodSugar,
+            ketones: values.ketones,
+            meal_status: values.mealStatus,
+            insulin_administered: values.insulinAdministered,
             site_used: values.siteUsed,
-            signature: values.signature,
+            signature1: values.signature1,
+            signature2: values.signature2,
             created_by: values.userId,
           });
 
@@ -173,9 +185,13 @@ export default function BloodMonitoringChartForm({
             const hour12 = h % 12 === 0 ? 12 : h % 12;
             return `${String(hour12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
           })(),
-          bmLevel: "",
+          bloodSugar: "",
+          ketones: "",
+          mealStatus: "",
+          insulinAdministered: false,
           siteUsed: "",
-          // KEEP signature as userName
+          signature1: userName,
+          signature2: "",
         });
         
         await fetchRecords();
@@ -279,17 +295,21 @@ export default function BloodMonitoringChartForm({
     const tableData = records.map((r) => [
       format(new Date(r.date), "dd/MM/yyyy"),
       r.time.substring(0, 5),
-      r.bm_level,
-      r.site_used,
-      r.signature,
+      r.blood_sugar,
+      r.ketones || "—",
+      r.meal_status,
+      r.insulin_administered ? "Yes" : "No",
+      r.site_used || "—",
+      r.signature1,
+      r.signature2 || "—",
     ]);
 
     autoTable(doc, {
       startY: currentY,
-      head: [["Date", "Time", "BM", "Site Used", "Signature"]],
+      head: [["Date", "Time", "Sugar", "Ketones", "Meal", "Insulin", "Site", "Sig 1", "Sig 2"]],
       body: tableData,
       theme: "grid",
-      styles: { fontSize: 9, cellPadding: 3 },
+      styles: { fontSize: 7, cellPadding: 2 },
       headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
     });
 
@@ -334,15 +354,14 @@ export default function BloodMonitoringChartForm({
             <h3 className="text-sm font-medium">Add New Entry</h3>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
                   {/* Row 1: Date + Time */}
-                  <div className="grid grid-cols-3 gap-4">
                   <FormField
                     control={form.control}
                     name="date"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel className="text-xs mt-2 mb-1">Date</FormLabel>
+                        <FormLabel className="text-xs">Date</FormLabel>
                         <Popover open={dateOpen} onOpenChange={setDateOpen}>
                           <PopoverTrigger asChild>
                             <FormControl>
@@ -397,8 +416,8 @@ export default function BloodMonitoringChartForm({
                         String(i).padStart(2, "0")
                       );
                       return (
-                        <FormItem className="col-span-2">
-                          <FormLabel className="text-xs mt-2 mb-1">Time</FormLabel>
+                        <FormItem>
+                          <FormLabel className="text-xs">Time</FormLabel>
                           <div className="flex items-center gap-1">
                             <Select
                               value={hStr || "12"}
@@ -431,7 +450,7 @@ export default function BloodMonitoringChartForm({
                               value={period}
                               onValueChange={(v) => updateTime(hStr || "12", mStr || "00", v)}
                             >
-                              <SelectTrigger className="h-9 text-xs w-16">
+                              <SelectTrigger className="h-9 text-xs w-20">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -445,16 +464,14 @@ export default function BloodMonitoringChartForm({
                       );
                     }}
                   />
-                  </div>
 
-                  {/* Row 2: BM Level + Site Used + Signature */}
-                  <div className="grid grid-cols-3 gap-4">
+                  {/* Row 2: Blood Sugar + Ketones */}
                   <FormField
                     control={form.control}
-                    name="bmLevel"
+                    name="bloodSugar"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs mt-2 mb-1">BM Level</FormLabel>
+                        <FormLabel className="text-xs">Blood Sugar</FormLabel>
                         <FormControl>
                           <Input className="h-9 text-xs" placeholder="e.g. 5.6" {...field} />
                         </FormControl>
@@ -465,10 +482,65 @@ export default function BloodMonitoringChartForm({
 
                   <FormField
                     control={form.control}
+                    name="ketones"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Ketones (Optional)</FormLabel>
+                        <FormControl>
+                          <Input className="h-9 text-xs" placeholder="e.g. 0.1" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Row 3: Pre/Post Meal + Insulin */}
+                  <FormField
+                    control={form.control}
+                    name="mealStatus"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Pre/Post Meal</FormLabel>
+                        <FormControl>
+                          <Input className="h-9 text-xs" placeholder="e.g. Pre meal" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="insulinAdministered"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Insulin Administered</FormLabel>
+                        <Select
+                          value={field.value ? "yes" : "no"}
+                          onValueChange={(v) => field.onChange(v === "yes")}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="yes" className="text-xs">Yes</SelectItem>
+                            <SelectItem value="no" className="text-xs">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Row 4: Site Used + Signatures */}
+                  <FormField
+                    control={form.control}
                     name="siteUsed"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs mt-2 mb-1">Site Used</FormLabel>
+                        <FormLabel className="text-xs">Site Used (Optional)</FormLabel>
                         <FormControl>
                           <Input className="h-9 text-xs" placeholder="e.g. Left Index" {...field} />
                         </FormControl>
@@ -479,10 +551,10 @@ export default function BloodMonitoringChartForm({
 
                   <FormField
                     control={form.control}
-                    name="signature"
+                    name="signature1"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs mt-2 mb-1">Signature</FormLabel>
+                        <FormLabel className="text-xs">Signature 1</FormLabel>
                         <FormControl>
                           <Input className="h-9 text-xs" {...field} />
                         </FormControl>
@@ -490,9 +562,22 @@ export default function BloodMonitoringChartForm({
                       </FormItem>
                     )}
                   />
-                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="signature2"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Signature 2 (Optional)</FormLabel>
+                        <FormControl>
+                          <Input className="h-9 text-xs" placeholder="Enter name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-                <div className="flex justify-end">
+                <div className="flex justify-end pt-2">
                   <Button type="submit" size="sm" className="h-8 shadow-sm" disabled={isPending}>
                     {isPending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Plus className="w-3.5 h-3.5 mr-1.5" />}
                     Save Entry
@@ -518,9 +603,13 @@ export default function BloodMonitoringChartForm({
                     <tr>
                       <th className="px-4 py-3 font-medium border-b">Date</th>
                       <th className="px-4 py-3 font-medium border-b">Time</th>
-                      <th className="px-4 py-3 font-medium border-b">BM Level</th>
-                      <th className="px-4 py-3 font-medium border-b">Site Used</th>
-                      <th className="px-4 py-3 font-medium border-b">Signature</th>
+                      <th className="px-4 py-3 font-medium border-b">Sugar</th>
+                      <th className="px-4 py-3 font-medium border-b">Ketones</th>
+                      <th className="px-4 py-3 font-medium border-b">Meal</th>
+                      <th className="px-4 py-3 font-medium border-b">Insulin</th>
+                      <th className="px-4 py-3 font-medium border-b">Site</th>
+                      <th className="px-4 py-3 font-medium border-b">Sig 1</th>
+                      <th className="px-4 py-3 font-medium border-b">Sig 2</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -532,12 +621,31 @@ export default function BloodMonitoringChartForm({
                         <td className="px-4 py-2.5 whitespace-nowrap">
                           {record.time.substring(0, 5)}
                         </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap font-medium">
-                          {record.bm_level}
+                        <td className="px-4 py-2.5 whitespace-nowrap font-medium text-emerald-600">
+                          {record.blood_sugar}
                         </td>
-                        <td className="px-4 py-2.5">{record.site_used}</td>
-                        <td className="px-4 py-2.5 text-muted-foreground">
-                          {record.signature}
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          {record.ketones || "—"}
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          {record.meal_status}
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded-full text-[10px] font-medium uppercase",
+                            record.insulin_administered ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
+                          )}>
+                            {record.insulin_administered ? "Yes" : "No"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-xs">
+                          {record.site_used || "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                          {record.signature1}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                          {record.signature2 || "—"}
                         </td>
                       </tr>
                     ))}

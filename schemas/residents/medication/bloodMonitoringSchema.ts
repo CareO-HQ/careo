@@ -7,9 +7,13 @@ export const BloodMonitoringSchema = z.object({
   userId: z.string().uuid("Invalid user ID").optional(),
   date: z.coerce.number().min(1, "Date is required"),
   time: z.string().min(1, "Time is required"),
-  bmLevel: z.string().min(1, "BM Level is required"),
-  siteUsed: z.string().min(1, "Site used is required"),
-  signature: z.string().min(1, "Signature is required"),
+  bloodSugar: z.string().min(1, "Blood sugar is required"),
+  ketones: z.string().optional(),
+  mealStatus: z.string().min(1, "Pre/Post meal is required"),
+  insulinAdministered: z.boolean(),
+  siteUsed: z.string().optional(),
+  signature1: z.string().min(1, "Signature 1 is required"),
+  signature2: z.string().optional(),
 });
 
 export type BloodMonitoringFormValues = z.infer<typeof BloodMonitoringSchema>;

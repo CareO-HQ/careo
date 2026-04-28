@@ -12,6 +12,7 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
@@ -262,7 +263,13 @@ export default function CreateMedicationForm({
     }
 
     // Go to step 2 (either Times or PRN Protocols)
-    setStep(2);
+    // For PRN medications, skip step 2 (PRN Protocols) for now as requested
+    const scheduleType = form.getValues("scheduleType");
+    if (scheduleType === "PRN (As Needed)") {
+      setStep(3);
+    } else {
+      setStep(2);
+    }
   };
 
   const handleSecondStep = async () => {
@@ -375,26 +382,48 @@ export default function CreateMedicationForm({
           )}
           {step === 1 && (
             <>
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={
-                          medicationType === "Supplement"
-                            ? "e.g., Vitamin D3, Omega-3, Calcium"
-                            : "e.g., Paracetamol"
-                        }
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={
+                            medicationType === "Supplement"
+                              ? "e.g., Vitamin D3, Omega-3, Calcium"
+                              : "e.g., Paracetamol"
+                          }
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="isControlledDrug"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2 mt-5">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Controlled Medication</FormLabel>
+                        <FormDescription className="text-[10px]">
+                          Mark if this is a controlled drug
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
@@ -792,177 +821,8 @@ export default function CreateMedicationForm({
             <>
               {/* Skip time selection for PRN medications */}
               {scheduleType === "PRN (As Needed)" ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">PRN Protocols</p>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      onClick={() => {
-                            const values = form.getValues();
-                            append({
-                              protocolLabel: `Protocol ${fields.length + 1}`,
-                              residentId: residentId,
-                              teamId: teamId || "",
-                              organizationId: organizationId || "",
-                              userId: profile?.id || "",
-                              homeName: residentData?.care_homes?.name || "",
-                              roomNo: residentData?.room_number || "",
-                              serviceUsersName: residentName || `${residentData?.first_name} ${residentData?.last_name}` || "",
-                              dob: residentData?.date_of_birth ? new Date(residentData.date_of_birth).getTime() : Date.now(),
-                              nameOfMedication: values.name || "",
-                              form: values.dosageForm || "",
-                              routeOfAdministration: values.route || "",
-                              strength: values.strength || "",
-                              nameOfPrescriber: values.prescriberName || "",
-                              dosageCircumstances: "",
-                              frequencyOfDoses: values.frequency || "As Needed (PRN)",
-                              minimumTimeInterval: values.minIntervalHours ? `${values.minIntervalHours} hours` : "",
-                              maximumDose24Hours: values.maxDailyDose ? `${values.maxDailyDose} ${values.maxDailyDoseUnit || ""}` : "",
-                              purposeOfAdministration: "",
-                              expectedOutcome: "",
-                              otherMedicinesAwareness: "",
-                              reviewDate: Date.now() + (30 * 24 * 60 * 60 * 1000),
-                              specialInstructions: values.instructions || "",
-                              nameOfPersonCompleting: profile?.name || "",
-                              dateCompleted: Date.now(),
-                            });
-                          }}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add PRN Protocol
-                    </Button>
-                  </div>
-
-                  {fields.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center border-2 border-dashed rounded-lg bg-muted/5">
-                      <FileText className="w-8 h-8 text-muted-foreground mb-2 opacity-20" />
-                      <p className="text-sm text-muted-foreground">No protocols added yet.</p>
-                      <p className="text-xs text-muted-foreground/60">Click the button above to add a PRN protocol.</p>
-                    </div>
-                  ) : (
-                    <Accordion type="multiple" className="w-full space-y-2">
-                      {fields.map((field, index) => (
-                        <AccordionItem value={field.id} key={field.id} className="border rounded-lg bg-card">
-                          <div className="px-4 py-2 flex items-center justify-between group">
-                              <AccordionTrigger className="hover:no-underline py-0 flex-1">
-                                <div className="group flex items-start gap-2.5 px-0 py-1 text-left transition-all w-full">
-                                  <FileText className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-500" />
-                                  <div className="min-w-0">
-                                    <FormField
-                                      control={form.control}
-                                      name={`prnProtocols.${index}.protocolLabel`}
-                                      render={({ field: labelField }) => (
-                                        <FormItem className="space-y-0 text-left pointer-events-auto" onClick={(e) => e.stopPropagation()}>
-                                          <FormControl>
-                                            <Input
-                                              {...labelField}
-                                              className="h-6 w-64 p-0 font-semibold text-xs bg-transparent border-none focus-visible:ring-0 hover:bg-muted/50 transition-colors"
-                                              placeholder="Protocol Name"
-                                            />
-                                          </FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <p className="text-[10px] text-muted-foreground mt-0.5">Click to expand and edit protocol details</p>
-                                  </div>
-                                </div>
-                              </AccordionTrigger>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-                              onClick={() => remove(index)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                          <AccordionContent className="px-4 pb-4 space-y-4">
-                            <div className="grid grid-cols-2 gap-4 pt-2">
-                              <FormField
-                                control={form.control}
-                                name={`prnProtocols.${index}.dosageCircumstances`}
-                                render={({ field }) => (
-                                  <FormItem className="col-span-2">
-                                    <FormLabel className="text-xs">Dosage Circumstances</FormLabel>
-                                    <FormControl><Textarea {...field} placeholder="e.g. When experiencing mild pain..." className="min-h-[80px]" /></FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              <FormField
-                                control={form.control}
-                                name={`prnProtocols.${index}.maximumDose24Hours`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel className="text-xs">Max Dose in 24h</FormLabel>
-                                    <FormControl><Input {...field} /></FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              <FormField
-                                control={form.control}
-                                name={`prnProtocols.${index}.minimumTimeInterval`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel className="text-xs">Min Interval</FormLabel>
-                                    <FormControl><Input {...field} /></FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              <FormField
-                                control={form.control}
-                                name={`prnProtocols.${index}.purposeOfAdministration`}
-                                render={({ field }) => (
-                                  <FormItem className="col-span-2">
-                                    <FormLabel className="text-xs">Purpose</FormLabel>
-                                    <FormControl><Textarea {...field} placeholder="e.g. For relief of mild symptoms" className="min-h-[60px]" /></FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              <FormField
-                                control={form.control}
-                                name={`prnProtocols.${index}.expectedOutcome`}
-                                render={({ field }) => (
-                                  <FormItem className="col-span-2">
-                                    <FormLabel className="text-xs">Expected Outcome</FormLabel>
-                                    <FormControl><Textarea {...field} placeholder="e.g. Reduction in pain level" className="min-h-[60px]" /></FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                  )}
-
-                  <div className="flex justify-between pt-4 border-t">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setStep(1)}
-                    >
-                      Back
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => setStep(3)}
-                      size="sm"
-                      className="px-6"
-                    >
-                      Continue
-                    </Button>
-                  </div>
-                </div>
+                /* Hide PRN protocol creation section for now as requested */
+                null
               ) : (
                 <>
                   <FormField

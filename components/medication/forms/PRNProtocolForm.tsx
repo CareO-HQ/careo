@@ -352,7 +352,8 @@ function PRNProtocolDocumentView({
               </div>
             </div>
           </div>
-
+          {/* Spacer to allow scrolling past the end */}
+          <div className="h-32" />
         </div>
       </ScrollArea>
     </div>
@@ -995,6 +996,8 @@ export default function PRNProtocolForm({
               </div>
 
             </form>
+            {/* Spacer to allow scrolling past the end */}
+            <div className="h-40" />
           </div>
         </ScrollArea>
       </div>

@@ -28,6 +28,16 @@ import {
   TooltipContent,
   TooltipTrigger
 } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface TeamMember {
   id?: string;
@@ -69,6 +79,102 @@ interface MedicationIntake {
   witness_at?: string | null;
   quantity?: number;
 }
+
+const PreparedCell = ({ 
+  row, 
+  markMedicationIntakeAsPoppedOut, 
+  isRoundCompleted 
+}: { 
+  row: any, 
+  markMedicationIntakeAsPoppedOut?: (intakeId: string, isPoppedOut: boolean) => Promise<void>, 
+  isRoundCompleted?: boolean 
+}) => {
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const poppedOutAt = row.original.popped_out_at;
+  const quantity = row.original.quantity || 1;
+  const medication = row.original.medication;
+
+  const markAsOut = async () => {
+    if (!markMedicationIntakeAsPoppedOut) {
+      toast.error("Function not available");
+      return;
+    }
+
+    try {
+      await markMedicationIntakeAsPoppedOut(row.original.id, true);
+      toast.success("Medication prepared successfully");
+    } catch (error) {
+      console.error("Error preparing medication:", error);
+      toast.error(
+        "Failed to prepare medication: " + (error as Error).message
+      );
+    }
+  };
+
+  const handlePrepareClick = () => {
+    if (!medication) {
+      markAsOut();
+      return;
+    }
+
+    // Determine if it's a mL measurement
+    const dosageForm = medication.dosage_form?.toLowerCase() || '';
+    const dosageUnit = (medication.frequency || "").toLowerCase();
+    
+    const isMLMeasurement = 
+      dosageForm.includes('liquid') || 
+      dosageForm.includes('syrup') || 
+      dosageForm.includes('injection') ||
+      dosageUnit.includes('ml') ||
+      dosageUnit.includes('injection');
+
+    if (quantity > 1 && !isMLMeasurement) {
+      setIsConfirmOpen(true);
+    } else {
+      markAsOut();
+    }
+  };
+
+  if (poppedOutAt) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+          <Check className="w-3 h-3 text-white" />
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        onClick={handlePrepareClick}
+        className={`flex items-center justify-center ${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+        disabled={isRoundCompleted}
+      >
+        <div className="w-4 h-4 rounded-full border-2 border-dashed border-gray-300 hover:border-green-400 transition-colors" />
+      </button>
+
+      <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Preparation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Have you prepared {quantity}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No</AlertDialogCancel>
+            <AlertDialogAction onClick={markAsOut}>Yes</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+};
 
 export const createColumns = (
   members: TeamMember[] = [],
@@ -192,49 +298,13 @@ export const createColumns = (
     {
       id: "poppedOut",
       header: "Prepared",
-      cell: ({ row }) => {
-        const poppedOutAt = row.original.popped_out_at;
-
-        const markAsOut = async () => {
-          if (!markMedicationIntakeAsPoppedOut) {
-            toast.error("Function not available");
-            return;
-          }
-
-          try {
-            await markMedicationIntakeAsPoppedOut(row.original.id, true);
-            toast.success("Medication prepared successfully");
-          } catch (error) {
-            console.error("Error preparing medication:", error);
-            toast.error(
-              "Failed to prepare medication: " + (error as Error).message
-            );
-          }
-        };
-
-        if (poppedOutAt) {
-          return (
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
-                <Check className="w-3 h-3 text-white" />
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
-              </span>
-            </div>
-          );
-        }
-
-        return (
-          <button
-            onClick={markAsOut}
-            className={`flex items-center justify-center ${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-            disabled={isRoundCompleted}
-          >
-            <div className="w-4 h-4 rounded-full border-2 border-dashed border-gray-300 hover:border-green-400 transition-colors" />
-          </button>
-        );
-      }
+      cell: ({ row }) => (
+        <PreparedCell 
+          row={row} 
+          markMedicationIntakeAsPoppedOut={markMedicationIntakeAsPoppedOut}
+          isRoundCompleted={isRoundCompleted}
+        />
+      )
     },
     {
       id: "totalCount",
@@ -419,7 +489,23 @@ export const createColumns = (
           }
         };
 
+        const isTopical = medicationIntake.medication?.schedule_type === 'Topical' || medicationIntake.medication?.route === 'Topical';
+
         const getStatusText = (status: string) => {
+          if (isTopical) {
+            switch (status) {
+              case "taken":
+              case "administered":
+                return "A Applied";
+              case "refused":
+                return "R Refused";
+              case "not_required":
+                return "NR Not required (NR)";
+              default:
+                return status;
+            }
+          }
+
           switch (status) {
             case "taken":
             case "administered":
@@ -456,41 +542,63 @@ export const createColumns = (
               </span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="taken">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                  T Taken
-                </span>
-              </SelectItem>
-              <SelectItem value="refused">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
-                  R Refused
-                </span>
-              </SelectItem>
-              <SelectItem value="refused_destroyed">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
-                  E Refused/Destroyed
-                </span>
-              </SelectItem>
-              <SelectItem value="hospitalised">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                  C Hospitalised
-                </span>
-              </SelectItem>
-              <SelectItem value="social_leave">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
-                  D Social leave
-                </span>
-              </SelectItem>
-              <SelectItem value="not_required">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
-                  NR Not required
-                </span>
-              </SelectItem>
-              <SelectItem value="made_available">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                  M Made available
-                </span>
-              </SelectItem>
+              {isTopical ? (
+                <>
+                  <SelectItem value="taken">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                      A Applied
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="refused">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+                      R Refused
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="not_required">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                      NR Not required (NR)
+                    </span>
+                  </SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem value="taken">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                      T Taken
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="refused">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+                      R Refused
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="refused_destroyed">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+                      E Refused/Destroyed
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="hospitalised">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                      C Hospitalised
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="social_leave">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
+                      D Social leave
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="not_required">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                      NR Not required
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="made_available">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                      M Made available
+                    </span>
+                  </SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
         );

@@ -120,14 +120,28 @@ export default function SendInvitationForm() {
           return;
         }
 
-        // 1. Fetch organization name for the email
-        const { data: orgData } = await supabase
-          .from('organizations')
-          .select('name')
-          .eq('id', activeOrganizationId)
-          .single();
+        // 1. Fetch name for the email (Care Home name if available, else Organization name)
+        let emailOrganizationName = "your organization";
 
-        const organizationName = orgData?.name || "your organization";
+        if (activeCareHomeId) {
+          const { data: careHomeData } = await supabase
+            .from('care_homes')
+            .select('name')
+            .eq('id', activeCareHomeId)
+            .single();
+          if (careHomeData?.name) {
+            emailOrganizationName = careHomeData.name;
+          }
+        } else if (activeOrganizationId) {
+          const { data: orgData } = await supabase
+            .from('organizations')
+            .select('name')
+            .eq('id', activeOrganizationId)
+            .single();
+          if (orgData?.name) {
+            emailOrganizationName = orgData.name;
+          }
+        }
 
         // 2. Create Invitation in Database
         const { error } = await supabase
@@ -153,11 +167,10 @@ export default function SendInvitationForm() {
           return;
         }
 
-        // 3. Send Invitation Email
         const emailResult = await sendInvitationEmail({
           email: values.email,
           organizationId: activeOrganizationId,
-          organizationName: organizationName,
+          careHomeName: emailOrganizationName,
           inviterName: userProfile.name || "A team member",
           token: token,
           role: values.role

@@ -54,11 +54,12 @@ interface Medication {
   total_count: number;
   resident_id: string;
   body_regions?: string[];
+  is_controlled_drug?: boolean;
 }
 
 export const createMedicationColumns = (
   createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string, witnessId?: string, status?: string, prnReason?: string, prnOutcome?: string) => Promise<any>,
-  showAdministrateButton: boolean = false,
+  showAdministerButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },
   useSimplifiedTopicalDialog: boolean = true,
@@ -73,7 +74,14 @@ export const createMedicationColumns = (
 
         return (
           <div className="flex flex-col">
-            <p className="font-medium">{medication.name}</p>
+            <p className="font-medium">
+              {medication.name}
+              {medication.is_controlled_drug && (
+                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-200 text-red-800 border border-red-300">
+                  Controlled
+                </span>
+              )}
+            </p>
             <p className="text-xs text-muted-foreground">
               {medication.strength} {medication.strength_unit} -{" "}
               {medication.dosage_form}
@@ -210,8 +218,8 @@ export const createMedicationColumns = (
         );
       }
     },
-    // Only show Actions column for non-PRN medications when Administrate button is shown
-    ...(showAdministrateButton ? [] : [
+    // Only show Actions column for non-PRN medications when Administer button is shown
+    ...(showAdministerButton ? [] : [
       {
         id: "actions",
         header: "Actions",
@@ -256,15 +264,15 @@ export const createMedicationColumns = (
         }
       } as ColumnDef<Medication>
     ]),
-    ...(showAdministrateButton
+    ...(showAdministerButton
       ? [
         {
-          id: "administrate",
+          id: "administer",
           header: "Action",
           cell: ({ row }: { row: any }) => {
             const medication = row.original;
 
-            const AdministrateDialog = () => {
+            const AdministerDialog = () => {
               const isTopical = medication.schedule_type === "Topical";
               // For topical meds with a pre-selected time, initialize to that time
               const getInitialTime = () => {
@@ -342,7 +350,7 @@ export const createMedicationColumns = (
 
               const unitInfo = getUnitInfo();
 
-              const handleAdministrate = async () => {
+              const handleAdminister = async () => {
                 if (!createAndAdministerMedicationIntake) {
                   toast.error("Administration function not available");
                   return;
@@ -379,8 +387,16 @@ export const createMedicationColumns = (
                 try {
                   // For topical medications (both simplified and full), use 1 as quantity and add status to notes
                   const quantity = isTopical ? 1 : (typeof units === "number" ? units : parseFloat(units));
+                  
+                  // Map internal status to display status for topical notes
+                  const displayStatus = isTopical 
+                    ? (applicationStatus === 'taken' ? 'Applied' : 
+                       applicationStatus === 'not_required' ? 'Not required' :
+                       applicationStatus.charAt(0).toUpperCase() + applicationStatus.slice(1))
+                    : "";
+
                   const administrationNotes = isTopical
-                    ? `Status: ${applicationStatus.charAt(0).toUpperCase() + applicationStatus.slice(1)}${notes ? `\n${notes}` : ''}`
+                    ? `Status: ${displayStatus}${notes ? `\n${notes}` : ''}`
                     : notes;
 
                   await createAndAdministerMedicationIntake(
@@ -396,7 +412,7 @@ export const createMedicationColumns = (
                   );
 
                   toast.success(isTopical
-                    ? `Topical medication marked as ${applicationStatus}`
+                    ? `Topical medication marked as ${displayStatus}`
                     : "Medication administered successfully"
                   );
                   setIsOpen(false);
@@ -425,7 +441,7 @@ export const createMedicationColumns = (
                       disabled={isAlreadyAdministeredAtTime}
                       title={isAlreadyAdministeredAtTime ? `Already administered at ${selectedAdministrationTime}` : undefined}
                     >
-                      {isAlreadyAdministeredAtTime ? "Administered" : "Administrate"}
+                      {isAlreadyAdministeredAtTime ? "Administered" : "Administer"}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className={useSimplifiedDialog ? "max-w-md max-h-[90vh] overflow-y-auto" : ""}>
@@ -434,8 +450,8 @@ export const createMedicationColumns = (
                         {isTopical
                           ? "Apply Topical Medication"
                           : isPRN
-                          ? "Administrate PRN Medication"
-                          : "Administrate Medication"}
+                          ? "Administer PRN Medication"
+                          : "Administer Medication"}
                       </DialogTitle>
                       <DialogDescription className={useSimplifiedDialog ? "text-xs" : ""}>
                         {isTopical || isPRN
@@ -600,13 +616,9 @@ export const createMedicationColumns = (
                                 <SelectValue placeholder="Select status" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="taken">T Taken</SelectItem>
+                                <SelectItem value="taken">A Applied</SelectItem>
                                 <SelectItem value="refused">R Refused</SelectItem>
-                                <SelectItem value="refused_destroyed">E Refused/Destroyed</SelectItem>
-                                <SelectItem value="hospitalised">C Hospitalised</SelectItem>
-                                <SelectItem value="social_leave">D Social leave</SelectItem>
-                                <SelectItem value="not_required">NR Not required</SelectItem>
-                                <SelectItem value="made_available">M Made available</SelectItem>
+                                <SelectItem value="not_required">NR Not required (NR)</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -636,13 +648,9 @@ export const createMedicationColumns = (
                                   <SelectValue placeholder="Select status" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="taken">T Taken</SelectItem>
+                                  <SelectItem value="taken">A Applied</SelectItem>
                                   <SelectItem value="refused">R Refused</SelectItem>
-                                  <SelectItem value="refused_destroyed">E Refused/Destroyed</SelectItem>
-                                  <SelectItem value="hospitalised">C Hospitalised</SelectItem>
-                                  <SelectItem value="social_leave">D Social leave</SelectItem>
-                                  <SelectItem value="not_required">NR Not required</SelectItem>
-                                  <SelectItem value="made_available">M Made available</SelectItem>
+                                  <SelectItem value="not_required">NR Not required (NR)</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -802,7 +810,7 @@ export const createMedicationColumns = (
                         Cancel
                       </Button>
                       <Button
-                        onClick={handleAdministrate}
+                        onClick={handleAdminister}
                         size={(isTopical || isPRN) ? "sm" : "default"}
                         className={(isTopical || isPRN) ? "px-6" : ""}
                       >
@@ -814,7 +822,7 @@ export const createMedicationColumns = (
               );
             };
 
-            return <AdministrateDialog />;
+            return <AdministerDialog />;
           }
         } as ColumnDef<Medication>
       ]
@@ -823,7 +831,7 @@ export const createMedicationColumns = (
 
 export const createTopicalMedicationColumns = (
   createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string, witnessId?: string, status?: string) => Promise<any>,
-  showAdministrateButton: boolean = false,
+  showAdministerButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },
   administeredTimesToday: Record<string, string[]> = {},
@@ -832,7 +840,7 @@ export const createTopicalMedicationColumns = (
   // Get base columns — pass preSelectedTime so topical admin dialog uses it
   const baseColumns = createMedicationColumns(
     createAndAdministerMedicationIntake,
-    showAdministrateButton,
+    showAdministerButton,
     teamMembers,
     currentUser,
     false,
@@ -843,13 +851,13 @@ export const createTopicalMedicationColumns = (
   // Remove prescriber column and extract action columns
   const columnsWithoutPrescriber = baseColumns.filter(col => col.id !== "prescriber");
 
-  // Extract actions and administrate columns to move them to the end
+  // Extract actions and administer columns to move them to the end
   const actionsColumn = columnsWithoutPrescriber.find(col => col.id === "actions");
-  const administrateColumn = columnsWithoutPrescriber.find(col => col.id === "administrate");
+  const administerColumn = columnsWithoutPrescriber.find(col => col.id === "administer");
 
-  // Remove actions and administrate from the array
+  // Remove actions and administer from the array
   const columnsWithoutActions = columnsWithoutPrescriber.filter(
-    col => col.id !== "actions" && col.id !== "administrate"
+    col => col.id !== "actions" && col.id !== "administer"
   );
 
   // Body map column definition
@@ -926,7 +934,7 @@ export const createTopicalMedicationColumns = (
 
   // Add action columns at the very end
   if (actionsColumn) result.push(actionsColumn);
-  if (administrateColumn) result.push(administrateColumn);
+  if (administerColumn) result.push(administerColumn);
 
   return result;
 };

@@ -95,7 +95,7 @@ export default function CreateOwnerPage() {
         // 4. Send Invitation Email
         const emailResult = await sendOwnerInvitationEmail({
           email: values.email,
-          organizationName: values.organizationName,
+          careHomeName: values.organizationName,
           inviterName: profile?.name || "Platform Administrator",
           token: invite.token
         });

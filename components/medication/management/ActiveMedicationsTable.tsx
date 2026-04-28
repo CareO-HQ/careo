@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -223,8 +224,8 @@ export function ActiveMedicationsTable({
                 {med.strength} {med.strength_unit} - {med.dosage_form}
               </div>
               {med.is_controlled_drug && (
-                <Badge variant="outline" className="w-fit text-xs bg-red-50 text-red-700 border-red-300">
-                  CD Schedule {med.controlled_drug_schedule}
+                <Badge variant="outline" className="w-fit text-xs bg-red-200 text-red-800 border-red-300">
+                  Controlled Medication
                 </Badge>
               )}
             </div>
@@ -347,6 +348,10 @@ export function ActiveMedicationsTable({
   // Sort medications: non-PRN first, then PRN at the bottom
   const sortedMedications = useMemo(() => {
     return [...medications].sort((a, b) => {
+      // 1. Controlled drugs first
+      if (a.is_controlled_drug && !b.is_controlled_drug) return -1;
+      if (!a.is_controlled_drug && b.is_controlled_drug) return 1;
+
       const aIsPRN = a.schedule_type === "PRN (As Needed)";
       const bIsPRN = b.schedule_type === "PRN (As Needed)";
 
@@ -433,7 +438,10 @@ export function ActiveMedicationsTable({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow 
+                  key={row.id}
+                  className={cn(row.original.is_controlled_drug ? "bg-red-100 hover:bg-red-200" : "")}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

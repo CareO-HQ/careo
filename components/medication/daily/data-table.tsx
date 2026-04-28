@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -56,11 +57,16 @@ export function DataTable<TData, TValue>({
           {table.getRowModel().rows?.length ? (
             table.getRowModel().rows.map((row) => {
               const isDivider = (row.original as any)?.isDivider;
+              const isControlled = (row.original as any).is_controlled_drug || (row.original as any).medication?.is_controlled_drug;
+              
               return (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={isDivider ? "bg-purple-50 hover:bg-purple-50" : ""}
+                  className={cn(
+                    isDivider ? "bg-purple-50 hover:bg-purple-50" : "",
+                    isControlled ? "bg-red-100 hover:bg-red-200" : ""
+                  )}
                 >
                   {isDivider ? (
                     <TableCell colSpan={columns.length} className="p-0">

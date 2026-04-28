@@ -5,12 +5,12 @@ import resend from "@/lib/resend";
 export async function sendInvitationEmail(args: {
     email: string;
     organizationId: string;
-    organizationName: string;
+    careHomeName: string;
     inviterName: string;
     token: string;
     role: string;
 }) {
-    const { email, organizationName, inviterName, token, role } = args;
+    const { email, careHomeName, inviterName, token, role } = args;
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
     const inviteLink = `${baseUrl}/accept-invitation?token=${token}&email=${email}`;
 
@@ -18,11 +18,11 @@ export async function sendInvitationEmail(args: {
         const result = await resend.emails.send({
             from: "CareO <care@careo.uk>",
             to: [email],
-            subject: `You've been invited to join ${organizationName} on CareO`,
+            subject: `You've been invited to join ${careHomeName} on CareO`,
             html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Hello,</h2>
-          <p>You've been invited by <strong>${inviterName}</strong> to join <strong>${organizationName}</strong> as a ${role.replace("_", " ")} on the CareO platform.</p>
+          <p>You've been invited by <strong>${inviterName}</strong> to join <strong>${careHomeName}</strong> as a ${role.replace("_", " ")} on the CareO platform.</p>
           <div style="margin: 30px 0;">
             <a href="${inviteLink}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Accept Invitation</a>
           </div>
@@ -49,7 +49,7 @@ export async function sendInvitationEmail(args: {
 
 export async function sendOwnerInvitationEmail(args: {
     email: string;
-    organizationName: string;
+    careHomeName: string;
     inviterName: string;
     token: string;
 }) {

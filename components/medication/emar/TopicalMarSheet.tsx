@@ -143,7 +143,7 @@ export function TopicalMarSheet({
     switch (status.toLowerCase()) {
       case "taken":
       case "applied":
-        return "T";
+        return "A";
       case "refused":
         return "R";
       case "hospitalised":
@@ -166,7 +166,7 @@ export function TopicalMarSheet({
     switch (status.toLowerCase()) {
       case "taken":
       case "applied":
-        return "When a medication is consumed by a service user";
+        return "When a topical medication is applied to a service user";
       case "refused":
         return "When a service user refuses a medication";
       case "hospitalised":
@@ -188,12 +188,12 @@ export function TopicalMarSheet({
   const getStatusSimplifiedText = (status: string) => {
     switch (status.toLowerCase()) {
       case "taken":
-      case "applied": return "Taken";
+      case "applied": return "Applied";
       case "refused": return "Refused";
       case "hospitalised": return "Hospitalised";
       case "social_leave": return "Social leave";
       case "refused_destroyed": return "Refused and destroyed";
-      case "not_required": return "Not required";
+      case "not_required": return "Not required (NR)";
       case "made_available": return "Made available";
       default: return status;
     }
@@ -390,13 +390,13 @@ export function TopicalMarSheet({
         <h3 className="font-bold text-sm mb-3 uppercase text-gray-900 border-b-2 border-black pb-2">
           Administration Codes
         </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[11px]">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-[11px]">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 border-2 border-green-600 bg-green-50 flex items-center justify-center font-bold text-base text-green-700" title={getStatusFullText("taken")}>
-              T
+            <div className="w-8 h-8 border-2 border-green-600 bg-green-50 flex items-center justify-center font-bold text-base text-green-700" title={getStatusFullText("applied")}>
+              A
             </div>
             <div>
-              <div className="font-bold text-gray-900">Taken</div>
+              <div className="font-bold text-gray-900">Applied</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -408,43 +408,11 @@ export function TopicalMarSheet({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 border-2 border-blue-600 bg-blue-50 flex items-center justify-center font-bold text-base text-blue-700" title={getStatusFullText("hospitalised")}>
-              C
-            </div>
-            <div>
-              <div className="font-bold text-gray-900">Hospitalised</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 border-2 border-orange-600 bg-orange-50 flex items-center justify-center font-bold text-base text-orange-700" title={getStatusFullText("social_leave")}>
-              D
-            </div>
-            <div>
-              <div className="font-bold text-gray-900">Social leave</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 border-2 border-red-600 bg-red-50 flex items-center justify-center font-bold text-base text-red-700" title={getStatusFullText("refused_destroyed")}>
-              E
-            </div>
-            <div>
-              <div className="font-bold text-gray-900">Refused/Destroyed</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
             <div className="w-8 h-8 border-2 border-gray-600 bg-gray-50 flex items-center justify-center font-bold text-sm text-gray-700" title={getStatusFullText("not_required")}>
               NR
             </div>
             <div>
-              <div className="font-bold text-gray-900">Not Required</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 border-2 border-purple-600 bg-purple-50 flex items-center justify-center font-bold text-base text-purple-700" title={getStatusFullText("made_available")}>
-              M
-            </div>
-            <div>
-              <div className="font-bold text-gray-900">Made Available</div>
+              <div className="font-bold text-gray-900">Not Required (NR)</div>
             </div>
           </div>
         </div>

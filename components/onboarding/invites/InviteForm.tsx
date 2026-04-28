@@ -70,14 +70,28 @@ export default function InviteForm() {
       let successCount = 0;
       let errorCount = 0;
 
-      // 1. Fetch organization name for the email
-      const { data: orgData } = await supabase
-        .from('organizations')
-        .select('name')
-        .eq('id', profile.active_organization_id)
-        .single();
+      // 1. Fetch name for the email (Care Home name if available, else Organization name)
+      let emailOrganizationName = "your organization";
 
-      const organizationName = orgData?.name || "your organization";
+      if (profile.active_care_home_id) {
+        const { data: careHomeData } = await supabase
+          .from('care_homes')
+          .select('name')
+          .eq('id', profile.active_care_home_id)
+          .single();
+        if (careHomeData?.name) {
+          emailOrganizationName = careHomeData.name;
+        }
+      } else if (profile.active_organization_id) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('name')
+          .eq('id', profile.active_organization_id)
+          .single();
+        if (orgData?.name) {
+          emailOrganizationName = orgData.name;
+        }
+      }
 
       for (const user of usersWithEmails) {
         if (!user?.email) continue;
@@ -107,7 +121,7 @@ export default function InviteForm() {
             await sendInvitationEmail({
               email,
               organizationId: profile.active_organization_id,
-              organizationName: organizationName,
+              careHomeName: emailOrganizationName,
               inviterName: profile.name || "A team member",
               token: token,
               role: user.role
