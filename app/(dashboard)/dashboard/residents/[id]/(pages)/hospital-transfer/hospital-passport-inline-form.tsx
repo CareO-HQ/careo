@@ -1,7 +1,12 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { HospitalPassportFormData, HospitalPassportSchema } from "./types";
+import {
+  buildHospitalPassportFormValues,
+  type PrefillDietInformation,
+  type PrefillMedicationRow,
+} from "@/lib/hospital-passport-prefill";
 import {
   Form,
   FormControl,
@@ -64,6 +69,9 @@ interface HospitalPassportInlineFormProps {
   onCancel: () => void;
   initialData?: any;
   isEditing?: boolean;
+  dietInformation?: PrefillDietInformation | null;
+  medications?: PrefillMedicationRow[];
+  bodyMapsCount?: number;
 }
 
 export function HospitalPassportInlineForm({
@@ -73,108 +81,54 @@ export function HospitalPassportInlineForm({
   onCancel,
   initialData,
   isEditing = false,
+  dietInformation = null,
+  medications = [],
+  bodyMapsCount = 0,
 }: HospitalPassportInlineFormProps) {
   const [currentStep, setCurrentStep] = React.useState(1);
   const totalSteps = 13;
 
+  const careHomesNested = resident?.care_homes as { name?: string } | { name?: string }[] | undefined;
+  const careHomeNameFromJoin = Array.isArray(careHomesNested)
+    ? careHomesNested[0]?.name
+    : careHomesNested?.name;
+  /** Prefer explicit field from getResidentWithContacts, then embedded care_homes (resident’s home, not viewer context). */
+  const defaultCareHomeName =
+    (typeof resident?.careHomeName === "string" && resident.careHomeName.trim()
+      ? resident.careHomeName.trim()
+      : undefined) ||
+    (typeof careHomeNameFromJoin === "string" && careHomeNameFromJoin.trim()
+      ? careHomeNameFromJoin.trim()
+      : undefined) ||
+    "";
+
+  const formValues = useMemo(
+    () =>
+      buildHospitalPassportFormValues({
+        resident: resident ?? {},
+        profile: profile ?? null,
+        dietInformation: dietInformation ?? null,
+        medications: medications ?? [],
+        bodyMapsCount: bodyMapsCount ?? 0,
+        defaultCareHomeName,
+        initialData,
+        isEditing,
+      }),
+    [
+      resident,
+      profile,
+      dietInformation,
+      medications,
+      bodyMapsCount,
+      defaultCareHomeName,
+      initialData,
+      isEditing,
+    ]
+  );
+
   const form = useForm<HospitalPassportFormData>({
     resolver: zodResolver(HospitalPassportSchema) as any,
-    values: {
-      generalDetails: {
-        personName: initialData?.generalDetails?.personName || `${resident?.firstName || ""} ${resident?.lastName || ""}`.trim() || resident?.name || "",
-        knownAs: initialData?.generalDetails?.knownAs || resident?.firstName || resident?.knownAs || "",
-        dateOfBirth: initialData?.generalDetails?.dateOfBirth || resident?.dateOfBirth || resident?.dob || "",
-        nhsNumber: initialData?.generalDetails?.nhsNumber || resident?.nhsHealthNumber || resident?.nhsNumber || "",
-        religion: initialData?.generalDetails?.religion || resident?.religion || "",
-        weightOnTransfer: initialData?.generalDetails?.weightOnTransfer || "",
-        careType: (initialData?.generalDetails?.careType as any) || "residential",
-        transferDateTime: initialData?.generalDetails?.transferDateTime || new Date().toISOString().slice(0, 16),
-        accompaniedBy: initialData?.generalDetails?.accompaniedBy || "",
-        englishFirstLanguage: (initialData?.generalDetails?.englishFirstLanguage as any) || "yes",
-        firstLanguage: initialData?.generalDetails?.firstLanguage || "",
-        careHomeName: initialData?.generalDetails?.careHomeName || "CareO-HQ",
-        careHomeAddress: initialData?.generalDetails?.careHomeAddress || "123 Care Lane, London, UK",
-        careHomePhone: initialData?.generalDetails?.careHomePhone || "0123456789",
-        hospitalName: initialData?.generalDetails?.hospitalName || "",
-        hospitalAddress: initialData?.generalDetails?.hospitalAddress || "",
-        hospitalPhone: initialData?.generalDetails?.hospitalPhone || "",
-        nextOfKinName: initialData?.generalDetails?.nextOfKinName 
-          || resident?.emergencyContacts?.find((c: any) => c.isPrimary)?.name 
-          || resident?.nextOfKinName || "",
-        nextOfKinAddress: initialData?.generalDetails?.nextOfKinAddress 
-          || resident?.emergencyContacts?.find((c: any) => c.isPrimary)?.address 
-          || resident?.nextOfKinAddress || "",
-        nextOfKinPhone: initialData?.generalDetails?.nextOfKinPhone 
-          || resident?.emergencyContacts?.find((c: any) => c.isPrimary)?.phoneNumber 
-          || resident?.nextOfKinPhone || "",
-        gpName: initialData?.generalDetails?.gpName || resident?.gpName || "",
-        gpAddress: initialData?.generalDetails?.gpAddress || resident?.gpAddress || "",
-        gpPhone: initialData?.generalDetails?.gpPhone || resident?.gpPhone || "",
-        careManagerName: initialData?.generalDetails?.careManagerName || resident?.careManagerName || "",
-        careManagerAddress: initialData?.generalDetails?.careManagerAddress || resident?.careManagerAddress || "",
-        careManagerPhone: initialData?.generalDetails?.careManagerPhone || resident?.careManagerPhone || "",
-      },
-      medicalCareNeeds: {
-        situation: initialData?.medicalCareNeeds?.situation || "",
-        background: initialData?.medicalCareNeeds?.background || "",
-        assessment: initialData?.medicalCareNeeds?.assessment || "",
-        recommendations: initialData?.medicalCareNeeds?.recommendations || "",
-        pastMedicalHistory: initialData?.medicalCareNeeds?.pastMedicalHistory 
-          || (Array.isArray(resident?.health_conditions) 
-              ? resident.health_conditions.map((hc: any) => typeof hc === 'string' ? hc : hc.condition).join(", ") 
-              : resident?.medical_history || ""),
-        knownAllergies: initialData?.medicalCareNeeds?.knownAllergies || resident?.allergies || "",
-        historyOfConfusion: (initialData?.medicalCareNeeds?.historyOfConfusion as any) || "no",
-        learningDisabilityMentalHealth: initialData?.medicalCareNeeds?.learningDisabilityMentalHealth || "",
-        communicationIssues: initialData?.medicalCareNeeds?.communicationIssues || "",
-        hearingAid: !!(initialData?.medicalCareNeeds?.hearingAid ?? false),
-        glasses: !!(initialData?.medicalCareNeeds?.glasses ?? false),
-        otherAids: initialData?.medicalCareNeeds?.otherAids || "",
-        mobilityAssistance: (initialData?.medicalCareNeeds?.mobilityAssistance as any) || "independent",
-        mobilityAids: initialData?.medicalCareNeeds?.mobilityAids || "",
-        historyOfFalls: !!(initialData?.medicalCareNeeds?.historyOfFalls ?? false),
-        dateOfLastFall: initialData?.medicalCareNeeds?.dateOfLastFall || "",
-        toiletingAssistance: (initialData?.medicalCareNeeds?.toiletingAssistance as any) || "independent",
-        continenceStatus: (initialData?.medicalCareNeeds?.continenceStatus as any) || "continent",
-        nutritionalAssistance: (initialData?.medicalCareNeeds?.nutritionalAssistance as any) || "independent",
-        dietType: initialData?.medicalCareNeeds?.dietType || "",
-        swallowingDifficulties: !!(initialData?.medicalCareNeeds?.swallowingDifficulties ?? false),
-        enteralNutrition: !!(initialData?.medicalCareNeeds?.enteralNutrition ?? false),
-        mustScore: initialData?.medicalCareNeeds?.mustScore || "",
-        personalHygieneAssistance: (initialData?.medicalCareNeeds?.personalHygieneAssistance as any) || "independent",
-        topDentures: !!(initialData?.medicalCareNeeds?.topDentures ?? false),
-        bottomDentures: !!(initialData?.medicalCareNeeds?.bottomDentures ?? false),
-        denturesAccompanying: !!(initialData?.medicalCareNeeds?.denturesAccompanying ?? false),
-      },
-      skinMedicationAttachments: {
-        skinIntegrityAssistance: (initialData?.skinMedicationAttachments?.skinIntegrityAssistance as any) || "independent",
-        bradenScore: initialData?.skinMedicationAttachments?.bradenScore || "",
-        skinStateOnTransfer: initialData?.skinMedicationAttachments?.skinStateOnTransfer || "",
-        currentSkinCareRegime: initialData?.skinMedicationAttachments?.currentSkinCareRegime || "",
-        pressureRelievingEquipment: initialData?.skinMedicationAttachments?.pressureRelievingEquipment || "",
-        knownToTVN: !!(initialData?.skinMedicationAttachments?.knownToTVN ?? false),
-        tvnName: initialData?.skinMedicationAttachments?.tvnName || "",
-        currentMedicationRegime: initialData?.skinMedicationAttachments?.currentMedicationRegime || "",
-        lastMedicationDateTime: initialData?.skinMedicationAttachments?.lastMedicationDateTime || new Date().toISOString().slice(0, 16),
-        lastMealDrinkDateTime: initialData?.skinMedicationAttachments?.lastMealDrinkDateTime || "",
-        attachments: {
-          currentMedications: !!(initialData?.skinMedicationAttachments?.attachments?.currentMedications ?? false),
-          bodyMap: !!(initialData?.skinMedicationAttachments?.attachments?.bodyMap ?? false),
-          observations: !!(initialData?.skinMedicationAttachments?.attachments?.observations ?? false),
-          dnacprForm: !!(initialData?.skinMedicationAttachments?.attachments?.dnacprForm ?? false),
-          enteralFeedingRegime: !!(initialData?.skinMedicationAttachments?.attachments?.enteralFeedingRegime ?? false),
-          other: !!(initialData?.skinMedicationAttachments?.attachments?.other ?? false),
-          otherSpecify: initialData?.skinMedicationAttachments?.attachments?.otherSpecify || "",
-        },
-      },
-      signOff: {
-        signature: initialData?.signOff?.signature || profile?.name || "",
-        printedName: initialData?.signOff?.printedName || profile?.name || "",
-        designation: initialData?.signOff?.designation || profile?.designation || profile?.role || "",
-        contactPhone: initialData?.signOff?.contactPhone || profile?.phone || "",
-        completedDate: initialData?.signOff?.completedDate || format(new Date(), "yyyy-MM-dd"),
-      },
-    } as any,
+    values: formValues,
   });
   
   const prevStep = () => { if (currentStep > 1) setCurrentStep(currentStep - 1); };
@@ -263,7 +217,7 @@ export function HospitalPassportInlineForm({
                       <FormItem>
                         <FormLabel>Weight on Transfer</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., 70kg" {...field} />
+                          <Input {...field} />
                         </FormControl>
                       </FormItem>
                     )}
@@ -315,9 +269,7 @@ export function HospitalPassportInlineForm({
                                   <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
                                   {dateValue ? (
                                     <span className="truncate">{format(new Date(dateValue), "PP")}</span>
-                                  ) : (
-                                    <span>Pick a date</span>
-                                  )}
+                                  ) : null}
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent className="w-auto p-0" align="start">
@@ -351,7 +303,7 @@ export function HospitalPassportInlineForm({
                               }}
                             >
                               <SelectTrigger className="w-[130px]">
-                                <SelectValue placeholder="Time" />
+                                <SelectValue />
                               </SelectTrigger>
                               <SelectContent className="max-h-[200px]">
                                 {generateTimeOptions().map((time) => (
@@ -692,11 +644,7 @@ export function HospitalPassportInlineForm({
                           <FormItem>
                             <FormLabelRequired required>Situation</FormLabelRequired>
                             <FormControl>
-                              <Textarea
-                                {...field}
-                                className="min-h-[80px]"
-                                placeholder="What is happening with the resident right now?"
-                              />
+                              <Textarea {...field} className="min-h-[80px]" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -709,11 +657,7 @@ export function HospitalPassportInlineForm({
                           <FormItem>
                             <FormLabelRequired required>Background</FormLabelRequired>
                             <FormControl>
-                              <Textarea
-                                {...field}
-                                className="min-h-[80px]"
-                                placeholder="What is the clinical background or context?"
-                              />
+                              <Textarea {...field} className="min-h-[80px]" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -726,11 +670,7 @@ export function HospitalPassportInlineForm({
                           <FormItem>
                             <FormLabelRequired required>Assessment</FormLabelRequired>
                             <FormControl>
-                              <Textarea
-                                {...field}
-                                className="min-h-[80px]"
-                                placeholder="What do you think the problem is?"
-                              />
+                              <Textarea {...field} className="min-h-[80px]" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -743,11 +683,7 @@ export function HospitalPassportInlineForm({
                           <FormItem>
                             <FormLabelRequired required>Recommendations</FormLabelRequired>
                             <FormControl>
-                              <Textarea
-                                {...field}
-                                className="min-h-[80px]"
-                                placeholder="What actions do you recommend?"
-                              />
+                              <Textarea {...field} className="min-h-[80px]" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -770,11 +706,7 @@ export function HospitalPassportInlineForm({
                           <FormItem>
                             <FormLabelRequired required>Past Medical History</FormLabelRequired>
                             <FormControl>
-                              <Textarea
-                                {...field}
-                                className="min-h-[80px]"
-                                placeholder="Include all relevant medical history"
-                              />
+                              <Textarea {...field} className="min-h-[80px]" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -787,10 +719,7 @@ export function HospitalPassportInlineForm({
                           <FormItem>
                             <FormLabel>Known Allergies</FormLabel>
                             <FormControl>
-                              <Textarea
-                                {...field}
-                                placeholder="List all known allergies"
-                              />
+                              <Textarea {...field} />
                             </FormControl>
                           </FormItem>
                       )}
@@ -845,7 +774,7 @@ export function HospitalPassportInlineForm({
                           <FormItem>
                             <FormLabel>Communication Issues</FormLabel>
                             <FormControl>
-                              <Input {...field} placeholder="e.g., hearing/visual loss/aphasia" />
+                              <Input {...field} />
                             </FormControl>
                           </FormItem>
                       )}
@@ -887,7 +816,7 @@ export function HospitalPassportInlineForm({
                           render={({ field }) => (
                             <FormItem>
                               <FormControl>
-                                <Input {...field} placeholder="Other aids" />
+                                <Input {...field} />
                               </FormControl>
                             </FormItem>
                         )}
@@ -921,7 +850,7 @@ export function HospitalPassportInlineForm({
                           <FormItem>
                             <FormLabel>Mobility Aids Required</FormLabel>
                             <FormControl>
-                              <Input {...field} placeholder="e.g., standard/full hoist" />
+                              <Input {...field} />
                             </FormControl>
                           </FormItem>
                       )}
@@ -961,11 +890,7 @@ export function HospitalPassportInlineForm({
                                         )}
                                       >
                                         <Calendar className="mr-2 h-4 w-4" />
-                                        {field.value ? (
-                                          format(new Date(field.value), "PPP")
-                                        ) : (
-                                          <span>Pick a date</span>
-                                        )}
+                                        {field.value ? format(new Date(field.value), "PPP") : null}
                                       </Button>
                                     </FormControl>
                                   </PopoverTrigger>
@@ -1246,10 +1171,7 @@ export function HospitalPassportInlineForm({
                           <FormItem>
                             <FormLabelRequired required>Skin State on Transfer</FormLabelRequired>
                             <FormControl>
-                              <Textarea
-                                {...field}
-                                placeholder="State if intact, any rashes, bruising, pressure damage"
-                              />
+                              <Textarea {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1329,11 +1251,7 @@ export function HospitalPassportInlineForm({
                           <FormItem>
                             <FormLabelRequired required>Current Medication Regime</FormLabelRequired>
                             <FormControl>
-                              <Textarea
-                                {...field}
-                                className="min-h-[100px]"
-                                placeholder="List all current medications"
-                              />
+                              <Textarea {...field} className="min-h-[100px]" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1365,9 +1283,7 @@ export function HospitalPassportInlineForm({
                                       <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
                                       {dateValue ? (
                                         <span className="truncate">{format(new Date(dateValue), "PP")}</span>
-                                      ) : (
-                                        <span>Pick a date</span>
-                                      )}
+                                      ) : null}
                                     </Button>
                                   </PopoverTrigger>
                                   <PopoverContent className="w-auto p-0" align="start">
@@ -1401,7 +1317,7 @@ export function HospitalPassportInlineForm({
                                   }}
                                 >
                                   <SelectTrigger className="w-[130px]">
-                                    <SelectValue placeholder="Time" />
+                                    <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent className="max-h-[200px]">
                                     {generateTimeOptions().map((time) => (
@@ -1443,9 +1359,7 @@ export function HospitalPassportInlineForm({
                                       <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
                                       {dateValue ? (
                                         <span className="truncate">{format(new Date(dateValue), "PP")}</span>
-                                      ) : (
-                                        <span>Pick a date</span>
-                                      )}
+                                      ) : null}
                                     </Button>
                                   </PopoverTrigger>
                                   <PopoverContent className="w-auto p-0" align="start">
@@ -1479,7 +1393,7 @@ export function HospitalPassportInlineForm({
                                   }}
                                 >
                                   <SelectTrigger className="w-[130px]">
-                                    <SelectValue placeholder="Time" />
+                                    <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent className="max-h-[200px]">
                                     {generateTimeOptions().map((time) => (
@@ -1604,7 +1518,7 @@ export function HospitalPassportInlineForm({
                             render={({ field }) => (
                               <FormItem className="flex-1">
                                 <FormControl>
-                                  <Input {...field} placeholder="Please specify" />
+                                  <Input {...field} />
                                 </FormControl>
                               </FormItem>
                           )}
@@ -1684,11 +1598,7 @@ export function HospitalPassportInlineForm({
                                     )}
                                   >
                                     <Calendar className="mr-2 h-4 w-4" />
-                                    {field.value ? (
-                                      format(new Date(field.value), "PPP")
-                                    ) : (
-                                      <span>Pick a date</span>
-                                    )}
+                                    {field.value ? format(new Date(field.value), "PPP") : null}
                                   </Button>
                                 </FormControl>
                               </PopoverTrigger>
@@ -1727,7 +1637,6 @@ export function HospitalPassportInlineForm({
                                <Textarea
                                  {...field}
                                  className={cn("min-h-[80px]", !!initialData?.signOff?.signature && "bg-gray-50 text-gray-700")}
-                                 placeholder="Type your full name as electronic signature"
                                  readOnly={!!initialData?.signOff?.signature}
                                />
                              </FormControl>

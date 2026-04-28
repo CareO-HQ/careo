@@ -1,5 +1,9 @@
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  createTomorrowReminderNotifications,
+  type AppointmentForReminder,
+} from "@/lib/appointment-reminders";
 
 // Helper to create Supabase client
 function createSupabaseClient(request: NextRequest) {
@@ -147,6 +151,21 @@ export async function GET(request: NextRequest) {
           resident,
         };
       })
+    );
+
+    await createTomorrowReminderNotifications(
+      supabase,
+      (appointmentsWithStatus || []).map((apt) => ({
+        id: apt.id,
+        title: apt.title,
+        start_time: apt.start_time,
+        resident_id: apt.resident_id ?? null,
+        organization_id: apt.organization_id,
+        care_home_id: apt.care_home_id ?? null,
+        team_id: apt.team_id ?? null,
+        status: apt.status ?? null,
+        resident: apt.resident ?? null,
+      }))
     );
 
     return NextResponse.json({ appointments: appointmentsWithStatus }, { status: 200 });

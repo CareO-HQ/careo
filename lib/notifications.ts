@@ -1,9 +1,108 @@
 import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+
+export function isNotificationPowerUserRole(role: string | null | undefined): boolean {
+    return role === "manager" || role === "owner" || role === "saas_admin";
+}
+
+export interface InsertHospitalPassportNotificationParams {
+    organizationId: string;
+    careHomeId: string | null;
+    teamId: string | null;
+    residentId: string;
+    passportId: string;
+    residentDisplayName: string;
+    senderId: string;
+    senderName: string;
+    isVersionUpdate: boolean;
+}
+
+/** Inserts a broadcast notification (same visibility pattern as incidents). */
+export async function insertHospitalPassportNotification(
+    client: SupabaseClient,
+    params: InsertHospitalPassportNotificationParams
+): Promise<void> {
+    const title = params.isVersionUpdate
+        ? "Hospital passport updated"
+        : "Hospital passport created";
+    const message = params.isVersionUpdate
+        ? `A new hospital passport version was saved for ${params.residentDisplayName}.`
+        : `A hospital passport was created for ${params.residentDisplayName}.`;
+
+    const { error } = await client.from("notifications").insert({
+        organization_id: params.organizationId,
+        care_home_id: params.careHomeId,
+        team_id: params.teamId,
+        user_id: null,
+        type: "hospital_passport",
+        title,
+        message,
+        link: `/dashboard/residents/${params.residentId}/hospital-transfer`,
+        sender_id: params.senderId,
+        sender_name: params.senderName,
+        metadata: {
+            residentId: params.residentId,
+            passportId: params.passportId,
+            teamId: params.teamId,
+            careHomeId: params.careHomeId,
+            isVersionUpdate: params.isVersionUpdate,
+        },
+    });
+
+    if (error) throw error;
+}
+
+export interface InsertHospitalTransferLogNotificationParams {
+    organizationId: string;
+    careHomeId: string | null;
+    teamId: string | null;
+    residentId: string;
+    transferLogId: string;
+    residentDisplayName: string;
+    senderId: string;
+    senderName: string;
+    hospitalName?: string | null;
+    transferDate?: string | null;
+}
+
+/** Inserts a broadcast notification for newly created transfer logs. */
+export async function insertHospitalTransferLogNotification(
+    client: SupabaseClient,
+    params: InsertHospitalTransferLogNotificationParams
+): Promise<void> {
+    const title = "Hospital transfer log created";
+    const hospitalText = params.hospitalName ? ` to ${params.hospitalName}` : "";
+    const dateText = params.transferDate ? ` on ${params.transferDate}` : "";
+    const message = `A hospital transfer log was created for ${params.residentDisplayName}${hospitalText}${dateText}.`;
+
+    const { error } = await client.from("notifications").insert({
+        organization_id: params.organizationId,
+        care_home_id: params.careHomeId,
+        team_id: params.teamId,
+        user_id: null,
+        type: "hospital_transfer_log",
+        title,
+        message,
+        link: `/dashboard/residents/${params.residentId}/hospital-transfer`,
+        sender_id: params.senderId,
+        sender_name: params.senderName,
+        metadata: {
+            residentId: params.residentId,
+            transferLogId: params.transferLogId,
+            teamId: params.teamId,
+            careHomeId: params.careHomeId,
+            hospitalName: params.hospitalName ?? null,
+            transferDate: params.transferDate ?? null,
+        },
+    });
+
+    if (error) throw error;
+}
 
 export interface Notification {
     id: string;
@@ -22,7 +121,14 @@ export interface Notification {
     isRead: boolean;
 }
 
-export const getNotifications = async (userId: string, limit = 50, onlyUnread = false, careHomeId?: string | null, teamId?: string | null) => {
+export const getNotifications = async (
+    userId: string,
+    limit = 50,
+    onlyUnread = false,
+    careHomeId?: string | null,
+    activeTeamId?: string | null,
+    userRole?: string | null
+) => {
     // 1. Fetch dismissals first to filter them out
     const { data: dismissals } = await supabase
         .from("notification_dismissals")
@@ -31,28 +137,61 @@ export const getNotifications = async (userId: string, limit = 50, onlyUnread = 
 
     const dismissedIds = new Set((dismissals || []).map(d => d.notification_id));
 
-    // 2. Fetch notifications
-    let query = supabase
+    // 2. Fetch notifications: personal (user_id) + broadcast (user_id null), with team scoping for non–power users
+    const isPower = isNotificationPowerUserRole(userRole);
+
+    let personalQuery = supabase
         .from("notifications")
         .select("*")
-        .or(`user_id.eq.${userId},user_id.is.null`);
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(Math.max(limit, 80));
 
     if (careHomeId) {
-        query = query.eq("care_home_id", careHomeId);
+        personalQuery = personalQuery.eq("care_home_id", careHomeId);
     }
 
-    if (teamId) {
-        query = query.eq("team_id", teamId);
-    }
-
-    const { data: notifications, error } = await query
+    let broadcastQuery = supabase
+        .from("notifications")
+        .select("*")
+        .is("user_id", null)
         .order("created_at", { ascending: false })
-        .limit(limit);
+        .limit(Math.max(limit, 80));
 
-    if (error) {
-        console.error("Error fetching notifications:", error);
-        throw error;
+    if (careHomeId) {
+        broadcastQuery = broadcastQuery.eq("care_home_id", careHomeId);
     }
+
+    if (!isPower && activeTeamId) {
+        broadcastQuery = broadcastQuery.or(`team_id.is.null,team_id.eq.${activeTeamId}`);
+    }
+
+    const [{ data: personalRows, error: personalError }, { data: broadcastRows, error: broadcastError }] =
+        await Promise.all([personalQuery, broadcastQuery]);
+
+    if (personalError) {
+        console.error("Error fetching personal notifications:", personalError);
+        throw personalError;
+    }
+    if (broadcastError) {
+        console.error("Error fetching broadcast notifications:", broadcastError);
+        throw broadcastError;
+    }
+
+    const personal = personalRows ?? [];
+    const broadcast = broadcastRows ?? [];
+    type NotificationRow = (typeof personal)[number];
+    const mergedById = new Map<string, NotificationRow>();
+    for (const row of personal) {
+        mergedById.set(row.id, row);
+    }
+    for (const row of broadcast) {
+        mergedById.set(row.id, row);
+    }
+
+    const notifications = Array.from(mergedById.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    ).slice(0, limit);
 
     // Filter out dismissed notifications
     const activeNotifications = (notifications || []).filter(n => !dismissedIds.has(n.id));

@@ -48,6 +48,21 @@ import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 import { Resident } from "@/types";
 
+const NON_DISMISSIBLE_ALERT_TYPES = new Set(["resident_photo_refresh_required"]);
+
+function canDismissAlert(
+  alert: { type?: string; created_at?: string },
+  residentPhotoUpdatedAt?: string
+) {
+  if (!NON_DISMISSIBLE_ALERT_TYPES.has(alert.type || "")) {
+    return true;
+  }
+  if (!residentPhotoUpdatedAt || !alert.created_at) {
+    return false;
+  }
+  return new Date(residentPhotoUpdatedAt).getTime() > new Date(alert.created_at).getTime();
+}
+
 type ResidentPageProps = {
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -107,9 +122,12 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       );
 
       // Filter out alerts dismissed by current user
-      const filteredAlerts = (alertsData || []).filter(
-        (alert: any) => !dismissedAlertIds.has(alert.id)
-      );
+      const filteredAlerts = (alertsData || []).filter((alert: any) => {
+        if (!canDismissAlert(alert, residentData?.photo_updated_at)) {
+          return true;
+        }
+        return !dismissedAlertIds.has(alert.id);
+      });
 
       setAlerts(filteredAlerts);
     }
@@ -133,6 +151,11 @@ export default function ResidentPage({ params }: ResidentPageProps) {
 
   const handleDismissAlert = async (alertId: string) => {
     if (!profile?.id) return;
+    const alert = alerts.find((item) => item.id === alertId);
+    if (alert && !canDismissAlert(alert, resident?.photo_updated_at)) {
+      toast.info("This alert cannot be dismissed until the profile photo is updated");
+      return;
+    }
 
     try {
       // Insert into alert_dismissals table for per-user dismissal tracking
@@ -189,9 +212,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   const fullName = `${resident.first_name} ${resident.last_name}`;
   const initials =
     `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
-  const lastUpdatedOn = resident.updated_at
-    ? formatTimestampToUKDateTime(resident.updated_at, "dd/MM/yyyy")
-    : null;
+  const lastPhotoUpdatedOn = resident.photo_updated_at
+    ? formatTimestampToUKDateTime(resident.photo_updated_at, "dd/MM/yyyy")
+    : "Not set";
 
   const handleCardClick = (cardType: string) => {
     router.push(`/dashboard/residents/${id}/${cardType}` as Route);
@@ -238,11 +261,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <p className="text-muted-foreground text-sm">
               Room {resident.room_number} • NHS: {resident.nhs_health_number}
             </p>
-            {resident.image_url && lastUpdatedOn && (
-              <p className="text-muted-foreground text-xs mt-1">
-                Last update on: {lastUpdatedOn}
-              </p>
-            )}
+            <p className="text-muted-foreground text-xs mt-1">
+              Last photo updated: {lastPhotoUpdatedOn}
+            </p>
           </div>
         </div>
         <Button
@@ -783,14 +804,16 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                       <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
                       <p className="text-sm text-muted-foreground">{alert.message}</p>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDismissAlert(alert.id)}
-                      className="flex-shrink-0"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    {canDismissAlert(alert, resident?.photo_updated_at) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDismissAlert(alert.id)}
+                        className="flex-shrink-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))

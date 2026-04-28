@@ -17,6 +17,8 @@ export {
 export type Resident = {
   id: string;
   updated_at?: string;
+  photo_updated_at?: string;
+  photoUpdatedAt?: string; // Alias
   updatedAt?: string; // Alias
   first_name: string;
   last_name: string;

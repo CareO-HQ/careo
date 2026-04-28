@@ -18,6 +18,21 @@ import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 
+const NON_DISMISSIBLE_ALERT_TYPES = new Set(["resident_photo_refresh_required"]);
+
+function canDismissAlert(
+  alert: { type?: string; created_at?: string },
+  residentPhotoUpdatedAt?: string
+) {
+  if (!NON_DISMISSIBLE_ALERT_TYPES.has(alert.type || "")) {
+    return true;
+  }
+  if (!residentPhotoUpdatedAt || !alert.created_at) {
+    return false;
+  }
+  return new Date(residentPhotoUpdatedAt).getTime() > new Date(alert.created_at).getTime();
+}
+
 // Component for displaying allergies
 const AllergiesCell = ({ residentId }: { residentId: string }) => {
   const [dietInfo, setDietInfo] = useState<any>(null);
@@ -270,7 +285,13 @@ const NextMedicationCell = ({ residentId }: { residentId: string }) => {
 };
 
 // Component for displaying alerts (real data from alerts system)
-const NotificationsCell = ({ residentId }: { residentId: string }) => {
+const NotificationsCell = ({
+  residentId,
+  residentPhotoUpdatedAt,
+}: {
+  residentId: string;
+  residentPhotoUpdatedAt?: string;
+}) => {
   const [alertData, setAlertData] = useState<{ total: number }>({ total: 0 });
   const [alerts, setAlerts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -305,14 +326,17 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
     );
 
     // Filter out alerts dismissed by current user
-    const filteredAlerts = (alertsData || []).filter(
-      (alert: any) => !dismissedAlertIds.has(alert.id)
-    );
+    const filteredAlerts = (alertsData || []).filter((alert: any) => {
+      if (!canDismissAlert(alert, residentPhotoUpdatedAt)) {
+        return true;
+      }
+      return !dismissedAlertIds.has(alert.id);
+    });
 
     setAlerts(filteredAlerts);
     setAlertData({ total: filteredAlerts.length });
     setIsLoading(false);
-  }, [residentId, userRole, profile?.id]);
+  }, [residentId, residentPhotoUpdatedAt, userRole, profile?.id]);
 
   useEffect(() => {
     fetchAlerts();
@@ -321,6 +345,11 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
   const handleDismissAlert = async (alertId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!profile?.id) return;
+    const alert = alerts.find((item) => item.id === alertId);
+    if (alert && !canDismissAlert(alert, residentPhotoUpdatedAt)) {
+      toast.info("This alert cannot be dismissed until the profile photo is updated");
+      return;
+    }
 
     try {
       // Insert into alert_dismissals table for per-user dismissal tracking
@@ -407,16 +436,18 @@ const NotificationsCell = ({ residentId }: { residentId: string }) => {
               </p>
             </div>
           )}
-          <div className="pt-2 border-t flex justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => handleDismissAlert(topAlert.id, e)}
-              className="text-xs h-7"
-            >
-              Dismiss
-            </Button>
-          </div>
+          {canDismissAlert(topAlert, residentPhotoUpdatedAt) && (
+            <div className="pt-2 border-t flex justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={(e) => handleDismissAlert(topAlert.id, e)}
+                className="text-xs h-7"
+              >
+                Dismiss
+              </Button>
+            </div>
+          )}
         </div>
       </TooltipContent>
     </Tooltip>
@@ -767,7 +798,12 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     enableSorting: false,
     cell: ({ row }) => {
       const resident = row.original;
-      return <NotificationsCell residentId={resident.id} />;
+      return (
+        <NotificationsCell
+          residentId={resident.id}
+          residentPhotoUpdatedAt={resident.photo_updated_at}
+        />
+      );
     }
   }
 ];

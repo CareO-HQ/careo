@@ -64,6 +64,10 @@ import { TransferLogInlineForm } from "./transfer-log-inline-form";
 import { ViewTransferLogInline } from "./view-transfer-log-inline";
 import { HospitalPassportCard } from "./hospital-passport-card";
 import { hospitalTransferService } from "@/lib/hospital-transfer-service";
+import {
+  insertHospitalPassportNotification,
+  insertHospitalTransferLogNotification,
+} from "@/lib/notifications";
 import { BodyMapWorkspace } from "@/components/body-map/BodyMapWorkspace";
 import { BodyMapData } from "@/types/body-map";
 import { generateBodyMapPDF } from "@/lib/body-map-pdf-utils";
@@ -167,6 +171,61 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
   };
 
+  const notifyHospitalPassportSaved = async (
+    passportRow: { id: string },
+    isVersionUpdate: boolean
+  ) => {
+    if (!resident || !profile?.id || !activeOrganizationId) return;
+    const displayName =
+      [resident.firstName, resident.lastName].filter(Boolean).join(" ").trim() ||
+      [resident.first_name, resident.last_name].filter(Boolean).join(" ").trim() ||
+      "Resident";
+    try {
+      await insertHospitalPassportNotification(supabase, {
+        organizationId: activeOrganizationId,
+        careHomeId: resident.care_home_id ?? null,
+        teamId: resident.team_id ?? null,
+        residentId: id,
+        passportId: passportRow.id,
+        residentDisplayName: displayName,
+        senderId: profile.id,
+        senderName: profile.name || profile.email || "Unknown",
+        isVersionUpdate,
+      });
+      window.dispatchEvent(new CustomEvent("sidebar-counts-refresh"));
+    } catch (notifError) {
+      console.error("Failed to create hospital passport notification:", notifError);
+    }
+  };
+
+  const notifyHospitalTransferLogCreated = async (
+    transferLogRow: { id: string; hospital_name?: string | null; date?: string | null }
+  ) => {
+    if (!resident || !profile?.id || !activeOrganizationId) return;
+    const displayName =
+      [resident.firstName, resident.lastName].filter(Boolean).join(" ").trim() ||
+      [resident.first_name, resident.last_name].filter(Boolean).join(" ").trim() ||
+      "Resident";
+
+    try {
+      await insertHospitalTransferLogNotification(supabase, {
+        organizationId: activeOrganizationId,
+        careHomeId: resident.care_home_id ?? null,
+        teamId: resident.team_id ?? null,
+        residentId: id,
+        transferLogId: transferLogRow.id,
+        residentDisplayName: displayName,
+        senderId: profile.id,
+        senderName: profile.name || profile.email || "Unknown",
+        hospitalName: transferLogRow.hospital_name ?? null,
+        transferDate: transferLogRow.date ?? null,
+      });
+      window.dispatchEvent(new CustomEvent("sidebar-counts-refresh"));
+    } catch (notifError) {
+      console.error("Failed to create hospital transfer log notification:", notifError);
+    }
+  };
+
   const formatDate = (dateValue: string | number | Date) => {
     if (!dateValue) return "Not specified";
     const date = new Date(dateValue);
@@ -217,12 +276,13 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     const savingToast = toast.loading("Creating new passport version...");
     try {
       // Any "Edit" now technically creates a new version while archiving the old one
-      await hospitalTransferService.createPassport({
+      const inserted = await hospitalTransferService.createPassport({
         ...data,
         residentId: id,
         organizationId: activeOrganizationId,
         createdBy: profile.id
       });
+      await notifyHospitalPassportSaved({ id: inserted.id }, true);
       toast.success("Passport version updated", { id: savingToast });
       setIsEditingPassport(false);
       setActiveItem(null); // Return to list/placeholder or maybe select the new one? Null is safer.
@@ -257,12 +317,13 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     if (!activeOrganizationId || !profile?.id) return;
     const creatingToast = toast.loading("Creating passport...");
     try {
-      await hospitalTransferService.createPassport({
+      const inserted = await hospitalTransferService.createPassport({
         ...data,
         residentId: id,
         organizationId: activeOrganizationId,
         createdBy: profile.id
       });
+      await notifyHospitalPassportSaved({ id: inserted.id }, false);
       toast.success("Passport created successfully", { id: creatingToast });
       setActiveItem(null);
       refreshData();
@@ -279,12 +340,13 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
         await hospitalTransferService.updateTransferLog(editingTransferLog._id, data);
         toast.success("Transfer log updated", { id: savingToast });
       } else {
-        await hospitalTransferService.createTransferLog({
+        const createdLog = await hospitalTransferService.createTransferLog({
           ...data,
           residentId: id,
           organizationId: activeOrganizationId,
           createdBy: profile.id,
         });
+        await notifyHospitalTransferLogCreated(createdLog);
         toast.success("Transfer log created", { id: savingToast });
       }
       setIsEditingTransferLog(false);
@@ -438,6 +500,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                     onCancel={() => { setIsEditingPassport(false); if(activeItem.id === 'new') setActiveItem(null); }}
                     initialData={isEditingPassport ? activeItem.data : undefined}
                     isEditing={isEditingPassport}
+                    dietInformation={dietInformation}
+                    medications={medications}
+                    bodyMapsCount={residentBodyMaps.length}
                   />
                 ) : isViewingFullPassport ? (
                   <ViewPassportInline

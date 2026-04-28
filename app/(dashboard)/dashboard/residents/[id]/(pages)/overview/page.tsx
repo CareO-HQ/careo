@@ -40,6 +40,21 @@ import { cn } from "@/lib/utils";
 import { formatTimestampToUKDateTime } from "@/lib/date-utils";
 import { toast } from "sonner";
 
+const NON_DISMISSIBLE_ALERT_TYPES = new Set(["resident_photo_refresh_required"]);
+
+function canDismissAlert(
+  alert: { type?: string; created_at?: string },
+  residentPhotoUpdatedAt?: string
+) {
+  if (!NON_DISMISSIBLE_ALERT_TYPES.has(alert.type || "")) {
+    return true;
+  }
+  if (!residentPhotoUpdatedAt || !alert.created_at) {
+    return false;
+  }
+  return new Date(residentPhotoUpdatedAt).getTime() > new Date(alert.created_at).getTime();
+}
+
 type OverviewPageProps = {
   params: Promise<{ id: string }>;
 };
@@ -99,9 +114,12 @@ export default function OverviewPage({ params }: OverviewPageProps) {
       );
 
       // Filter out alerts dismissed by current user
-      const filteredAlerts = (alertsData || []).filter(
-        (alert: any) => !dismissedAlertIds.has(alert.id)
-      );
+      const filteredAlerts = (alertsData || []).filter((alert: any) => {
+        if (!canDismissAlert(alert, data?.photo_updated_at)) {
+          return true;
+        }
+        return !dismissedAlertIds.has(alert.id);
+      });
       
       setAlerts(filteredAlerts);
     }
@@ -167,6 +185,11 @@ export default function OverviewPage({ params }: OverviewPageProps) {
 
   const handleDismissAlert = async (alertId: string) => {
     if (!supabase || !profile?.id) return;
+    const alert = alerts.find((item) => item.id === alertId);
+    if (alert && !canDismissAlert(alert, resident?.photo_updated_at)) {
+      toast.info("This alert cannot be dismissed until the profile photo is updated");
+      return;
+    }
     
     try {
       // Insert into alert_dismissals table for per-user dismissal tracking
@@ -222,10 +245,10 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   const fullName = [resident.first_name, resident.last_name].filter(Boolean).join(" ");
   const initials =
     `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
-  const lastUpdatedOn = resident.updated_at
-    ? formatTimestampToUKDateTime(resident.updated_at, "dd/MM/yyyy")
-    : null;
-  const showLastUpdateCard = Boolean(resident.image_url && lastUpdatedOn);
+  const lastPhotoUpdatedOn = resident.photo_updated_at
+    ? formatTimestampToUKDateTime(resident.photo_updated_at, "dd/MM/yyyy")
+    : "Not set";
+  const showLastUpdateCard = Boolean(resident.photo_updated_at);
 
   return (
     <>
@@ -247,6 +270,9 @@ export default function OverviewPage({ params }: OverviewPageProps) {
           </div>
           <p className="text-muted-foreground text-sm">
             View basic information and summary
+          </p>
+          <p className="text-muted-foreground text-xs mt-1">
+            Last photo updated: {lastPhotoUpdatedOn}
           </p>
         </div>
         <div className="flex flex-row gap-2">
@@ -325,9 +351,9 @@ export default function OverviewPage({ params }: OverviewPageProps) {
             {showLastUpdateCard && (
               <div className="text-center p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="text-sm font-semibold text-slate-700">
-                  {lastUpdatedOn}
+                  {lastPhotoUpdatedOn}
                 </div>
-                <p className="text-sm text-slate-700">Picture Last update on</p>
+                <p className="text-sm text-slate-700">Photo last updated on</p>
               </div>
             )}
           </div>
@@ -573,14 +599,16 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                       <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
                       <p className="text-sm text-muted-foreground">{alert.message}</p>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDismissAlert(alert.id)}
-                      className="flex-shrink-0"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    {canDismissAlert(alert, resident?.photo_updated_at) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDismissAlert(alert.id)}
+                        className="flex-shrink-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))

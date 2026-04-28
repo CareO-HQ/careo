@@ -226,6 +226,7 @@ export function CreateResidentForm({
 
       let residentId = residentData?.id;
       let imageUrl = residentData?.image_url;
+      const didUploadNewPhoto = Boolean(selectedFile);
 
       // Handle Image Upload
       if (selectedFile) {
@@ -253,6 +254,7 @@ export function CreateResidentForm({
         team_id: values.teamId,
         nhs_health_number: values.nhsHealthNumber,
         image_url: imageUrl,
+        ...(didUploadNewPhoto ? { photo_updated_at: new Date().toISOString() } : {}),
         // GP Details
         gp_name: values.gpDetails?.name,
         gp_address: values.gpDetails?.address,
@@ -336,6 +338,23 @@ export function CreateResidentForm({
         }
 
         toast.success("Resident created successfully");
+      }
+
+      if (didUploadNewPhoto && residentId) {
+        const resolveResponse = await fetch("/api/alerts/resolve-photo-refresh", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ residentId }),
+        });
+
+        if (!resolveResponse.ok) {
+          const errorBody = (await resolveResponse.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(errorBody.error || "Failed to resolve profile photo alerts");
+        }
       }
 
       window.dispatchEvent(new CustomEvent("residents-updated"));
