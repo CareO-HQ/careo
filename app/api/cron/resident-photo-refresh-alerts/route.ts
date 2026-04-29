@@ -112,6 +112,7 @@ export async function GET(request: NextRequest) {
             photo_refresh_due: true,
             photo_updated_at: resident.photo_updated_at,
             generated_by: "resident-photo-refresh-cron",
+            target_roles: ["nurse"],
           },
         };
       });

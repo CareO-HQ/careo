@@ -14,23 +14,101 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Bell, Clock } from "lucide-react";
 import { formatTimestampToUKTime, formatTimestampToUKDate, getUKTodayDate } from "@/lib/date-utils";
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
+import {
+  computeFoodFluidComplianceInWindow,
+  FOOD_FLUID_ALERT_WINDOW_MS,
+  FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE,
+} from "@/lib/food-fluid-log-classification";
+import {
+  URINE_ALERT_WINDOW_MS,
+  URINE_NOT_RECORDED_6H_ALERT_TYPE,
+} from "@/lib/continence-alerts";
 
-const NON_DISMISSIBLE_ALERT_TYPES = new Set(["resident_photo_refresh_required"]);
+const NON_DISMISSIBLE_ALERT_TYPES = new Set<string>([
+  "resident_photo_refresh_required",
+  "bowel_not_recorded_3_days",
+  FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE,
+  URINE_NOT_RECORDED_6H_ALERT_TYPE,
+]);
+const NURSE_ONLY_ALERT_TYPES = new Set<string>([
+  "resident_photo_refresh_required",
+  "bowel_not_recorded_3_days",
+]);
+const NURSE_AND_CARE_ASSISTANT_ALERT_TYPES = new Set<string>([
+  FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE,
+  URINE_NOT_RECORDED_6H_ALERT_TYPE,
+]);
+
+function getNonDismissibleAlertMessage(type?: string) {
+  if (type === "resident_photo_refresh_required") {
+    return "This alert cannot be dismissed until the profile photo is updated";
+  }
+  if (type === "bowel_not_recorded_3_days") {
+    return "This alert cannot be dismissed until a bowel record is entered";
+  }
+  if (type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE) {
+    return "This alert cannot be dismissed until food and fluid are recorded in the last 6 hours";
+  }
+  if (type === URINE_NOT_RECORDED_6H_ALERT_TYPE) {
+    return "This alert cannot be dismissed until urine is recorded";
+  }
+  return "This alert cannot be dismissed yet";
+}
 
 function canDismissAlert(
   alert: { type?: string; created_at?: string },
-  residentPhotoUpdatedAt?: string
+  residentPhotoUpdatedAt?: string,
+  residentLastBowelRecordedAt?: string,
+  foodFluidSixHourCompliant?: boolean,
+  residentLastUrineRecordedAt?: string
 ) {
   if (!NON_DISMISSIBLE_ALERT_TYPES.has(alert.type || "")) {
     return true;
   }
-  if (!residentPhotoUpdatedAt || !alert.created_at) {
+
+  if (alert.type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE) {
+    return foodFluidSixHourCompliant === true;
+  }
+  if (alert.type === URINE_NOT_RECORDED_6H_ALERT_TYPE) {
+    if (!alert.created_at || !residentLastUrineRecordedAt) {
+      return false;
+    }
+    return new Date(residentLastUrineRecordedAt).getTime() > new Date(alert.created_at).getTime();
+  }
+
+  if (!alert.created_at) {
     return false;
   }
-  return new Date(residentPhotoUpdatedAt).getTime() > new Date(alert.created_at).getTime();
+
+  if (alert.type === "resident_photo_refresh_required") {
+    if (!residentPhotoUpdatedAt) {
+      return false;
+    }
+    return new Date(residentPhotoUpdatedAt).getTime() > new Date(alert.created_at).getTime();
+  }
+
+  if (alert.type === "bowel_not_recorded_3_days") {
+    if (!residentLastBowelRecordedAt) {
+      return false;
+    }
+    return new Date(residentLastBowelRecordedAt).getTime() > new Date(alert.created_at).getTime();
+  }
+
+  return false;
+}
+
+function shouldShowAlertForRole(alert: { type?: string }, role?: string) {
+  if (NURSE_AND_CARE_ASSISTANT_ALERT_TYPES.has(alert.type || "")) {
+    return role === "nurse" || role === "care_assistant";
+  }
+  if (!NURSE_ONLY_ALERT_TYPES.has(alert.type || "")) {
+    return true;
+  }
+  return role === "nurse";
 }
 
 // Component for displaying allergies
@@ -294,9 +372,13 @@ const NotificationsCell = ({
 }) => {
   const [alertData, setAlertData] = useState<{ total: number }>({ total: 0 });
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [residentLastBowelRecordedAt, setResidentLastBowelRecordedAt] = useState<string | undefined>();
+  const [residentLastUrineRecordedAt, setResidentLastUrineRecordedAt] = useState<string | undefined>();
+  const [foodFluidSixHourCompliant, setFoodFluidSixHourCompliant] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { profile } = useProfile();
   const userRole = profile?.role;
+  const router = useRouter();
 
   const fetchAlerts = useCallback(async () => {
     if (!userRole || !profile?.id) return;
@@ -314,6 +396,45 @@ const NotificationsCell = ({
       return;
     }
 
+    const { data: latestBowelEntry } = await supabase
+      .from("continence_entries")
+      .select("created_at")
+      .eq("resident_id", residentId)
+      .eq("entry_type", "bowel")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    setResidentLastBowelRecordedAt(latestBowelEntry?.created_at);
+
+    const { data: latestUrineEntry } = await supabase
+      .from("continence_entries")
+      .select("created_at")
+      .eq("resident_id", residentId)
+      .eq("entry_type", "urine")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    setResidentLastUrineRecordedAt(latestUrineEntry?.created_at);
+
+    const hasFoodFluidAlert = (alertsData || []).some(
+      (alert: any) => alert.type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE
+    );
+    let foodFluidCompliant = true;
+    if (hasFoodFluidAlert) {
+      const windowStartIso = new Date(Date.now() - FOOD_FLUID_ALERT_WINDOW_MS).toISOString();
+      const { data: foodFluidRows } = await supabase
+        .from("food_fluid_logs")
+        .select("timestamp, type_of_food_drink, amount_eaten, fluid_consumed_ml")
+        .eq("resident_id", residentId)
+        .gte("timestamp", windowStartIso)
+        .eq("is_archived", false);
+      const { foodOk, fluidOk } = computeFoodFluidComplianceInWindow(foodFluidRows ?? []);
+      foodFluidCompliant = foodOk && fluidOk;
+    }
+    setFoodFluidSixHourCompliant(foodFluidCompliant);
+
     // Fetch dismissals for current user
     const { data: dismissalsData } = await supabase
       .from("alert_dismissals")
@@ -327,7 +448,10 @@ const NotificationsCell = ({
 
     // Filter out alerts dismissed by current user
     const filteredAlerts = (alertsData || []).filter((alert: any) => {
-      if (!canDismissAlert(alert, residentPhotoUpdatedAt)) {
+      if (!shouldShowAlertForRole(alert, userRole)) {
+        return false;
+      }
+        if (!canDismissAlert(alert, residentPhotoUpdatedAt, latestBowelEntry?.created_at, foodFluidCompliant, latestUrineEntry?.created_at)) {
         return true;
       }
       return !dismissedAlertIds.has(alert.id);
@@ -346,8 +470,17 @@ const NotificationsCell = ({
     e.stopPropagation();
     if (!profile?.id) return;
     const alert = alerts.find((item) => item.id === alertId);
-    if (alert && !canDismissAlert(alert, residentPhotoUpdatedAt)) {
-      toast.info("This alert cannot be dismissed until the profile photo is updated");
+    if (
+      alert &&
+      !canDismissAlert(
+        alert,
+        residentPhotoUpdatedAt,
+        residentLastBowelRecordedAt,
+        foodFluidSixHourCompliant,
+        residentLastUrineRecordedAt
+      )
+    ) {
+      toast.info(getNonDismissibleAlertMessage(alert.type));
       return;
     }
 
@@ -388,6 +521,10 @@ const NotificationsCell = ({
   }
 
   const topAlert = alerts[0];
+  const canNavigateCareAlert =
+    (topAlert.type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE ||
+      topAlert.type === URINE_NOT_RECORDED_6H_ALERT_TYPE) &&
+    (userRole === "nurse" || userRole === "care_assistant");
 
   return (
     <Tooltip>
@@ -436,7 +573,35 @@ const NotificationsCell = ({
               </p>
             </div>
           )}
-          {canDismissAlert(topAlert, residentPhotoUpdatedAt) && (
+          {canNavigateCareAlert && (
+            <div className="pt-2 border-t">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="w-full text-xs h-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (topAlert.type === URINE_NOT_RECORDED_6H_ALERT_TYPE) {
+                    router.push(`/dashboard/residents/${residentId}/continence`);
+                    return;
+                  }
+                  router.push(`/dashboard/residents/${residentId}/food-fluid`);
+                }}
+              >
+                {topAlert.type === URINE_NOT_RECORDED_6H_ALERT_TYPE
+                  ? "Open continence"
+                  : "Open food & fluid"}
+              </Button>
+            </div>
+          )}
+          {canDismissAlert(
+            topAlert,
+            residentPhotoUpdatedAt,
+            residentLastBowelRecordedAt,
+            foodFluidSixHourCompliant,
+            residentLastUrineRecordedAt
+          ) && (
             <div className="pt-2 border-t flex justify-end">
               <Button
                 size="sm"

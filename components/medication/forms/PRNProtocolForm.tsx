@@ -12,6 +12,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -19,6 +26,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import { resolvePrnProtocolPendingAlertsForMedication } from "@/lib/medication-alerts";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { PRNProtocolSchema } from "@/schemas/residents/medication/prnProtocolSchema";
@@ -27,7 +35,7 @@ import { format } from "date-fns";
 import { CalendarIcon, CheckCircle2, Loader2, Pencil, Save, Printer, FileText, Trash2 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { useEffect, useState, useTransition, useCallback } from "react";
+import { useEffect, useMemo, useState, useTransition, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -53,6 +61,35 @@ interface PRNProtocolFormProps {
   onSaved: () => void;
   selectedId?: string | null;
   isAddingNew?: boolean;
+  medicationId?: string;
+  medication?: {
+    id: string;
+    name: string | null;
+    dosage_form: string | null;
+    route: string | null;
+    strength: number | string | null;
+    strength_unit: string | null;
+    prescriber_name: string | null;
+    min_interval_hours: number | null;
+    max_daily_dose: number | null;
+    max_daily_dose_unit: string | null;
+    frequency: string | null;
+    instructions: string | null;
+  } | null;
+  medications?: Array<{
+    id: string;
+    name: string | null;
+    dosage_form: string | null;
+    route: string | null;
+    strength: number | string | null;
+    strength_unit: string | null;
+    prescriber_name: string | null;
+    min_interval_hours: number | null;
+    max_daily_dose: number | null;
+    max_daily_dose_unit: string | null;
+    frequency: string | null;
+    instructions: string | null;
+  }>;
 }
 
 interface ProtocolRecord {
@@ -65,6 +102,7 @@ interface ProtocolRecord {
   completed_by: string;
   created_at: string;
   version_number: number;
+  medication_id?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -78,6 +116,66 @@ function safeDate(val: unknown): string {
   } catch {
     return "—";
   }
+}
+
+function toFixedClean(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function buildCalculatedPrnDetails(medication: {
+  dosage_form: string | null;
+  strength: number | string | null;
+  strength_unit: string | null;
+  min_interval_hours: number | null;
+  max_daily_dose: number | null;
+  max_daily_dose_unit: string | null;
+  frequency: string | null;
+  instructions: string | null;
+}) {
+  const minIntervalHours = medication.min_interval_hours;
+  const maxDailyDose = medication.max_daily_dose;
+  const maxDoseUnit = medication.max_daily_dose_unit || medication.strength_unit || "dose(s)";
+  const maxAdministrations =
+    typeof minIntervalHours === "number" && minIntervalHours > 0
+      ? Math.floor(24 / minIntervalHours)
+      : null;
+
+  const calculatedPerDose =
+    typeof maxDailyDose === "number" && maxDailyDose > 0 && maxAdministrations && maxAdministrations > 0
+      ? maxDailyDose / maxAdministrations
+      : null;
+
+  const strengthText =
+    medication.strength !== null && medication.strength !== undefined
+      ? `${medication.strength}${medication.strength_unit ? ` ${medication.strength_unit}` : ""}`
+      : "";
+
+  const dosageCircumstances = calculatedPerDose
+    ? `Give ${toFixedClean(calculatedPerDose)} ${maxDoseUnit} per dose as required. Do not exceed ${toFixedClean(maxDailyDose!)} ${maxDoseUnit} in 24 hours.`
+    : medication.instructions || `Give as required according to PRN protocol.`;
+
+  const frequencyOfDoses =
+    maxAdministrations && minIntervalHours
+      ? `Up to ${maxAdministrations} dose(s) in 24 hours with at least ${toFixedClean(minIntervalHours)} hour(s) between doses.`
+      : medication.frequency || "As required";
+
+  const minimumTimeInterval =
+    typeof minIntervalHours === "number" && minIntervalHours > 0
+      ? `${toFixedClean(minIntervalHours)} hour(s)`
+      : "";
+
+  const maximumDose24Hours =
+    typeof maxDailyDose === "number" && maxDailyDose > 0
+      ? `${toFixedClean(maxDailyDose)} ${maxDoseUnit}`
+      : "";
+
+  return {
+    strengthText,
+    dosageCircumstances,
+    frequencyOfDoses,
+    minimumTimeInterval,
+    maximumDose24Hours,
+  };
 }
 
 // ─── Completed Document View ──────────────────────────────────────────────────
@@ -461,6 +559,9 @@ export default function PRNProtocolForm({
   onSaved,
   selectedId = null,
   isAddingNew = false,
+  medicationId,
+  medication,
+  medications = [],
 }: PRNProtocolFormProps) {
   const [protocols, setProtocols] = useState<ProtocolRecord[]>([]);
   const [selectedProtocolId, setSelectedProtocolId] = useState<string | null>(selectedId);
@@ -469,6 +570,7 @@ export default function PRNProtocolForm({
   const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isEditing, setIsEditing] = useState(false);
+  const [selectedMedicationId, setSelectedMedicationId] = useState<string | null>(medicationId ?? null);
   
   const [dobOpen, setDobOpen] = useState(false);
   const [reviewDateOpen, setReviewDateOpen] = useState(false);
@@ -486,29 +588,48 @@ export default function PRNProtocolForm({
   }, [selectedId, isAddingNew]);
 
   const residentFullName = `${resident.first_name ?? ""} ${resident.last_name ?? ""}`.trim();
+  const activeMedication =
+    medications.find((med) => med.id === selectedMedicationId) ??
+    medication ??
+    null;
+  const medicationStrength =
+    activeMedication?.strength !== null && activeMedication?.strength !== undefined
+      ? `${activeMedication.strength}${activeMedication?.strength_unit ? ` ${activeMedication.strength_unit}` : ""}`
+      : "";
+  const calculatedPrnDetails = useMemo(
+    () =>
+      activeMedication
+        ? buildCalculatedPrnDetails(activeMedication)
+        : {
+            strengthText: "",
+            dosageCircumstances: "",
+            frequencyOfDoses: "",
+            minimumTimeInterval: "",
+            maximumDose24Hours: "",
+          },
+    [activeMedication]
+  );
 
-  const form = useForm<z.infer<typeof PRNProtocolSchema>>({
-    resolver: zodResolver(PRNProtocolSchema),
-    mode: "onChange",
-    defaultValues: {
+  const defaultFormValues = useMemo(
+    (): z.infer<typeof PRNProtocolSchema> => ({
       residentId,
       teamId,
       organizationId,
       userId,
-      protocolLabel: "PRN Protocol",
+      protocolLabel: activeMedication?.name || "PRN Protocol",
       homeName: resident.care_homes?.name || "",
       roomNo: resident.room_number || "",
       serviceUsersName: residentFullName,
       dob: resident.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now(),
-      nameOfMedication: "",
-      form: "",
-      routeOfAdministration: "",
-      strength: "",
-      nameOfPrescriber: "",
-      dosageCircumstances: "",
-      frequencyOfDoses: "",
-      minimumTimeInterval: "",
-      maximumDose24Hours: "",
+      nameOfMedication: activeMedication?.name || "",
+      form: activeMedication?.dosage_form || "",
+      routeOfAdministration: activeMedication?.route || "",
+      strength: medicationStrength || calculatedPrnDetails.strengthText,
+      nameOfPrescriber: activeMedication?.prescriber_name || "",
+      dosageCircumstances: calculatedPrnDetails.dosageCircumstances,
+      frequencyOfDoses: calculatedPrnDetails.frequencyOfDoses,
+      minimumTimeInterval: calculatedPrnDetails.minimumTimeInterval,
+      maximumDose24Hours: calculatedPrnDetails.maximumDose24Hours,
       purposeOfAdministration: "",
       expectedOutcome: "",
       otherMedicinesAwareness: "",
@@ -518,21 +639,32 @@ export default function PRNProtocolForm({
       dateCompleted: Date.now(),
       countersigned: "",
       countersignedDate: undefined,
-    },
+    }),
+    [residentId, teamId, organizationId, userId, resident, residentFullName, activeMedication, medicationStrength, calculatedPrnDetails, userName]
+  );
+
+  const form = useForm<z.infer<typeof PRNProtocolSchema>>({
+    resolver: zodResolver(PRNProtocolSchema),
+    mode: "onChange",
+    defaultValues: defaultFormValues,
   });
 
   const fetchProtocols = useCallback(async () => {
     if (!residentId) return;
     setLoadingExisting(true);
-    const { data } = await supabase
+    let query = supabase
       .from("prn_protocols")
       .select("*")
       .eq("resident_id", residentId)
       .neq("status", "archived")
       .order("created_at", { ascending: false });
+    if (medicationId) {
+      query = query.eq("medication_id", medicationId);
+    }
+    const { data } = await query;
     if (data) setProtocols(data as ProtocolRecord[]);
     setLoadingExisting(false);
-  }, [residentId]);
+  }, [residentId, medicationId]);
 
   // Load existing data
   useEffect(() => {
@@ -550,6 +682,14 @@ export default function PRNProtocolForm({
     }
   }, [residentId, organizationId, fetchProtocols]);
 
+  useEffect(() => {
+    if (medicationId) {
+      setSelectedMedicationId(medicationId);
+    } else if (isAdding && medications.length > 0 && !selectedMedicationId) {
+      setSelectedMedicationId(medications[0].id);
+    }
+  }, [medicationId, isAdding, medications, selectedMedicationId]);
+
   const selectedProtocol = protocols.find(p => p.id === selectedProtocolId);
 
   useEffect(() => {
@@ -557,44 +697,21 @@ export default function PRNProtocolForm({
       const ad = selectedProtocol.assessment_data;
       form.reset({ residentId, teamId, organizationId, userId, ...ad } as z.infer<typeof PRNProtocolSchema>);
     } else if (isAdding) {
-      form.reset({
-        residentId,
-        teamId,
-        organizationId,
-        userId,
-        protocolLabel: "PRN Protocol",
-        homeName: resident.care_homes?.name || "",
-        roomNo: resident.room_number || "",
-        serviceUsersName: residentFullName,
-        dob: resident.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now(),
-        nameOfMedication: "",
-        form: "",
-        routeOfAdministration: "",
-        strength: "",
-        nameOfPrescriber: "",
-        dosageCircumstances: "",
-        frequencyOfDoses: "",
-        minimumTimeInterval: "",
-        maximumDose24Hours: "",
-        purposeOfAdministration: "",
-        expectedOutcome: "",
-        otherMedicinesAwareness: "",
-        reviewDate: Date.now() + (30 * 24 * 60 * 60 * 1000),
-        specialInstructions: "",
-        nameOfPersonCompleting: userName,
-        dateCompleted: Date.now(),
-        countersigned: "",
-        countersignedDate: undefined,
-      });
+      form.reset(defaultFormValues);
     }
-  }, [isEditing, selectedProtocol, isAdding, resident, residentFullName, teamId, organizationId, userId, userName, form, residentId]);
+  }, [isEditing, selectedProtocol, isAdding, form, residentId, teamId, organizationId, userId, defaultFormValues]);
 
   function onSubmit(values: z.infer<typeof PRNProtocolSchema>) {
+    if (isAdding && medications.length > 0 && !selectedMedicationId) {
+      toast.error("Please select a PRN medication");
+      return;
+    }
     startTransition(async () => {
       try {
         const payload = {
           resident_id: residentId,
           organization_id: organizationId,
+          medication_id: selectedMedicationId ?? medicationId ?? selectedProtocol?.medication_id ?? null,
           status: "completed",
           assessment_data: { ...values, submittedAt: new Date().toISOString() },
           assessment_date: format(new Date(values.dateCompleted), "yyyy-MM-dd"),
@@ -607,6 +724,16 @@ export default function PRNProtocolForm({
           selectedProtocol ? { id: selectedProtocol.id, version_number: selectedProtocol.version_number } : undefined,
           !!selectedProtocol
         );
+
+        const resolvedMedicationId = payload.medication_id;
+        if (resolvedMedicationId) {
+          await resolvePrnProtocolPendingAlertsForMedication(supabase, {
+            residentId,
+            medicationId: resolvedMedicationId,
+            resolvedByUserId: userId,
+          });
+        }
+
         toast.success(selectedProtocol ? "PRN protocol updated successfully" : "PRN protocol submitted successfully");
         
         await fetchProtocols();
@@ -758,6 +885,43 @@ export default function PRNProtocolForm({
 
               {/* Header Section */}
               <div className="grid grid-cols-4 gap-4 p-4 border rounded-md bg-muted/5">
+                {isAdding && !selectedProtocol && medications.length > 0 && (
+                  <FormItem className="col-span-4">
+                    <FormLabel className="text-xs">PRN Medication</FormLabel>
+                    <Select
+                      value={selectedMedicationId ?? undefined}
+                      onValueChange={(value) => {
+                        setSelectedMedicationId(value);
+                        const selectedMedication = medications.find((med) => med.id === value);
+                        if (!selectedMedication) return;
+                        const nextCalculated = buildCalculatedPrnDetails(selectedMedication);
+                        form.setValue("protocolLabel", selectedMedication.name || "PRN Protocol");
+                        form.setValue("nameOfMedication", selectedMedication.name || "");
+                        form.setValue("form", selectedMedication.dosage_form || "");
+                        form.setValue("routeOfAdministration", selectedMedication.route || "");
+                        form.setValue("strength", nextCalculated.strengthText);
+                        form.setValue("nameOfPrescriber", selectedMedication.prescriber_name || "");
+                        form.setValue("dosageCircumstances", nextCalculated.dosageCircumstances);
+                        form.setValue("frequencyOfDoses", nextCalculated.frequencyOfDoses);
+                        form.setValue("minimumTimeInterval", nextCalculated.minimumTimeInterval);
+                        form.setValue("maximumDose24Hours", nextCalculated.maximumDose24Hours);
+                      }}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select PRN medication" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {medications.map((med) => (
+                          <SelectItem key={med.id} value={med.id}>
+                            {med.name || "Unnamed PRN Medication"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
                 <FormField control={form.control} name="homeName" render={({ field }) => (
                   <FormItem className="col-span-2">
                     <FormLabel className="text-xs">Home Name</FormLabel>

@@ -47,20 +47,121 @@ import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 import { Resident } from "@/types";
+import {
+  computeFoodFluidComplianceInWindow,
+  FOOD_FLUID_ALERT_WINDOW_MS,
+  FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE,
+} from "@/lib/food-fluid-log-classification";
+import { URINE_NOT_RECORDED_6H_ALERT_TYPE } from "@/lib/continence-alerts";
+import { PRN_PROTOCOL_PENDING_12H_ALERT_TYPE } from "@/lib/medication-alerts";
 
-const NON_DISMISSIBLE_ALERT_TYPES = new Set(["resident_photo_refresh_required"]);
+const NON_DISMISSIBLE_ALERT_TYPES = new Set<string>([
+  "resident_photo_refresh_required",
+  "bowel_not_recorded_3_days",
+  "weight_check_due_tomorrow",
+  FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE,
+  URINE_NOT_RECORDED_6H_ALERT_TYPE,
+  PRN_PROTOCOL_PENDING_12H_ALERT_TYPE,
+]);
+const NURSE_ONLY_ALERT_TYPES = new Set<string>([
+  "resident_photo_refresh_required",
+  "bowel_not_recorded_3_days",
+  PRN_PROTOCOL_PENDING_12H_ALERT_TYPE,
+]);
+const NURSE_AND_CARE_ASSISTANT_ALERT_TYPES = new Set<string>([
+  "weight_check_due_tomorrow",
+  FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE,
+  URINE_NOT_RECORDED_6H_ALERT_TYPE,
+]);
+
+function getNonDismissibleAlertMessage(type?: string) {
+  if (type === "resident_photo_refresh_required") {
+    return "This alert cannot be dismissed until the profile photo is updated";
+  }
+  if (type === "bowel_not_recorded_3_days") {
+    return "This alert cannot be dismissed until a bowel record is entered";
+  }
+  if (type === "weight_check_due_tomorrow") {
+    return "This alert cannot be dismissed until a new weight check is recorded";
+  }
+  if (type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE) {
+    return "This alert cannot be dismissed until food and fluid are recorded in the last 6 hours";
+  }
+  if (type === URINE_NOT_RECORDED_6H_ALERT_TYPE) {
+    return "This alert cannot be dismissed until urine is recorded";
+  }
+  if (type === PRN_PROTOCOL_PENDING_12H_ALERT_TYPE) {
+    return "This alert cannot be dismissed until the PRN protocol form is completed";
+  }
+  return "This alert cannot be dismissed yet";
+}
 
 function canDismissAlert(
-  alert: { type?: string; created_at?: string },
-  residentPhotoUpdatedAt?: string
+  alert: { type?: string; created_at?: string; metadata?: { medication_id?: string } | null },
+  residentPhotoUpdatedAt?: string,
+  residentLastBowelRecordedAt?: string,
+  residentLastWeightCheckedAt?: string,
+  foodFluidSixHourCompliant?: boolean,
+  residentLastUrineRecordedAt?: string,
+  completedPrnProtocolMedicationIds?: Set<string>
 ) {
   if (!NON_DISMISSIBLE_ALERT_TYPES.has(alert.type || "")) {
     return true;
   }
-  if (!residentPhotoUpdatedAt || !alert.created_at) {
+
+  if (alert.type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE) {
+    return foodFluidSixHourCompliant === true;
+  }
+  if (alert.type === URINE_NOT_RECORDED_6H_ALERT_TYPE) {
+    if (!alert.created_at || !residentLastUrineRecordedAt) {
+      return false;
+    }
+    return new Date(residentLastUrineRecordedAt).getTime() > new Date(alert.created_at).getTime();
+  }
+  if (alert.type === PRN_PROTOCOL_PENDING_12H_ALERT_TYPE) {
+    const medicationId = alert.metadata?.medication_id;
+    if (!medicationId || !completedPrnProtocolMedicationIds) {
+      return false;
+    }
+    return completedPrnProtocolMedicationIds.has(medicationId);
+  }
+
+  if (!alert.created_at) {
     return false;
   }
-  return new Date(residentPhotoUpdatedAt).getTime() > new Date(alert.created_at).getTime();
+
+  if (alert.type === "resident_photo_refresh_required") {
+    if (!residentPhotoUpdatedAt) {
+      return false;
+    }
+    return new Date(residentPhotoUpdatedAt).getTime() > new Date(alert.created_at).getTime();
+  }
+
+  if (alert.type === "bowel_not_recorded_3_days") {
+    if (!residentLastBowelRecordedAt) {
+      return false;
+    }
+    return new Date(residentLastBowelRecordedAt).getTime() > new Date(alert.created_at).getTime();
+  }
+
+  if (alert.type === "weight_check_due_tomorrow") {
+    if (!residentLastWeightCheckedAt) {
+      return false;
+    }
+    return new Date(`${residentLastWeightCheckedAt}T23:59:59.999Z`).getTime() > new Date(alert.created_at).getTime();
+  }
+
+  return false;
+}
+
+function shouldShowAlertForRole(alert: { type?: string }, role?: string) {
+  if (NURSE_AND_CARE_ASSISTANT_ALERT_TYPES.has(alert.type || "")) {
+    return role === "nurse" || role === "care_assistant";
+  }
+  if (!NURSE_ONLY_ALERT_TYPES.has(alert.type || "")) {
+    return true;
+  }
+  return role === "nurse";
 }
 
 type ResidentPageProps = {
@@ -74,6 +175,11 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   const [showAlertsDialog, setShowAlertsDialog] = useState(false);
   const [resident, setResident] = useState<Resident | null>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [residentLastBowelRecordedAt, setResidentLastBowelRecordedAt] = useState<string | undefined>();
+  const [residentLastUrineRecordedAt, setResidentLastUrineRecordedAt] = useState<string | undefined>();
+  const [residentLastWeightCheckedAt, setResidentLastWeightCheckedAt] = useState<string | undefined>();
+  const [foodFluidSixHourCompliant, setFoodFluidSixHourCompliant] = useState(false);
+  const [completedPrnProtocolMedicationIds, setCompletedPrnProtocolMedicationIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
 
   const { profile, isLoading: isProfileLoading } = useProfile();
@@ -95,6 +201,60 @@ export default function ResidentPage({ params }: ResidentPageProps) {
     } else {
       setResident(residentData as Resident);
     }
+
+    const { data: latestBowelEntry } = await supabase
+      .from("continence_entries")
+      .select("created_at")
+      .eq("resident_id", id)
+      .eq("entry_type", "bowel")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setResidentLastBowelRecordedAt(latestBowelEntry?.created_at);
+
+    const { data: latestWeightRecord } = await supabase
+      .from("weight_records")
+      .select("measurement_date")
+      .eq("resident_id", id)
+      .order("measurement_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setResidentLastWeightCheckedAt(latestWeightRecord?.measurement_date);
+
+    const { data: latestUrineEntry } = await supabase
+      .from("continence_entries")
+      .select("created_at")
+      .eq("resident_id", id)
+      .eq("entry_type", "urine")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setResidentLastUrineRecordedAt(latestUrineEntry?.created_at);
+
+    const windowStartIso = new Date(Date.now() - FOOD_FLUID_ALERT_WINDOW_MS).toISOString();
+    const { data: foodFluidRows } = await supabase
+      .from("food_fluid_logs")
+      .select("timestamp, type_of_food_drink, amount_eaten, fluid_consumed_ml")
+      .eq("resident_id", id)
+      .gte("timestamp", windowStartIso)
+      .eq("is_archived", false);
+
+    const { foodOk, fluidOk } = computeFoodFluidComplianceInWindow(foodFluidRows ?? []);
+    const foodFluidCompliant = foodOk && fluidOk;
+    setFoodFluidSixHourCompliant(foodFluidCompliant);
+
+    const { data: prnProtocolRows } = await supabase
+      .from("prn_protocols")
+      .select("medication_id")
+      .eq("resident_id", id)
+      .neq("status", "archived");
+
+    const completedMedicationIds = new Set(
+      (prnProtocolRows ?? [])
+        .map((row) => row.medication_id)
+        .filter((medicationId): medicationId is string => typeof medicationId === "string" && medicationId.length > 0)
+    );
+    setCompletedPrnProtocolMedicationIds(completedMedicationIds);
 
     if (userRole && profile?.id) {
       // Fetch active alerts for the resident
@@ -123,7 +283,20 @@ export default function ResidentPage({ params }: ResidentPageProps) {
 
       // Filter out alerts dismissed by current user
       const filteredAlerts = (alertsData || []).filter((alert: any) => {
-        if (!canDismissAlert(alert, residentData?.photo_updated_at)) {
+        if (!shouldShowAlertForRole(alert, userRole)) {
+          return false;
+        }
+        if (
+          !canDismissAlert(
+            alert,
+            residentData?.photo_updated_at,
+            latestBowelEntry?.created_at,
+            latestWeightRecord?.measurement_date,
+            foodFluidCompliant,
+            latestUrineEntry?.created_at,
+            completedMedicationIds
+          )
+        ) {
           return true;
         }
         return !dismissedAlertIds.has(alert.id);
@@ -152,8 +325,19 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   const handleDismissAlert = async (alertId: string) => {
     if (!profile?.id) return;
     const alert = alerts.find((item) => item.id === alertId);
-    if (alert && !canDismissAlert(alert, resident?.photo_updated_at)) {
-      toast.info("This alert cannot be dismissed until the profile photo is updated");
+    if (
+      alert &&
+      !canDismissAlert(
+        alert,
+        resident?.photo_updated_at,
+        residentLastBowelRecordedAt,
+        residentLastWeightCheckedAt,
+        foodFluidSixHourCompliant,
+        residentLastUrineRecordedAt,
+        completedPrnProtocolMedicationIds
+      )
+    ) {
+      toast.info(getNonDismissibleAlertMessage(alert.type));
       return;
     }
 
@@ -766,57 +950,129 @@ export default function ResidentPage({ params }: ResidentPageProps) {
           </DialogHeader>
           <div className="space-y-3 mt-4">
             {alerts && alerts.length > 0 ? (
-              alerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  className={cn(
-                    "p-4 rounded-lg border-2",
-                    alert.severity === "critical"
-                      ? "border-red-300 bg-red-50"
-                      : alert.severity === "warning"
-                        ? "border-orange-300 bg-orange-50"
-                        : "border-blue-300 bg-blue-50"
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge
-                          variant="table"
-                          className={cn(
-                            alert.severity === "critical"
-                              ? "bg-red-100 text-red-800 border-red-400"
-                              : alert.severity === "warning"
-                                ? "bg-orange-100 text-orange-800 border-orange-400"
-                                : "bg-blue-100 text-blue-800 border-blue-400"
-                          )}
-                        >
-                          {alert.severity === "critical"
-                            ? "Critical"
-                            : alert.severity === "warning"
-                              ? "Warning"
-                              : "Info"}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTimestampToUKDateTime(alert.created_at, 'dd/MM/yyyy HH:mm')}
-                        </span>
-                      </div>
-                      <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
-                      <p className="text-sm text-muted-foreground">{alert.message}</p>
-                    </div>
-                    {canDismissAlert(alert, resident?.photo_updated_at) && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDismissAlert(alert.id)}
-                        className="flex-shrink-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+              alerts.map((alert) => {
+                const isFoodFluidNavAlert =
+                  alert.type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE &&
+                  (userRole === "nurse" || userRole === "care_assistant");
+                const isUrineNavAlert =
+                  alert.type === URINE_NOT_RECORDED_6H_ALERT_TYPE &&
+                  (userRole === "nurse" || userRole === "care_assistant");
+                const isPrnProtocolNavAlert =
+                  alert.type === PRN_PROTOCOL_PENDING_12H_ALERT_TYPE && userRole === "nurse";
+                const isNavigationAlert = isFoodFluidNavAlert || isUrineNavAlert || isPrnProtocolNavAlert;
+                const goToFoodFluid = () => {
+                  setShowAlertsDialog(false);
+                  router.push(`/dashboard/residents/${id}/food-fluid`);
+                };
+                const goToContinence = () => {
+                  setShowAlertsDialog(false);
+                  router.push(`/dashboard/residents/${id}/continence`);
+                };
+                const goToMedicationDocs = () => {
+                  setShowAlertsDialog(false);
+                  router.push(`/dashboard/residents/${id}/medication/docs`);
+                };
+                return (
+                  <div
+                    key={alert.id}
+                    role={isNavigationAlert ? "button" : undefined}
+                    tabIndex={isNavigationAlert ? 0 : undefined}
+                    className={cn(
+                      "p-4 rounded-lg border-2",
+                      alert.severity === "critical"
+                        ? "border-red-300 bg-red-50"
+                        : alert.severity === "warning"
+                          ? "border-orange-300 bg-orange-50"
+                          : "border-blue-300 bg-blue-50",
+                      isNavigationAlert && "cursor-pointer outline-none hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring"
                     )}
+                    onClick={() => {
+                      if (isFoodFluidNavAlert) goToFoodFluid();
+                      if (isUrineNavAlert) goToContinence();
+                      if (isPrnProtocolNavAlert) goToMedicationDocs();
+                    }}
+                    onKeyDown={(e) => {
+                      if (!isNavigationAlert) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        if (isFoodFluidNavAlert) {
+                          goToFoodFluid();
+                        }
+                        if (isUrineNavAlert) {
+                          goToContinence();
+                        }
+                        if (isPrnProtocolNavAlert) {
+                          goToMedicationDocs();
+                        }
+                      }
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge
+                            variant="table"
+                            className={cn(
+                              alert.severity === "critical"
+                                ? "bg-red-100 text-red-800 border-red-400"
+                                : alert.severity === "warning"
+                                  ? "bg-orange-100 text-orange-800 border-orange-400"
+                                  : "bg-blue-100 text-blue-800 border-blue-400"
+                            )}
+                          >
+                            {alert.severity === "critical"
+                              ? "Critical"
+                              : alert.severity === "warning"
+                                ? "Warning"
+                                : "Info"}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {formatTimestampToUKDateTime(alert.created_at, 'dd/MM/yyyy HH:mm')}
+                          </span>
+                        </div>
+                        <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
+                        <p className="text-sm text-muted-foreground">{alert.message}</p>
+                        {isFoodFluidNavAlert && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Click this alert to open food & fluid
+                          </p>
+                        )}
+                        {isUrineNavAlert && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Click this alert to open continence
+                          </p>
+                        )}
+                        {isPrnProtocolNavAlert && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Click this alert to open medication docs
+                          </p>
+                        )}
+                      </div>
+                      {canDismissAlert(
+                        alert,
+                        resident?.photo_updated_at,
+                        residentLastBowelRecordedAt,
+                        residentLastWeightCheckedAt,
+                        foodFluidSixHourCompliant,
+                        residentLastUrineRecordedAt,
+                        completedPrnProtocolMedicationIds
+                      ) && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDismissAlert(alert.id);
+                          }}
+                          className="flex-shrink-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <Bell className="h-12 w-12 mx-auto mb-3 opacity-50" />

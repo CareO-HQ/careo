@@ -29,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { config } from "@/config";
 import { CreateMedicationSchema } from "@/schemas/medication/CreateMedicationSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { resolvePrnProtocolPendingAlertsForMedication } from "@/lib/medication-alerts";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -62,7 +63,11 @@ export default function CreateMedicationForm({
   organizationId?: string;
   gpName?: string;
   initialType?: "Scheduled" | "PRN (As Needed)" | "Topical" | "Supplement";
-  onSuccess: () => void;
+  onSuccess: (payload: {
+    medicationId: string;
+    residentId: string;
+    scheduleType: "Scheduled" | "PRN (As Needed)" | "Topical" | "Supplement" | undefined;
+  }) => void;
 }) {
   const { profile } = useProfile();
   const [isLoading, startTransition] = useTransition();
@@ -188,6 +193,12 @@ export default function CreateMedicationForm({
           if (protocolsError) {
             console.error("Error creating PRN protocols:", protocolsError);
             toast.error("Medication created but failed to save PRN protocols");
+          } else if (values.scheduleType === "PRN (As Needed)" && profile?.id) {
+            await resolvePrnProtocolPendingAlertsForMedication(supabase, {
+              residentId,
+              medicationId: newMedication.id,
+              resolvedByUserId: profile.id,
+            });
           }
         }
 
@@ -236,7 +247,11 @@ export default function CreateMedicationForm({
 
         toast.success("Medication created successfully");
 
-        onSuccess();
+        onSuccess({
+          medicationId: newMedication.id,
+          residentId,
+          scheduleType: values.scheduleType,
+        });
       } catch (error) {
         console.error("Error creating medication:", error);
         toast.error(`Failed to create medication: ${error instanceof Error ? error.message : 'Unknown error'}`);
