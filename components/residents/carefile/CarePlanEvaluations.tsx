@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
+import { resolveCarePlanEvaluationAlertsForCarePlan } from "@/lib/care-plan-evaluation-alerts";
 
 const UK_TIMEZONE = "Europe/London";
 
@@ -124,6 +125,21 @@ export function CarePlanEvaluations({ carePlanId, residentId }: CarePlanEvaluati
                 toast.error(`Failed to submit: ${error.message}`);
                 return;
             }
+
+            if (nextReviewDate) {
+                await supabase
+                    .from("care_plan_assessments")
+                    .update({
+                        next_evaluation_date: nextReviewDate,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", carePlanId);
+            }
+
+            await resolveCarePlanEvaluationAlertsForCarePlan(supabase, {
+                carePlanId,
+                resolvedByUserId: profile.id,
+            });
 
             toast.success("Evaluation submitted successfully!");
             setComments("");

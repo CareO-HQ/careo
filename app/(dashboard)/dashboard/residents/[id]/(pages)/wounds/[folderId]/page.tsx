@@ -23,8 +23,8 @@ import {
   PanelRight,
   PanelRightClose,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -194,6 +194,9 @@ type WoundFolderPageProps = {
 export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   const { id: residentId, folderId } = React.use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const carePlanIdFromQuery = searchParams.get("carePlanId");
+  const openedCarePlanFromQueryRef = useRef<string | null>(null);
 
   const { activeOrganizationId } = useActiveTeam();
   const { profile } = useProfile();
@@ -580,6 +583,35 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     fetchPhotographEvaluations();
     fetchActiveCarePlans();
   }, [residentId, fetchInitialWoundAssessments, fetchWoundAssessments, fetchTreatmentEvaluations, fetchPhotographEvaluations, fetchActiveCarePlans]);
+
+  useEffect(() => {
+    if (!carePlanIdFromQuery) {
+      openedCarePlanFromQueryRef.current = null;
+    }
+  }, [carePlanIdFromQuery]);
+
+  useEffect(() => {
+    openedCarePlanFromQueryRef.current = null;
+  }, [folderId]);
+
+  useEffect(() => {
+    if (!carePlanIdFromQuery || activeCarePlans.length === 0) {
+      return;
+    }
+    const openKey = `${folderId}:${carePlanIdFromQuery}`;
+    if (openedCarePlanFromQueryRef.current === openKey) {
+      return;
+    }
+    const match = activeCarePlans.find((cp) => cp.id === carePlanIdFromQuery);
+    if (!match) {
+      return;
+    }
+    openedCarePlanFromQueryRef.current = openKey;
+    setActiveView("care-plans");
+    setSelectedCarePlan(match);
+    setIsCarePlanViewOnly(true);
+    setIsCarePlanReviewMode(false);
+  }, [carePlanIdFromQuery, activeCarePlans, folderId]);
 
   const fetchFolder = useCallback(async () => {
     if (!folderId) return;

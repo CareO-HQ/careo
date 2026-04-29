@@ -26,6 +26,7 @@ import { supabase } from "@/lib/supabase";
 import { Separator } from "@/components/ui/separator";
 import { Printer } from "lucide-react";
 import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
+import { resolveCarePlanEvaluationAlertsForCarePlan } from "@/lib/care-plan-evaluation-alerts";
 
 const UK_TIMEZONE = "Europe/London";
 
@@ -281,6 +282,21 @@ export default function CarePlanSheetContent({
         toast.error(`Failed to submit: ${error.message}`);
         return;
       }
+
+      if (nextReviewDate) {
+        await supabase
+          .from("care_plan_assessments")
+          .update({
+            next_evaluation_date: nextReviewDate,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", carePlan.formId);
+      }
+
+      await resolveCarePlanEvaluationAlertsForCarePlan(supabase, {
+        carePlanId: carePlan.formId,
+        resolvedByUserId: profile.id,
+      });
 
       toast.success("Evaluation submitted successfully!");
       setEvaluationComments("");

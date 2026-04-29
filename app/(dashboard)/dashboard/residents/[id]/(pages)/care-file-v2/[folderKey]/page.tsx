@@ -10,8 +10,8 @@ import { CareFileFormKey } from "@/types/care-files";
 import { config } from "@/config";
 import { BodyMapData } from "@/types/body-map";
 import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus, X, Edit3, Printer, History, Clock, FileCheck, ChevronRight, ExternalLink, PanelRight, PanelRightClose, Map as MapIcon } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSidebar } from "@/components/ui/sidebar";
 import {
     Dialog,
@@ -181,6 +181,7 @@ function FileViewer({ file }: { file: UploadedFile }) {
 
 export default function CareFileV2FolderPage() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const residentId = params.id as string;
     const folderKey = params.folderKey as string;
     const router = useRouter();
@@ -211,6 +212,7 @@ export default function CareFileV2FolderPage() {
     const [uploadDefaultFileName, setUploadDefaultFileName] = useState("");
     const [folderBodyMap, setFolderBodyMap] = useState<CareFolderBodyMapRecord | null>(null);
     const [isBodyMapDialogOpen, setIsBodyMapDialogOpen] = useState(false);
+    const openedCarePlanFromQueryRef = useRef<string | null>(null);
     // SidebarTrigger handles the left sidebar, hook used for state if needed.
     const { toggleSidebar, state: leftSidebarState } = useSidebar();
 
@@ -236,6 +238,41 @@ export default function CareFileV2FolderPage() {
         folderKey: folderKey, // Use V2 folderKey directly for consistent care plan filtering
         includeCarePlans: (folder as any)?.carePlan
     });
+
+    const carePlanIdFromQuery = searchParams.get("carePlanId");
+
+    useEffect(() => {
+        if (!carePlanIdFromQuery) {
+            openedCarePlanFromQueryRef.current = null;
+        }
+    }, [carePlanIdFromQuery]);
+
+    useEffect(() => {
+        openedCarePlanFromQueryRef.current = null;
+    }, [folderKey]);
+
+    useEffect(() => {
+        if (!carePlanIdFromQuery || folderFormsLoading || !activeCarePlanForms?.length) {
+            return;
+        }
+        const openKey = `${folderKey}:${carePlanIdFromQuery}`;
+        if (openedCarePlanFromQueryRef.current === openKey) {
+            return;
+        }
+        const match = activeCarePlanForms.find(
+            (cp: { id?: string; _id?: string }) => cp.id === carePlanIdFromQuery || cp._id === carePlanIdFromQuery
+        );
+        if (!match) {
+            return;
+        }
+        openedCarePlanFromQueryRef.current = openKey;
+        setActiveFileId(null);
+        setActiveFormKey("care-plan-form" as CareFileFormKey);
+        setFormDataForEdit(match);
+        setSelectedCarePlanName(undefined);
+        setIsViewOnly(true);
+        setIsReviewMode(false);
+    }, [carePlanIdFromQuery, activeCarePlanForms, folderFormsLoading, folderKey]);
 
     const activeFile = uploadedFiles.find((f) => f.id === activeFileId);
 

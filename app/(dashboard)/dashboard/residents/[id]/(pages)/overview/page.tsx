@@ -1,12 +1,13 @@
 "use client";
-
 import React from "react";
+import type { Route } from "next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
 import { canEditOverview } from "@/lib/permissions";
+import { FEATURES } from "@/lib/config/features";
 import {
   Card,
   CardContent,
@@ -46,6 +47,13 @@ import {
 } from "@/lib/food-fluid-log-classification";
 import { URINE_NOT_RECORDED_6H_ALERT_TYPE } from "@/lib/continence-alerts";
 import { PRN_PROTOCOL_PENDING_12H_ALERT_TYPE } from "@/lib/medication-alerts";
+import {
+  CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE,
+  CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE,
+  carePlanEvaluationAlertCareFileHref,
+  carePlanEvaluationAlertFolderLabel,
+  extractRawCareFileFolderKeyFromGoals,
+} from "@/lib/care-plan-evaluation-alerts";
 
 const NON_DISMISSIBLE_ALERT_TYPES = new Set<string>([
   "resident_photo_refresh_required",
@@ -54,11 +62,15 @@ const NON_DISMISSIBLE_ALERT_TYPES = new Set<string>([
   FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE,
   URINE_NOT_RECORDED_6H_ALERT_TYPE,
   PRN_PROTOCOL_PENDING_12H_ALERT_TYPE,
+  CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE,
+  CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE,
 ]);
 const NURSE_ONLY_ALERT_TYPES = new Set<string>([
   "resident_photo_refresh_required",
   "bowel_not_recorded_3_days",
   PRN_PROTOCOL_PENDING_12H_ALERT_TYPE,
+  CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE,
+  CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE,
 ]);
 const NURSE_AND_CARE_ASSISTANT_ALERT_TYPES = new Set<string>([
   "weight_check_due_tomorrow",
@@ -85,20 +97,50 @@ function getNonDismissibleAlertMessage(type?: string) {
   if (type === PRN_PROTOCOL_PENDING_12H_ALERT_TYPE) {
     return "This alert cannot be dismissed until the PRN protocol form is completed";
   }
+  if (
+    type === CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE ||
+    type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE
+  ) {
+    return "This alert cannot be dismissed until the care plan evaluation is completed";
+  }
   return "This alert cannot be dismissed yet";
 }
 
 function canDismissAlert(
-  alert: { type?: string; created_at?: string; metadata?: { medication_id?: string } | null },
+  alert: {
+    type?: string;
+    created_at?: string;
+    metadata?: {
+      medication_id?: string;
+      care_plan_id?: string;
+      care_file_folder_key?: string | null;
+    } | null;
+  },
   residentPhotoUpdatedAt?: string,
   residentLastBowelRecordedAt?: string,
   residentLastWeightCheckedAt?: string,
   foodFluidSixHourCompliant?: boolean,
   residentLastUrineRecordedAt?: string,
-  completedPrnProtocolMedicationIds?: Set<string>
+  completedPrnProtocolMedicationIds?: Set<string>,
+  carePlanEvalLatestCreatedAt?: Record<string, string>
 ) {
   if (!NON_DISMISSIBLE_ALERT_TYPES.has(alert.type || "")) {
     return true;
+  }
+
+  if (
+    alert.type === CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE ||
+    alert.type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE
+  ) {
+    const carePlanId = alert.metadata?.care_plan_id;
+    if (!carePlanId || !alert.created_at) {
+      return false;
+    }
+    const latest = carePlanEvalLatestCreatedAt?.[carePlanId];
+    if (!latest) {
+      return false;
+    }
+    return new Date(latest).getTime() > new Date(alert.created_at).getTime();
   }
 
   if (alert.type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE) {
@@ -172,6 +214,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   const [residentLastWeightCheckedAt, setResidentLastWeightCheckedAt] = React.useState<string | undefined>();
   const [foodFluidSixHourCompliant, setFoodFluidSixHourCompliant] = React.useState(false);
   const [completedPrnProtocolMedicationIds, setCompletedPrnProtocolMedicationIds] = React.useState<Set<string>>(new Set());
+  const [carePlanEvalLatestCreatedAt, setCarePlanEvalLatestCreatedAt] = React.useState<Record<string, string>>({});
   const { profile } = useProfile();
   const { supabase } = useSupabase();
   const userRole = profile?.role;
@@ -247,6 +290,22 @@ export default function OverviewPage({ params }: OverviewPageProps) {
     );
     setCompletedPrnProtocolMedicationIds(completedMedicationIds);
 
+    const { data: cpEvalRows } = await supabase
+      .from("care_plan_evaluations")
+      .select("care_plan_id, created_at")
+      .eq("resident_id", id);
+
+    const carePlanEvalLatest: Record<string, string> = {};
+    for (const row of cpEvalRows ?? []) {
+      const cid = typeof row.care_plan_id === "string" ? row.care_plan_id : "";
+      const cat = typeof row.created_at === "string" ? row.created_at : "";
+      if (!cid || !cat) continue;
+      if (!carePlanEvalLatest[cid] || cat > carePlanEvalLatest[cid]) {
+        carePlanEvalLatest[cid] = cat;
+      }
+    }
+    setCarePlanEvalLatestCreatedAt(carePlanEvalLatest);
+
     // Fetch alerts if user has a role
     if (userRole && profile?.id) {
       // Fetch active alerts for the resident
@@ -262,6 +321,61 @@ export default function OverviewPage({ params }: OverviewPageProps) {
         return;
       }
 
+      const carePlanAlertIds = (alertsData ?? [])
+        .filter(
+          (alert) =>
+            alert.type === CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE ||
+            alert.type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE
+        )
+        .map((alert) => alert.metadata?.care_plan_id)
+        .filter((idValue): idValue is string => typeof idValue === "string" && idValue.length > 0);
+
+      let alertsWithResolvedMetadata = alertsData ?? [];
+      if (carePlanAlertIds.length > 0) {
+        const { data: carePlanRows } = await supabase
+          .from("care_plan_assessments")
+          .select("id, care_plan_type, folder_key, goals, wound_folder_id")
+          .in("id", [...new Set(carePlanAlertIds)]);
+
+        const carePlanById = new Map(
+          (carePlanRows ?? []).map((row) => [row.id, row])
+        );
+
+        alertsWithResolvedMetadata = (alertsData ?? []).map((alert) => {
+          const carePlanId = alert.metadata?.care_plan_id;
+          if (
+            !carePlanId ||
+            (alert.type !== CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE &&
+              alert.type !== CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE)
+          ) {
+            return alert;
+          }
+
+          const assessment = carePlanById.get(carePlanId);
+          if (!assessment) {
+            return alert;
+          }
+
+          const metadataBase =
+            alert.metadata && typeof alert.metadata === "object"
+              ? alert.metadata
+              : {};
+
+          return {
+            ...alert,
+            metadata: {
+              ...metadataBase,
+              care_plan_id: carePlanId,
+              care_plan_type: assessment.care_plan_type,
+              wound_folder_id: assessment.wound_folder_id,
+              care_file_folder_key:
+                assessment.folder_key ??
+                extractRawCareFileFolderKeyFromGoals(assessment.goals),
+            },
+          };
+        });
+      }
+
       // Fetch dismissals for current user
       const { data: dismissalsData } = await supabase
         .from("alert_dismissals")
@@ -274,7 +388,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
       );
 
       // Filter out alerts dismissed by current user
-      const filteredAlerts = (alertsData || []).filter((alert: any) => {
+      const filteredAlerts = (alertsWithResolvedMetadata || []).filter((alert: any) => {
         if (!shouldShowAlertForRole(alert, userRole)) {
           return false;
         }
@@ -286,7 +400,8 @@ export default function OverviewPage({ params }: OverviewPageProps) {
             latestWeightRecord?.measurement_date,
             foodFluidCompliant,
             latestUrineEntry?.created_at,
-            completedMedicationIds
+            completedMedicationIds,
+            carePlanEvalLatest
           )
         ) {
           return true;
@@ -368,7 +483,8 @@ export default function OverviewPage({ params }: OverviewPageProps) {
         residentLastWeightCheckedAt,
         foodFluidSixHourCompliant,
         residentLastUrineRecordedAt,
-        completedPrnProtocolMedicationIds
+        completedPrnProtocolMedicationIds,
+        carePlanEvalLatestCreatedAt
       )
     ) {
       toast.info(getNonDismissibleAlertMessage(alert.type));
@@ -754,7 +870,22 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                   (userRole === "nurse" || userRole === "care_assistant");
                 const isPrnProtocolNavAlert =
                   alert.type === PRN_PROTOCOL_PENDING_12H_ALERT_TYPE && userRole === "nurse";
-                const isNavigationAlert = isFoodFluidNavAlert || isUrineNavAlert || isPrnProtocolNavAlert;
+                const carePlanEvalCareFileHref =
+                  FEATURES.SHOW_CARE_FILE_V2 && userRole === "nurse"
+                    ? carePlanEvaluationAlertCareFileHref(id, alert.metadata)
+                    : null;
+                const isCarePlanEvalNavAlert =
+                  (alert.type === CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE ||
+                    alert.type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE) &&
+                  carePlanEvalCareFileHref !== null;
+                const carePlanEvalFolderLabel = isCarePlanEvalNavAlert
+                  ? carePlanEvaluationAlertFolderLabel(alert.metadata)
+                  : null;
+                const isNavigationAlert =
+                  isFoodFluidNavAlert ||
+                  isUrineNavAlert ||
+                  isPrnProtocolNavAlert ||
+                  isCarePlanEvalNavAlert;
                 const goToFoodFluid = () => {
                   setShowAlertsDialog(false);
                   router.push(`/dashboard/residents/${id}/food-fluid`);
@@ -766,6 +897,11 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                 const goToMedicationDocs = () => {
                   setShowAlertsDialog(false);
                   router.push(`/dashboard/residents/${id}/medication/docs`);
+                };
+                const goToCarePlanFolder = () => {
+                  if (!carePlanEvalCareFileHref) return;
+                  setShowAlertsDialog(false);
+                  router.push(carePlanEvalCareFileHref as Route);
                 };
                 return (
                   <div
@@ -785,6 +921,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                       if (isFoodFluidNavAlert) goToFoodFluid();
                       if (isUrineNavAlert) goToContinence();
                       if (isPrnProtocolNavAlert) goToMedicationDocs();
+                      if (isCarePlanEvalNavAlert) goToCarePlanFolder();
                     }}
                     onKeyDown={(e) => {
                       if (!isNavigationAlert) return;
@@ -798,6 +935,9 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                         }
                         if (isPrnProtocolNavAlert) {
                           goToMedicationDocs();
+                        }
+                        if (isCarePlanEvalNavAlert) {
+                          goToCarePlanFolder();
                         }
                       }
                     }}
@@ -827,6 +967,11 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                         </div>
                         <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
                         <p className="text-sm text-muted-foreground">{alert.message}</p>
+                        {carePlanEvalFolderLabel && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Folder: {carePlanEvalFolderLabel}
+                          </p>
+                        )}
                         {isFoodFluidNavAlert && (
                           <p className="text-xs text-muted-foreground mt-2">
                             Click this alert to open food & fluid
@@ -842,6 +987,11 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                             Click this alert to open medication docs
                           </p>
                         )}
+                        {isCarePlanEvalNavAlert && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Click this alert to open the care file folder for this care plan
+                          </p>
+                        )}
                       </div>
                       {canDismissAlert(
                         alert,
@@ -850,7 +1000,8 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                         residentLastWeightCheckedAt,
                         foodFluidSixHourCompliant,
                         residentLastUrineRecordedAt,
-                        completedPrnProtocolMedicationIds
+                        completedPrnProtocolMedicationIds,
+                        carePlanEvalLatestCreatedAt
                       ) && (
                         <Button
                           size="sm"
