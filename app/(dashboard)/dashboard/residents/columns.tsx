@@ -12,7 +12,7 @@ import {
 import { cn, getAge, getColorForBadge } from "@/lib/utils";
 import { Resident } from "@/types";
 import { ColumnDef } from "@tanstack/react-table";
-import { Bell, Clock } from "lucide-react";
+import { Bell, Clock, X } from "lucide-react";
 import { formatTimestampToUKTime, formatTimestampToUKDate, getUKTodayDate } from "@/lib/date-utils";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -138,6 +138,9 @@ function canDismissAlert(
 }
 
 function shouldShowAlertForRole(alert: { type?: string }, role?: string) {
+  if (alert.type === "medication") {
+    return role === "nurse";
+  }
   if (NURSE_AND_CARE_ASSISTANT_ALERT_TYPES.has(alert.type || "")) {
     return role === "nurse" || role === "care_assistant";
   }
@@ -583,6 +586,20 @@ const NotificationsCell = ({
     fetchAlerts();
   }, [fetchAlerts]);
 
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void fetchAlerts();
+      }
+    };
+    window.addEventListener("focus", fetchAlerts);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", fetchAlerts);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [fetchAlerts]);
+
   const handleDismissAlert = async (alertId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!profile?.id) return;
@@ -655,6 +672,18 @@ const NotificationsCell = ({
     ? carePlanEvaluationAlertFolderLabel(topAlert.metadata)
     : null;
 
+  const canNavigateMedicationAlert =
+    topAlert.type === "medication" && userRole === "nurse";
+
+  const topDismissible = canDismissAlert(
+    topAlert,
+    residentPhotoUpdatedAt,
+    residentLastBowelRecordedAt,
+    foodFluidSixHourCompliant,
+    residentLastUrineRecordedAt,
+    carePlanEvalLatestCreatedAt
+  );
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -675,22 +704,35 @@ const NotificationsCell = ({
       <TooltipContent className="bg-white border p-3 max-w-xs">
         <div className="flex flex-col gap-2">
           <div className="flex items-start justify-between gap-2">
-            <p className="font-medium text-sm text-primary">
+            <p className="font-medium text-sm text-primary min-w-0 flex-1 pr-1">
               {topAlert.title}
             </p>
-            <Badge
-              variant="table"
-              className={cn(
-                "flex-shrink-0",
-                topAlert.severity === "critical"
-                  ? "bg-red-50 text-red-700 border-red-300"
-                  : topAlert.severity === "warning"
-                    ? "bg-orange-50 text-orange-700 border-orange-300"
-                    : "bg-blue-50 text-blue-700 border-blue-300"
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Badge
+                variant="table"
+                className={cn(
+                  topAlert.severity === "critical"
+                    ? "bg-red-50 text-red-700 border-red-300"
+                    : topAlert.severity === "warning"
+                      ? "bg-orange-50 text-orange-700 border-orange-300"
+                      : "bg-blue-50 text-blue-700 border-blue-300"
+                )}
+              >
+                {topAlert.severity === "critical" ? "Critical" : topAlert.severity === "warning" ? "Warning" : "Info"}
+              </Badge>
+              {topDismissible && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={(e) => handleDismissAlert(topAlert.id, e)}
+                  aria-label="Dismiss alert"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               )}
-            >
-              {topAlert.severity === "critical" ? "Critical" : topAlert.severity === "warning" ? "Warning" : "Info"}
-            </Badge>
+            </div>
           </div>
           <p className="text-sm text-muted-foreground">
             {topAlert.message}
@@ -745,22 +787,19 @@ const NotificationsCell = ({
               </Button>
             </div>
           )}
-          {canDismissAlert(
-            topAlert,
-            residentPhotoUpdatedAt,
-            residentLastBowelRecordedAt,
-            foodFluidSixHourCompliant,
-            residentLastUrineRecordedAt,
-            carePlanEvalLatestCreatedAt
-          ) && (
-            <div className="pt-2 border-t flex justify-end">
+          {canNavigateMedicationAlert && (
+            <div className="pt-2 border-t">
               <Button
+                type="button"
                 size="sm"
-                variant="outline"
-                onClick={(e) => handleDismissAlert(topAlert.id, e)}
-                className="text-xs h-7"
+                variant="secondary"
+                className="w-full text-xs h-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/dashboard/residents/${residentId}/medication` as Route);
+                }}
               >
-                Dismiss
+                Open medication
               </Button>
             </div>
           )}

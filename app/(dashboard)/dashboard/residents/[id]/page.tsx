@@ -196,6 +196,9 @@ function canDismissAlert(
 }
 
 function shouldShowAlertForRole(alert: { type?: string }, role?: string) {
+  if (alert.type === "medication") {
+    return role === "nurse";
+  }
   if (NURSE_AND_CARE_ASSISTANT_ALERT_TYPES.has(alert.type || "")) {
     return role === "nurse" || role === "care_assistant";
   }
@@ -1082,6 +1085,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                   (alert.type === CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE ||
                     alert.type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE) &&
                   carePlanEvalCareFileHref !== null;
+                const isMedicationNavAlert =
+                  alert.type === "medication" && userRole === "nurse";
                 const carePlanEvalFolderLabel = isCarePlanEvalNavAlert
                   ? carePlanEvaluationAlertFolderLabel(alert.metadata)
                   : null;
@@ -1089,7 +1094,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                   isFoodFluidNavAlert ||
                   isUrineNavAlert ||
                   isPrnProtocolNavAlert ||
-                  isCarePlanEvalNavAlert;
+                  isCarePlanEvalNavAlert ||
+                  isMedicationNavAlert;
                 const goToFoodFluid = () => {
                   setShowAlertsDialog(false);
                   router.push(`/dashboard/residents/${id}/food-fluid`);
@@ -1106,6 +1112,10 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                   if (!carePlanEvalCareFileHref) return;
                   setShowAlertsDialog(false);
                   router.push(carePlanEvalCareFileHref as Route);
+                };
+                const goToMedication = () => {
+                  setShowAlertsDialog(false);
+                  router.push(`/dashboard/residents/${id}/medication` as Route);
                 };
                 return (
                   <div
@@ -1126,6 +1136,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                       if (isUrineNavAlert) goToContinence();
                       if (isPrnProtocolNavAlert) goToMedicationDocs();
                       if (isCarePlanEvalNavAlert) goToCarePlanFolder();
+                      if (isMedicationNavAlert) goToMedication();
                     }}
                     onKeyDown={(e) => {
                       if (!isNavigationAlert) return;
@@ -1142,6 +1153,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                         }
                         if (isCarePlanEvalNavAlert) {
                           goToCarePlanFolder();
+                        }
+                        if (isMedicationNavAlert) {
+                          goToMedication();
                         }
                       }
                     }}
@@ -1194,6 +1208,11 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                         {isCarePlanEvalNavAlert && (
                           <p className="text-xs text-muted-foreground mt-2">
                             Click this alert to open the care file folder for this care plan
+                          </p>
+                        )}
+                        {isMedicationNavAlert && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Click this alert to open medication
                           </p>
                         )}
                       </div>

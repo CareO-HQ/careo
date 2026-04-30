@@ -9,7 +9,8 @@ export interface MedicationAlert {
     id: string;
     resident_id: string;
     type?: string;
-    alert_type: string;
+    /** Legacy alias; prefer `type` from API */
+    alert_type?: string;
     severity: 'critical' | 'warning' | 'info';
     title: string;
     message: string;
