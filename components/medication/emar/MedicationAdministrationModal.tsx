@@ -20,6 +20,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { SignaturePad } from "./SignaturePad";
+import { isLiquidDosageForm } from "@/lib/medication/liquid-helpers";
 
 interface MedicationAdministrationModalProps {
   isOpen: boolean;
@@ -191,6 +192,59 @@ export function MedicationAdministrationModal({
               </div>
             )}
           </div>
+
+          {/* Liquid medication or Injection: Available Volume Info */}
+          {(isLiquidDosageForm(medication.dosage_form) || medication.dosage_form?.toLowerCase().includes('injection')) && medication.total_count != null && (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-blue-900">
+                  {medication.dosage_form?.toLowerCase().includes('injection') && medication.container_type 
+                    ? "Available Stock" 
+                    : "Available Volume"}
+                </span>
+                <span className="text-lg font-bold text-blue-700">
+                  {medication.total_count} {(() => {
+                    if (medication.dosage_form?.toLowerCase().includes('injection') && medication.container_type) {
+                      const ct = medication.container_type.toLowerCase();
+                      return medication.total_count === 1 ? ct : (ct.endsWith('s') ? ct : ct + 's');
+                    }
+                    return 'ml';
+                  })()}
+                </span>
+              </div>
+              {(() => {
+                const doseQty = medication.time_quantities?.[time] || 1;
+                const unit = (() => {
+                  if (medication.dosage_form?.toLowerCase().includes('injection') && medication.container_type) {
+                    const ct = medication.container_type.toLowerCase();
+                    return doseQty === 1 ? ct : (ct.endsWith('s') ? ct : ct + 's');
+                  }
+                  return 'ml';
+                })();
+                const remaining = Math.max(0, (medication.total_count || 0) - doseQty);
+                const exceedsStock = doseQty > (medication.total_count || 0);
+                return (
+                  <>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-blue-800">Dispensing this dose:</span>
+                      <span className="font-semibold text-blue-700">{doseQty} {unit}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-blue-800">Remaining after:</span>
+                      <span className={`font-semibold ${exceedsStock ? 'text-red-600' : 'text-blue-700'}`}>
+                        {remaining} {unit}
+                      </span>
+                    </div>
+                    {exceedsStock && (
+                      <p className="text-xs text-red-600 font-medium mt-1">
+                        ⚠ Dispensed amount exceeds available stock
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Status Selection */}
           <div className="space-y-3">

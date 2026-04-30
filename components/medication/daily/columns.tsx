@@ -74,6 +74,7 @@ interface MedicationIntake {
     strength: string;
     strength_unit: string;
     total_count: number;
+    container_type?: string;
   } | null;
   witness_id?: string | null;
   witness_at?: string | null;
@@ -252,7 +253,13 @@ export const createColumns = (
             if (dosageUnit.includes('Applications')) return quantity === 1 ? 'application' : 'applications';
             if (dosageUnit.includes('Sprays')) return quantity === 1 ? 'spray' : 'sprays';
             if (dosageUnit.includes('Patches')) return quantity === 1 ? 'patch' : 'patches';
-            if (dosageUnit.includes('Injections')) return 'mL';
+            if (dosageUnit.includes('Injections')) {
+              if (medication.container_type) {
+                const ct = medication.container_type.toLowerCase();
+                return quantity === 1 ? ct : (ct.endsWith('s') ? ct : ct + 's');
+              }
+              return 'mL';
+            }
             if (dosageUnit.includes('Tablets')) return quantity === 1 ? 'tablet' : 'tablets';
           }
 
@@ -272,6 +279,10 @@ export const createColumns = (
           } else if (dosageForm.includes('patch')) {
             return quantity === 1 ? 'patch' : 'patches';
           } else if (dosageForm.includes('injection')) {
+            if (medication.container_type) {
+              const ct = medication.container_type.toLowerCase();
+              return quantity === 1 ? ct : (ct.endsWith('s') ? ct : ct + 's');
+            }
             return 'mL';
           } else if (dosageForm.includes('tablet')) {
             return quantity === 1 ? 'tablet' : 'tablets';
@@ -325,7 +336,13 @@ export const createColumns = (
             if (dosageUnit.includes('Drops')) return 'drops';
             if (dosageUnit.includes('Puffs')) return 'puffs';
             if (dosageUnit.includes('Patches')) return totalCount === 1 ? 'patch' : 'patches';
-            if (dosageUnit.includes('Injections')) return 'mL';
+            if (dosageUnit.includes('Injections')) {
+              if (medication.container_type) {
+                const ct = medication.container_type.toLowerCase();
+                return totalCount === 1 ? ct : (ct.endsWith('s') ? ct : ct + 's');
+              }
+              return 'mL';
+            }
             if (dosageUnit.includes('Tablets')) return totalCount === 1 ? 'tablet' : 'tablets';
           }
 
@@ -341,6 +358,10 @@ export const createColumns = (
           } else if (dosageForm.includes('spray')) {
             return totalCount === 1 ? 'spray' : 'sprays';
           } else if (dosageForm.includes('injection')) {
+            if (medication.container_type) {
+              const ct = medication.container_type.toLowerCase();
+              return totalCount === 1 ? ct : (ct.endsWith('s') ? ct : ct + 's');
+            }
             return 'mL';
           } else if (dosageForm.includes('sachet') || dosageForm.includes('powder')) {
             return totalCount === 1 ? 'sachet' : 'sachets';

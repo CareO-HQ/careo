@@ -11,7 +11,8 @@ END $$;
 
 -- 2. Column referenced by medication intake resolve trigger
 ALTER TABLE public.alerts
-  ADD COLUMN IF NOT EXISTS auto_resolved BOOLEAN DEFAULT false;
+  ADD COLUMN IF NOT EXISTS auto_resolved BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS resolution_note TEXT;
 
 -- 3. RLS: medication alerts visible only to nurses (not owners)
 DROP POLICY IF EXISTS "Users can read relevant alerts" ON public.alerts;

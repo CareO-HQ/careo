@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const MEDICATION_ALERT_TARGET_ROLES = ["nurse"] as const;
+const OVERDUE_TRIGGER_MS = 60 * 60 * 1000;
+const OVERDUE_ALERT_TTL_MS = 6 * 60 * 60 * 1000;
+const OVERDUE_ALERT_MAX_AGE_MS = OVERDUE_TRIGGER_MS + OVERDUE_ALERT_TTL_MS;
 
 interface MedicationNameRow {
   name: string;
@@ -53,6 +56,25 @@ async function findUnresolvedMedicationAlertForIntake(
     (a) => a.metadata?.intake_id === intakeId
   );
   return found ?? null;
+}
+
+async function deleteUnresolvedMedicationAlertForIntake(
+  supabase: SupabaseClient,
+  residentId: string,
+  intakeId: string
+): Promise<boolean> {
+  const existing = await findUnresolvedMedicationAlertForIntake(supabase, residentId, intakeId);
+  if (!existing) {
+    return true;
+  }
+
+  const { error } = await supabase.from("alerts").delete().eq("id", existing.id);
+  if (error) {
+    console.error("[medication-missed-alerts-cron] delete alert:", error);
+    return false;
+  }
+
+  return true;
 }
 
 async function upsertMedicationAlert(
@@ -119,7 +141,7 @@ export async function runMedicationMissedAlertsCron(
   const now = new Date();
   const nowIso = now.toISOString();
   const thirtyMinsFromNow = new Date(now.getTime() + 30 * 60 * 1000).toISOString();
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+  const oneHourAgo = new Date(now.getTime() - OVERDUE_TRIGGER_MS).toISOString();
 
   const selectWithJoins =
     "id, resident_id, scheduled_time, organization_id, care_home_id, medication:medication_id(name), resident:resident_id(first_name, last_name, organization_id)";
@@ -171,6 +193,19 @@ export async function runMedicationMissedAlertsCron(
   for (const raw of overdue ?? []) {
     const intake = raw as MedicationIntakeCronRow;
     const scheduledTime = new Date(intake.scheduled_time);
+    const elapsedSinceScheduledMs = now.getTime() - scheduledTime.getTime();
+    if (elapsedSinceScheduledMs >= OVERDUE_ALERT_MAX_AGE_MS) {
+      const deleted = await deleteUnresolvedMedicationAlertForIntake(
+        supabase,
+        intake.resident_id,
+        intake.id
+      );
+      if (!deleted) {
+        continue;
+      }
+      continue;
+    }
+
     const overdueMins = Math.round((now.getTime() - scheduledTime.getTime()) / 60_000);
     const med = unwrapOne(intake.medication);
     const res = unwrapOne(intake.resident);

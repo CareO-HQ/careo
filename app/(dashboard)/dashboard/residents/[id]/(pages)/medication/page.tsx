@@ -26,7 +26,7 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import { config } from "@/config";
 import { toast } from "sonner";
-import { formatTimestampToUKTime, formatTimestampToUKDateTime, getUKTodayDate, UK_TIMEZONE } from "@/lib/date-utils";
+import { formatTimestampToUKTime, formatTimestampToUKDateTime, getUKTodayDate, UK_TIMEZONE, getNearestMedicationTime } from "@/lib/date-utils";
 import {
   ColumnDef,
   SortingState,
@@ -79,36 +79,6 @@ const normalizeTimeToHHmm = (value: string | null | undefined): string | null =>
   return null;
 };
 
-// Helper function to find the nearest medication time
-const getNearestMedicationTime = (): string | null => {
-  const now = new Date();
-  const ukNow = toZonedTime(now, UK_TIMEZONE);
-  const currentHour = ukNow.getHours();
-  const currentMinute = ukNow.getMinutes();
-  const currentTimeInMinutes = currentHour * 60 + currentMinute;
-
-  // Flatten all times from config
-  const allTimes = config.times.flatMap(timeGroup => timeGroup.values);
-
-  if (allTimes.length === 0) return null;
-
-  // Convert time strings to minutes and find the nearest one
-  let nearestTime = allTimes[0];
-  let smallestDiff = Infinity;
-
-  allTimes.forEach(time => {
-    const [hours, minutes] = time.split(':').map(Number);
-    const timeInMinutes = hours * 60 + minutes;
-    const diff = Math.abs(timeInMinutes - currentTimeInMinutes);
-
-    if (diff < smallestDiff) {
-      smallestDiff = diff;
-      nearestTime = time;
-    }
-  });
-
-  return nearestTime;
-};
 
 export default function MedicationPage({ params }: MedicationPageProps) {
   const { id } = React.use(params);
@@ -130,9 +100,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [selectedTime, setSelectedTime] = useState<string | null>(
-    getNearestMedicationTime() || config.times[0]?.values[0] || null
-  );
+  const [selectedTime, setSelectedTime] = useState<string | null>(() => {
+    const allTimes = config.times.flatMap(t => t.values);
+    return getNearestMedicationTime(allTimes) || allTimes[0] || null;
+  });
   // Initialize with UK Today
   const [selectedDate, setSelectedDate] = useState<Date>(() => toZonedTime(new Date(), UK_TIMEZONE));
   const [filteredIntakes, setFilteredIntakes] = useState<any[]>([]);
@@ -1409,7 +1380,12 @@ export default function MedicationPage({ params }: MedicationPageProps) {
                                   intake.medication?.category === 'Supplement';
               const isTopical = intake.medication?.schedule_type === 'Topical' ||
                                intake.medication?.route === 'Topical';
-              return !isSupplement && !isTopical;
+              const isInjection = intake.medication?.dosage_form?.toLowerCase().includes('injection');
+              return !isSupplement && !isTopical && !isInjection;
+            });
+
+            const injectionIntakes = filteredIntakes.filter((intake) => {
+              return intake.medication?.dosage_form?.toLowerCase().includes('injection');
             });
 
             const supplementIntakes = filteredIntakes.filter((intake) => {
@@ -1428,6 +1404,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
             // Combine with dividers
             const combinedData = [
               ...regularMeds,
+              ...(injectionIntakes.length > 0 ? [{ isDivider: true, dividerLabel: 'Injections' }] : []),
+              ...injectionIntakes,
               ...(topicalIntakes.length > 0 ? [{ isDivider: true, dividerLabel: 'Topical Medications' }] : []),
               ...topicalIntakes,
               ...(supplementIntakes.length > 0 ? [{ isDivider: true, dividerLabel: 'Supplements' }] : []),
@@ -1606,7 +1584,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           <div className="mt-6 space-y-6">
             {selectedDateIntakeGroup && (() => {
               const intakes = selectedDateIntakeGroup.intakes;
-              const scheduled = intakes.filter((i: any) => i.medication?.schedule_type !== "PRN (As Needed)" && i.medication?.route !== "Topical");
+              const scheduled = intakes.filter((i: any) => i.medication?.schedule_type !== "PRN (As Needed)" && i.medication?.route !== "Topical" && !i.medication?.dosage_form?.toLowerCase().includes('injection'));
+              const injections = intakes.filter((i: any) => i.medication?.dosage_form?.toLowerCase().includes('injection') && i.medication?.schedule_type !== "PRN (As Needed)");
               const prn = intakes.filter((i: any) => i.medication?.schedule_type === "PRN (As Needed)");
               const topical = intakes.filter((i: any) => i.medication?.route === "Topical" && i.medication?.schedule_type !== "PRN (As Needed)");
 
@@ -1658,6 +1637,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               return (
                 <>
                   {renderTable(scheduled, "Scheduled Medications")}
+                  {renderTable(injections, "Injections")}
                   {renderTable(prn, "PRN (As Needed) Medications")}
                   {renderTable(topical, "Topical Medications")}
                   {!scheduled.length && !prn.length && !topical.length && (

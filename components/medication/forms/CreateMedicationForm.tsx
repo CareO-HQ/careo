@@ -46,6 +46,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { InteractiveBodyMap } from "@/components/body-map/InteractiveBodyMap";
 import { BODY_REGIONS } from "@/lib/config/body-regions";
 import type { BodyRegion } from "@/types/body-map";
+import { isLiquidDosageForm } from "@/lib/medication/liquid-helpers";
 
 
 export default function CreateMedicationForm({
@@ -76,6 +77,10 @@ export default function CreateMedicationForm({
   const [step, setStep] = useState(initialType ? 1 : 0);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
   const [medicationType, setMedicationType] = useState<"Scheduled" | "PRN (As Needed)" | "Topical" | "Supplement" | null>(initialType || null);
+
+  // Liquid medication bottle/volume state
+  const [liquidBottleCount, setLiquidBottleCount] = useState<number>(0);
+  const [liquidBottleMls, setLiquidBottleMls] = useState<number[]>([]);
 
   const form = useForm<z.infer<typeof CreateMedicationSchema>>({
     resolver: zodResolver(CreateMedicationSchema),
@@ -162,7 +167,8 @@ export default function CreateMedicationForm({
             min_interval_hours: values.minIntervalHours,
             max_daily_dose: values.maxDailyDose,
             max_daily_dose_unit: values.maxDailyDoseUnit,
-            body_regions: values.bodyRegions
+            body_regions: values.bodyRegions,
+            container_type: values.containerType
           })
           .select()
           .single();
@@ -445,7 +451,7 @@ export default function CreateMedicationForm({
                   name="strength"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel required>Strength</FormLabel>
+                      <FormLabel required>Strength / Dose</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
@@ -548,6 +554,34 @@ export default function CreateMedicationForm({
                     </FormItem>
                   )}
                 />
+                {form.watch("dosageForm") === "Injection" && (
+                  <FormField
+                    control={form.control}
+                    name="containerType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Container type</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select a container type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Vial">Vial</SelectItem>
+                            <SelectItem value="Bottle">Bottle</SelectItem>
+                            <SelectItem value="Insulin pen">Insulin pen</SelectItem>
+                            <SelectItem value="Pen cartridge">Pen cartridge</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <FormField
@@ -566,20 +600,36 @@ export default function CreateMedicationForm({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="Oral">Oral</SelectItem>
-                          <SelectItem value="Topical">Topical</SelectItem>
-                          <SelectItem value="Intramuscular (IM)">
-                            Intramuscular (IM)
-                          </SelectItem>
-                          <SelectItem value="Intravenous (IV)">
-                            Intravenous (IV)
-                          </SelectItem>
-                          <SelectItem value="Subcutaneous">
-                            Subcutaneous
-                          </SelectItem>
-                          <SelectItem value="Inhalation">Inhalation</SelectItem>
-                          <SelectItem value="Rectal">Rectal</SelectItem>
-                          <SelectItem value="Sublingual">Sublingual</SelectItem>
+                          {form.watch("dosageForm") === "Injection" ? (
+                            <>
+                              <SelectItem value="Intramuscular (IM)">
+                                Intramuscular (IM)
+                              </SelectItem>
+                              <SelectItem value="Intravenous (IV)">
+                                Intravenous (IV)
+                              </SelectItem>
+                              <SelectItem value="Subcutaneous">
+                                Subcutaneous
+                              </SelectItem>
+                            </>
+                          ) : (
+                            <>
+                              <SelectItem value="Oral">Oral</SelectItem>
+                              <SelectItem value="Topical">Topical</SelectItem>
+                              <SelectItem value="Intramuscular (IM)">
+                                Intramuscular (IM)
+                              </SelectItem>
+                              <SelectItem value="Intravenous (IV)">
+                                Intravenous (IV)
+                              </SelectItem>
+                              <SelectItem value="Subcutaneous">
+                                Subcutaneous
+                              </SelectItem>
+                              <SelectItem value="Inhalation">Inhalation</SelectItem>
+                              <SelectItem value="Rectal">Rectal</SelectItem>
+                              <SelectItem value="Sublingual">Sublingual</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -591,9 +641,108 @@ export default function CreateMedicationForm({
                   name="totalCount"
                   render={({ field }) => {
                     const dosageForm = form.watch("dosageForm")?.toLowerCase() || "";
+                    const rawDosageForm = form.watch("dosageForm") || "";
                     const scheduleType = form.watch("scheduleType");
                     const frequencyValue = form.watch("frequency") || "";
+                    const isLiquid = isLiquidDosageForm(rawDosageForm);
 
+                    // --- LIQUID DOSAGE FORMS: per-bottle ml inputs ---
+                    if (isLiquid) {
+                      const computedTotal = liquidBottleMls.length > 0
+                        ? liquidBottleMls.reduce((sum, ml) => sum + (ml || 0), 0)
+                        : undefined;
+
+                      // Sync computed total into form field
+                      if (computedTotal !== undefined && computedTotal > 0 && computedTotal !== field.value) {
+                        field.onChange(computedTotal);
+                      }
+
+                      return (
+                        <FormItem>
+                          <FormLabel>Stock Volume (Optional)</FormLabel>
+                          <div className="space-y-3">
+                            {/* Number of bottles */}
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block">How many bottles/packs?</label>
+                              <Input
+                                placeholder="e.g., 2"
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={liquidBottleCount || ""}
+                                onChange={(e) => {
+                                  const count = e.target.value ? parseInt(e.target.value) : 0;
+                                  setLiquidBottleCount(count);
+                                  // Resize the ml array, preserving existing values
+                                  setLiquidBottleMls((prev) => {
+                                    const newArr = [...prev];
+                                    if (count > newArr.length) {
+                                      // Add empty slots
+                                      for (let i = newArr.length; i < count; i++) {
+                                        newArr.push(0);
+                                      }
+                                    } else {
+                                      // Trim excess
+                                      newArr.length = count;
+                                    }
+                                    const total = newArr.reduce((s, v) => s + (v || 0), 0);
+                                    field.onChange(total > 0 ? total : undefined);
+                                    return newArr;
+                                  });
+                                }}
+                              />
+                            </div>
+                            {/* Per-bottle ml inputs */}
+                            {liquidBottleCount > 0 && (
+                              <div className="space-y-2">
+                                <label className="text-xs text-muted-foreground block">How many ml in each bottle?</label>
+                                {Array.from({ length: liquidBottleCount }, (_, i) => (
+                                  <div key={i} className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-muted-foreground w-20 shrink-0">Bottle {i + 1}</span>
+                                    <Input
+                                      placeholder="e.g., 100"
+                                      type="number"
+                                      min="0.1"
+                                      step="0.1"
+                                      value={liquidBottleMls[i]?.toString() || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value ? parseFloat(e.target.value) : 0;
+                                        setLiquidBottleMls((prev) => {
+                                          const updated = [...prev];
+                                          updated[i] = val;
+                                          const total = updated.reduce((s, v) => s + (v || 0), 0);
+                                          field.onChange(total > 0 ? total : undefined);
+                                          return updated;
+                                        });
+                                      }}
+                                    />
+                                    <span className="text-xs text-muted-foreground">ml</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {/* Computed total */}
+                            {computedTotal !== undefined && computedTotal > 0 && (
+                              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium text-blue-900">Total Volume</span>
+                                  <span className="text-lg font-bold text-blue-700">{computedTotal} ml</span>
+                                </div>
+                                <p className="text-xs text-blue-600 mt-1">
+                                  {liquidBottleCount} bottle{liquidBottleCount !== 1 ? 's' : ''}: {liquidBottleMls.filter(v => v > 0).map(v => `${v} ml`).join(' + ')}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          <FormDescription className="text-xs">
+                            Enter the number of bottles and the ml in each bottle
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }
+
+                    // --- NON-LIQUID DOSAGE FORMS: original behavior ---
                     // Determine unit and input type based on dosage form
                     let allowDecimals = false;
                     let step = "1";
@@ -626,11 +775,20 @@ export default function CreateMedicationForm({
                         unitLabel = "sachets";
                         description = "Total sachets in the box";
                       } else if (frequencyValue.includes('Injections')) {
-                        allowDecimals = true;
-                        step = "0.1";
-                        placeholder = "e.g., 10";
-                        unitLabel = "mL";
-                        description = "Total volume in vial/ampoules";
+                        const containerType = form.watch("containerType");
+                        if (containerType) {
+                          unitLabel = containerType.toLowerCase() + (containerType.toLowerCase().endsWith('s') ? '' : 's');
+                          placeholder = "e.g., 10";
+                          description = `Total ${unitLabel} in the package`;
+                          allowDecimals = false;
+                          step = "1";
+                        } else {
+                          allowDecimals = true;
+                          step = "0.1";
+                          placeholder = "e.g., 10";
+                          unitLabel = "mL";
+                          description = "Total volume in vial/ampoules";
+                        }
                       } else if (frequencyValue.includes('Tablets')) {
                         placeholder = "e.g., 30";
                         unitLabel = "tablets";
@@ -645,30 +803,25 @@ export default function CreateMedicationForm({
                         placeholder = "e.g., 2 or 3";
                         unitLabel = "packs";
                         description = "Total packs in the box";
-                      } else if (dosageForm.includes('liquid') || dosageForm.includes('syrup')) {
-                        allowDecimals = true;
-                        step = "0.1";
-                        placeholder = "e.g., 100 or 250";
-                        unitLabel = "mL";
-                        description = "Total volume in the bottle";
-                      } else if (dosageForm.includes('drops')) {
-                        placeholder = "e.g., 50";
-                        unitLabel = "drops/mL";
-                        description = "Total drops or volume in the bottle";
                       } else if (dosageForm.includes('injection')) {
-                        allowDecimals = true;
-                        step = "0.1";
-                        placeholder = "e.g., 10";
-                        unitLabel = "mL";
-                        description = "Total volume in vial/ampoules";
+                        const containerType = form.watch("containerType");
+                        if (containerType) {
+                          unitLabel = containerType.toLowerCase() + (containerType.toLowerCase().endsWith('s') ? '' : 's');
+                          placeholder = "e.g., 10";
+                          description = `Total ${unitLabel} in the package`;
+                          allowDecimals = false;
+                          step = "1";
+                        } else {
+                          allowDecimals = true;
+                          step = "0.1";
+                          placeholder = "e.g., 10";
+                          unitLabel = "mL";
+                          description = "Total volume in vial/ampoules";
+                        }
                       } else if (dosageForm.includes('inhaler')) {
                         placeholder = "e.g., 200";
                         unitLabel = "puffs";
                         description = "Total puffs in the inhaler";
-                      } else if (dosageForm.includes('spray')) {
-                        placeholder = "e.g., 120";
-                        unitLabel = "sprays";
-                        description = "Total sprays in the bottle";
                       } else if (dosageForm.includes('sachet') || dosageForm.includes('powder')) {
                         placeholder = "e.g., 30";
                         unitLabel = "sachets";
@@ -961,10 +1114,18 @@ export default function CreateMedicationForm({
                                                   placeholder = "e.g., 1";
                                                   unitLabel = "sachets";
                                                 } else if (frequencyValue.includes('Injections')) {
-                                                  allowDecimals = true;
-                                                  step = "0.1";
-                                                  placeholder = "e.g., 1.5";
-                                                  unitLabel = "mL";
+                                                  const containerType = form.watch("containerType");
+                                                  if (containerType) {
+                                                    unitLabel = containerType.toLowerCase() + (containerType.toLowerCase().endsWith('s') ? '' : 's');
+                                                    allowDecimals = false;
+                                                    step = "1";
+                                                    placeholder = "Qty";
+                                                  } else {
+                                                    allowDecimals = true;
+                                                    step = "0.1";
+                                                    placeholder = "e.g., 1.5";
+                                                    unitLabel = "mL";
+                                                  }
                                                 } else if (frequencyValue.includes('Tablets')) {
                                                   placeholder = "e.g., 2";
                                                   unitLabel = "tablets";
@@ -983,10 +1144,18 @@ export default function CreateMedicationForm({
                                                   placeholder = "e.g., 3";
                                                   unitLabel = "drops";
                                                 } else if (dosageForm.includes('injection')) {
-                                                  allowDecimals = true;
-                                                  step = "0.1";
-                                                  placeholder = "e.g., 1.5";
-                                                  unitLabel = "mL";
+                                                  const containerType = form.watch("containerType");
+                                                  if (containerType) {
+                                                    unitLabel = containerType.toLowerCase() + (containerType.toLowerCase().endsWith('s') ? '' : 's');
+                                                    allowDecimals = false;
+                                                    step = "1";
+                                                    placeholder = "Qty";
+                                                  } else {
+                                                    allowDecimals = true;
+                                                    step = "0.1";
+                                                    placeholder = "e.g., 1.5";
+                                                    unitLabel = "mL";
+                                                  }
                                                 } else if (dosageForm.includes('inhaler') || dosageForm.includes('spray')) {
                                                   placeholder = "e.g., 2";
                                                   unitLabel = "puffs";

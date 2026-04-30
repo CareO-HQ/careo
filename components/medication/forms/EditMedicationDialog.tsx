@@ -92,7 +92,8 @@ const UpdateMedicationSchema = z.object({
   startDate: z.date().optional(),
   status: z.enum(["active", "completed", "cancelled", "discontinued"]).optional(),
   revertToActive: z.boolean().optional(),
-  isControlledDrug: z.boolean().optional()
+  isControlledDrug: z.boolean().optional(),
+  containerType: z.enum(["Vial", "Bottle", "Insulin pen", "Pen cartridge"]).optional()
 });
 
 interface Medication {
@@ -114,6 +115,7 @@ interface Medication {
   status: string;
   total_count: number;
   is_controlled_drug?: boolean;
+  container_type?: string;
 }
 
 interface EditMedicationDialogProps {
@@ -157,7 +159,8 @@ export default function EditMedicationDialog({
         startDate: medication.start_date ? new Date(medication.start_date) : new Date(),
         status: medication.status as any,
         revertToActive: false,
-        isControlledDrug: medication.is_controlled_drug || false
+        isControlledDrug: medication.is_controlled_drug || false,
+        containerType: medication.container_type as any
       });
     } else if (!open) {
       // Dialog closing - reset form to default empty state
@@ -207,6 +210,10 @@ export default function EditMedicationDialog({
 
       if (values.isControlledDrug !== undefined) {
         updates.is_controlled_drug = values.isControlledDrug;
+      }
+      
+      if (values.containerType !== undefined) {
+        updates.container_type = values.containerType;
       }
 
       const { error } = await supabase
@@ -368,11 +375,20 @@ export default function EditMedicationDialog({
                       unitLabel = "sachets";
                       description = "Total sachets in the box";
                     } else if (frequencyValue.includes('Injections')) {
-                      allowDecimals = true;
-                      step = "0.1";
-                      placeholder = "e.g., 10";
-                      unitLabel = "mL";
-                      description = "Total volume in vial/ampoules";
+                      const containerType = form.watch("containerType");
+                      if (containerType) {
+                        unitLabel = containerType.toLowerCase() + (containerType.toLowerCase().endsWith('s') ? '' : 's');
+                        placeholder = "e.g., 10";
+                        description = `Total ${unitLabel} in the package`;
+                        allowDecimals = false;
+                        step = "1";
+                      } else {
+                        allowDecimals = true;
+                        step = "0.1";
+                        placeholder = "e.g., 10";
+                        unitLabel = "mL";
+                        description = "Total volume in vial/ampoules";
+                      }
                     } else if (frequencyValue.includes('Tablets')) {
                       placeholder = "e.g., 30";
                       unitLabel = "tablets";
@@ -392,11 +408,20 @@ export default function EditMedicationDialog({
                       unitLabel = "drops/mL";
                       description = "Total drops or volume in the bottle";
                     } else if (dosageForm.includes('injection')) {
-                      allowDecimals = true;
-                      step = "0.1";
-                      placeholder = "e.g., 10";
-                      unitLabel = "mL";
-                      description = "Total volume in vial/ampoules";
+                      const containerType = form.watch("containerType");
+                      if (containerType) {
+                        unitLabel = containerType.toLowerCase() + (containerType.toLowerCase().endsWith('s') ? '' : 's');
+                        placeholder = "e.g., 10";
+                        description = `Total ${unitLabel} in the package`;
+                        allowDecimals = false;
+                        step = "1";
+                      } else {
+                        allowDecimals = true;
+                        step = "0.1";
+                        placeholder = "e.g., 10";
+                        unitLabel = "mL";
+                        description = "Total volume in vial/ampoules";
+                      }
                     } else if (dosageForm.includes('inhaler')) {
                       placeholder = "e.g., 200";
                       unitLabel = "puffs";
@@ -476,7 +501,7 @@ export default function EditMedicationDialog({
                 name="strength"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Strength</FormLabel>
+                    <FormLabel>Strength / Dose</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g., 500" {...field} />
                     </FormControl>
@@ -574,20 +599,36 @@ export default function EditMedicationDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Oral">Oral</SelectItem>
-                        <SelectItem value="Topical">Topical</SelectItem>
-                        <SelectItem value="Intramuscular (IM)">
-                          Intramuscular (IM)
-                        </SelectItem>
-                        <SelectItem value="Intravenous (IV)">
-                          Intravenous (IV)
-                        </SelectItem>
-                        <SelectItem value="Subcutaneous">
-                          Subcutaneous
-                        </SelectItem>
-                        <SelectItem value="Inhalation">Inhalation</SelectItem>
-                        <SelectItem value="Rectal">Rectal</SelectItem>
-                        <SelectItem value="Sublingual">Sublingual</SelectItem>
+                        {form.watch("dosageForm") === "Injection" ? (
+                          <>
+                            <SelectItem value="Intramuscular (IM)">
+                              Intramuscular (IM)
+                            </SelectItem>
+                            <SelectItem value="Intravenous (IV)">
+                              Intravenous (IV)
+                            </SelectItem>
+                            <SelectItem value="Subcutaneous">
+                              Subcutaneous
+                            </SelectItem>
+                          </>
+                        ) : (
+                          <>
+                            <SelectItem value="Oral">Oral</SelectItem>
+                            <SelectItem value="Topical">Topical</SelectItem>
+                            <SelectItem value="Intramuscular (IM)">
+                              Intramuscular (IM)
+                            </SelectItem>
+                            <SelectItem value="Intravenous (IV)">
+                              Intravenous (IV)
+                            </SelectItem>
+                            <SelectItem value="Subcutaneous">
+                              Subcutaneous
+                            </SelectItem>
+                            <SelectItem value="Inhalation">Inhalation</SelectItem>
+                            <SelectItem value="Rectal">Rectal</SelectItem>
+                            <SelectItem value="Sublingual">Sublingual</SelectItem>
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -595,6 +636,35 @@ export default function EditMedicationDialog({
                 )}
               />
             </div>
+
+            {form.watch("dosageForm") === "Injection" && (
+              <FormField
+                control={form.control}
+                name="containerType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Container type</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select container type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Vial">Vial</SelectItem>
+                        <SelectItem value="Bottle">Bottle</SelectItem>
+                        <SelectItem value="Insulin pen">Insulin pen</SelectItem>
+                        <SelectItem value="Pen cartridge">Pen cartridge</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -839,10 +909,18 @@ export default function EditMedicationDialog({
                                               placeholder = "e.g., 1";
                                               unitLabel = "sachets";
                                             } else if (frequencyValue.includes('Injections')) {
-                                              allowDecimals = true;
-                                              step = "0.1";
-                                              placeholder = "e.g., 1.5";
-                                              unitLabel = "mL";
+                                              const containerType = form.watch("containerType");
+                                              if (containerType) {
+                                                unitLabel = containerType.toLowerCase() + (containerType.toLowerCase().endsWith('s') ? '' : 's');
+                                                allowDecimals = false;
+                                                step = "1";
+                                                placeholder = "Qty";
+                                              } else {
+                                                allowDecimals = true;
+                                                step = "0.1";
+                                                placeholder = "e.g., 1.5";
+                                                unitLabel = "mL";
+                                              }
                                             } else if (frequencyValue.includes('Tablets')) {
                                               placeholder = "e.g., 2";
                                               unitLabel = "tablets";
@@ -860,10 +938,18 @@ export default function EditMedicationDialog({
                                               placeholder = "e.g., 3";
                                               unitLabel = "drops";
                                             } else if (dosageForm.includes('injection')) {
-                                              allowDecimals = true;
-                                              step = "0.1";
-                                              placeholder = "e.g., 1.5";
-                                              unitLabel = "mL";
+                                              const containerType = form.watch("containerType");
+                                              if (containerType) {
+                                                unitLabel = containerType.toLowerCase() + (containerType.toLowerCase().endsWith('s') ? '' : 's');
+                                                allowDecimals = false;
+                                                step = "1";
+                                                placeholder = "Qty";
+                                              } else {
+                                                allowDecimals = true;
+                                                step = "0.1";
+                                                placeholder = "e.g., 1.5";
+                                                unitLabel = "mL";
+                                              }
                                             } else if (dosageForm.includes('inhaler') || dosageForm.includes('spray')) {
                                               placeholder = "e.g., 2";
                                               unitLabel = "puffs";

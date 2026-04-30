@@ -37,6 +37,7 @@ import { toast } from "sonner";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { isLiquidDosageForm } from "@/lib/medication/liquid-helpers";
 
 const adjustStockSchema = z.object({
   adjustment_type: z.enum([
@@ -48,7 +49,7 @@ const adjustStockSchema = z.object({
     "other",
   ]),
   direction: z.enum(["increase", "decrease"]),
-  quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
+  quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   reason: z.string().min(3, "Reason is required"),
   notes: z.string().optional(),
 });
@@ -93,6 +94,11 @@ export function AdjustStockDialog({
   const { profile } = useProfile();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Liquid medication state
+  const isLiquid = medication ? isLiquidDosageForm(medication.dosage_form) : false;
+  const [liquidBottleCount, setLiquidBottleCount] = useState<number>(0);
+  const [liquidBottleMls, setLiquidBottleMls] = useState<number[]>([]);
+
   const form = useForm<AdjustStockFormData>({
     resolver: zodResolver(adjustStockSchema),
     defaultValues: {
@@ -109,6 +115,8 @@ export function AdjustStockDialog({
     if (!open) {
       form.reset();
       setIsSubmitting(false);
+      setLiquidBottleCount(0);
+      setLiquidBottleMls([]);
     }
   }, [open, form]);
 
@@ -306,32 +314,109 @@ export function AdjustStockDialog({
             />
 
             {/* Quantity */}
-            <FormField
-              control={form.control}
-              name="quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-base font-bold">Quantity to {direction === 'increase' ? 'Add' : 'Remove'} (Physical Count) *</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        placeholder="e.g. 10"
-                        {...field}
-                        className="text-lg font-semibold pr-20 h-12"
-                      />
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground bg-background px-2">
-                        {unitLabel}
+            {isLiquid ? (
+              /* --- LIQUID: per-bottle ml inputs --- */
+              <div className="space-y-4">
+                <FormLabel className="text-base font-bold">
+                  Volume to {direction === 'increase' ? 'Add' : 'Remove'} *
+                </FormLabel>
+                <div>
+                  <label className="text-sm text-muted-foreground mb-1 block">Number of bottles</label>
+                  <Input
+                    type="number"
+                    placeholder="e.g., 2"
+                    min="1"
+                    step="1"
+                    value={liquidBottleCount || ""}
+                    onChange={(e) => {
+                      const count = e.target.value ? parseInt(e.target.value) : 0;
+                      setLiquidBottleCount(count);
+                      setLiquidBottleMls((prev) => {
+                        const newArr = [...prev];
+                        if (count > newArr.length) {
+                          for (let i = newArr.length; i < count; i++) newArr.push(0);
+                        } else {
+                          newArr.length = count;
+                        }
+                        const total = newArr.reduce((s, v) => s + (v || 0), 0);
+                        if (total > 0) form.setValue("quantity", total);
+                        return newArr;
+                      });
+                    }}
+                  />
+                </div>
+                {liquidBottleCount > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-sm text-muted-foreground block">How many ml in each bottle?</label>
+                    {Array.from({ length: liquidBottleCount }, (_, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground w-20 shrink-0">Bottle {i + 1}</span>
+                        <Input
+                          type="number"
+                          placeholder="e.g., 100"
+                          min="0.1"
+                          step="0.1"
+                          value={liquidBottleMls[i]?.toString() || ""}
+                          onChange={(e) => {
+                            const val = e.target.value ? parseFloat(e.target.value) : 0;
+                            setLiquidBottleMls((prev) => {
+                              const updated = [...prev];
+                              updated[i] = val;
+                              const total = updated.reduce((s, v) => s + (v || 0), 0);
+                              if (total > 0) form.setValue("quantity", total);
+                              return updated;
+                            });
+                          }}
+                        />
+                        <span className="text-xs text-muted-foreground">ml</span>
                       </div>
+                    ))}
+                  </div>
+                )}
+                {(() => {
+                  const total = liquidBottleMls.reduce((s, v) => s + (v || 0), 0);
+                  return total > 0 ? (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-blue-900">Total Volume</span>
+                        <span className="text-lg font-bold text-blue-700">{total} ml</span>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-1">
+                        {liquidBottleCount} bottle{liquidBottleCount !== 1 ? 's' : ''}: {liquidBottleMls.filter(v => v > 0).map(v => `${v} ml`).join(' + ')}
+                      </p>
                     </div>
-                  </FormControl>
-                  <FormDescription className="text-sm text-blue-600 font-medium">
-                    Enter the number of <strong>{unitLabel}</strong> to {direction}.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                  ) : null;
+                })()}
+              </div>
+            ) : (
+              /* --- NON-LIQUID: standard quantity field --- */
+              <FormField
+                control={form.control}
+                name="quantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-base font-bold">Quantity to {direction === 'increase' ? 'Add' : 'Remove'} (Physical Count) *</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          placeholder="e.g. 10"
+                          {...field}
+                          className="text-lg font-semibold pr-20 h-12"
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground bg-background px-2">
+                          {unitLabel}
+                        </div>
+                      </div>
+                    </FormControl>
+                    <FormDescription className="text-sm text-blue-600 font-medium">
+                      Enter the number of <strong>{unitLabel}</strong> to {direction}.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {/* Adjustment Type */}
             <FormField
