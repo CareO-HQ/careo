@@ -1066,6 +1066,23 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                       orgLogoUrl={orgLogoUrl}
                       woundFolderId={folderId}
                     />
+                    {!isCarePlanViewOnly && (
+                      <div className="flex justify-end mt-8 pt-8 border-t">
+                        <Button
+                          onClick={handleExternalCarePlanSubmit}
+                          disabled={isSavingCarePlan}
+                          className="gap-2 min-w-[150px]"
+                          size="lg"
+                        >
+                          {isSavingCarePlan ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <FileText className="w-4 h-4" />
+                          )}
+                          Submit Care Plan
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                   {selectedCarePlan && (

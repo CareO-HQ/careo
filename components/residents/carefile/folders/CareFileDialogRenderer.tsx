@@ -220,10 +220,10 @@ export function CareFileDialogRenderer({
         );
 
       case "dependency-assessment":
-        return <DependencyAssessmentDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
+        return <DependencyAssessmentDialog {...commonProps} userName={userName ?? ""} initialData={editData} onSaveSuccess={onSaveSuccess} />;
 
       case "fall-risk-assessment":
-        return <FallRiskAssessmentDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
+        return <FallRiskAssessmentDialog {...commonProps} userName={userName ?? ""} initialData={editData} onSaveSuccess={onSaveSuccess} />;
 
       case "timl":
         return <TimlDialog {...commonProps} userName={userName ?? ""} initialData={editData} />;
@@ -333,6 +333,7 @@ export function CareFileDialogRenderer({
             {...commonProps}
             userName={userName ?? ""}
             initialData={editData}
+            onSaveSuccess={onSaveSuccess}
           />
         );
 
@@ -457,6 +458,7 @@ export function CareFileDialogRenderer({
             residentId={residentId}
             residentName={`${resident?.first_name} ${resident?.last_name}`}
             hideHeader={true}
+            onSaveSuccess={onSaveSuccess}
           />
         );
 

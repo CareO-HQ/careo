@@ -328,7 +328,7 @@ export default function CareFileV2FolderPage() {
     useEffect(() => { fetchUploadedFiles(); }, [fetchUploadedFiles]);
 
     useEffect(() => {
-        if (folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity" || folderKey === "v2-safeguarding") {
+        if (folderKey === "v2-hygiene" || folderKey === "v2-skin-integrity") {
             fetchFolderBodyMap();
         }
     }, [fetchFolderBodyMap, folderKey]);
@@ -454,6 +454,7 @@ export default function CareFileV2FolderPage() {
         setIsViewOnly(true);
         setIsReviewMode(false);
         setIsSaving(false);
+        refreshForms();
     };
 
     const handlePrint = async () => {
@@ -816,6 +817,23 @@ export default function CareFileV2FolderPage() {
                                             <DialogPrimitive.Content asChild>
                                                 <div className="relative">
                                                     <CareFileDialogRenderer formKey={activeFormKey} residentId={residentId} teamId={activeTeamId ?? ""} organizationId={profile?.active_organization_id ?? ""} userId={profile?.id ?? ""} userName={profile?.name || profile?.email || "User"} userRole={profile?.role ?? ""} resident={resident} careHomeName={profile?.care_home_name ?? ""} teamName={profile?.active_team_name ?? ""} folderKey={folderKey} formDataForEdit={formDataForEdit} isReviewMode={isReviewMode} onClose={handleCloseForm} isInline={true} newCarePlanName={selectedCarePlanName} refreshForms={refreshForms} onSaveSuccess={handleSaveSuccess} orgLogoUrl={activeOrganization?.logo_url} />
+                                                    {activeFormKey !== "progress-note-form" && activeFormKey !== "key-worker-diary-form" && (
+                                                        <div className="flex justify-end mt-8 pt-8 border-t">
+                                                            <Button
+                                                                onClick={handleExternalSubmit}
+                                                                disabled={isSaving}
+                                                                className="gap-2 min-w-[150px]"
+                                                                size="lg"
+                                                            >
+                                                                {isSaving ? (
+                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                ) : (
+                                                                    <FileText className="w-4 h-4" />
+                                                                )}
+                                                                Submit Form
+                                                            </Button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </DialogPrimitive.Content>
                                         </Dialog>

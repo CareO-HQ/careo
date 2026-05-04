@@ -501,11 +501,7 @@ export const config = {
       type: "folder",
       key: "v2-safeguarding",
       value: "Safeguarding & DoLS",
-      description: "Safeguarding and Liberty Protection Safeguards.",
-      forms: [
-        { type: "form", key: "v2-safe-risk", value: "Safeguarding Risk Assessment", isComingSoon: true },
-        { type: "form", key: "v2-dols-app", value: "DoLS Application Form", isComingSoon: true }
-      ]
+      forms: []
     },
     {
       type: "folder",

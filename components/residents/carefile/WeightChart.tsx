@@ -50,9 +50,10 @@ interface WeightChartProps {
   residentId: string;
   residentName?: string;
   hideHeader?: boolean;
+  onSaveSuccess?: () => void;
 }
 
-export function WeightChart({ residentId, residentName, hideHeader = false }: WeightChartProps) {
+export function WeightChart({ residentId, residentName, hideHeader = false, onSaveSuccess }: WeightChartProps) {
   const { profile } = useProfile();
   const [records, setRecords] = useState<WeightRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -181,7 +182,7 @@ export function WeightChart({ residentId, residentName, hideHeader = false }: We
     setIsSaving(true);
     try {
       const weightValue = parseFloat(weight);
-      const { error } = await supabase.from("weight_records").insert({
+      const { data, error } = await supabase.from("weight_records").insert({
         resident_id: residentId,
         organization_id: profile?.active_organization_id,
         care_home_id: profile?.active_care_home_id,
@@ -194,7 +195,7 @@ export function WeightChart({ residentId, residentName, hideHeader = false }: We
         measured_by_id: profile?.id,
         notes: notes || null,
         created_by: profile?.id,
-      });
+      }).select().single();
 
       if (error) {
         console.error("Supabase error:", error);
@@ -205,6 +206,7 @@ export function WeightChart({ residentId, residentName, hideHeader = false }: We
       setIsDialogOpen(false);
       resetForm();
       fetchWeightRecords();
+      onSaveSuccess?.(data);
     } catch (error: any) {
       console.error("Error saving weight record:", error);
       const errorMessage = error?.message || "Failed to save weight record";

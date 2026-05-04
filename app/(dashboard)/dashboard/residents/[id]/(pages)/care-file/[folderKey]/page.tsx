@@ -753,6 +753,23 @@ export default function GenericFolderPage() {
                                                         isInline={true}
                                                         newCarePlanName={selectedCarePlanName}
                                                     />
+                                                    {activeFormKey !== "progress-note-form" && activeFormKey !== "key-worker-diary-form" && (
+                                                        <div className="flex justify-end mt-8 pt-8 border-t">
+                                                            <Button
+                                                                onClick={handleExternalSubmit}
+                                                                disabled={isSaving}
+                                                                className="gap-2 min-w-[150px]"
+                                                                size="lg"
+                                                            >
+                                                                {isSaving ? (
+                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                ) : (
+                                                                    <FileText className="w-4 h-4" />
+                                                                )}
+                                                                Submit Form
+                                                            </Button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </DialogPrimitive.Content>
                                         </Dialog>
