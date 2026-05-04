@@ -1465,7 +1465,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           )}
 
           <div className="flex flex-col gap-4 mt-4">
-            <p className="font-semibold">PRN Medications</p>
+            <p className="font-semibold text-sm px-3 py-1.5 bg-orange-100 text-orange-900 border border-orange-200 rounded-md w-fit">PRN Medications</p>
             {prnOrTopicalMedications.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border rounded-lg">
                 <p className="text-sm font-medium text-muted-foreground">No PRN medications</p>
@@ -1603,9 +1603,19 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
               const renderTable = (rows: any[], title: string) => {
                 if (!rows.length) return null;
+
+                const getHeaderStyles = (title: string) => {
+                  const lowerTitle = title.toLowerCase();
+                  if (lowerTitle.includes('injection')) return "bg-purple-100 text-purple-900 border border-purple-200";
+                  if (lowerTitle.includes('topical')) return "bg-blue-100 text-blue-900 border border-blue-200";
+                  if (lowerTitle.includes('supplement')) return "bg-emerald-100 text-emerald-900 border border-emerald-200";
+                  if (lowerTitle.includes('prn')) return "bg-orange-100 text-orange-900 border border-orange-200";
+                  return "bg-slate-100 text-slate-900 border border-slate-200";
+                };
+
                 return (
                   <div className="space-y-2">
-                    <p className="font-semibold text-sm px-3 py-1.5 bg-muted rounded-md w-fit">{title}</p>
+                    <p className={cn("font-semibold text-sm px-3 py-1.5 rounded-md w-fit", getHeaderStyles(title))}>{title}</p>
                     <div className="border rounded-lg overflow-hidden">
                       <Table>
                         <TableHeader className="bg-muted/30">

@@ -405,7 +405,7 @@ export default function TopicalMedicationPage({ params }: TopicalMedicationPageP
 
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
-          <p className="font-semibold">Topical Medications</p>
+          <p className="font-semibold text-sm px-3 py-1.5 bg-blue-100 text-blue-900 border border-blue-200 rounded-md">Topical Medications</p>
           {selectedTime && (
             <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
               Showing for {selectedTime}
