@@ -159,27 +159,16 @@ export default function CarePlanSheetContent({
   const [showEvaluationForm, setShowEvaluationForm] = useState(false);
   const [openDatePickers, setOpenDatePickers] = useState<{ [key: number]: boolean }>({});
   const [evaluationComments, setEvaluationComments] = useState("");
-  const [evaluationTime, setEvaluationTime] = useState("");
   const [outcome, setOutcome] = useState("Reviewed Remain Valid");
   const [position, setPosition] = useState("");
   const [nextReviewDate, setNextReviewDate] = useState<string>("");
 
-  const generateTimeOptions = () => {
-    const options: string[] = [];
-    for (let i = 0; i < 24; i++) {
-      for (let j = 0; j < 60; j += 5) {
-        const hour = i.toString().padStart(2, '0');
-        const minute = j.toString().padStart(2, '0');
-        options.push(`${hour}:${minute}`);
-      }
-    }
-    return options;
-  };
+
 
   useEffect(() => {
     if (showEvaluationForm) {
       const now = new Date();
-      setEvaluationTime(formatInTimeZone(now, UK_TIMEZONE, "HH:mm"));
+
 
       // Set next review date to 1 month from now
       const nextMonth = new Date(now);
@@ -381,7 +370,7 @@ export default function CarePlanSheetContent({
       data: {
         ...carePlanData,
         evaluations: evaluations.slice(0, 5).map(e => ({
-          evaluation_date: e.evaluation_date || e.created_at,
+          evaluation_date: format(new Date(e.evaluation_date || e.created_at), "dd MMM yyyy"),
           progress_notes: e.progress_notes || e.comments,
           outcome: e.outcome,
           position: e.position,
@@ -714,20 +703,7 @@ export default function CarePlanSheetContent({
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">
-                        Time of Evaluation
-                      </label>
-                      <select
-                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        value={evaluationTime}
-                        onChange={(e) => setEvaluationTime(e.target.value)}
-                      >
-                        {generateTimeOptions().map((t) => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
-                    </div>
+
 
                     <div className="space-y-2">
                       <label className="text-xs text-muted-foreground">Care Plan Outcome</label>
@@ -829,7 +805,7 @@ export default function CarePlanSheetContent({
                             ? formatInTimeZone(
                               new Date(evaluation.evaluationDate),
                               UK_TIMEZONE,
-                              "dd MMM yyyy HH:mm"
+                              "dd MMM yyyy"
                             )
                             : "Unknown Date"}
                         </p>
