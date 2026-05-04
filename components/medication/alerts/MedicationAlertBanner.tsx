@@ -19,6 +19,7 @@ export interface MedicationAlert {
         intake_id?: string;
         scheduled_time?: string;
         medication_id?: string;
+        alert_subtype?: string;
     };
 }
 
@@ -29,11 +30,12 @@ interface MedicationAlertBannerProps {
 }
 
 export function MedicationAlertBanner({ alerts, onDismiss, onAlertClick }: MedicationAlertBannerProps) {
-    if (!alerts || alerts.length === 0) return null;
+    const displayAlerts = alerts?.filter(a => a.metadata?.alert_subtype !== 'low_stock') || [];
+    if (!displayAlerts || displayAlerts.length === 0) return null;
 
     return (
         <div className="flex flex-col gap-3 mb-6">
-            {alerts.map((alert) => (
+            {displayAlerts.map((alert) => (
                 <Alert
                     key={alert.id}
                     variant={alert.severity === 'critical' ? 'destructive' : 'default'}

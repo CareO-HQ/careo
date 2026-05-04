@@ -9,6 +9,7 @@ import CreateResidentMedication from "@/components/medication/forms/CreateReside
 import KardexModal from "@/components/medication/KardexModal";
 import { EmarSheet } from "@/components/medication/emar/EmarSheet";
 import { ActiveMedicationsTable } from "@/components/medication/management/ActiveMedicationsTable";
+import { checkMedicationLowStockAction } from "@/app/actions/medications";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
 import { ArrowLeft, CalendarIcon, CheckCircle, Download, Eye, FileDown, FileText } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import { config } from "@/config";
 import { toast } from "sonner";
@@ -115,7 +116,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedDateIntakeGroup, setSelectedDateIntakeGroup] = useState<GroupedIntake | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("today");
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams?.get("tab") || "today");
 
   const fetchData = React.useCallback(async (silentRefresh = false) => {
     if (!silentRefresh) {
@@ -394,6 +396,11 @@ export default function MedicationPage({ params }: MedicationPageProps) {
             ? { ...med, total_count: newCount }
             : med
         ));
+
+        // Evaluate low stock alert using Server Action
+        checkMedicationLowStockAction(intake.medication.id).catch(err => 
+          console.error("Failed to evaluate low stock after pop out", err)
+        );
       }
     }
 
@@ -581,6 +588,11 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
       if (stockError) {
         console.error("Error updating medication stock:", stockError);
+      } else {
+        // Evaluate low stock alert
+        checkMedicationLowStockAction(medicationId).catch(err => 
+          console.error("Failed to evaluate low stock after administer", err)
+        );
       }
     }
 

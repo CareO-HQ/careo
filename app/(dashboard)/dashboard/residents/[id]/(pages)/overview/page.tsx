@@ -103,6 +103,9 @@ function getNonDismissibleAlertMessage(type?: string) {
   ) {
     return "This alert cannot be dismissed until the care plan evaluation is completed";
   }
+  if (type === "medication") {
+    return "This alert cannot be dismissed until the medication is restocked";
+  }
   return "This alert cannot be dismissed yet";
 }
 
@@ -114,6 +117,7 @@ function canDismissAlert(
       medication_id?: string;
       care_plan_id?: string;
       care_file_folder_key?: string | null;
+      alert_subtype?: string;
     } | null;
   },
   residentPhotoUpdatedAt?: string,
@@ -124,6 +128,10 @@ function canDismissAlert(
   completedPrnProtocolMedicationIds?: Set<string>,
   carePlanEvalLatestCreatedAt?: Record<string, string>
 ) {
+  if (alert.type === "medication" && alert.metadata?.alert_subtype === "low_stock") {
+    return false;
+  }
+
   if (!NON_DISMISSIBLE_ALERT_TYPES.has(alert.type || "")) {
     return true;
   }
@@ -392,6 +400,10 @@ export default function OverviewPage({ params }: OverviewPageProps) {
 
       // Filter out alerts dismissed by current user
       const filteredAlerts = (alertsWithResolvedMetadata || []).filter((alert: any) => {
+        if (alert.type === "medication" && alert.metadata?.alert_subtype === "low_stock") {
+          return false;
+        }
+
         if (!shouldShowAlertForRole(alert, userRole)) {
           return false;
         }
@@ -911,7 +923,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
                 };
                 const goToMedication = () => {
                   setShowAlertsDialog(false);
-                  router.push(`/dashboard/residents/${id}/medication` as Route);
+                  router.push(`/dashboard/residents/${id}/medication?tab=active` as Route);
                 };
                 return (
                   <div

@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { Package } from "lucide-react";
 import { format } from "date-fns";
 import { isLiquidDosageForm } from "@/lib/medication/liquid-helpers";
+import { checkMedicationLowStockAction } from "@/app/actions/medications";
 
 const receiveStockSchema = z.object({
   quantity_received: z.coerce.number().min(1, "Quantity must be at least 1"),
@@ -186,6 +187,10 @@ export function ReceiveStockDialog({
       toast.success(
         `Successfully received ${data.quantity_received} ${unitLabel}. Stock updated from ${currentStock} to ${newStock}.`
       );
+
+      checkMedicationLowStockAction(medication.id).catch(err => {
+        console.error("Failed to check low stock status after receiving:", err);
+      });
 
       form.reset();
       onOpenChange(false);

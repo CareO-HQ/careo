@@ -72,6 +72,9 @@ function getNonDismissibleAlertMessage(type?: string) {
   ) {
     return "This alert cannot be dismissed until the care plan evaluation is completed";
   }
+  if (type === "medication") {
+    return "This alert cannot be dismissed until the medication is restocked";
+  }
   return "This alert cannot be dismissed yet";
 }
 
@@ -79,7 +82,7 @@ function canDismissAlert(
   alert: {
     type?: string;
     created_at?: string;
-    metadata?: { care_plan_id?: string } | null;
+    metadata?: { care_plan_id?: string; alert_subtype?: string } | null;
   },
   residentPhotoUpdatedAt?: string,
   residentLastBowelRecordedAt?: string,
@@ -87,6 +90,10 @@ function canDismissAlert(
   residentLastUrineRecordedAt?: string,
   carePlanEvalLatestCreatedAt?: Record<string, string>
 ) {
+  if (alert.type === "medication" && alert.metadata?.alert_subtype === "low_stock") {
+    return false;
+  }
+
   if (!NON_DISMISSIBLE_ALERT_TYPES.has(alert.type || "")) {
     return true;
   }
@@ -796,7 +803,7 @@ const NotificationsCell = ({
                 className="w-full text-xs h-8"
                 onClick={(e) => {
                   e.stopPropagation();
-                  router.push(`/dashboard/residents/${residentId}/medication` as Route);
+                  router.push(`/dashboard/residents/${residentId}/medication?tab=active` as Route);
                 }}
               >
                 Open medication

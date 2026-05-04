@@ -38,6 +38,7 @@ import { TrendingDown, TrendingUp } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { isLiquidDosageForm } from "@/lib/medication/liquid-helpers";
+import { checkMedicationLowStockAction } from "@/app/actions/medications";
 
 const adjustStockSchema = z.object({
   adjustment_type: z.enum([
@@ -210,6 +211,10 @@ export function AdjustStockDialog({
       toast.success(
         `Stock ${changeText}. Updated from ${currentStock} to ${newStock} ${unitLabel}.`
       );
+
+      checkMedicationLowStockAction(medication.id).catch(err => {
+        console.error("Failed to check low stock status after adjusting:", err);
+      });
 
       form.reset();
       onOpenChange(false);

@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/medication-missed-alerts",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/medication-low-stock-alerts",
+      "schedule": "0 * * * *"
     }
   ]
 }
