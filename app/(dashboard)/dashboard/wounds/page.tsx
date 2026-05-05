@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
@@ -42,6 +42,10 @@ type Wound = {
   };
 };
 
+type WoundAlertRead = {
+  wound_id: string;
+};
+
 export default function WoundsPage() {
   const router = useRouter();
   const { profile, isLoading: isProfileLoading } = useProfile();
@@ -50,11 +54,33 @@ export default function WoundsPage() {
   const [wounds, setWounds] = useState<Wound[]>([]);
   const [units, setUnits] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [unreadWoundIds, setUnreadWoundIds] = useState<Set<string>>(new Set());
+  const unreadWoundIdsRef = useRef<Set<string>>(new Set());
 
   const userRole = profile?.role;
+  const userId = profile?.id;
   const activeOrganizationId = profile?.active_organization_id;
   const activeTeamId = profile?.active_team_id;
   const activeCareHomeId = profile?.active_care_home_id;
+  const canSeeUnreadIndicators = Boolean(userId);
+
+  const markWoundsAsRead = useCallback(async (woundIds: string[]) => {
+    if (!canSeeUnreadIndicators || !userId || woundIds.length === 0) return;
+
+    const payload = woundIds.map((woundId) => ({
+      user_id: userId,
+      wound_id: woundId,
+      read_at: new Date().toISOString(),
+    }));
+
+    const { error } = await supabase
+      .from("wound_alert_reads")
+      .upsert(payload, { onConflict: "user_id,wound_id" });
+
+    if (error) {
+      console.error("Failed to mark wound alerts as read:", error);
+    }
+  }, [canSeeUnreadIndicators, userId]);
 
   const fetchWounds = useCallback(async () => {
     if (!activeOrganizationId || !profile) return;
@@ -92,7 +118,35 @@ export default function WoundsPage() {
         throw error;
       }
 
-      setWounds(woundsData || []);
+      const nextWounds = woundsData || [];
+      setWounds(nextWounds);
+
+      if (canSeeUnreadIndicators && userId && nextWounds.length > 0) {
+        const woundIds = nextWounds.map((wound) => wound.id);
+        const { data: readData, error: readError } = await supabase
+          .from("wound_alert_reads")
+          .select("wound_id")
+          .eq("user_id", userId)
+          .in("wound_id", woundIds);
+
+        if (readError) {
+          console.error("Failed to fetch wound read statuses:", readError);
+          // Fallback: keep wounds visibly unread if read-tracking table is unavailable.
+          // This prevents silently hiding the red banner/dot indicators.
+          const unreadFallbackSet = new Set(woundIds);
+          setUnreadWoundIds(unreadFallbackSet);
+          unreadWoundIdsRef.current = unreadFallbackSet;
+        } else {
+          const readRows = (readData as WoundAlertRead[] | null) ?? [];
+          const readSet = new Set(readRows.map((row) => row.wound_id));
+          const unreadSet = new Set(woundIds.filter((woundId) => !readSet.has(woundId)));
+          setUnreadWoundIds(unreadSet);
+          unreadWoundIdsRef.current = unreadSet;
+        }
+      } else {
+        setUnreadWoundIds(new Set());
+        unreadWoundIdsRef.current = new Set();
+      }
 
       // Extract unique room numbers (using as "units")
       const uniqueRooms = Array.from(
@@ -109,11 +163,18 @@ export default function WoundsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeOrganizationId, activeTeamId, activeCareHomeId, userRole, profile]);
+  }, [activeOrganizationId, activeTeamId, activeCareHomeId, userRole, profile, canSeeUnreadIndicators, userId]);
 
   useEffect(() => {
     fetchWounds();
   }, [fetchWounds]);
+
+  useEffect(() => {
+    return () => {
+      const unreadIds = Array.from(unreadWoundIdsRef.current);
+      void markWoundsAsRead(unreadIds);
+    };
+  }, [markWoundsAsRead]);
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -130,15 +191,16 @@ export default function WoundsPage() {
     }
   };
 
-  const filteredWounds = wounds.filter((wound) => {
-    // Filter by status
+  const filteredWounds = useMemo(() => wounds.filter((wound) => {
     if (filter !== "all" && wound.status !== filter) return false;
-
-    // Filter by room number
     if (unitFilter !== "all" && wound.resident?.room_number !== unitFilter) return false;
-
     return true;
-  });
+  }), [wounds, filter, unitFilter]);
+
+  const unreadFilteredCount = useMemo(
+    () => filteredWounds.filter((wound) => unreadWoundIds.has(wound.id)).length,
+    [filteredWounds, unreadWoundIds]
+  );
 
   const handleWoundClick = (wound: Wound) => {
     router.push(`/dashboard/residents/${wound.resident_id}/wounds/${wound.wound_folder_id}`);
@@ -172,7 +234,10 @@ export default function WoundsPage() {
 
             <div className="flex items-center gap-2">
               {/* Status Filter */}
-              <Select value={filter} onValueChange={(value: any) => setFilter(value)}>
+              <Select
+                value={filter}
+                onValueChange={(value: "all" | "active" | "healing" | "deteriorating" | "infected") => setFilter(value)}
+              >
                 <SelectTrigger className="w-[120px] h-8 text-xs">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -208,6 +273,12 @@ export default function WoundsPage() {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto px-4 py-3">
+        {canSeeUnreadIndicators && unreadFilteredCount > 0 && (
+          <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+            {unreadFilteredCount} new wound{unreadFilteredCount === 1 ? "" : "s"} need attention.
+          </div>
+        )}
+
         {filteredWounds.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <div className="p-3 bg-gray-100 rounded-full mb-3">
@@ -225,9 +296,12 @@ export default function WoundsPage() {
             {filteredWounds.map((wound) => (
               <div
                 key={wound.id}
-                className="bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col cursor-pointer"
+                className="relative bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col cursor-pointer"
                 onClick={() => handleWoundClick(wound)}
               >
+                {canSeeUnreadIndicators && unreadWoundIds.has(wound.id) && (
+                  <span className="absolute right-2 top-2 z-10 h-2.5 w-2.5 rounded-full bg-red-600" />
+                )}
                 {/* Card Header */}
                 <div className="p-2.5 border-b border-gray-100 bg-gray-50">
                   <div className="flex items-center gap-2">

@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     Clock,
-    Plus,
     Save,
     FileText,
     AlertCircle,
@@ -375,12 +374,6 @@ export function PostFallObservationChart({
             </div>
 
             <Card className="border-emerald-100 shadow-sm overflow-hidden">
-                <CardHeader className="bg-emerald-50/50 border-b border-emerald-100 py-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2 text-emerald-800">
-                        <Plus className="w-4 h-4" />
-                        Add New Observation
-                    </CardTitle>
-                </CardHeader>
                 <CardContent className="p-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
                         <div className="space-y-2">
@@ -389,7 +382,7 @@ export function PostFallObservationChart({
                                 value={newEntry.interval}
                                 onValueChange={(v) => setNewEntry(prev => ({ ...prev, interval: v }))}
                             >
-                                <SelectTrigger className="h-9">
+                                <SelectTrigger className="h-9 w-full">
                                     <SelectValue placeholder="Select interval" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -416,7 +409,7 @@ export function PostFallObservationChart({
                                 value={newEntry.painAssessed}
                                 onValueChange={(v) => setNewEntry(prev => ({ ...prev, painAssessed: v }))}
                             >
-                                <SelectTrigger className="h-9">
+                                <SelectTrigger className="h-9 w-full">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -433,7 +426,7 @@ export function PostFallObservationChart({
                                 value={newEntry.offeredToilet}
                                 onValueChange={(v) => setNewEntry(prev => ({ ...prev, offeredToilet: v }))}
                             >
-                                <SelectTrigger className="h-9">
+                                <SelectTrigger className="h-9 w-full">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -450,7 +443,7 @@ export function PostFallObservationChart({
                                 value={newEntry.reach}
                                 onValueChange={(v) => setNewEntry(prev => ({ ...prev, reach: v }))}
                             >
-                                <SelectTrigger className="h-9">
+                                <SelectTrigger className="h-9 w-full">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -477,7 +470,7 @@ export function PostFallObservationChart({
                                 value={newEntry.headInjuryResidential}
                                 onValueChange={(v) => setNewEntry(prev => ({ ...prev, headInjuryResidential: v }))}
                             >
-                                <SelectTrigger className="h-9">
+                                <SelectTrigger className="h-9 w-full">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -488,10 +481,10 @@ export function PostFallObservationChart({
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-2 col-span-1">
                             <Label className="text-xs font-bold text-gray-600">GCS Score (Nursing)</Label>
                             <Input
-                                className="h-9"
+                                className="h-9 w-full"
                                 placeholder="Score /15"
                                 value={newEntry.headInjuryNursing}
                                 onChange={(e) => setNewEntry(prev => ({ ...prev, headInjuryNursing: e.target.value }))}
@@ -519,11 +512,10 @@ export function PostFallObservationChart({
 
                         <div className="flex items-end">
                             <Button
-                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                                 onClick={handleAddEntry}
                                 disabled={isSaving}
                             >
-                                <Save className="w-4 h-4" />
                                 {isSaving ? "Saving..." : "Save Observation"}
                             </Button>
                         </div>

@@ -4,29 +4,29 @@ import { z } from "zod";
 export const HospitalPassportSchema = z.object({
   // General & Transfer Details
   generalDetails: z.object({
-    personName: z.string().min(1, "Name is required"),
-    knownAs: z.string().min(1, "Preferred name is required"),
-    dateOfBirth: z.string().min(1, "Date of birth is required"),
-    nhsNumber: z.string().min(1, "NHS number is required"),
+    personName: z.string(),
+    knownAs: z.string(),
+    dateOfBirth: z.string(),
+    nhsNumber: z.string(),
     religion: z.string().optional(),
     weightOnTransfer: z.string().optional(),
     careType: z.enum(["nursing", "residential", "ld", "mental_health"]).optional(),
-    transferDateTime: z.string().min(1, "Transfer date and time is required"),
+    transferDateTime: z.string(),
     accompaniedBy: z.string().optional(),
     englishFirstLanguage: z.enum(["yes", "no"]),
     firstLanguage: z.string().optional(),
-    careHomeName: z.string().min(1, "Care home name is required"),
-    careHomeAddress: z.string().min(1, "Care home address is required"),
-    careHomePhone: z.string().min(1, "Care home phone is required"),
-    hospitalName: z.string().min(1, "Hospital/facility name is required"),
-    hospitalAddress: z.string().min(1, "Hospital/facility address is required"),
+    careHomeName: z.string(),
+    careHomeAddress: z.string(),
+    careHomePhone: z.string(),
+    hospitalName: z.string(),
+    hospitalAddress: z.string(),
     hospitalPhone: z.string().optional(),
-    nextOfKinName: z.string().min(1, "Next of kin name is required"),
-    nextOfKinAddress: z.string().min(1, "Next of kin address is required"),
-    nextOfKinPhone: z.string().min(1, "Next of kin phone is required"),
-    gpName: z.string().min(1, "GP name is required"),
-    gpAddress: z.string().min(1, "GP address is required"),
-    gpPhone: z.string().min(1, "GP phone is required"),
+    nextOfKinName: z.string(),
+    nextOfKinAddress: z.string(),
+    nextOfKinPhone: z.string(),
+    gpName: z.string(),
+    gpAddress: z.string(),
+    gpPhone: z.string(),
     careManagerName: z.string().optional(),
     careManagerAddress: z.string().optional(),
     careManagerPhone: z.string().optional(),
@@ -35,13 +35,13 @@ export const HospitalPassportSchema = z.object({
   // Medical & Care Needs
   medicalCareNeeds: z.object({
     // SBAR Format
-    situation: z.string().min(1, "Situation is required"),
-    background: z.string().min(1, "Background is required"),
-    assessment: z.string().min(1, "Assessment is required"),
-    recommendations: z.string().min(1, "Recommendations are required"),
+    situation: z.string(),
+    background: z.string(),
+    assessment: z.string(),
+    recommendations: z.string(),
 
     // Medical History
-    pastMedicalHistory: z.string().min(1, "Medical history is required"),
+    pastMedicalHistory: z.string(),
     knownAllergies: z.string().optional(),
     historyOfConfusion: z.enum(["yes", "no", "sometimes"]).optional(),
     learningDisabilityMentalHealth: z.string().optional(),
@@ -81,15 +81,15 @@ export const HospitalPassportSchema = z.object({
     // Skin Care
     skinIntegrityAssistance: z.enum(["independent", "minimum", "full"]),
     bradenScore: z.string().optional(),
-    skinStateOnTransfer: z.string().min(1, "Skin state is required"),
+    skinStateOnTransfer: z.string(),
     currentSkinCareRegime: z.string().optional(),
     pressureRelievingEquipment: z.string().optional(),
     knownToTVN: z.boolean().default(false),
     tvnName: z.string().optional(),
 
     // Medication
-    currentMedicationRegime: z.string().min(1, "Current medication is required"),
-    lastMedicationDateTime: z.string().min(1, "Last medication time is required"),
+    currentMedicationRegime: z.string(),
+    lastMedicationDateTime: z.string(),
     lastMealDrinkDateTime: z.string().optional(),
 
     // Attachments
@@ -106,11 +106,11 @@ export const HospitalPassportSchema = z.object({
 
   // Sign-off Section
   signOff: z.object({
-    signature: z.string().min(1, "Signature is required"),
-    printedName: z.string().min(1, "Name is required"),
-    designation: z.string().min(1, "Designation is required"),
-    contactPhone: z.string().min(1, "Contact phone is required"),
-    completedDate: z.string().min(1, "Date is required"),
+    signature: z.string(),
+    printedName: z.string(),
+    designation: z.string(),
+    contactPhone: z.string(),
+    completedDate: z.string(),
   }),
 });
 

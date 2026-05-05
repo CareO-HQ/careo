@@ -37,11 +37,13 @@ interface DependencyAssessmentDialogProps {
     onClose: () => void;
     isInline?: boolean;
     viewOnly?: boolean;
+    onSaveSuccess?: (data?: any) => void;
 }
 
 export default function DependencyAssessmentDialog({
     teamId, residentId, organizationId, userId, userName, resident,
-    isEditMode = false, initialData, onClose, isInline = false, viewOnly = false
+    isEditMode = false, initialData, onClose, isInline = false, viewOnly = false,
+    onSaveSuccess
 }: DependencyAssessmentDialogProps) {
     const [currentScore, setCurrentScore] = useState(0);
     const [currentLevel, setCurrentLevel] = useState<string>("Low Dependency");
@@ -162,7 +164,7 @@ export default function DependencyAssessmentDialog({
                 saved_as_draft: data.savedAsDraft || false
             };
 
-            await submitAssessmentWithVersioning(
+            const result = await submitAssessmentWithVersioning(
                 'dependency_assessments',
                 payload,
                 initialData,
@@ -191,6 +193,7 @@ export default function DependencyAssessmentDialog({
                     socialDependency: 0,
                     behaviour: 0
                 });
+                onSaveSuccess?.(result);
                 fetchHistory();
             }
             if (!isInline) onClose();

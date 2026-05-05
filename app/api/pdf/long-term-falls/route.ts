@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { chromium } from "playwright";
 
@@ -41,6 +41,14 @@ function formatDate(dateValue?: string | number): string {
   const date = new Date(dateValue);
   if (isNaN(date.getTime())) return "Not specified";
   return date.toLocaleDateString("en-GB");
+}
+
+function toSentenceCase(value: string): string {
+  if (!value || value === "Not provided" || value === "Not specified") return value;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return value;
+  const lowered = trimmed.toLowerCase();
+  return lowered.charAt(0).toUpperCase() + lowered.slice(1);
 }
 
 function valueOrFallback(value?: string): string {
@@ -361,7 +369,7 @@ function generateLongTermFallsHTML(
         <div class="meta-grid">
           <div class="meta-item">
             <div class="meta-label">Resident Name</div>
-            <div class="meta-value">${valueOrFallback(assessment.residentName)}</div>
+            <div class="meta-value">${toSentenceCase(valueOrFallback(assessment.residentName))}</div>
           </div>
           <div class="meta-item">
             <div class="meta-label">Date of Birth</div>
@@ -377,11 +385,11 @@ function generateLongTermFallsHTML(
           </div>
           <div class="meta-item">
             <div class="meta-label">Completed By</div>
-            <div class="meta-value">${valueOrFallback(completedBy)}</div>
+            <div class="meta-value">${toSentenceCase(valueOrFallback(completedBy))}</div>
           </div>
           <div class="meta-item">
             <div class="meta-label">Signature</div>
-            <div class="meta-value">${valueOrFallback(assessment.signature)}</div>
+            <div class="meta-value">${toSentenceCase(valueOrFallback(assessment.signature))}</div>
           </div>
           <div class="meta-item">
             <div class="meta-label">Total Score</div>
@@ -408,19 +416,19 @@ function generateLongTermFallsHTML(
           </tr>
         </thead>
         <tbody>
-          <tr><td>Age</td><td class="value-cell">${valueOrFallback(details.age)}</td><td>${getScore(details.age, [{ label: "86+", value: 3 }, { label: "81-85", value: 2 }, { label: "65-80", value: 1 }, { label: "Under 65", value: 0 }])}</td></tr>
-          <tr><td>Gender</td><td class="value-cell">${valueOrFallback(details.gender)}</td><td>${getScore(details.gender, [{ label: "Female", value: 3 }, { label: "Male", value: 1 }])}</td></tr>
-          <tr><td>History of Falls</td><td class="value-cell">${valueOrFallback(details.historyOfFalls)}</td><td>${getScore(details.historyOfFalls, [{ label: "Recurrent falls in last 12 months", value: 3 }, { label: "Fall in last 12 months", value: 2 }, { label: "Fall more than 12 months ago", value: 1 }, { label: "Never Fallen", value: 0 }])}</td></tr>
-          <tr><td>Present Level of Mobility</td><td class="value-cell">${valueOrFallback(details.mobilityLevel)}</td><td>${getScore(details.mobilityLevel, [{ label: "Assistance of 1 +/- aid", value: 3 }, { label: "Assistance of 2 +/- aid", value: 2 }, { label: "Independent with walking aid", value: 1 }, { label: "Independent and safe unaided", value: 0 }, { label: "Immobile/Hoist", value: 0 }])}</td></tr>
+          <tr><td>Age</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.age))}</td><td>${getScore(details.age, [{ label: "86+", value: 3 }, { label: "81-85", value: 2 }, { label: "65-80", value: 1 }, { label: "Under 65", value: 0 }])}</td></tr>
+          <tr><td>Gender</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.gender))}</td><td>${getScore(details.gender, [{ label: "Female", value: 3 }, { label: "Male", value: 1 }])}</td></tr>
+          <tr><td>History of Falls</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.historyOfFalls))}</td><td>${getScore(details.historyOfFalls, [{ label: "Recurrent falls in last 12 months", value: 3 }, { label: "Fall in last 12 months", value: 2 }, { label: "Fall more than 12 months ago", value: 1 }, { label: "Never Fallen", value: 0 }])}</td></tr>
+          <tr><td>Present Level of Mobility</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.mobilityLevel))}</td><td>${getScore(details.mobilityLevel, [{ label: "Assistance of 1 +/- aid", value: 3 }, { label: "Assistance of 2 +/- aid", value: 2 }, { label: "Independent with walking aid", value: 1 }, { label: "Independent and safe unaided", value: 0 }, { label: "Immobile/Hoist", value: 0 }])}</td></tr>
           <tr><td>Balance (checkbox)</td><td class="value-cell">${yesNoValue(details.balance)}</td><td>${getScore(details.balance, [{ label: "No", value: 3 }, { label: "Yes", value: 0 }])}</td></tr>
-          <tr><td>ADL Personal</td><td class="value-cell">${valueOrFallback(details.adlPersonal)}</td><td>${getScore(details.adlPersonal, [{ label: "Requires assistance", value: 2 }, { label: "Independent with equipment", value: 1 }, { label: "Independent & Safe", value: 0 }])}</td></tr>
-          <tr><td>ADL Domestic</td><td class="value-cell">${valueOrFallback(details.adlDomestic)}</td><td>${getScore(details.adlDomestic, [{ label: "Requires assistance", value: 2 }, { label: "Independent with equipment", value: 1 }, { label: "Independent & Safe", value: 0 }])}</td></tr>
-          <tr><td>Footwear</td><td class="value-cell">${valueOrFallback(details.footwear)}</td><td>${getScore(details.footwear, [{ label: "Unsafe", value: 3 }, { label: "Safe", value: 0 }])}</td></tr>
+          <tr><td>ADL Personal</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.adlPersonal))}</td><td>${getScore(details.adlPersonal, [{ label: "Requires assistance", value: 2 }, { label: "Independent with equipment", value: 1 }, { label: "Independent & Safe", value: 0 }])}</td></tr>
+          <tr><td>ADL Domestic</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.adlDomestic))}</td><td>${getScore(details.adlDomestic, [{ label: "Requires assistance", value: 2 }, { label: "Independent with equipment", value: 1 }, { label: "Independent & Safe", value: 0 }])}</td></tr>
+          <tr><td>Footwear</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.footwear))}</td><td>${getScore(details.footwear, [{ label: "Unsafe", value: 3 }, { label: "Safe", value: 0 }])}</td></tr>
           <tr><td>Vision Problems (checkbox)</td><td class="value-cell">${yesNoValue(details.visionProblems)}</td><td>${getScore(details.visionProblems, [{ label: "Yes", value: 3 }, { label: "No", value: 0 }])}</td></tr>
-          <tr><td>Bladder & Bowel Movement</td><td class="value-cell">${valueOrFallback(details.bladderBowel)}</td><td>${getScore(details.bladderBowel, [{ label: "Frequency", value: 3 }, { label: "Identified problems", value: 2 }, { label: "No identified problems", value: 0 }])}</td></tr>
+          <tr><td>Bladder & Bowel Movement</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.bladderBowel))}</td><td>${getScore(details.bladderBowel, [{ label: "Frequency", value: 3 }, { label: "Identified problems", value: 2 }, { label: "No identified problems", value: 0 }])}</td></tr>
           <tr><td>Environmental Risks (checkbox)</td><td class="value-cell">${yesNoValue(details.environmentalRisks)}</td><td>${getScore(details.environmentalRisks, [{ label: "Yes", value: 3 }, { label: "No", value: 0 }])}</td></tr>
-          <tr><td>Social Risks</td><td class="value-cell">${valueOrFallback(details.socialRisks)}</td><td>${getScore(details.socialRisks, [{ label: "Lives Alone", value: 3 }, { label: "Residential limited support", value: 2 }, { label: "24-hour care", value: 1 }])}</td></tr>
-          <tr><td>Medical Conditions</td><td class="value-cell">${valueOrFallback(details.medicalConditions)}</td><td>${
+          <tr><td>Social Risks</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.socialRisks))}</td><td>${getScore(details.socialRisks, [{ label: "Lives Alone", value: 3 }, { label: "Residential limited support", value: 2 }, { label: "24-hour care", value: 1 }])}</td></tr>
+          <tr><td>Medical Conditions</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.medicalConditions))}</td><td>${
             details.medicalConditions === "Neurological/Postural/Cardiac/MuscularSkeletal/Fracture"
               ? 2
               : getScore(details.medicalConditions, [
@@ -433,9 +441,9 @@ function generateLongTermFallsHTML(
                   { label: "No identified medical conditions", value: 0 }
                 ])
           }</td></tr>
-          <tr><td>Medicines</td><td class="value-cell">${valueOrFallback(details.medicines)}</td><td>${getScore(details.medicines, [{ label: "4 or more medicines", value: 3 }, { label: "Less than 4 medicines", value: 1 }, { label: "No medicines", value: 0 }])}</td></tr>
+          <tr><td>Medicines</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.medicines))}</td><td>${getScore(details.medicines, [{ label: "4 or more medicines", value: 3 }, { label: "Less than 4 medicines", value: 1 }, { label: "No medicines", value: 0 }])}</td></tr>
           <tr><td>Safety Awareness (checkbox)</td><td class="value-cell">${yesNoValue(details.safetyAwareness)}</td><td>${getScore(details.safetyAwareness, [{ label: "No", value: 3 }, { label: "Yes", value: 0 }])}</td></tr>
-          <tr><td>Mental State</td><td class="value-cell">${valueOrFallback(details.mentalState)}</td><td>${getScore(details.mentalState, [{ label: "Confused", value: 3 }, { label: "Orientated", value: 0 }])}</td></tr>
+          <tr><td>Mental State</td><td class="value-cell">${toSentenceCase(valueOrFallback(details.mentalState))}</td><td>${getScore(details.mentalState, [{ label: "Confused", value: 3 }, { label: "Orientated", value: 0 }])}</td></tr>
         </tbody>
       </table>
 

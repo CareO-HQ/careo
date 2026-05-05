@@ -37,11 +37,13 @@ interface FallRiskAssessmentDialogProps {
     onClose: () => void;
     isInline?: boolean;
     viewOnly?: boolean;
+    onSaveSuccess?: (data?: any) => void;
 }
 
 export default function FallRiskAssessmentDialog({
     teamId, residentId, organizationId, userId, userName, resident,
-    isEditMode = false, initialData, onClose, isInline = false, viewOnly = false
+    isEditMode = false, initialData, onClose, isInline = false, viewOnly = false,
+    onSaveSuccess
 }: FallRiskAssessmentDialogProps) {
     const [currentScore, setCurrentScore] = useState(0);
     const [currentLevel, setCurrentLevel] = useState<string>("Low Risk");
@@ -172,7 +174,7 @@ export default function FallRiskAssessmentDialog({
                 saved_as_draft: data.savedAsDraft || false
             };
 
-            await submitAssessmentWithVersioning(
+            const result = await submitAssessmentWithVersioning(
                 'fall_risk_assessments',
                 payload,
                 initialData,
@@ -209,6 +211,7 @@ export default function FallRiskAssessmentDialog({
                 });
                 fetchHistory();
             }
+            onSaveSuccess?.(result);
             if (!isInline) onClose();
         } catch (error) {
             console.error("Error submitting:", error);

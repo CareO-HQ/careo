@@ -55,6 +55,7 @@ interface Medication {
   resident_id: string;
   body_regions?: string[];
   is_controlled_drug?: boolean;
+  container_type?: string;
 }
 
 export const createMedicationColumns = (
@@ -63,7 +64,7 @@ export const createMedicationColumns = (
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },
   useSimplifiedTopicalDialog: boolean = true,
-  administeredTimesToday: Record<string, string[]> = {},
+  administeredTimesToday: Record<string, Array<{ time: string, by: string }>> = {},
   preSelectedTime?: string | null
 ): ColumnDef<Medication>[] => [
     {
@@ -140,7 +141,13 @@ export const createMedicationColumns = (
             if (dosageUnit.includes('Drops')) return 'drops';
             if (dosageUnit.includes('Puffs')) return 'puffs';
             if (dosageUnit.includes('Patches')) return totalCount === 1 ? 'patch' : 'patches';
-            if (dosageUnit.includes('Injections')) return 'mL';
+            if (dosageUnit.includes('Injections')) {
+              if (medication.container_type) {
+                const ct = medication.container_type.toLowerCase();
+                return totalCount === 1 ? ct : (ct.endsWith('s') ? ct : ct + 's');
+              }
+              return 'mL';
+            }
             if (dosageUnit.includes('Tablets')) return totalCount === 1 ? 'tablet' : 'tablets';
           }
 
@@ -156,6 +163,10 @@ export const createMedicationColumns = (
           } else if (dosageForm.includes('spray')) {
             return totalCount === 1 ? 'spray' : 'sprays';
           } else if (dosageForm.includes('injection')) {
+            if (medication.container_type) {
+              const ct = medication.container_type.toLowerCase();
+              return totalCount === 1 ? ct : (ct.endsWith('s') ? ct : ct + 's');
+            }
             return 'mL';
           } else if (dosageForm.includes('sachet') || dosageForm.includes('powder')) {
             return totalCount === 1 ? 'sachet' : 'sachets';
@@ -303,8 +314,8 @@ export const createMedicationColumns = (
               // When preSelectedTime is provided for topicals, hide time picker
               const topicalTimeFixed = isTopical && !!preSelectedTime;
               const selectedAdministrationTime = preSelectedTime || format(time, "HH:mm");
-              const isAlreadyAdministeredAtTime =
-                administeredForMedication.includes(selectedAdministrationTime);
+              const administrationInfo = administeredForMedication.find(v => v.time === selectedAdministrationTime);
+              const isAlreadyAdministeredAtTime = !!administrationInfo;
 
               // Determine unit label and type based on frequency field (for PRN/Supplements) or dosage form
               const getUnitInfo = () => {
@@ -325,6 +336,11 @@ export const createMedicationColumns = (
                   } else if (dosageUnit.includes('Patches')) {
                     return { label: 'Patches', type: 'number', step: '1' };
                   } else if (dosageUnit.includes('Injections')) {
+                    if (medication.container_type) {
+                      const ct = medication.container_type;
+                      const label = ct + (ct.toLowerCase().endsWith('s') ? '' : 's');
+                      return { label: label, type: 'number', step: '1' };
+                    }
                     return { label: 'Injections (mL)', type: 'number', step: '0.1' };
                   } else {
                     return { label: 'Tablets/Capsules', type: 'number', step: '1' };
@@ -341,6 +357,11 @@ export const createMedicationColumns = (
                 } else if (dosageForm.includes('cream') || dosageForm.includes('ointment') || dosageForm.includes('gel') || dosageForm.includes('patch')) {
                   return { label: 'Applications', type: 'number', step: '1' };
                 } else if (dosageForm.includes('injection')) {
+                  if (medication.container_type) {
+                    const ct = medication.container_type;
+                    const label = ct + (ct.toLowerCase().endsWith('s') ? '' : 's');
+                    return { label: label, type: 'number', step: '1' };
+                  }
                   return { label: 'Dose (mL)', type: 'number', step: '0.1' };
                 } else {
                   // Default for tablets, capsules, etc.
@@ -439,7 +460,7 @@ export const createMedicationColumns = (
                       variant="default"
                       size="sm"
                       disabled={isAlreadyAdministeredAtTime}
-                      title={isAlreadyAdministeredAtTime ? `Already administered at ${selectedAdministrationTime}` : undefined}
+                      title={isAlreadyAdministeredAtTime ? `Already administered at ${selectedAdministrationTime} by ${administrationInfo?.by}` : undefined}
                     >
                       {isAlreadyAdministeredAtTime ? "Administered" : "Administer"}
                     </Button>
@@ -668,6 +689,30 @@ export const createMedicationColumns = (
                                 className="text-sm"
                               />
                             </div>
+
+                            <div className="space-y-1 col-span-2">
+                              <Label htmlFor="witnessedBy" className="text-xs text-muted-foreground">
+                                Witness (Optional)
+                              </Label>
+                              <Select
+                                value={witnessedBy}
+                                onValueChange={setWitnessedBy}
+                              >
+                                <SelectTrigger id="witnessedBy" className="h-8">
+                                  <SelectValue placeholder="Select witness" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {teamMembers?.map((member) => (
+                                    <SelectItem
+                                      key={member.userId}
+                                      value={member.userId}
+                                    >
+                                      {member.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
                         </>
                       ) : isPRN ? (
@@ -834,7 +879,7 @@ export const createTopicalMedicationColumns = (
   showAdministerButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },
-  administeredTimesToday: Record<string, string[]> = {},
+  administeredTimesToday: Record<string, Array<{ time: string, by: string }>> = {},
   preSelectedTime?: string | null
 ): ColumnDef<Medication>[] => {
   // Get base columns — pass preSelectedTime so topical admin dialog uses it

@@ -235,7 +235,7 @@ export default function CarePlanViewDialog({
                       className="p-4 bg-muted/20 rounded-lg border space-y-2"
                     >
                       <p className="text-xs text-muted-foreground font-medium">
-                        {safeFormat(evaluation.evaluation_date, "dd MMM yyyy 'at' HH:mm")}
+                        {safeFormat(evaluation.evaluation_date, "dd MMM yyyy")}
                       </p>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
                         {evaluation.progress_notes || evaluation.comments || "No notes provided"}

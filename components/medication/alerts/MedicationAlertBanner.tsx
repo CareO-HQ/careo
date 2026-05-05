@@ -8,7 +8,9 @@ import { cn } from '@/lib/utils';
 export interface MedicationAlert {
     id: string;
     resident_id: string;
-    alert_type: string;
+    type?: string;
+    /** Legacy alias; prefer `type` from API */
+    alert_type?: string;
     severity: 'critical' | 'warning' | 'info';
     title: string;
     message: string;
@@ -16,29 +18,35 @@ export interface MedicationAlert {
     metadata?: {
         intake_id?: string;
         scheduled_time?: string;
+        medication_id?: string;
+        alert_subtype?: string;
     };
 }
 
 interface MedicationAlertBannerProps {
     alerts: MedicationAlert[];
     onDismiss: (alertId: string) => void;
+    onAlertClick?: (alert: MedicationAlert) => void;
 }
 
-export function MedicationAlertBanner({ alerts, onDismiss }: MedicationAlertBannerProps) {
-    if (!alerts || alerts.length === 0) return null;
+export function MedicationAlertBanner({ alerts, onDismiss, onAlertClick }: MedicationAlertBannerProps) {
+    const displayAlerts = alerts?.filter(a => a.metadata?.alert_subtype !== 'low_stock') || [];
+    if (!displayAlerts || displayAlerts.length === 0) return null;
 
     return (
         <div className="flex flex-col gap-3 mb-6">
-            {alerts.map((alert) => (
+            {displayAlerts.map((alert) => (
                 <Alert
                     key={alert.id}
                     variant={alert.severity === 'critical' ? 'destructive' : 'default'}
                     className={cn(
                         "relative border-l-4",
+                        onAlertClick && "cursor-pointer",
                         alert.severity === 'info' && "border-l-blue-500 bg-blue-50/50",
                         alert.severity === 'warning' && "border-l-yellow-500 bg-yellow-50/50",
                         alert.severity === 'critical' && "border-l-red-500"
                     )}
+                    onClick={() => onAlertClick?.(alert)}
                 >
                     <div className="flex items-start gap-4">
                         <div className="mt-1">
@@ -64,7 +72,10 @@ export function MedicationAlertBanner({ alerts, onDismiss }: MedicationAlertBann
                             variant="ghost"
                             size="icon"
                             className="absolute top-2 right-2 h-8 w-8 hover:bg-black/5"
-                            onClick={() => onDismiss(alert.id)}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                onDismiss(alert.id);
+                            }}
                         >
                             <X className="h-4 w-4" />
                             <span className="sr-only">Dismiss</span>

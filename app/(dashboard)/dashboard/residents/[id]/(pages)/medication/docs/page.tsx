@@ -8,13 +8,13 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, FileText, Loader2, Paperclip, Trash2, Plus } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type MedicationFormKey = "prn-protocol" | "bm-chart";
+type MedicationFormKey = "bm-chart" | "prn-protocol-new" | `prn-protocol-${string}`;
 
 type ResidentData = {
   id: string;
@@ -35,6 +35,34 @@ type UploadedFile = {
   file_type: string;
   created_at: string;
   signedUrl?: string;
+};
+
+type PRNProtocolRecord = {
+  id: string;
+  medication_id: string | null;
+  assessment_data?: {
+    protocolLabel?: string;
+    nameOfMedication?: string;
+  } | null;
+  assessment_date?: string | null;
+  created_at: string;
+  status: string;
+};
+
+type PRNMedication = {
+  id: string;
+  name: string | null;
+  dosage_form: string | null;
+  route: string | null;
+  strength: number | string | null;
+  strength_unit: string | null;
+  prescriber_name: string | null;
+  min_interval_hours: number | null;
+  max_daily_dose: number | null;
+  max_daily_dose_unit: string | null;
+  frequency: string | null;
+  instructions: string | null;
+  status: string | null;
 };
 
 const SIDEBAR_SECTIONS: { title: string; forms: { key: MedicationFormKey; label: string }[] }[] = [
@@ -146,7 +174,6 @@ type MedicationDocsPageProps = {
 export default function MedicationDocsPage({ params }: MedicationDocsPageProps) {
   const { id: residentId } = React.use(params);
   const router = useRouter();
-  const pathname = usePathname();
 
   const { profile } = useProfile();
   const { activeTeamId } = useActiveTeam();
@@ -155,11 +182,21 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
   const [activeFormKey, setActiveFormKey] = useState<MedicationFormKey | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [prnProtocols, setPrnProtocols] = useState<any[]>([]);
+  const [prnProtocols, setPrnProtocols] = useState<PRNProtocolRecord[]>([]);
+  const [prnMedications, setPrnMedications] = useState<PRNMedication[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [protocolsLoading, setProtocolsLoading] = useState(false);
+  const [medicationsLoading, setMedicationsLoading] = useState(false);
 
   const activeFile = uploadedFiles.find((f) => f.id === activeFileId) ?? null;
+  const activeProtocolId = activeFormKey && activeFormKey !== "prn-protocol-new" && activeFormKey.startsWith("prn-protocol-")
+    ? activeFormKey.replace("prn-protocol-", "")
+    : null;
+  const isAddingPrnProtocol = activeFormKey === "prn-protocol-new";
+  const activeProtocol = activeProtocolId ? prnProtocols.find((protocol) => protocol.id === activeProtocolId) : null;
+  const activeMedicationId = activeProtocol?.medication_id ?? null;
+  const activeMedication =
+    activeMedicationId ? prnMedications.find((medication) => medication.id === activeMedicationId) ?? null : null;
 
   // Lock body scroll — this page manages its own full-viewport layout
   useEffect(() => {
@@ -202,29 +239,35 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
       .eq("resident_id", residentId)
       .neq("status", "archived")
       .order("created_at", { ascending: false });
-    if (!error && data) setPrnProtocols(data);
+    if (!error && data) setPrnProtocols(data as PRNProtocolRecord[]);
     setProtocolsLoading(false);
+  }, [residentId]);
+
+  const fetchPrnMedications = useCallback(async () => {
+    if (!residentId) return;
+    setMedicationsLoading(true);
+    const { data, error } = await supabase
+      .from("medications")
+      .select(
+        "id, name, dosage_form, route, strength, strength_unit, prescriber_name, min_interval_hours, max_daily_dose, max_daily_dose_unit, frequency, instructions, status"
+      )
+      .eq("resident_id", residentId)
+      .eq("schedule_type", "PRN (As Needed)")
+      .neq("status", "discontinued")
+      .order("name", { ascending: true });
+    if (!error && data) setPrnMedications(data as PRNMedication[]);
+    setMedicationsLoading(false);
   }, [residentId]);
 
   useEffect(() => {
     fetchUploadedFiles();
     fetchPrnProtocols();
-  }, [fetchUploadedFiles, fetchPrnProtocols]);
+    fetchPrnMedications();
+  }, [fetchUploadedFiles, fetchPrnProtocols, fetchPrnMedications]);
 
   const handleFormClick = (key: MedicationFormKey) => {
     setActiveFileId(null);
     setActiveFormKey((prev) => (prev === key ? null : key));
-  };
-
-  const handleProtocolClick = (id: string) => {
-    setActiveFileId(null);
-    setActiveFormKey(null);
-    setActiveFormKey(id as any); // Use a synthetic key or just handle activeProtocolId
-    // Better: 
-    // setActiveFormKey(null);
-    // setActiveFileId(null);
-    // But then I need a way to track which protocol is active.
-    // I'll repurpose activeFileId or just use activeFormKey as "prn-protocol-[id]"
   };
 
   const handleDeleteFile = async (file: UploadedFile, e: React.MouseEvent) => {
@@ -287,10 +330,22 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
               </span>
             </>
           )}
-          {activeFormKey?.startsWith("prn-protocol-") && (
+          {activeMedication && (
             <>
               <span className="text-muted-foreground">/</span>
-              <span className="text-muted-foreground">PRN Protocol</span>
+              <span className="text-muted-foreground">{activeMedication.name || "PRN Medication"}</span>
+            </>
+          )}
+          {isAddingPrnProtocol && (
+            <>
+              <span className="text-muted-foreground">/</span>
+              <span className="text-muted-foreground">New PRN Protocol Form</span>
+            </>
+          )}
+          {activeFormKey?.startsWith("prn-protocol-") && !isAddingPrnProtocol && (
+            <>
+              <span className="text-muted-foreground">/</span>
+              <span className="text-muted-foreground">PRN Protocol Form</span>
             </>
           )}
           {activeFile && (
@@ -308,7 +363,7 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
         <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {activeFile ? (
             <FileViewer file={activeFile} />
-          ) : activeFormKey === "prn-protocol" && resident ? (
+          ) : isAddingPrnProtocol && resident ? (
             <PRNProtocolForm
               residentId={residentId}
               resident={resident}
@@ -316,12 +371,13 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
               organizationId={profile?.active_organization_id ?? ""}
               userId={profile?.id ?? ""}
               userName={profile?.name || profile?.email || ""}
+              medications={prnMedications}
               isAddingNew={true}
               onSaved={() => {
                 fetchPrnProtocols();
               }}
             />
-          ) : activeFormKey?.startsWith("prn-protocol-") && resident ? (
+          ) : activeFormKey?.startsWith("prn-protocol-") && resident && activeMedication ? (
              <PRNProtocolForm
               residentId={residentId}
               resident={resident}
@@ -329,6 +385,8 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
               organizationId={profile?.active_organization_id ?? ""}
               userId={profile?.id ?? ""}
               userName={profile?.name || profile?.email || ""}
+              medicationId={activeMedication.id}
+              medication={activeMedication}
               selectedId={activeFormKey.replace("prn-protocol-", "")}
               onSaved={() => {
                 fetchPrnProtocols();
@@ -371,16 +429,20 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
                   className="h-5 w-5"
                   onClick={() => {
                     setActiveFileId(null);
-                    setActiveFormKey("prn-protocol");
+                    setActiveFormKey("prn-protocol-new");
                   }}
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>
 
-              {protocolsLoading ? (
+              {protocolsLoading || medicationsLoading ? (
                  <div className="flex items-center justify-center py-3">
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                </div>
+              ) : prnMedications.length === 0 ? (
+                <div className="mx-1 px-3 py-6 border border-dashed rounded-lg flex flex-col items-center justify-center text-center bg-muted/5">
+                  <p className="text-[10px] text-muted-foreground italic">No active PRN medications</p>
                 </div>
               ) : prnProtocols.length === 0 ? (
                 <div className="mx-1 px-3 py-6 border border-dashed rounded-lg flex flex-col items-center justify-center text-center bg-muted/5">
@@ -388,17 +450,20 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
                 </div>
               ) : (
                 <div className="flex flex-col gap-0.5">
-                   {prnProtocols.map((protocol) => {
+                  {prnProtocols.map((protocol) => {
                     const protocolId = protocol.id;
                     const isActive = activeFormKey === `prn-protocol-${protocolId}`;
                     const data = protocol.assessment_data || {};
-                    
+                    const medicationName =
+                      prnMedications.find((medication) => medication.id === protocol.medication_id)?.name ??
+                      data.nameOfMedication ??
+                      "PRN Medication";
                     return (
                       <button
                         key={protocolId}
                         onClick={() => {
                           setActiveFileId(null);
-                          setActiveFormKey(`prn-protocol-${protocolId}` as any);
+                          setActiveFormKey(`prn-protocol-${protocolId}`);
                         }}
                         className={`w-full text-left flex items-start gap-2.5 px-2 py-2 rounded-lg transition-all ${isActive
                           ? "bg-primary/10 text-primary ring-1 ring-primary/20"
@@ -410,8 +475,11 @@ export default function MedicationDocsPage({ params }: MedicationDocsPageProps) 
                           <p className="text-xs font-semibold leading-tight truncate">
                             {data.protocolLabel || data.nameOfMedication || "PRN Protocol"}
                           </p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                            {protocol.assessment_date ? format(new Date(protocol.assessment_date), "dd/MM/yyyy") : "No date"}
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                            {medicationName}
+                            {protocol.assessment_date
+                              ? ` · ${format(new Date(protocol.assessment_date), "dd/MM/yyyy")}`
+                              : ""}
                           </p>
                         </div>
                       </button>

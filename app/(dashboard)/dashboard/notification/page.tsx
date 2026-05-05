@@ -57,6 +57,7 @@ import {
   Clock,
   Loader2,
   Trash2,
+  Ambulance,
 } from "lucide-react";
 
 type ActionPlanStatus = "pending" | "in_progress" | "completed";
@@ -92,7 +93,14 @@ export default function NotificationPage() {
     if (!userId) return;
     try {
       setIsLoading(true);
-      const data = await getNotifications(userId, 50, false, activeCareHomeId);
+      const data = await getNotifications(
+        userId,
+        50,
+        false,
+        activeCareHomeId,
+        profile?.active_team_id ?? null,
+        profile?.role ?? null
+      );
       setNotifications(data as Notification[]);
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
@@ -100,7 +108,7 @@ export default function NotificationPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [userId, activeCareHomeId]);
+  }, [userId, activeCareHomeId, profile?.active_team_id, profile?.role]);
 
   useEffect(() => {
     fetchNotifications();
@@ -309,6 +317,24 @@ export default function NotificationPage() {
         return {
           icon: <Calendar className="w-4 h-4" />,
           label: "Appointment Created",
+          color: "text-blue-600",
+        };
+      case "appointment_tomorrow_reminder":
+        return {
+          icon: <Calendar className="w-4 h-4" />,
+          label: "Appointment Reminder",
+          color: "text-amber-600",
+        };
+      case "hospital_passport":
+        return {
+          icon: <Ambulance className="w-4 h-4" />,
+          label: "Hospital passport",
+          color: "text-blue-600",
+        };
+      case "hospital_transfer_log":
+        return {
+          icon: <Ambulance className="w-4 h-4" />,
+          label: "Hospital transfer log",
           color: "text-blue-600",
         };
       default:

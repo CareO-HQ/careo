@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Calendar, ArrowLeft, Filter, Check } from "lucide-react";
+import { Calendar, ArrowLeft, Filter, Check, Bell } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useProfile } from "@/hooks/use-profile";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
@@ -24,10 +24,22 @@ export default function AppointmentPage() {
   const router = useRouter();
   const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization, isLoading: isTeamLoading } = useActiveTeam();
   const { profile } = useProfile();
+  const { supabase, user } = useSupabase();
   const userRole = profile?.role;
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [appointmentsData, setAppointmentsData] = useState<any[] | null>(null);
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
+  const [tomorrowReminders, setTomorrowReminders] = useState<
+    Array<{
+      id: string;
+      title: string;
+      message: string;
+      created_at: string;
+      metadata?: {
+        startTime?: string;
+      } | null;
+    }>
+  >([]);
 
   // For managers and owners, always use organization-based queries with care home filter; for other roles, use team if available
   const shouldUseOrganization = userRole === "manager" || userRole === "owner";
@@ -74,13 +86,62 @@ export default function AppointmentPage() {
     }
   }, [activeTeamId, activeOrganizationId, shouldUseOrganization, isTeamLoading]);
 
+  const fetchTomorrowReminders = useCallback(async () => {
+    if (!user || !activeOrganizationId) return;
+
+    try {
+      let reminderQuery = supabase
+        .from("notifications")
+        .select("id, title, message, created_at, metadata")
+        .eq("organization_id", activeOrganizationId)
+        .eq("type", "appointment_tomorrow_reminder")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (profile?.active_care_home_id) {
+        reminderQuery = reminderQuery.eq("care_home_id", profile.active_care_home_id);
+      }
+
+      if (activeTeamId) {
+        reminderQuery = reminderQuery.or(`team_id.is.null,team_id.eq.${activeTeamId}`);
+      }
+
+      const { data, error } = await reminderQuery;
+
+      if (error) {
+        console.error("Error fetching appointment reminders:", error);
+        setTomorrowReminders([]);
+        return;
+      }
+
+      const reminders = (data ?? []).map((row) => ({
+        id: row.id,
+        title: row.title ?? "Appointment Reminder",
+        message: row.message ?? "",
+        created_at: row.created_at,
+        metadata:
+          typeof row.metadata === "object" && row.metadata !== null
+            ? (row.metadata as { startTime?: string })
+            : null,
+      }));
+
+      setTomorrowReminders(reminders);
+    } catch (error) {
+      console.error("Error in reminder fetch:", error);
+      setTomorrowReminders([]);
+    }
+  }, [user, activeOrganizationId, activeTeamId, profile?.active_care_home_id, supabase]);
+
   useEffect(() => {
     fetchAppointments();
   }, [fetchAppointments]);
 
-  // Set up real-time subscription for appointments
-  const { supabase, user } = useSupabase();
+  useEffect(() => {
+    fetchTomorrowReminders();
+  }, [fetchTomorrowReminders]);
 
+  // Set up real-time subscription for appointments
   useEffect(() => {
     if (isTeamLoading || (!activeTeamId && !activeOrganizationId)) return;
 
@@ -109,6 +170,7 @@ export default function AppointmentPage() {
         },
         () => {
           fetchAppointments();
+          fetchTomorrowReminders();
         }
       )
       .subscribe();
@@ -116,19 +178,20 @@ export default function AppointmentPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeTeamId, activeOrganizationId, shouldUseOrganization, isTeamLoading, supabase, fetchAppointments]);
+  }, [activeTeamId, activeOrganizationId, shouldUseOrganization, isTeamLoading, supabase, fetchAppointments, fetchTomorrowReminders]);
 
   // Listen for custom 'appointments-updated' event
   useEffect(() => {
     const handleUpdate = () => {
       fetchAppointments();
+      fetchTomorrowReminders();
     };
 
     window.addEventListener("appointments-updated", handleUpdate);
     return () => {
       window.removeEventListener("appointments-updated", handleUpdate);
     };
-  }, [fetchAppointments]);
+  }, [fetchAppointments, fetchTomorrowReminders]);
 
   // Auto-clear sidebar red badge when Appointments page is visited
   useEffect(() => {
@@ -360,6 +423,31 @@ export default function AppointmentPage() {
 
       {/* Appointments List */}
       <div className="space-y-0">
+        {tomorrowReminders.length > 0 && (
+          <div className="mb-4 rounded-md border bg-amber-50/60 border-amber-200">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200">
+              <Bell className="w-4 h-4 text-amber-700" />
+              <p className="text-sm font-medium text-amber-900">Tomorrow Reminders</p>
+            </div>
+            <div>
+              {tomorrowReminders.map((reminder) => (
+                <div
+                  key={reminder.id}
+                  className="px-4 py-3 border-b last:border-b-0 border-amber-100"
+                >
+                  <p className="text-sm font-medium text-amber-900">{reminder.title}</p>
+                  <p className="text-sm text-amber-800 mt-1">{reminder.message}</p>
+                  <p className="text-xs text-amber-700 mt-2">
+                    {reminder.metadata?.startTime
+                      ? `Appointment time: ${format(new Date(reminder.metadata.startTime), "PPP 'at' p")}`
+                      : `Created: ${format(new Date(reminder.created_at), "PPP 'at' p")}`}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {filteredAppointments === null ? (
           <div className="text-center py-12">
             <div className="text-muted-foreground">Loading appointments...</div>

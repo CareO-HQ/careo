@@ -1,3 +1,8 @@
+-- 0. Ensure columns exist
+ALTER TABLE public.alerts
+  ADD COLUMN IF NOT EXISTS auto_resolved BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS resolution_note TEXT;
+
 -- Function to auto-resolve medication alerts when intake state changes
 CREATE OR REPLACE FUNCTION public.handle_medication_intake_resolve_alerts()
 RETURNS TRIGGER AS $$
@@ -12,7 +17,7 @@ BEGIN
       resolution_note = 'Auto-resolved as medication state changed to ' || NEW.state
     WHERE 
       resident_id = NEW.resident_id
-      AND alert_type = 'medication'
+      AND type = 'medication'::public.alert_type
       AND is_resolved = false
       AND (metadata->>'intake_id')::UUID = NEW.id;
   END IF;

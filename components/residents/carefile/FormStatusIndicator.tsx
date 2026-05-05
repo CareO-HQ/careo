@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { CircleCheckIcon, CircleDashedIcon, Loader2Icon } from "lucide-react";
 import { CareFileFormStatus } from "@/types/care-files";
 
@@ -12,7 +13,7 @@ export default function FormStatusIndicator({
 }: FormStatusIndicatorProps) {
   switch (status) {
     case "completed":
-      return <CircleCheckIcon className={`${className} text-emerald-500`} />;
+      return <CircleCheckIcon className={cn(className, "text-emerald-500")} />;
     case "in-progress":
       return (
         <Loader2Icon className={`${className} text-blue-500 animate-spin`} />

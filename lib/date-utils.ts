@@ -182,3 +182,32 @@ export function formatDateForDisplay(date: string): string {
   const ukDate = toZonedTime(new Date(date + 'T00:00:00'), UK_TIMEZONE);
   return formatInTimeZone(ukDate, UK_TIMEZONE, 'EEEE, MMMM d, yyyy');
 }
+
+/**
+ * Get the nearest medication time from a list of time strings (HH:mm)
+ */
+export function getNearestMedicationTime(allTimes: string[]): string | null {
+  if (allTimes.length === 0) return null;
+
+  const now = new Date();
+  const ukNow = toZonedTime(now, UK_TIMEZONE);
+  const currentHour = ukNow.getHours();
+  const currentMinute = ukNow.getMinutes();
+  const currentTimeInMinutes = currentHour * 60 + currentMinute;
+
+  let nearestTime = allTimes[0];
+  let smallestDiff = Infinity;
+
+  allTimes.forEach(time => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const timeInMinutes = hours * 60 + minutes;
+    const diff = Math.abs(timeInMinutes - currentTimeInMinutes);
+
+    if (diff < smallestDiff) {
+      smallestDiff = diff;
+      nearestTime = time;
+    }
+  });
+
+  return nearestTime;
+}

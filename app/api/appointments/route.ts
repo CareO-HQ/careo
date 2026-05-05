@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from "next/server";
-
 // Helper to create Supabase client
 function createSupabaseClient(request: NextRequest) {
   let response = NextResponse.next({

@@ -50,7 +50,6 @@ async function fetchFormsFromDB(residentId: string): Promise<CareFileFormsState>
     "v2-restraints-risk",
     "v2-body-map-hygiene",
     "v2-body-map-skin",
-    "v2-safe-body-map",
     "fall-risk-assessment",
     "smoking-risk-assessment",
     "v2-night-obs-consent",
@@ -59,7 +58,8 @@ async function fetchFormsFromDB(residentId: string): Promise<CareFileFormsState>
     "v2-general-risk",
     "v2-must-assessment",
     "v2-personal-profile",
-    "v2-abbey-pain"
+    "v2-abbey-pain",
+    "v2-weight-chart"
   ];
 
   const tableMap: Partial<Record<CareFileFormKey, string>> = {
@@ -97,7 +97,8 @@ async function fetchFormsFromDB(residentId: string): Promise<CareFileFormsState>
     "v2-general-risk": "general_risk_assessments",
     "v2-must-assessment": "must_assessments",
     "v2-personal-profile": "personal_profiles",
-    "v2-abbey-pain": "abbey_pain_assessments"
+    "v2-abbey-pain": "abbey_pain_assessments",
+    "v2-weight-chart": "weight_records"
   };
 
   const newState: CareFileFormsState = {};
@@ -109,8 +110,8 @@ async function fetchFormsFromDB(residentId: string): Promise<CareFileFormsState>
     try {
       let data, error;
 
-      if (key === "v2-body-map-hygiene" || key === "v2-body-map-skin" || key === "v2-safe-body-map") {
-        const folderKey = key === "v2-body-map-hygiene" ? "v2-hygiene" : (key === "v2-body-map-skin" ? "v2-skin-integrity" : "v2-safeguarding");
+      if (key === "v2-body-map-hygiene" || key === "v2-body-map-skin") {
+        const folderKey = key === "v2-body-map-hygiene" ? "v2-hygiene" : "v2-skin-integrity";
         ({ data, error } = await supabase
           .from("care_folder_body_maps")
           .select("*")

@@ -54,11 +54,13 @@ interface BradenRiskAssessmentDialogProps {
     onClose: () => void;
     isInline?: boolean;
     viewOnly?: boolean;
+    onSaveSuccess?: (data?: any) => void;
 }
 
 export default function BradenRiskAssessmentDialog({
     teamId, residentId, organizationId, userId, userName, resident,
-    isEditMode = false, initialData, onClose, isInline = false, viewOnly = false
+    isEditMode = false, initialData, onClose, isInline = false, viewOnly = false,
+    onSaveSuccess
 }: BradenRiskAssessmentDialogProps) {
     const [isPending, startTransition] = useTransition();
     const [previousAssessments, setPreviousAssessments] = useState<any[]>([]);
@@ -133,7 +135,7 @@ export default function BradenRiskAssessmentDialog({
                     created_by: userId
                 };
 
-                await submitAssessmentWithVersioning(
+                const result = await submitAssessmentWithVersioning(
                     'braden_risk_assessments',
                     payload,
                     initialData,
@@ -155,6 +157,7 @@ export default function BradenRiskAssessmentDialog({
                     nutrition: undefined,
                     frictionShear: undefined
                 });
+                onSaveSuccess?.(result);
                 if (onClose && isEditMode) onClose();
             } catch (error) {
                 console.error("Error submitting:", error);

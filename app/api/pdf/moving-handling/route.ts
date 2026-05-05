@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { chromium } from "playwright";
 
@@ -99,9 +99,18 @@ function toYesNo(value: unknown): "Yes" | "No" {
     return "No";
 }
 
+function toSentenceCase(value: string): string {
+    if (!value || value === EMPTY_VALUE) return value;
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return value;
+    const lowered = trimmed.toLowerCase();
+    return lowered.charAt(0).toUpperCase() + lowered.slice(1);
+}
+
 function normalizeEnum(value: unknown): string {
     if (value === null || value === undefined || value === "") return EMPTY_VALUE;
-    return String(value).replace(/-/g, " ").replace(/_/g, " ").toUpperCase();
+    const str = String(value).replace(/-/g, " ").replace(/_/g, " ");
+    return toSentenceCase(str);
 }
 
 function toStringOrNumber(value: unknown, fallback: string | number = ""): string | number {
@@ -322,7 +331,7 @@ export async function POST(request: NextRequest) {
 function generateMovingHandlingHTML(assessment: MovingHandlingAssessment): string {
     const sections = [
         createSection("Section 1: Resident Information", [
-            createRow("Resident Name", valueOrEmpty(assessment.residentName)),
+            createRow("Resident Name", toSentenceCase(valueOrEmpty(assessment.residentName))),
             createRow("Date of Birth", formatDate(assessment.dateOfBirth)),
             createRow("Bedroom Number", valueOrEmpty(assessment.bedroomNumber)),
             createRow("Weight (kg)", valueOrEmpty(assessment.weight)),
@@ -336,58 +345,58 @@ function generateMovingHandlingHTML(assessment: MovingHandlingAssessment): strin
             createRow("Limb Mobility - Upper Left", normalizeEnum(assessment.limbUpperLeft)),
             createRow("Limb Mobility - Lower Right", normalizeEnum(assessment.limbLowerRight)),
             createRow("Limb Mobility - Lower Left", normalizeEnum(assessment.limbLowerLeft)),
-            createRow("Equipment Needed", valueOrEmpty(assessment.equipmentUsed)),
-            createRow("Details of Support/Staff Required", valueOrEmpty(assessment.needsRiskStaff))
+            createRow("Equipment Needed", toSentenceCase(valueOrEmpty(assessment.equipmentUsed))),
+            createRow("Details of Support/Staff Required", toSentenceCase(valueOrEmpty(assessment.needsRiskStaff)))
         ]),
         createSectionWithSubsections("Section 3: Risk Factors", [
             {
                 title: "Sensory & Behavioral",
                 rows: [
                     createRow("Deafness State", normalizeEnum(assessment.deafnessState)),
-                    createRow("Deafness Comments", valueOrEmpty(assessment.deafnessComments)),
+                    createRow("Deafness Comments", toSentenceCase(valueOrEmpty(assessment.deafnessComments))),
                     createRow("Blindness State", normalizeEnum(assessment.blindnessState)),
-                    createRow("Blindness Comments", valueOrEmpty(assessment.blindnessComments)),
+                    createRow("Blindness Comments", toSentenceCase(valueOrEmpty(assessment.blindnessComments))),
                     createRow("Unpredictable Behaviour State", normalizeEnum(assessment.unpredictableBehaviourState)),
-                    createRow("Unpredictable Behaviour Comments", valueOrEmpty(assessment.unpredictableBehaviourComments)),
+                    createRow("Unpredictable Behaviour Comments", toSentenceCase(valueOrEmpty(assessment.unpredictableBehaviourComments))),
                     createRow("Uncooperative Behaviour State", normalizeEnum(assessment.uncooperativeBehaviourState)),
-                    createRow("Uncooperative Behaviour Comments", valueOrEmpty(assessment.uncooperativeBehaviourComments))
+                    createRow("Uncooperative Behaviour Comments", toSentenceCase(valueOrEmpty(assessment.uncooperativeBehaviourComments)))
                 ]
             },
             {
                 title: "Cognitive & Emotional",
                 rows: [
                     createRow("Distressed Reaction State", normalizeEnum(assessment.distressedReactionState)),
-                    createRow("Distressed Reaction Comments", valueOrEmpty(assessment.distressedReactionComments)),
+                    createRow("Distressed Reaction Comments", toSentenceCase(valueOrEmpty(assessment.distressedReactionComments))),
                     createRow("Disorientated State", normalizeEnum(assessment.disorientatedState)),
-                    createRow("Disorientated Comments", valueOrEmpty(assessment.disorientatedComments)),
+                    createRow("Disorientated Comments", toSentenceCase(valueOrEmpty(assessment.disorientatedComments))),
                     createRow("Unconscious State", normalizeEnum(assessment.unconsciousState)),
-                    createRow("Unconscious Comments", valueOrEmpty(assessment.unconsciousComments)),
+                    createRow("Unconscious Comments", toSentenceCase(valueOrEmpty(assessment.unconsciousComments))),
                     createRow("Unbalance State", normalizeEnum(assessment.unbalanceState)),
-                    createRow("Unbalance Comments", valueOrEmpty(assessment.unbalanceComments))
+                    createRow("Unbalance Comments", toSentenceCase(valueOrEmpty(assessment.unbalanceComments)))
                 ]
             },
             {
                 title: "Physical & Other",
                 rows: [
                     createRow("Spasms State", normalizeEnum(assessment.spasmsState)),
-                    createRow("Spasms Comments", valueOrEmpty(assessment.spasmsComments)),
+                    createRow("Spasms Comments", toSentenceCase(valueOrEmpty(assessment.spasmsComments))),
                     createRow("Stiffness State", normalizeEnum(assessment.stiffnessState)),
-                    createRow("Stiffness Comments", valueOrEmpty(assessment.stiffnessComments)),
+                    createRow("Stiffness Comments", toSentenceCase(valueOrEmpty(assessment.stiffnessComments))),
                     createRow("Catheters State", normalizeEnum(assessment.cathetersState)),
-                    createRow("Catheters Comments", valueOrEmpty(assessment.cathetersComments)),
+                    createRow("Catheters Comments", toSentenceCase(valueOrEmpty(assessment.cathetersComments))),
                     createRow("Incontinence State", normalizeEnum(assessment.incontinenceState)),
-                    createRow("Incontinence Comments", valueOrEmpty(assessment.incontinenceComments)),
+                    createRow("Incontinence Comments", toSentenceCase(valueOrEmpty(assessment.incontinenceComments))),
                     createRow("Localised Pain State", normalizeEnum(assessment.localisedPain)),
-                    createRow("Localised Pain Comments", valueOrEmpty(assessment.localisedPainComments)),
+                    createRow("Localised Pain Comments", toSentenceCase(valueOrEmpty(assessment.localisedPainComments))),
                     createRow("Other Risk Factors State", normalizeEnum(assessment.otherState)),
-                    createRow("Other Risk Factors Comments", valueOrEmpty(assessment.otherComments))
+                    createRow("Other Risk Factors Comments", toSentenceCase(valueOrEmpty(assessment.otherComments)))
                 ]
             }
         ]),
         createSection("Section 7: Assessment Completion", [
-            createRow("Completed By", valueOrEmpty(assessment.completedBy)),
-            createRow("Job Role", valueOrEmpty(assessment.jobRole)),
-            createRow("Signature", valueOrEmpty(assessment.signature)),
+            createRow("Completed By", toSentenceCase(valueOrEmpty(assessment.completedBy))),
+            createRow("Job Role", toSentenceCase(valueOrEmpty(assessment.jobRole))),
+            createRow("Signature", toSentenceCase(valueOrEmpty(assessment.signature))),
             createRow("Assessment Date", valueOrEmpty(assessment.assessmentDate)),
             createRow("Completion Date", valueOrEmpty(assessment.completionDate))
         ]),

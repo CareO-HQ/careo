@@ -286,12 +286,18 @@ export const hospitalTransferService = {
             .from('residents')
             .select(`
                 *,
-                emergency_contacts (*)
+                emergency_contacts (*),
+                care_homes ( name ),
+                teams ( name )
             `)
             .eq('id', residentId)
             .single();
 
         if (error) throw error;
+
+        const careHomesRel = data.care_homes as { name?: string } | { name?: string }[] | null | undefined;
+        const residentCareHomeName =
+            Array.isArray(careHomesRel) ? careHomesRel[0]?.name : careHomesRel?.name;
 
         return {
             ...data,
@@ -312,7 +318,9 @@ export const hospitalTransferService = {
                 address: c.address,
                 phoneNumber: c.phone_number,
                 isPrimary: c.is_primary
-            })) || []
+            })) || [],
+            /** Resolved from residents.care_home_id → care_homes.name (not the viewer’s active care home). */
+            careHomeName: residentCareHomeName ?? null,
         };
     },
 
@@ -330,7 +338,12 @@ export const hospitalTransferService = {
         if (!data) return null;
 
         return {
-            allergies: data.allergies
+            allergies: data.allergies,
+            dietaryRequirements: data.dietary_requirements,
+            textureGrade: data.texture_grade,
+            fluidConsistency: data.fluid_consistency,
+            likes: data.likes,
+            dislikes: data.dislikes,
         };
     },
 

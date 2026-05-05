@@ -72,6 +72,7 @@ export function AppSidebar() {
   const [unreadAppointmentsCount, setUnreadAppointmentsCount] = useState(0);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [totalNewActionPlansCount, setTotalNewActionPlansCount] = useState(0);
+  const [unreadWoundsCount, setUnreadWoundsCount] = useState(0);
 
   // Map Supabase profile to variables used in the component
   const activeOrganizationId = profile?.active_organization_id || null;
@@ -138,12 +139,22 @@ export function AppSidebar() {
       // 3. System Notifications (exclude appointment and incident types — they have their own badges)
       const { data: allNotifs } = await supabase
         .from("notifications")
-        .select("id, type")
+        .select("id, type, user_id, team_id")
         .eq("organization_id", activeOrganizationId)
         .eq("care_home_id", activeCareHomeId)
         .or(`user_id.eq.${user.id},user_id.is.null`);
 
+      const systemBroadcastVisible = (n: { user_id: string | null; team_id: string | null }) => {
+        if (n.user_id === user.id) return true;
+        if (n.user_id === null) {
+          if (isPowerUser || !activeTeamId) return true;
+          return n.team_id === null || n.team_id === activeTeamId;
+        }
+        return false;
+      };
+
       const unreadNotifs = (allNotifs || []).filter(n =>
+        systemBroadcastVisible(n) &&
         !readIds.has(n.id) &&
         !dismissedIds.has(n.id) &&
         n.type !== "incident" &&
@@ -164,10 +175,51 @@ export function AppSidebar() {
         !readIds.has(n.id) && !dismissedIds.has(n.id)
       );
       setTotalNewActionPlansCount(unreadActionPlanList.length);
+
+      // 5. Unread wounds (per-user via wound_alert_reads)
+      let woundsQuery = supabase
+        .from("wounds")
+        .select("id")
+        .neq("status", "healed");
+
+      if (isPowerUser) {
+        woundsQuery = woundsQuery.eq("organization_id", activeOrganizationId);
+        if (activeCareHomeId) {
+          woundsQuery = woundsQuery.eq("care_home_id", activeCareHomeId);
+        }
+      } else if (activeTeamId) {
+        woundsQuery = woundsQuery.eq("team_id", activeTeamId);
+      }
+
+      const { data: visibleWounds, error: visibleWoundsError } = await woundsQuery.limit(200);
+      if (visibleWoundsError) {
+        console.error("Error fetching visible wounds for sidebar:", visibleWoundsError);
+        setUnreadWoundsCount(0);
+      } else {
+        const woundIds = (visibleWounds || []).map((w) => w.id);
+        if (woundIds.length === 0) {
+          setUnreadWoundsCount(0);
+        } else {
+          const { data: readWounds, error: readWoundsError } = await supabase
+            .from("wound_alert_reads")
+            .select("wound_id")
+            .eq("user_id", user.id)
+            .in("wound_id", woundIds);
+
+          if (readWoundsError) {
+            // Fallback when read table is unavailable/missing migration.
+            setUnreadWoundsCount(woundIds.length);
+          } else {
+            const readSet = new Set((readWounds || []).map((row) => row.wound_id));
+            const unreadCount = woundIds.filter((woundId) => !readSet.has(woundId)).length;
+            setUnreadWoundsCount(unreadCount);
+          }
+        }
+      }
     } catch (error) {
       console.error("Error fetching sidebar counts:", error);
     }
-  }, [user, activeOrganizationId, activeCareHomeId, supabase]);
+  }, [user, activeOrganizationId, activeCareHomeId, activeTeamId, userRole, supabase]);
 
   // Initial fetch + real-time subscriptions
   useEffect(() => {
@@ -201,6 +253,34 @@ export function AppSidebar() {
           event: "*",
           schema: "public",
           table: "notification_read_status",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchCounts();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "wounds",
+          ...(activeCareHomeId
+            ? { filter: `care_home_id=eq.${activeCareHomeId}` }
+            : activeOrganizationId
+              ? { filter: `organization_id=eq.${activeOrganizationId}` }
+              : {}),
+        },
+        () => {
+          fetchCounts();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "wound_alert_reads",
           filter: `user_id=eq.${user.id}`,
         },
         () => {
@@ -416,9 +496,16 @@ export function AppSidebar() {
             {canViewClinical(effectiveRole) && (
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
-                  <Link href="/dashboard/wounds">
-                    <Heart />
-                    <span>Wounds</span>
+                  <Link href="/dashboard/wounds" className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <Heart className="w-4 h-4" />
+                      <span>Wounds</span>
+                    </div>
+                    {unreadWoundsCount > 0 && (
+                      <Badge className="bg-red-500 text-white ml-auto h-5 min-w-5 px-1 text-xs flex items-center justify-center rounded-md">
+                        {unreadWoundsCount > 99 ? "99+" : unreadWoundsCount}
+                      </Badge>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

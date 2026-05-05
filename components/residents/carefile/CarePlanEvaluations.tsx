@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
+import { resolveCarePlanEvaluationAlertsForCarePlan } from "@/lib/care-plan-evaluation-alerts";
 
 const UK_TIMEZONE = "Europe/London";
 
@@ -26,22 +27,11 @@ export function CarePlanEvaluations({ carePlanId, residentId }: CarePlanEvaluati
     const [showForm, setShowForm] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [comments, setComments] = useState("");
-    const [evalTime, setEvalTime] = useState("");
     const [outcome, setOutcome] = useState("Reviewed Remain Valid");
     const [position, setPosition] = useState("");
     const [nextReviewDate, setNextReviewDate] = useState<string>("");
 
-    const generateTimeOptions = () => {
-        const options: string[] = [];
-        for (let i = 0; i < 24; i++) {
-            for (let j = 0; j < 60; j += 5) {
-                const hour = i.toString().padStart(2, '0');
-                const minute = j.toString().padStart(2, '0');
-                options.push(`${hour}:${minute}`);
-            }
-        }
-        return options;
-    };
+
 
     const fetchEvaluations = async () => {
         if (!carePlanId) return;
@@ -76,7 +66,7 @@ export function CarePlanEvaluations({ carePlanId, residentId }: CarePlanEvaluati
     useEffect(() => {
         if (showForm) {
             const now = new Date();
-            setEvalTime(formatInTimeZone(now, UK_TIMEZONE, "HH:mm"));
+
 
             // Set next review date to 1 month from now
             const nextMonth = new Date(now);
@@ -124,6 +114,21 @@ export function CarePlanEvaluations({ carePlanId, residentId }: CarePlanEvaluati
                 toast.error(`Failed to submit: ${error.message}`);
                 return;
             }
+
+            if (nextReviewDate) {
+                await supabase
+                    .from("care_plan_assessments")
+                    .update({
+                        next_evaluation_date: nextReviewDate,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", carePlanId);
+            }
+
+            await resolveCarePlanEvaluationAlertsForCarePlan(supabase, {
+                carePlanId,
+                resolvedByUserId: profile.id,
+            });
 
             toast.success("Evaluation submitted successfully!");
             setComments("");
@@ -173,18 +178,7 @@ export function CarePlanEvaluations({ carePlanId, residentId }: CarePlanEvaluati
             {showForm && (
                 <div className="rounded-xl border bg-card/50 p-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">Evaluation Time (UK)</label>
-                            <select
-                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                value={evalTime}
-                                onChange={(e) => setEvalTime(e.target.value)}
-                            >
-                                {generateTimeOptions().map((t) => (
-                                    <option key={t} value={t}>{t}</option>
-                                ))}
-                            </select>
-                        </div>
+
                         <div className="space-y-1.5">
                             <label className="text-xs font-medium text-muted-foreground">Care Plan Outcome</label>
                             <select
@@ -283,7 +277,7 @@ export function CarePlanEvaluations({ carePlanId, residentId }: CarePlanEvaluati
                                         ? formatInTimeZone(
                                             new Date(evaluation.evaluation_date),
                                             UK_TIMEZONE,
-                                            "dd MMM yyyy HH:mm"
+                                            "dd MMM yyyy"
                                         )
                                         : "Unknown Date"}
                                 </p>

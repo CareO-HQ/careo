@@ -9,6 +9,7 @@ import CreateResidentMedication from "@/components/medication/forms/CreateReside
 import KardexModal from "@/components/medication/KardexModal";
 import { EmarSheet } from "@/components/medication/emar/EmarSheet";
 import { ActiveMedicationsTable } from "@/components/medication/management/ActiveMedicationsTable";
+import { checkMedicationLowStockAction } from "@/app/actions/medications";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,11 +23,11 @@ import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
 import { ArrowLeft, CalendarIcon, CheckCircle, Download, Eye, FileDown, FileText } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import { config } from "@/config";
 import { toast } from "sonner";
-import { formatTimestampToUKTime, formatTimestampToUKDateTime, getUKTodayDate, UK_TIMEZONE } from "@/lib/date-utils";
+import { formatTimestampToUKTime, formatTimestampToUKDateTime, getUKTodayDate, UK_TIMEZONE, getNearestMedicationTime } from "@/lib/date-utils";
 import {
   ColumnDef,
   SortingState,
@@ -79,36 +80,6 @@ const normalizeTimeToHHmm = (value: string | null | undefined): string | null =>
   return null;
 };
 
-// Helper function to find the nearest medication time
-const getNearestMedicationTime = (): string | null => {
-  const now = new Date();
-  const ukNow = toZonedTime(now, UK_TIMEZONE);
-  const currentHour = ukNow.getHours();
-  const currentMinute = ukNow.getMinutes();
-  const currentTimeInMinutes = currentHour * 60 + currentMinute;
-
-  // Flatten all times from config
-  const allTimes = config.times.flatMap(timeGroup => timeGroup.values);
-
-  if (allTimes.length === 0) return null;
-
-  // Convert time strings to minutes and find the nearest one
-  let nearestTime = allTimes[0];
-  let smallestDiff = Infinity;
-
-  allTimes.forEach(time => {
-    const [hours, minutes] = time.split(':').map(Number);
-    const timeInMinutes = hours * 60 + minutes;
-    const diff = Math.abs(timeInMinutes - currentTimeInMinutes);
-
-    if (diff < smallestDiff) {
-      smallestDiff = diff;
-      nearestTime = time;
-    }
-  });
-
-  return nearestTime;
-};
 
 export default function MedicationPage({ params }: MedicationPageProps) {
   const { id } = React.use(params);
@@ -130,9 +101,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [selectedTime, setSelectedTime] = useState<string | null>(
-    getNearestMedicationTime() || config.times[0]?.values[0] || null
-  );
+  const [selectedTime, setSelectedTime] = useState<string | null>(() => {
+    const allTimes = config.times.flatMap(t => t.values);
+    return getNearestMedicationTime(allTimes) || allTimes[0] || null;
+  });
   // Initialize with UK Today
   const [selectedDate, setSelectedDate] = useState<Date>(() => toZonedTime(new Date(), UK_TIMEZONE));
   const [filteredIntakes, setFilteredIntakes] = useState<any[]>([]);
@@ -144,7 +116,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedDateIntakeGroup, setSelectedDateIntakeGroup] = useState<GroupedIntake | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("today");
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams?.get("tab") || "today");
 
   const fetchData = React.useCallback(async (silentRefresh = false) => {
     if (!silentRefresh) {
@@ -395,6 +368,32 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     };
   }, [id]);
 
+  // Subscribe to medication_intakes updates
+  useEffect(() => {
+    if (!id) return;
+
+    const subscription = supabase
+      .channel(`resident-medication-intakes-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'medication_intakes',
+          filter: `resident_id=eq.${id}`
+        },
+        () => {
+          // Silent refresh to update the UI
+          fetchData(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [id, fetchData]);
+
   const markMedicationIntakeAsPoppedOut = async (intakeId: string, isPoppedOut: boolean) => {
     const now = new Date().toISOString();
 
@@ -423,6 +422,11 @@ export default function MedicationPage({ params }: MedicationPageProps) {
             ? { ...med, total_count: newCount }
             : med
         ));
+
+        // Evaluate low stock alert using Server Action
+        checkMedicationLowStockAction(intake.medication.id).catch(err => 
+          console.error("Failed to evaluate low stock after pop out", err)
+        );
       }
     }
 
@@ -610,6 +614,11 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
       if (stockError) {
         console.error("Error updating medication stock:", stockError);
+      } else {
+        // Evaluate low stock alert
+        checkMedicationLowStockAction(medicationId).catch(err => 
+          console.error("Failed to evaluate low stock after administer", err)
+        );
       }
     }
 
@@ -632,6 +641,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       administered_at: administrationTimestamp,
       witness_id: witnessId || null,
       witness_at: witnessId ? administrationTimestamp : null,
+      // If it's a topical medication, also mark it as popped out (prepared) automatically
+      popped_out_at: isTopical ? administrationTimestamp : null,
+      popped_out_by_id: isTopical ? profile?.id : null,
       organization_id: profile?.active_organization_id,
       care_home_id: profile?.active_care_home_id
     };
@@ -970,15 +982,16 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
   // Get a map of administered times for each medication today to disable them in the selection dropdown
   const administeredTimesToday = useMemo(() => {
-    const map: Record<string, string[]> = {};
+    const map: Record<string, { time: string, by: string }[]> = {};
     selectedDateIntakes.forEach(intake => {
       const intakeStatus = intake.status || intake.state;
       const isAdministeredOutcome = intakeStatus && intakeStatus !== 'scheduled' && intakeStatus !== 'pending';
       if (isAdministeredOutcome) {
         const time = normalizeTimeToHHmm(intake.scheduled_time) || formatTimestampToUKTime(intake.scheduled_time);
+        const administeredBy = allUsers.find(u => u.id === intake.administered_by_id)?.name || "Staff";
         if (!map[intake.medication_id]) map[intake.medication_id] = [];
-        if (!map[intake.medication_id].includes(time)) {
-          map[intake.medication_id].push(time);
+        if (!map[intake.medication_id].some(v => v.time === time)) {
+          map[intake.medication_id].push({ time, by: administeredBy });
         }
       }
     });
@@ -991,16 +1004,18 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       const time = normalizeTimeToHHmm(administration.scheduled_time) || normalizeTimeToHHmm(administration.administered_at);
       if (!time) return;
 
+      const administeredBy = allUsers.find(u => u.id === administration.administered_by)?.name || "Staff";
+
       if (!map[administration.medication_id]) {
         map[administration.medication_id] = [];
       }
-      if (!map[administration.medication_id].includes(time)) {
-        map[administration.medication_id].push(time);
+      if (!map[administration.medication_id].some(v => v.time === time)) {
+        map[administration.medication_id].push({ time, by: administeredBy });
       }
     });
 
     return map;
-  }, [selectedDateIntakes, topicalAdministrations]);
+  }, [selectedDateIntakes, topicalAdministrations, allUsers]);
 
   const prnTopicalColumns = useMemo(
     () => createMedicationColumns(
@@ -1409,7 +1424,12 @@ export default function MedicationPage({ params }: MedicationPageProps) {
                                   intake.medication?.category === 'Supplement';
               const isTopical = intake.medication?.schedule_type === 'Topical' ||
                                intake.medication?.route === 'Topical';
-              return !isSupplement && !isTopical;
+              const isInjection = intake.medication?.dosage_form?.toLowerCase().includes('injection');
+              return !isSupplement && !isTopical && !isInjection;
+            });
+
+            const injectionIntakes = filteredIntakes.filter((intake) => {
+              return intake.medication?.dosage_form?.toLowerCase().includes('injection');
             });
 
             const supplementIntakes = filteredIntakes.filter((intake) => {
@@ -1428,6 +1448,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
             // Combine with dividers
             const combinedData = [
               ...regularMeds,
+              ...(injectionIntakes.length > 0 ? [{ isDivider: true, dividerLabel: 'Injections' }] : []),
+              ...injectionIntakes,
               ...(topicalIntakes.length > 0 ? [{ isDivider: true, dividerLabel: 'Topical Medications' }] : []),
               ...topicalIntakes,
               ...(supplementIntakes.length > 0 ? [{ isDivider: true, dividerLabel: 'Supplements' }] : []),
@@ -1475,7 +1497,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           )}
 
           <div className="flex flex-col gap-4 mt-4">
-            <p className="font-semibold">PRN Medications</p>
+            <p className="font-semibold text-sm px-3 py-1.5 bg-orange-100 text-orange-900 border border-orange-200 rounded-md w-fit">PRN Medications</p>
             {prnOrTopicalMedications.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 py-12 text-center border rounded-lg">
                 <p className="text-sm font-medium text-muted-foreground">No PRN medications</p>
@@ -1606,15 +1628,26 @@ export default function MedicationPage({ params }: MedicationPageProps) {
           <div className="mt-6 space-y-6">
             {selectedDateIntakeGroup && (() => {
               const intakes = selectedDateIntakeGroup.intakes;
-              const scheduled = intakes.filter((i: any) => i.medication?.schedule_type !== "PRN (As Needed)" && i.medication?.route !== "Topical");
+              const scheduled = intakes.filter((i: any) => i.medication?.schedule_type !== "PRN (As Needed)" && i.medication?.route !== "Topical" && !i.medication?.dosage_form?.toLowerCase().includes('injection'));
+              const injections = intakes.filter((i: any) => i.medication?.dosage_form?.toLowerCase().includes('injection') && i.medication?.schedule_type !== "PRN (As Needed)");
               const prn = intakes.filter((i: any) => i.medication?.schedule_type === "PRN (As Needed)");
               const topical = intakes.filter((i: any) => i.medication?.route === "Topical" && i.medication?.schedule_type !== "PRN (As Needed)");
 
               const renderTable = (rows: any[], title: string) => {
                 if (!rows.length) return null;
+
+                const getHeaderStyles = (title: string) => {
+                  const lowerTitle = title.toLowerCase();
+                  if (lowerTitle.includes('injection')) return "bg-purple-100 text-purple-900 border border-purple-200";
+                  if (lowerTitle.includes('topical')) return "bg-blue-100 text-blue-900 border border-blue-200";
+                  if (lowerTitle.includes('supplement')) return "bg-emerald-100 text-emerald-900 border border-emerald-200";
+                  if (lowerTitle.includes('prn')) return "bg-orange-100 text-orange-900 border border-orange-200";
+                  return "bg-slate-100 text-slate-900 border border-slate-200";
+                };
+
                 return (
                   <div className="space-y-2">
-                    <p className="font-semibold text-sm px-3 py-1.5 bg-muted rounded-md w-fit">{title}</p>
+                    <p className={cn("font-semibold text-sm px-3 py-1.5 rounded-md w-fit", getHeaderStyles(title))}>{title}</p>
                     <div className="border rounded-lg overflow-hidden">
                       <Table>
                         <TableHeader className="bg-muted/30">
@@ -1658,6 +1691,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
               return (
                 <>
                   {renderTable(scheduled, "Scheduled Medications")}
+                  {renderTable(injections, "Injections")}
                   {renderTable(prn, "PRN (As Needed) Medications")}
                   {renderTable(topical, "Topical Medications")}
                   {!scheduled.length && !prn.length && !topical.length && (

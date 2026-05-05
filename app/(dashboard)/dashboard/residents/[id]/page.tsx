@@ -47,6 +47,174 @@ import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 import { Resident } from "@/types";
+import {
+  computeFoodFluidComplianceInWindow,
+  FOOD_FLUID_ALERT_WINDOW_MS,
+  FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE,
+} from "@/lib/food-fluid-log-classification";
+import { URINE_NOT_RECORDED_6H_ALERT_TYPE } from "@/lib/continence-alerts";
+import { PRN_PROTOCOL_PENDING_12H_ALERT_TYPE } from "@/lib/medication-alerts";
+import {
+  CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE,
+  CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE,
+  carePlanEvaluationAlertCareFileHref,
+  carePlanEvaluationAlertFolderLabel,
+  extractRawCareFileFolderKeyFromGoals,
+} from "@/lib/care-plan-evaluation-alerts";
+
+const NON_DISMISSIBLE_ALERT_TYPES = new Set<string>([
+  "resident_photo_refresh_required",
+  "bowel_not_recorded_3_days",
+  "weight_check_due_tomorrow",
+  FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE,
+  URINE_NOT_RECORDED_6H_ALERT_TYPE,
+  PRN_PROTOCOL_PENDING_12H_ALERT_TYPE,
+  CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE,
+  CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE,
+]);
+const NURSE_ONLY_ALERT_TYPES = new Set<string>([
+  "resident_photo_refresh_required",
+  "bowel_not_recorded_3_days",
+  PRN_PROTOCOL_PENDING_12H_ALERT_TYPE,
+  CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE,
+  CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE,
+]);
+const NURSE_AND_CARE_ASSISTANT_ALERT_TYPES = new Set<string>([
+  "weight_check_due_tomorrow",
+  FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE,
+  URINE_NOT_RECORDED_6H_ALERT_TYPE,
+]);
+
+function getNonDismissibleAlertMessage(type?: string) {
+  if (type === "resident_photo_refresh_required") {
+    return "This alert cannot be dismissed until the profile photo is updated";
+  }
+  if (type === "bowel_not_recorded_3_days") {
+    return "This alert cannot be dismissed until a bowel record is entered";
+  }
+  if (type === "weight_check_due_tomorrow") {
+    return "This alert cannot be dismissed until a new weight check is recorded";
+  }
+  if (type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE) {
+    return "This alert cannot be dismissed until food and fluid are recorded in the last 6 hours";
+  }
+  if (type === URINE_NOT_RECORDED_6H_ALERT_TYPE) {
+    return "This alert cannot be dismissed until urine is recorded";
+  }
+  if (type === PRN_PROTOCOL_PENDING_12H_ALERT_TYPE) {
+    return "This alert cannot be dismissed until the PRN protocol form is completed";
+  }
+  if (
+    type === CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE ||
+    type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE
+  ) {
+    return "This alert cannot be dismissed until the care plan evaluation is completed";
+  }
+  if (type === "medication") {
+    return "This alert cannot be dismissed until the medication is restocked";
+  }
+  return "This alert cannot be dismissed yet";
+}
+
+function canDismissAlert(
+  alert: {
+    type?: string;
+    created_at?: string;
+    metadata?: {
+      medication_id?: string;
+      care_plan_id?: string;
+      care_file_folder_key?: string | null;
+      alert_subtype?: string;
+    } | null;
+  },
+  residentPhotoUpdatedAt?: string,
+  residentLastBowelRecordedAt?: string,
+  residentLastWeightCheckedAt?: string,
+  foodFluidSixHourCompliant?: boolean,
+  residentLastUrineRecordedAt?: string,
+  completedPrnProtocolMedicationIds?: Set<string>,
+  carePlanEvalLatestCreatedAt?: Record<string, string>
+) {
+  if (alert.type === "medication" && alert.metadata?.alert_subtype === "low_stock") {
+    return false;
+  }
+
+  if (!NON_DISMISSIBLE_ALERT_TYPES.has(alert.type || "")) {
+    return true;
+  }
+
+  if (
+    alert.type === CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE ||
+    alert.type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE
+  ) {
+    const carePlanId = alert.metadata?.care_plan_id;
+    if (!carePlanId || !alert.created_at) {
+      return false;
+    }
+    const latest = carePlanEvalLatestCreatedAt?.[carePlanId];
+    if (!latest) {
+      return false;
+    }
+    return new Date(latest).getTime() > new Date(alert.created_at).getTime();
+  }
+
+  if (alert.type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE) {
+    return foodFluidSixHourCompliant === true;
+  }
+  if (alert.type === URINE_NOT_RECORDED_6H_ALERT_TYPE) {
+    if (!alert.created_at || !residentLastUrineRecordedAt) {
+      return false;
+    }
+    return new Date(residentLastUrineRecordedAt).getTime() > new Date(alert.created_at).getTime();
+  }
+  if (alert.type === PRN_PROTOCOL_PENDING_12H_ALERT_TYPE) {
+    const medicationId = alert.metadata?.medication_id;
+    if (!medicationId || !completedPrnProtocolMedicationIds) {
+      return false;
+    }
+    return completedPrnProtocolMedicationIds.has(medicationId);
+  }
+
+  if (!alert.created_at) {
+    return false;
+  }
+
+  if (alert.type === "resident_photo_refresh_required") {
+    if (!residentPhotoUpdatedAt) {
+      return false;
+    }
+    return new Date(residentPhotoUpdatedAt).getTime() > new Date(alert.created_at).getTime();
+  }
+
+  if (alert.type === "bowel_not_recorded_3_days") {
+    if (!residentLastBowelRecordedAt) {
+      return false;
+    }
+    return new Date(residentLastBowelRecordedAt).getTime() > new Date(alert.created_at).getTime();
+  }
+
+  if (alert.type === "weight_check_due_tomorrow") {
+    if (!residentLastWeightCheckedAt) {
+      return false;
+    }
+    return new Date(`${residentLastWeightCheckedAt}T23:59:59.999Z`).getTime() > new Date(alert.created_at).getTime();
+  }
+
+  return false;
+}
+
+function shouldShowAlertForRole(alert: { type?: string }, role?: string) {
+  if (alert.type === "medication") {
+    return role === "nurse";
+  }
+  if (NURSE_AND_CARE_ASSISTANT_ALERT_TYPES.has(alert.type || "")) {
+    return role === "nurse" || role === "care_assistant";
+  }
+  if (!NURSE_ONLY_ALERT_TYPES.has(alert.type || "")) {
+    return true;
+  }
+  return role === "nurse";
+}
 
 type ResidentPageProps = {
   params: Promise<{ id: string }>;
@@ -59,6 +227,12 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   const [showAlertsDialog, setShowAlertsDialog] = useState(false);
   const [resident, setResident] = useState<Resident | null>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [residentLastBowelRecordedAt, setResidentLastBowelRecordedAt] = useState<string | undefined>();
+  const [residentLastUrineRecordedAt, setResidentLastUrineRecordedAt] = useState<string | undefined>();
+  const [residentLastWeightCheckedAt, setResidentLastWeightCheckedAt] = useState<string | undefined>();
+  const [foodFluidSixHourCompliant, setFoodFluidSixHourCompliant] = useState(false);
+  const [completedPrnProtocolMedicationIds, setCompletedPrnProtocolMedicationIds] = useState<Set<string>>(new Set());
+  const [carePlanEvalLatestCreatedAt, setCarePlanEvalLatestCreatedAt] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   const { profile, isLoading: isProfileLoading } = useProfile();
@@ -81,6 +255,76 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       setResident(residentData as Resident);
     }
 
+    const { data: latestBowelEntry } = await supabase
+      .from("continence_entries")
+      .select("created_at")
+      .eq("resident_id", id)
+      .eq("entry_type", "bowel")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setResidentLastBowelRecordedAt(latestBowelEntry?.created_at);
+
+    const { data: latestWeightRecord } = await supabase
+      .from("weight_records")
+      .select("measurement_date")
+      .eq("resident_id", id)
+      .order("measurement_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setResidentLastWeightCheckedAt(latestWeightRecord?.measurement_date);
+
+    const { data: latestUrineEntry } = await supabase
+      .from("continence_entries")
+      .select("created_at")
+      .eq("resident_id", id)
+      .eq("entry_type", "urine")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setResidentLastUrineRecordedAt(latestUrineEntry?.created_at);
+
+    const windowStartIso = new Date(Date.now() - FOOD_FLUID_ALERT_WINDOW_MS).toISOString();
+    const { data: foodFluidRows } = await supabase
+      .from("food_fluid_logs")
+      .select("timestamp, type_of_food_drink, amount_eaten, fluid_consumed_ml")
+      .eq("resident_id", id)
+      .gte("timestamp", windowStartIso)
+      .eq("is_archived", false);
+
+    const { foodOk, fluidOk } = computeFoodFluidComplianceInWindow(foodFluidRows ?? []);
+    const foodFluidCompliant = foodOk && fluidOk;
+    setFoodFluidSixHourCompliant(foodFluidCompliant);
+
+    const { data: prnProtocolRows } = await supabase
+      .from("prn_protocols")
+      .select("medication_id")
+      .eq("resident_id", id)
+      .neq("status", "archived");
+
+    const completedMedicationIds = new Set(
+      (prnProtocolRows ?? [])
+        .map((row) => row.medication_id)
+        .filter((medicationId): medicationId is string => typeof medicationId === "string" && medicationId.length > 0)
+    );
+    setCompletedPrnProtocolMedicationIds(completedMedicationIds);
+
+    const { data: cpEvalRows } = await supabase
+      .from("care_plan_evaluations")
+      .select("care_plan_id, created_at")
+      .eq("resident_id", id);
+
+    const carePlanEvalLatest: Record<string, string> = {};
+    for (const row of cpEvalRows ?? []) {
+      const cid = typeof row.care_plan_id === "string" ? row.care_plan_id : "";
+      const cat = typeof row.created_at === "string" ? row.created_at : "";
+      if (!cid || !cat) continue;
+      if (!carePlanEvalLatest[cid] || cat > carePlanEvalLatest[cid]) {
+        carePlanEvalLatest[cid] = cat;
+      }
+    }
+    setCarePlanEvalLatestCreatedAt(carePlanEvalLatest);
+
     if (userRole && profile?.id) {
       // Fetch active alerts for the resident
       const { data: alertsData, error: alertsError } = await supabase
@@ -95,6 +339,61 @@ export default function ResidentPage({ params }: ResidentPageProps) {
         return;
       }
 
+      const carePlanAlertIds = (alertsData ?? [])
+        .filter(
+          (alert) =>
+            alert.type === CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE ||
+            alert.type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE
+        )
+        .map((alert) => alert.metadata?.care_plan_id)
+        .filter((idValue): idValue is string => typeof idValue === "string" && idValue.length > 0);
+
+      let alertsWithResolvedMetadata = alertsData ?? [];
+      if (carePlanAlertIds.length > 0) {
+        const { data: carePlanRows } = await supabase
+          .from("care_plan_assessments")
+          .select("id, care_plan_type, folder_key, goals, wound_folder_id")
+          .in("id", [...new Set(carePlanAlertIds)]);
+
+        const carePlanById = new Map(
+          (carePlanRows ?? []).map((row) => [row.id, row])
+        );
+
+        alertsWithResolvedMetadata = (alertsData ?? []).map((alert) => {
+          const carePlanId = alert.metadata?.care_plan_id;
+          if (
+            !carePlanId ||
+            (alert.type !== CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE &&
+              alert.type !== CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE)
+          ) {
+            return alert;
+          }
+
+          const assessment = carePlanById.get(carePlanId);
+          if (!assessment) {
+            return alert;
+          }
+
+          const metadataBase =
+            alert.metadata && typeof alert.metadata === "object"
+              ? alert.metadata
+              : {};
+
+          return {
+            ...alert,
+            metadata: {
+              ...metadataBase,
+              care_plan_id: carePlanId,
+              care_plan_type: assessment.care_plan_type,
+              wound_folder_id: assessment.wound_folder_id,
+              care_file_folder_key:
+                assessment.folder_key ??
+                extractRawCareFileFolderKeyFromGoals(assessment.goals),
+            },
+          };
+        });
+      }
+
       // Fetch dismissals for current user
       const { data: dismissalsData } = await supabase
         .from("alert_dismissals")
@@ -107,9 +406,26 @@ export default function ResidentPage({ params }: ResidentPageProps) {
       );
 
       // Filter out alerts dismissed by current user
-      const filteredAlerts = (alertsData || []).filter(
-        (alert: any) => !dismissedAlertIds.has(alert.id)
-      );
+      const filteredAlerts = (alertsWithResolvedMetadata || []).filter((alert: any) => {
+        if (!shouldShowAlertForRole(alert, userRole)) {
+          return false;
+        }
+        if (
+          !canDismissAlert(
+            alert,
+            residentData?.photo_updated_at,
+            latestBowelEntry?.created_at,
+            latestWeightRecord?.measurement_date,
+            foodFluidCompliant,
+            latestUrineEntry?.created_at,
+            completedMedicationIds,
+            carePlanEvalLatest
+          )
+        ) {
+          return true;
+        }
+        return !dismissedAlertIds.has(alert.id);
+      });
 
       setAlerts(filteredAlerts);
     }
@@ -133,6 +449,23 @@ export default function ResidentPage({ params }: ResidentPageProps) {
 
   const handleDismissAlert = async (alertId: string) => {
     if (!profile?.id) return;
+    const alert = alerts.find((item) => item.id === alertId);
+    if (
+      alert &&
+      !canDismissAlert(
+        alert,
+        resident?.photo_updated_at,
+        residentLastBowelRecordedAt,
+        residentLastWeightCheckedAt,
+        foodFluidSixHourCompliant,
+        residentLastUrineRecordedAt,
+        completedPrnProtocolMedicationIds,
+        carePlanEvalLatestCreatedAt
+      )
+    ) {
+      toast.info(getNonDismissibleAlertMessage(alert.type));
+      return;
+    }
 
     try {
       // Insert into alert_dismissals table for per-user dismissal tracking
@@ -189,9 +522,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
   const fullName = `${resident.first_name} ${resident.last_name}`;
   const initials =
     `${resident.first_name[0]}${resident.last_name[0]}`.toUpperCase();
-  const lastUpdatedOn = resident.updated_at
-    ? formatTimestampToUKDateTime(resident.updated_at, "dd/MM/yyyy")
-    : null;
+  const lastPhotoUpdatedOn = resident.photo_updated_at
+    ? formatTimestampToUKDateTime(resident.photo_updated_at, "dd/MM/yyyy")
+    : "Not set";
 
   const handleCardClick = (cardType: string) => {
     router.push(`/dashboard/residents/${id}/${cardType}` as Route);
@@ -238,11 +571,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             <p className="text-muted-foreground text-sm">
               Room {resident.room_number} • NHS: {resident.nhs_health_number}
             </p>
-            {resident.image_url && lastUpdatedOn && (
-              <p className="text-muted-foreground text-xs mt-1">
-                Last update on: {lastUpdatedOn}
-              </p>
-            )}
+            <p className="text-muted-foreground text-xs mt-1">
+              Last photo updated: {lastPhotoUpdatedOn}
+            </p>
           </div>
         </div>
         <Button
@@ -745,55 +1076,180 @@ export default function ResidentPage({ params }: ResidentPageProps) {
           </DialogHeader>
           <div className="space-y-3 mt-4">
             {alerts && alerts.length > 0 ? (
-              alerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  className={cn(
-                    "p-4 rounded-lg border-2",
-                    alert.severity === "critical"
-                      ? "border-red-300 bg-red-50"
-                      : alert.severity === "warning"
-                        ? "border-orange-300 bg-orange-50"
-                        : "border-blue-300 bg-blue-50"
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge
-                          variant="table"
-                          className={cn(
-                            alert.severity === "critical"
-                              ? "bg-red-100 text-red-800 border-red-400"
+              alerts.map((alert) => {
+                const isFoodFluidNavAlert =
+                  alert.type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE &&
+                  (userRole === "nurse" || userRole === "care_assistant");
+                const isUrineNavAlert =
+                  alert.type === URINE_NOT_RECORDED_6H_ALERT_TYPE &&
+                  (userRole === "nurse" || userRole === "care_assistant");
+                const isPrnProtocolNavAlert =
+                  alert.type === PRN_PROTOCOL_PENDING_12H_ALERT_TYPE && userRole === "nurse";
+                const carePlanEvalCareFileHref =
+                  FEATURES.SHOW_CARE_FILE_V2 && userRole === "nurse"
+                    ? carePlanEvaluationAlertCareFileHref(id, alert.metadata)
+                    : null;
+                const isCarePlanEvalNavAlert =
+                  (alert.type === CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE ||
+                    alert.type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE) &&
+                  carePlanEvalCareFileHref !== null;
+                const isMedicationNavAlert =
+                  alert.type === "medication" && userRole === "nurse";
+                const carePlanEvalFolderLabel = isCarePlanEvalNavAlert
+                  ? carePlanEvaluationAlertFolderLabel(alert.metadata)
+                  : null;
+                const isNavigationAlert =
+                  isFoodFluidNavAlert ||
+                  isUrineNavAlert ||
+                  isPrnProtocolNavAlert ||
+                  isCarePlanEvalNavAlert ||
+                  isMedicationNavAlert;
+                const goToFoodFluid = () => {
+                  setShowAlertsDialog(false);
+                  router.push(`/dashboard/residents/${id}/food-fluid`);
+                };
+                const goToContinence = () => {
+                  setShowAlertsDialog(false);
+                  router.push(`/dashboard/residents/${id}/continence`);
+                };
+                const goToMedicationDocs = () => {
+                  setShowAlertsDialog(false);
+                  router.push(`/dashboard/residents/${id}/medication/docs`);
+                };
+                const goToCarePlanFolder = () => {
+                  if (!carePlanEvalCareFileHref) return;
+                  setShowAlertsDialog(false);
+                  router.push(carePlanEvalCareFileHref as Route);
+                };
+                const goToMedication = () => {
+                  setShowAlertsDialog(false);
+                  router.push(`/dashboard/residents/${id}/medication?tab=active` as Route);
+                };
+                return (
+                  <div
+                    key={alert.id}
+                    role={isNavigationAlert ? "button" : undefined}
+                    tabIndex={isNavigationAlert ? 0 : undefined}
+                    className={cn(
+                      "p-4 rounded-lg border-2",
+                      alert.severity === "critical"
+                        ? "border-red-300 bg-red-50"
+                        : alert.severity === "warning"
+                          ? "border-orange-300 bg-orange-50"
+                          : "border-blue-300 bg-blue-50",
+                      isNavigationAlert && "cursor-pointer outline-none hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring"
+                    )}
+                    onClick={() => {
+                      if (isFoodFluidNavAlert) goToFoodFluid();
+                      if (isUrineNavAlert) goToContinence();
+                      if (isPrnProtocolNavAlert) goToMedicationDocs();
+                      if (isCarePlanEvalNavAlert) goToCarePlanFolder();
+                      if (isMedicationNavAlert) goToMedication();
+                    }}
+                    onKeyDown={(e) => {
+                      if (!isNavigationAlert) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        if (isFoodFluidNavAlert) {
+                          goToFoodFluid();
+                        }
+                        if (isUrineNavAlert) {
+                          goToContinence();
+                        }
+                        if (isPrnProtocolNavAlert) {
+                          goToMedicationDocs();
+                        }
+                        if (isCarePlanEvalNavAlert) {
+                          goToCarePlanFolder();
+                        }
+                        if (isMedicationNavAlert) {
+                          goToMedication();
+                        }
+                      }
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge
+                            variant="table"
+                            className={cn(
+                              alert.severity === "critical"
+                                ? "bg-red-100 text-red-800 border-red-400"
+                                : alert.severity === "warning"
+                                  ? "bg-orange-100 text-orange-800 border-orange-400"
+                                  : "bg-blue-100 text-blue-800 border-blue-400"
+                            )}
+                          >
+                            {alert.severity === "critical"
+                              ? "Critical"
                               : alert.severity === "warning"
-                                ? "bg-orange-100 text-orange-800 border-orange-400"
-                                : "bg-blue-100 text-blue-800 border-blue-400"
-                          )}
-                        >
-                          {alert.severity === "critical"
-                            ? "Critical"
-                            : alert.severity === "warning"
-                              ? "Warning"
-                              : "Info"}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTimestampToUKDateTime(alert.created_at, 'dd/MM/yyyy HH:mm')}
-                        </span>
+                                ? "Warning"
+                                : "Info"}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {formatTimestampToUKDateTime(alert.created_at, 'dd/MM/yyyy HH:mm')}
+                          </span>
+                        </div>
+                        <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
+                        <p className="text-sm text-muted-foreground">{alert.message}</p>
+                        {carePlanEvalFolderLabel && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Folder: {carePlanEvalFolderLabel}
+                          </p>
+                        )}
+                        {isFoodFluidNavAlert && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Click this alert to open food & fluid
+                          </p>
+                        )}
+                        {isUrineNavAlert && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Click this alert to open continence
+                          </p>
+                        )}
+                        {isPrnProtocolNavAlert && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Click this alert to open medication docs
+                          </p>
+                        )}
+                        {isCarePlanEvalNavAlert && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Click this alert to open the care file folder for this care plan
+                          </p>
+                        )}
+                        {isMedicationNavAlert && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Click this alert to open medication
+                          </p>
+                        )}
                       </div>
-                      <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
-                      <p className="text-sm text-muted-foreground">{alert.message}</p>
+                      {canDismissAlert(
+                        alert,
+                        resident?.photo_updated_at,
+                        residentLastBowelRecordedAt,
+                        residentLastWeightCheckedAt,
+                        foodFluidSixHourCompliant,
+                        residentLastUrineRecordedAt,
+                        completedPrnProtocolMedicationIds,
+                        carePlanEvalLatestCreatedAt
+                      ) && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDismissAlert(alert.id);
+                          }}
+                          className="flex-shrink-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDismissAlert(alert.id)}
-                      className="flex-shrink-0"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <Bell className="h-12 w-12 mx-auto mb-3 opacity-50" />

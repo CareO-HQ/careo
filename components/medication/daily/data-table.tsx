@@ -59,19 +59,51 @@ export function DataTable<TData, TValue>({
               const isDivider = (row.original as any)?.isDivider;
               const isControlled = (row.original as any).is_controlled_drug || (row.original as any).medication?.is_controlled_drug;
               
+              const getDividerStyles = (label: string) => {
+                const lowerLabel = label.toLowerCase();
+                if (lowerLabel.includes('injection')) {
+                  return {
+                    bg: "bg-purple-100 hover:bg-purple-100",
+                    border: "border-purple-500",
+                    text: "text-purple-900"
+                  };
+                }
+                if (lowerLabel.includes('topical')) {
+                  return {
+                    bg: "bg-blue-100 hover:bg-blue-100",
+                    border: "border-blue-500",
+                    text: "text-blue-900"
+                  };
+                }
+                if (lowerLabel.includes('supplement')) {
+                  return {
+                    bg: "bg-emerald-100 hover:bg-emerald-100",
+                    border: "border-emerald-500",
+                    text: "text-emerald-900"
+                  };
+                }
+                return {
+                  bg: "bg-purple-100 hover:bg-purple-100",
+                  border: "border-purple-500",
+                  text: "text-purple-900"
+                };
+              };
+
+              const styles = isDivider ? getDividerStyles((row.original as any).dividerLabel || '') : { bg: "", border: "", text: "" };
+              
               return (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className={cn(
-                    isDivider ? "bg-purple-50 hover:bg-purple-50" : "",
+                    isDivider ? styles.bg : "",
                     isControlled ? "bg-red-100 hover:bg-red-200" : ""
                   )}
                 >
                   {isDivider ? (
                     <TableCell colSpan={columns.length} className="p-0">
-                      <div className="border-l-4 border-purple-500 px-3 py-1.5">
-                        <p className="font-semibold text-purple-900 uppercase text-xs tracking-wide">
+                      <div className={cn("border-l-4 px-3 py-1.5", styles.border)}>
+                        <p className={cn("font-semibold uppercase text-xs tracking-wide", styles.text)}>
                           {(row.original as any)?.dividerLabel || 'Supplements'}
                         </p>
                       </div>

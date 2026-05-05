@@ -3365,7 +3365,7 @@ export const generateCareFilePDF = async ({
         return Number.isNaN(parsed.getTime()) ? "N/A" : format(parsed, "dd/MM/yyyy");
     };
 
-    if (!isPEEPForm && !isMovingHandlingForm && !isNutritionAssessmentForm && !isMustAssessmentForm) {
+    if (!isPEEPForm && !isMovingHandlingForm && !isNutritionAssessmentForm && !isMustAssessmentForm && !isResidentHandlingProfileForm) {
         yPos = await addSectionTitle("FORM DETAILS", yPos);
     }
     const renderData = async (obj: any, startY: number, startX: number, depth: number = 0): Promise<number> => {
@@ -3673,6 +3673,62 @@ export const generateCareFilePDF = async ({
         let maxY = startY;
         const cWidth = (pageWidth - margin * 2) / 2 - 5;
         const c2 = margin + (pageWidth - margin * 2) / 2;
+
+        // Specialized layout for Resident Handling Profile
+        if (isResidentHandlingProfileForm && depth === 0) {
+            let currentY = startY;
+            const dataObj = obj || {};
+
+            // 1. Resident Information - Following drawHeader's RESIDENT INFORMATION section
+            const infoY1 = await addField("Bedroom Number", dataObj.bedroomNumber || dataObj.bedroom_number || resident?.room_number || resident?.bedroom_number || "N/A", margin, currentY, cWidth, true);
+            const infoY2 = await addField("Weight (kg)", dataObj.weight !== undefined ? String(dataObj.weight) : "N/A", c2, currentY, cWidth, true);
+            currentY = Math.max(infoY1, infoY2) + 1;
+
+            const infoY3 = await addField("Weight Bearing", dataObj.weightBearing || dataObj.weight_bearing || "N/A", margin, currentY, cWidth);
+            currentY = infoY3 + 6;
+
+            // 2. Activities in specific order
+            const activities = dataObj.activities || {};
+            const activityOrder = [
+                { key: "transferBed", label: "Transfer to or from Bed" },
+                { key: "transferChair", label: "Transfer to or from Chair" },
+                { key: "walking", label: "Walking" },
+                { key: "toileting", label: "Toileting" },
+                { key: "movementInBed", label: "Movement in Bed" },
+                { key: "bath", label: "Bathing" },
+                { key: "outdoorMobility", label: "Outdoor Mobility" }
+            ];
+
+            for (const item of activityOrder) {
+                const act = activities[item.key];
+                if (act) {
+                    currentY = await addSectionTitle(item.label.toUpperCase(), currentY);
+                    
+                    // Number of staff and Equipment on one row
+                    const actY1 = await addField("Number of staff required", act.nStaff !== undefined ? String(act.nStaff) : "0", margin, currentY, cWidth, true);
+                    const actY2 = await addField("Equipment", act.equipment || "N/A", c2, currentY, cWidth, true);
+                    currentY = Math.max(actY1, actY2) + 1;
+
+                    // Handling Plan
+                    currentY = await addField("Handling Plan", act.handlingPlan || "N/A", margin, currentY, pageWidth - margin * 2);
+
+                    // Date for Review
+                    currentY = await addField("Date for Review", formatResidentHandlingDate(act.dateForReview), margin, currentY, cWidth);
+                    currentY += 4;
+                }
+            }
+
+            // 3. Completed By
+            currentY = await addSectionTitle("COMPLETED BY", currentY);
+            const compY1 = await addField("Name", dataObj.completedBy || dataObj.completed_by || "N/A", margin, currentY, cWidth, true);
+            const compY2 = await addField("Job Role", dataObj.jobRole || dataObj.job_role || "N/A", c2, currentY, cWidth, true);
+            currentY = Math.max(compY1, compY2) + 1;
+
+            const assessmentDate = dataObj.date || dataObj.assessment_date || dataObj.created_at;
+            currentY = await addField("Date", formatResidentHandlingDate(assessmentDate), margin, currentY, cWidth);
+
+            return currentY;
+        }
 
         const consentType = data.consentType || data.assessment_data?.consentType;
         const isRestraintsForm = formName.toUpperCase().includes("CONSENT AND RISK ASSESSMENT FOR RESTRAINTS");
@@ -5453,7 +5509,8 @@ export const generateCareFilePDF = async ({
         const enumDisplay = (value: unknown): string => {
             const text = display(value);
             if (text === "N/A") return text;
-            return text.replace(/-/g, " ").replace(/_/g, " ").toUpperCase();
+            const formatted = text.replace(/-/g, " ").replace(/_/g, " ").toLowerCase();
+            return formatted.charAt(0).toUpperCase() + formatted.slice(1);
         };
 
         // Override field renderer for this form only to prevent text overlap.
@@ -5497,7 +5554,7 @@ export const generateCareFilePDF = async ({
         await drawHeader(formName);
 
         yPos = await addSectionTitle("SECTION 1 - RESIDENT INFORMATION", yPos);
-        yPos = await addField("Resident Name", display(assessmentData.residentName || `${resident?.first_name || ""} ${resident?.last_name || ""}`.trim()), margin, yPos, fullWidth);
+        yPos = await addField("Resident Name", enumDisplay(assessmentData.residentName || `${resident?.first_name || ""} ${resident?.last_name || ""}`.trim()), margin, yPos, fullWidth);
         yPos = await addField("Date of Birth", displayDate(assessmentData.dateOfBirth || resident?.date_of_birth), margin, yPos, fullWidth);
         yPos = await addField("Bedroom Number", display(assessmentData.bedroomNumber || resident?.room_number), margin, yPos, fullWidth);
         yPos = await addField("Weight (kg)", display(assessmentData.weight), margin, yPos, fullWidth);
@@ -5511,8 +5568,8 @@ export const generateCareFilePDF = async ({
         yPos = await addField("Limb Mobility - Upper Left", enumDisplay(assessmentData.limbUpperLeft), margin, yPos, fullWidth);
         yPos = await addField("Limb Mobility - Lower Right", enumDisplay(assessmentData.limbLowerRight), margin, yPos, fullWidth);
         yPos = await addField("Limb Mobility - Lower Left", enumDisplay(assessmentData.limbLowerLeft), margin, yPos, fullWidth);
-        yPos = await addField("Equipment Needed", display(assessmentData.equipmentUsed), margin, yPos, fullWidth);
-        yPos = await addField("Details of Support/Staff Required", display(assessmentData.needsRiskStaff), margin, yPos, fullWidth);
+        yPos = await addField("Equipment Needed", enumDisplay(assessmentData.equipmentUsed), margin, yPos, fullWidth);
+        yPos = await addField("Details of Support/Staff Required", enumDisplay(assessmentData.needsRiskStaff), margin, yPos, fullWidth);
 
         yPos = await addSectionTitle("SECTION 3 - RISK FACTORS", yPos + 2);
 
@@ -5551,9 +5608,9 @@ export const generateCareFilePDF = async ({
         yPos = await addField("Other Risk Factors Comments", display(assessmentData.otherComments), margin, yPos, fullWidth);
 
         yPos = await addSectionTitle("SECTION 4 - COMPLETION", yPos + 2);
-        yPos = await addField("Completed By", display(assessmentData.completedBy), margin, yPos, fullWidth);
-        yPos = await addField("Job Role", display(assessmentData.jobRole), margin, yPos, fullWidth);
-        yPos = await addField("Signature", display(assessmentData.signature), margin, yPos, fullWidth);
+        yPos = await addField("Completed By", enumDisplay(assessmentData.completedBy), margin, yPos, fullWidth);
+        yPos = await addField("Job Role", enumDisplay(assessmentData.jobRole), margin, yPos, fullWidth);
+        yPos = await addField("Signature", enumDisplay(assessmentData.signature), margin, yPos, fullWidth);
         yPos = await addField("Assessment Date", displayDate(assessmentData.assessmentDate), margin, yPos, fullWidth);
 
         doc.save(`Moving-Handling-Assessment-${resident?.last_name || "Resident"}-${format(new Date(), "ddMMyyyy")}.pdf`);

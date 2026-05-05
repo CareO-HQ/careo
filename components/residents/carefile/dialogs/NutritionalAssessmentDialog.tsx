@@ -115,27 +115,27 @@ export default function NutritionalAssessmentDialog({
     }
   };
 
-  const handleDeleteEvaluation = async (index: number) => {
+  const handleDeleteEvaluation = async (id: string) => {
     if (!initialData?.id) return;
     try {
       const currentEvals = [...(form.getValues("monthlyEvaluations") || [])];
-      currentEvals.splice(index, 1);
+      const updatedEvals = currentEvals.filter(evalItem => evalItem.id !== id);
       
       const { error } = await supabase
         .from("nutritional_assessments")
         .update({ 
            assessment_details: {
                ...(initialData.assessment_details || {}),
-               monthlyEvaluations: currentEvals
+               monthlyEvaluations: updatedEvals
            }
         })
         .eq("id", initialData.id);
 
       if (error) throw error;
       
-      form.setValue("monthlyEvaluations", currentEvals, { shouldDirty: true });
+      form.setValue("monthlyEvaluations", updatedEvals, { shouldDirty: true });
       if (initialData.assessment_details) {
-          initialData.assessment_details.monthlyEvaluations = currentEvals;
+          initialData.assessment_details.monthlyEvaluations = updatedEvals;
       }
       toast.success("Evaluation deleted");
     } catch (error) {
@@ -425,11 +425,13 @@ export default function NutritionalAssessmentDialog({
           
           {/* List of Previous Evaluations */}
           <div className="space-y-3">
-            {(form.watch("monthlyEvaluations") || []).map((evaluation: z.infer<typeof monthlyEvaluationSchema>, index: number) => (
+            {[...(form.watch("monthlyEvaluations") || [])]
+              .sort((a, b) => (b.date || 0) - (a.date || 0))
+              .map((evaluation: z.infer<typeof monthlyEvaluationSchema>) => (
               <div key={evaluation.id} className="p-3 border rounded-md relative bg-background">
                   <div className="flex justify-between items-center mb-2 border-b pb-2">
                     <div className="font-semibold text-sm">Evaluation on {format(new Date(evaluation.date), "dd/MM/yyyy")} by {evaluation.completedBy}</div>
-                    <Button type="button" variant="ghost" size="sm" className="keep-interactive" onClick={() => handleDeleteEvaluation(index)}>
+                    <Button type="button" variant="ghost" size="sm" className="keep-interactive" onClick={() => handleDeleteEvaluation(evaluation.id)}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>

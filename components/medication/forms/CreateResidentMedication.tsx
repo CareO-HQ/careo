@@ -4,6 +4,16 @@ import CreateMedicationForm from "@/components/medication/forms/CreateMedication
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -13,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pill, Droplet, Heart, Syringe } from "lucide-react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type MedicationType = "Scheduled" | "PRN (As Needed)" | "Topical" | "Supplement";
 
@@ -60,9 +71,11 @@ export default function CreateResidentMedication({
   teamId?: string;
   organizationId?: string;
 }) {
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<MedicationType | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showPrnReminder, setShowPrnReminder] = useState(false);
 
   const handleTypeSelect = (type: MedicationType) => {
     setSelectedType(type);
@@ -153,7 +166,12 @@ export default function CreateResidentMedication({
               organizationId={organizationId}
               gpName={gpName}
               initialType={selectedType ?? undefined}
-              onSuccess={() => {
+              onSuccess={({ scheduleType }) => {
+                if (scheduleType === "PRN (As Needed)") {
+                  setShowPrnReminder(true);
+                  handleClose();
+                  return;
+                }
                 handleClose();
                 window.location.reload();
               }}
@@ -161,6 +179,29 @@ export default function CreateResidentMedication({
           </>
         )}
       </DialogContent>
+      <AlertDialog open={showPrnReminder} onOpenChange={setShowPrnReminder}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>PRN protocol form required</AlertDialogTitle>
+            <AlertDialogDescription>
+              This PRN medication was created successfully. Please complete the PRN protocol form now.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => window.location.reload()}>
+              Later
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowPrnReminder(false);
+                router.push(`/dashboard/residents/${residentId}/medication/docs`);
+              }}
+            >
+              Proceed
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

@@ -183,7 +183,7 @@ export default function TopicalMedicationPage({ params }: TopicalMedicationPageP
   }, [fetchData, id, isProfileLoading, profile, router]);
 
   const administeredTimesToday = useMemo(() => {
-    const map: Record<string, string[]> = {};
+    const map: Record<string, Array<{ time: string, by: string }>> = {};
 
     selectedDateIntakes.forEach((intake) => {
       const intakeStatus = intake.status || intake.state;
@@ -196,9 +196,11 @@ export default function TopicalMedicationPage({ params }: TopicalMedicationPageP
       const intakeTime = normalizeTimeToHHmm(intake.scheduled_time);
       if (!intakeTime) return;
 
+      const administeredBy = allUsers.find(u => u.id === intake.administered_by_id)?.name || "Staff";
+
       if (!map[intake.medication_id]) map[intake.medication_id] = [];
-      if (!map[intake.medication_id].includes(intakeTime)) {
-        map[intake.medication_id].push(intakeTime);
+      if (!map[intake.medication_id].some(v => v.time === intakeTime)) {
+        map[intake.medication_id].push({ time: intakeTime, by: administeredBy });
       }
     });
 
@@ -216,17 +218,19 @@ export default function TopicalMedicationPage({ params }: TopicalMedicationPageP
         normalizeTimeToHHmm(administration.administered_at);
       if (!adminTime) return;
 
+      const administeredBy = allUsers.find(u => u.id === administration.administered_by)?.name || "Staff";
+
       if (!map[administration.medication_id]) {
         map[administration.medication_id] = [];
       }
 
-      if (!map[administration.medication_id].includes(adminTime)) {
-        map[administration.medication_id].push(adminTime);
+      if (!map[administration.medication_id].some(v => v.time === adminTime)) {
+        map[administration.medication_id].push({ time: adminTime, by: administeredBy });
       }
     });
 
     return map;
-  }, [selectedDate, selectedDateIntakes, topicalAdministrations]);
+  }, [selectedDate, selectedDateIntakes, topicalAdministrations, allUsers]);
 
   const createAndAdministerMedicationIntake = async (
     medicationId: string,
@@ -273,6 +277,8 @@ export default function TopicalMedicationPage({ params }: TopicalMedicationPageP
       administered_at: administrationTimestamp,
       witness_id: witnessId || null,
       witness_at: witnessId ? administrationTimestamp : null,
+      popped_out_at: administrationTimestamp,
+      popped_out_by_id: profile?.id,
       organization_id: profile?.active_organization_id,
       care_home_id: profile?.active_care_home_id,
     };
@@ -295,6 +301,8 @@ export default function TopicalMedicationPage({ params }: TopicalMedicationPageP
           administered_at: intakePayload.administered_at,
           witness_id: intakePayload.witness_id,
           witness_at: intakePayload.witness_at,
+          popped_out_at: intakePayload.popped_out_at,
+          popped_out_by_id: intakePayload.popped_out_by_id,
         })
         .eq("id", existingIntake.id);
       if (error) throw error;
@@ -405,7 +413,7 @@ export default function TopicalMedicationPage({ params }: TopicalMedicationPageP
 
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
-          <p className="font-semibold">Topical Medications</p>
+          <p className="font-semibold text-sm px-3 py-1.5 bg-blue-100 text-blue-900 border border-blue-200 rounded-md">Topical Medications</p>
           {selectedTime && (
             <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
               Showing for {selectedTime}
