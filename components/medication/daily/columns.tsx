@@ -78,22 +78,33 @@ interface MedicationIntake {
   } | null;
   witness_id?: string | null;
   witness_at?: string | null;
+  administered_by_id?: string | null;
+  administered_at?: string | null;
+  popped_out_by_id?: string | null;
   quantity?: number;
 }
 
 const PreparedCell = ({ 
   row, 
   markMedicationIntakeAsPoppedOut, 
-  isRoundCompleted 
+  isRoundCompleted,
+  members
 }: { 
   row: any, 
   markMedicationIntakeAsPoppedOut?: (intakeId: string, isPoppedOut: boolean) => Promise<void>, 
-  isRoundCompleted?: boolean 
+  isRoundCompleted?: boolean,
+  members: TeamMember[]
 }) => {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const poppedOutAt = row.original.popped_out_at;
+  const poppedOutById = row.original.popped_out_by_id;
+  const administeredById = row.original.administered_by_id;
+  const dispensedById = poppedOutById || administeredById;
+  const status = row.original.status;
   const quantity = row.original.quantity || 1;
   const medication = row.original.medication;
+
+  const preparedBy = members.find(m => m.userId === dispensedById)?.name || "Unknown";
 
   const markAsOut = async () => {
     if (!markMedicationIntakeAsPoppedOut) {
@@ -136,16 +147,29 @@ const PreparedCell = ({
     }
   };
 
-  if (poppedOutAt) {
+  // If already administered, show as prepared even if popped_out_at is missing
+  const isAdministered = status !== 'scheduled' && status !== 'pending';
+
+  const administeredAt = row.original.administered_at;
+  const displayTime = poppedOutAt || administeredAt;
+
+  if (poppedOutAt || isAdministered) {
     return (
-      <div className="flex items-center gap-2">
-        <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
-          <Check className="w-3 h-3 text-white" />
-        </div>
-        <span className="text-xs text-muted-foreground">
-          {formatInTimeZone(new Date(poppedOutAt), "UTC", "HH:mm")}
-        </span>
-      </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+              <Check className="w-3 h-3 text-white" />
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {displayTime ? formatInTimeZone(new Date(displayTime), "UTC", "HH:mm") : "Done"}
+            </span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="text-xs">Prepared by: {preparedBy}</p>
+        </TooltipContent>
+      </Tooltip>
     );
   }
 
@@ -314,6 +338,7 @@ export const createColumns = (
           row={row} 
           markMedicationIntakeAsPoppedOut={markMedicationIntakeAsPoppedOut}
           isRoundCompleted={isRoundCompleted}
+          members={members}
         />
       )
     },
@@ -388,10 +413,14 @@ export const createColumns = (
     {
       id: "dispensedBy",
       header: "Dispensed by",
-      cell: () => {
+      cell: ({ row }) => {
+        const poppedOutById = row.original.popped_out_by_id;
+        const administeredById = row.original.administered_by_id;
+        const dispensedById = poppedOutById || administeredById;
+        const dispensedByName = members.find(m => m.userId === dispensedById)?.name;
         return (
           <div className="text-sm">
-            {currentUser?.name || "N/A"}
+            {dispensedByName || (dispensedById ? "Unknown" : "-")}
           </div>
         );
       }
@@ -511,6 +540,7 @@ export const createColumns = (
         };
 
         const isTopical = medicationIntake.medication?.schedule_type === 'Topical' || medicationIntake.medication?.route === 'Topical';
+        const isAdministered = currentState !== 'scheduled' && currentState !== 'pending';
 
         const getStatusText = (status: string) => {
           if (isTopical) {
@@ -553,75 +583,78 @@ export const createColumns = (
         };
 
         return (
-          <Select
-            onValueChange={handleStatusChange}
-            value={currentState}
-          >
-            <SelectTrigger className={`border-none shadow-none hover:bg-slate-50 h-8 ${isRoundCompleted ? 'opacity-60 cursor-not-allowed' : ''}`}>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${getStatusBadge(currentState)}`}>
-                {getStatusText(currentState)}
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              {isTopical ? (
-                <>
-                  <SelectItem value="taken">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                      A Applied
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="refused">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
-                      R Refused
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="not_required">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
-                      NR Not required (NR)
-                    </span>
-                  </SelectItem>
-                </>
-              ) : (
-                <>
-                  <SelectItem value="taken">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                      T Taken
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="refused">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
-                      R Refused
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="refused_destroyed">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
-                      E Refused/Destroyed
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="hospitalised">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                      C Hospitalised
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="social_leave">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
-                      D Social leave
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="not_required">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
-                      NR Not required
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="made_available">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                      M Made available
-                    </span>
-                  </SelectItem>
-                </>
-              )}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-0.5">
+            <Select
+              onValueChange={handleStatusChange}
+              value={currentState}
+              disabled={isRoundCompleted || isAdministered}
+            >
+              <SelectTrigger className={`border-none shadow-none hover:bg-slate-50 h-8 ${isRoundCompleted || isAdministered ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${getStatusBadge(currentState)}`}>
+                  {getStatusText(currentState)}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {isTopical ? (
+                  <>
+                    <SelectItem value="taken">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                        A Applied
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="refused">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+                        R Refused
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="not_required">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                        NR Not required (NR)
+                      </span>
+                    </SelectItem>
+                  </>
+                ) : (
+                  <>
+                    <SelectItem value="taken">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                        T Taken
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="refused">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+                        R Refused
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="refused_destroyed">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+                        E Refused/Destroyed
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="hospitalised">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                        C Hospitalised
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="social_leave">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
+                        D Social leave
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="not_required">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                        NR Not required
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="made_available">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                        M Made available
+                      </span>
+                    </SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
         );
       }
     },

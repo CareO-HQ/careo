@@ -368,6 +368,32 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     };
   }, [id]);
 
+  // Subscribe to medication_intakes updates
+  useEffect(() => {
+    if (!id) return;
+
+    const subscription = supabase
+      .channel(`resident-medication-intakes-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'medication_intakes',
+          filter: `resident_id=eq.${id}`
+        },
+        () => {
+          // Silent refresh to update the UI
+          fetchData(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [id, fetchData]);
+
   const markMedicationIntakeAsPoppedOut = async (intakeId: string, isPoppedOut: boolean) => {
     const now = new Date().toISOString();
 
@@ -615,6 +641,9 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       administered_at: administrationTimestamp,
       witness_id: witnessId || null,
       witness_at: witnessId ? administrationTimestamp : null,
+      // If it's a topical medication, also mark it as popped out (prepared) automatically
+      popped_out_at: isTopical ? administrationTimestamp : null,
+      popped_out_by_id: isTopical ? profile?.id : null,
       organization_id: profile?.active_organization_id,
       care_home_id: profile?.active_care_home_id
     };
@@ -953,15 +982,16 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
   // Get a map of administered times for each medication today to disable them in the selection dropdown
   const administeredTimesToday = useMemo(() => {
-    const map: Record<string, string[]> = {};
+    const map: Record<string, { time: string, by: string }[]> = {};
     selectedDateIntakes.forEach(intake => {
       const intakeStatus = intake.status || intake.state;
       const isAdministeredOutcome = intakeStatus && intakeStatus !== 'scheduled' && intakeStatus !== 'pending';
       if (isAdministeredOutcome) {
         const time = normalizeTimeToHHmm(intake.scheduled_time) || formatTimestampToUKTime(intake.scheduled_time);
+        const administeredBy = allUsers.find(u => u.id === intake.administered_by_id)?.name || "Staff";
         if (!map[intake.medication_id]) map[intake.medication_id] = [];
-        if (!map[intake.medication_id].includes(time)) {
-          map[intake.medication_id].push(time);
+        if (!map[intake.medication_id].some(v => v.time === time)) {
+          map[intake.medication_id].push({ time, by: administeredBy });
         }
       }
     });
@@ -974,16 +1004,18 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       const time = normalizeTimeToHHmm(administration.scheduled_time) || normalizeTimeToHHmm(administration.administered_at);
       if (!time) return;
 
+      const administeredBy = allUsers.find(u => u.id === administration.administered_by)?.name || "Staff";
+
       if (!map[administration.medication_id]) {
         map[administration.medication_id] = [];
       }
-      if (!map[administration.medication_id].includes(time)) {
-        map[administration.medication_id].push(time);
+      if (!map[administration.medication_id].some(v => v.time === time)) {
+        map[administration.medication_id].push({ time, by: administeredBy });
       }
     });
 
     return map;
-  }, [selectedDateIntakes, topicalAdministrations]);
+  }, [selectedDateIntakes, topicalAdministrations, allUsers]);
 
   const prnTopicalColumns = useMemo(
     () => createMedicationColumns(

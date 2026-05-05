@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { chromium } from "playwright";
 
@@ -88,10 +88,18 @@ function formatDateTime(value?: string | number): string {
   })}`;
 }
 
+function toSentenceCase(value: string): string {
+  if (!value || value === EMPTY_VALUE) return value;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return value;
+  const lowered = trimmed.toLowerCase();
+  return lowered.charAt(0).toUpperCase() + lowered.slice(1);
+}
+
 function unknownToDisplayValue(value: unknown): string {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (value === null || value === undefined) return EMPTY_VALUE;
-  if (typeof value === "string") return value.trim() === "" ? EMPTY_VALUE : value.trim();
+  if (typeof value === "string") return value.trim() === "" ? EMPTY_VALUE : toSentenceCase(value.trim());
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : EMPTY_VALUE;
   if (Array.isArray(value)) {
     if (value.length === 0) return EMPTY_VALUE;
@@ -140,8 +148,8 @@ function generateHandlingProfileHTML(data: HandlingProfileData): string {
   const activities = data.activities ?? {};
 
   const activityList = [
-    { key: 'transferBed', title: 'Transfer to/from Bed' },
-    { key: 'transferChair', title: 'Transfer to/from Chair' },
+    { key: 'transferBed', title: 'Transfer to or from Bed' },
+    { key: 'transferChair', title: 'Transfer to or from Chair' },
     { key: 'walking', title: 'Walking' },
     { key: 'toileting', title: 'Toileting' },
     { key: 'movementInBed', title: 'Movement in Bed' },
@@ -149,34 +157,45 @@ function generateHandlingProfileHTML(data: HandlingProfileData): string {
     { key: 'outdoorMobility', title: 'Outdoor Mobility' }
   ];
 
-  const residentFieldRows = [
-    { label: "Resident Name", value: valueOrFallback(data.residentName, "Resident") },
-    { label: "Bedroom Number", value: valueOrFallback(data.bedroomNumber, EMPTY_VALUE) },
+  const summaryFields = [
+    { label: "Completed By", value: valueOrFallback(data.completed_by) },
+    { label: "Job Role", value: toSentenceCase(valueOrFallback(data.job_role)) },
+    { label: "Assessment Date", value: formatDate(data.assessment_date) },
     {
-      label: "Resident Weight",
+      label: "Weight (kg)",
       value: data.weight === null || data.weight === undefined || data.weight === ""
         ? EMPTY_VALUE
-        : `${String(data.weight)} kg`
+        : `${String(data.weight)}`
     },
-    { label: "Weight Bearing Status", value: valueOrFallback(data.weight_bearing) }
+    { label: "Weight Bearing", value: toSentenceCase(valueOrFallback(data.weight_bearing)) }
   ];
 
-  const renderedKeys = new Set<string>([
-    "residentName",
-    "bedroomNumber",
-    "weight",
-    "weight_bearing",
-    "completed_by",
-    "job_role",
-    "assessment_date",
-    "activities"
-  ]);
-
-  const allFlattenedFields = flattenFields(data);
-  const extraFields = allFlattenedFields.filter((item) => {
-    const rootKey = item.key.split(".")[0] ?? item.key;
-    return !renderedKeys.has(rootKey);
-  });
+  const renderActivityBox = (act: { key: string; title: string }) => {
+    const details = activities[act.key] || {};
+    return `
+      <div class="activity-box">
+        <h3>${act.title}</h3>
+        <div class="grid grid-cols-2">
+          <div>
+            <div class="field-label">Number of staff required</div>
+            <div class="field-value">${escapeHtml(unknownToDisplayValue(details.nStaff ?? 0))}</div>
+          </div>
+          <div>
+            <div class="field-label">Equipment Used</div>
+            <div class="field-value">${escapeHtml(valueOrFallback(details.equipment, EMPTY_VALUE))}</div>
+          </div>
+        </div>
+        <div style="margin-top: 8px;">
+          <div class="field-label">Handling Plan</div>
+          <div class="field-value">${escapeHtml(toSentenceCase(valueOrFallback(details.handlingPlan, EMPTY_VALUE)))}</div>
+        </div>
+        <div style="margin-top: 8px;">
+          <div class="field-label">Review Date</div>
+          <div class="field-value">${escapeHtml(formatDate(details.dateForReview))}</div>
+        </div>
+      </div>
+    `;
+  };
 
   return `
     <!DOCTYPE html>
@@ -304,109 +323,34 @@ function generateHandlingProfileHTML(data: HandlingProfileData): string {
       </div>
 
       <div class="section">
-        <h2>Resident Information</h2>
         <div class="grid grid-cols-2 info-box">
-          ${residentFieldRows
-      .map(
-        (row) => `
-            <div>
-              <div class="field-label">${escapeHtml(row.label)}</div>
-              <div class="field-value">${escapeHtml(row.value)}</div>
-            </div>
-          `
-      )
-      .join("")}
-        </div>
-      </div>
-
-      <div class="section">
-        <h2>Mobility Activities</h2>
-        ${activityList.map(act => {
-    const details = activities[act.key] || {};
-    return `
-            <div class="activity-box">
-              <h3>${act.title}</h3>
-              <div class="grid grid-cols-2">
-                <div>
-                  <div class="field-label">Number of staff required</div>
-                  <div class="field-value">${escapeHtml(unknownToDisplayValue(details.nStaff ?? 0))}</div>
-                </div>
-                <div>
-                  <div class="field-label">Equipment Used</div>
-                  <div class="field-value">${escapeHtml(valueOrFallback(details.equipment, EMPTY_VALUE))}</div>
-                </div>
-              </div>
-              <div style="margin-top: 8px;">
-                <div class="field-label">Handling Plan</div>
-                <div class="field-value">${escapeHtml(valueOrFallback(details.handlingPlan, EMPTY_VALUE))}</div>
-              </div>
-              <div style="margin-top: 8px;">
-                <div class="field-label">Review Date</div>
-                <div class="field-value">${escapeHtml(formatDate(details.dateForReview))}</div>
-              </div>
-            </div>
-          `;
-  }).join('')}
-      </div>
-
-      <div class="section">
-        <h2>Assessment Completion</h2>
-        <div class="info-box grid grid-cols-2">
           <div>
-            <div class="field-label">Completed By</div>
-            <div class="field-value">${escapeHtml(valueOrFallback(data.completed_by))}</div>
+            <div class="field-label">Resident Name</div>
+            <div class="field-value">${escapeHtml(toSentenceCase(valueOrFallback(data.residentName, "Resident")))}</div>
           </div>
           <div>
-            <div class="field-label">Job Role</div>
-            <div class="field-value">${escapeHtml(valueOrFallback(data.job_role))}</div>
-          </div>
-          <div>
-            <div class="field-label">Assessment Date</div>
-            <div class="field-value">${escapeHtml(formatDate(data.assessment_date))}</div>
-          </div>
-          <div>
-            <div class="field-label">Signature</div>
-            <div class="field-value" style="font-style: italic; border-bottom: 1px solid #ccc; padding-top: 10px;">
-              ${escapeHtml(valueOrFallback(data.completed_by))}
-            </div>
+            <div class="field-label">Bedroom Number</div>
+            <div class="field-value">${escapeHtml(valueOrFallback(data.bedroomNumber, EMPTY_VALUE))}</div>
           </div>
         </div>
       </div>
 
       <div class="section">
-        <h2>All Submitted Fields</h2>
-        <div class="table-section">
-          <table>
-            <thead>
-              <tr>
-                <th>Field</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${allFlattenedFields
-      .map((field) => {
-        const isDateField = isDateLikeKey(field.key);
-        const isBooleanLike = typeof field.value === "boolean";
-        const displayValue = isBooleanLike
-          ? ((field.value as boolean) ? "Yes" : "No")
-          : isDateField
-            ? formatDate(field.value as string | number | undefined)
-            : unknownToDisplayValue(field.value);
-        return `
-                  <tr>
-                    <td class="mono">${escapeHtml(humanizeKey(field.key))}</td>
-                    <td>${escapeHtml(displayValue)}</td>
-                  </tr>
-                `;
-      })
-      .join("")}
-            </tbody>
-          </table>
+        <div class="grid info-box" style="grid-template-columns: repeat(3, 1fr);">
+          ${summaryFields.map(field => `
+            <div style="margin-bottom: 8px;">
+              <div class="field-label">${escapeHtml(field.label)}</div>
+              <div class="field-value" style="font-weight: 600;">${escapeHtml(field.value)}</div>
+            </div>
+          `).join('')}
         </div>
-        ${extraFields.length > 0
-      ? `<p style="margin-top: 8px; color: #6b7280; font-size: 0.85rem;">Includes additional fields beyond the structured layout to ensure complete visibility.</p>`
-      : ""}
+      </div>
+
+      <div class="section">
+        <h2 style="font-size: 1.1rem; color: #5b21b6; border-bottom: 2px solid #8b5cf6; padding-bottom: 4px; margin-bottom: 16px;">Mobility & Handling Activities</h2>
+        <div class="grid grid-cols-2">
+          ${activityList.map(act => renderActivityBox(act)).join('')}
+        </div>
       </div>
 
       <div class="footer">

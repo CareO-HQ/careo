@@ -64,7 +64,7 @@ export const createMedicationColumns = (
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },
   useSimplifiedTopicalDialog: boolean = true,
-  administeredTimesToday: Record<string, string[]> = {},
+  administeredTimesToday: Record<string, Array<{ time: string, by: string }>> = {},
   preSelectedTime?: string | null
 ): ColumnDef<Medication>[] => [
     {
@@ -314,8 +314,8 @@ export const createMedicationColumns = (
               // When preSelectedTime is provided for topicals, hide time picker
               const topicalTimeFixed = isTopical && !!preSelectedTime;
               const selectedAdministrationTime = preSelectedTime || format(time, "HH:mm");
-              const isAlreadyAdministeredAtTime =
-                administeredForMedication.includes(selectedAdministrationTime);
+              const administrationInfo = administeredForMedication.find(v => v.time === selectedAdministrationTime);
+              const isAlreadyAdministeredAtTime = !!administrationInfo;
 
               // Determine unit label and type based on frequency field (for PRN/Supplements) or dosage form
               const getUnitInfo = () => {
@@ -460,7 +460,7 @@ export const createMedicationColumns = (
                       variant="default"
                       size="sm"
                       disabled={isAlreadyAdministeredAtTime}
-                      title={isAlreadyAdministeredAtTime ? `Already administered at ${selectedAdministrationTime}` : undefined}
+                      title={isAlreadyAdministeredAtTime ? `Already administered at ${selectedAdministrationTime} by ${administrationInfo?.by}` : undefined}
                     >
                       {isAlreadyAdministeredAtTime ? "Administered" : "Administer"}
                     </Button>
@@ -689,6 +689,30 @@ export const createMedicationColumns = (
                                 className="text-sm"
                               />
                             </div>
+
+                            <div className="space-y-1 col-span-2">
+                              <Label htmlFor="witnessedBy" className="text-xs text-muted-foreground">
+                                Witness (Optional)
+                              </Label>
+                              <Select
+                                value={witnessedBy}
+                                onValueChange={setWitnessedBy}
+                              >
+                                <SelectTrigger id="witnessedBy" className="h-8">
+                                  <SelectValue placeholder="Select witness" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {teamMembers?.map((member) => (
+                                    <SelectItem
+                                      key={member.userId}
+                                      value={member.userId}
+                                    >
+                                      {member.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
                         </>
                       ) : isPRN ? (
@@ -855,7 +879,7 @@ export const createTopicalMedicationColumns = (
   showAdministerButton: boolean = false,
   teamMembers?: Array<{ userId: string; name: string }>,
   currentUser?: { name: string; userId: string },
-  administeredTimesToday: Record<string, string[]> = {},
+  administeredTimesToday: Record<string, Array<{ time: string, by: string }>> = {},
   preSelectedTime?: string | null
 ): ColumnDef<Medication>[] => {
   // Get base columns — pass preSelectedTime so topical admin dialog uses it

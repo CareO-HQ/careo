@@ -512,11 +512,10 @@ export function PostFallObservationChart({
 
                         <div className="flex items-end">
                             <Button
-                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                                 onClick={handleAddEntry}
                                 disabled={isSaving}
                             >
-                                <Save className="w-4 h-4" />
                                 {isSaving ? "Saving..." : "Save Observation"}
                             </Button>
                         </div>
