@@ -37,7 +37,7 @@ interface DependencyAssessmentDialogProps {
     onClose: () => void;
     isInline?: boolean;
     viewOnly?: boolean;
-    onSaveSuccess?: () => void;
+    onSaveSuccess?: (data?: any) => void;
 }
 
 export default function DependencyAssessmentDialog({

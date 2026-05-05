@@ -50,7 +50,7 @@ interface WeightChartProps {
   residentId: string;
   residentName?: string;
   hideHeader?: boolean;
-  onSaveSuccess?: () => void;
+  onSaveSuccess?: (data?: any) => void;
 }
 
 export function WeightChart({ residentId, residentName, hideHeader = false, onSaveSuccess }: WeightChartProps) {

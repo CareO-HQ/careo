@@ -54,7 +54,7 @@ interface BradenRiskAssessmentDialogProps {
     onClose: () => void;
     isInline?: boolean;
     viewOnly?: boolean;
-    onSaveSuccess?: () => void;
+    onSaveSuccess?: (data?: any) => void;
 }
 
 export default function BradenRiskAssessmentDialog({

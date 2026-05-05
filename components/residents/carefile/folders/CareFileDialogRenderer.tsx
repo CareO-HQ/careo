@@ -62,7 +62,7 @@ interface CareFileDialogRendererProps extends BaseDialogProps {
   newCarePlanName?: string;
   viewOnly?: boolean;
   refreshForms?: () => void;
-  onSaveSuccess?: (data: any) => void;
+  onSaveSuccess?: (data?: any) => void;
   onClose: () => void;
   orgLogoUrl?: string;
   woundFolderId?: string;

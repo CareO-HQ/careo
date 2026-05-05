@@ -37,7 +37,7 @@ interface FallRiskAssessmentDialogProps {
     onClose: () => void;
     isInline?: boolean;
     viewOnly?: boolean;
-    onSaveSuccess?: () => void;
+    onSaveSuccess?: (data?: any) => void;
 }
 
 export default function FallRiskAssessmentDialog({

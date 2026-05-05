@@ -60,7 +60,6 @@ interface MedicationIntake {
   status: string; // Corresponds to 'state' in the column definition
   comment?: string;
   popped_out_at?: string;
-  popped_out_by_id?: string;
   resident?: {
     image_url?: string;
     first_name?: string;
