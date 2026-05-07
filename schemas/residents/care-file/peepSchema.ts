@@ -5,6 +5,7 @@ export const peepSchema = z.object({
   facilityName: z.string().optional(),
   residentName: z.string().optional(),
   residentDateOfBirth: z.number().optional(),
+  nextReviewDate: z.string().optional(),
   bedroomNumber: z.string().optional(),
   unit: z.string().optional(),
 

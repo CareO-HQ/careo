@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface MovingHandlingDialogProps {
   teamId: string;
@@ -86,6 +87,7 @@ export default function MovingHandlingDialog({
         userId,
         residentName: initialData.residentName || (resident ? `${resident.first_name} ${resident.last_name}` : ""),
         dateOfBirth: initialData.dateOfBirth || (resident && resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).getTime() : 0),
+        nextReviewDate: initialData.nextReviewDate || initialData.risk_factors?.nextReviewDate || "",
         bedroomNumber: initialData.bedroomNumber || resident?.room_number || "",
 
         // Flatten mobility_assessment JSONB
@@ -144,6 +146,7 @@ export default function MovingHandlingDialog({
         userId,
         residentName: resident ? `${resident.first_name} ${resident.last_name}` : "",
         dateOfBirth: resident && resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).getTime() : 0,
+        nextReviewDate: "",
         bedroomNumber: resident?.room_number || "",
 
         weight: 0,
@@ -235,7 +238,8 @@ export default function MovingHandlingDialog({
           localisedPain: values.localisedPain,
           localisedPainComments: values.localisedPainComments,
           otherState: values.otherState,
-          otherComments: values.otherComments
+          otherComments: values.otherComments,
+          nextReviewDate: values.nextReviewDate
         };
 
         const payload = {
@@ -324,6 +328,16 @@ export default function MovingHandlingDialog({
       <div className="space-y-12">
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+            <div className="mb-6 p-4 border rounded-lg bg-muted/40">
+              <FormField control={form.control} name="nextReviewDate" render={({ field }) => (
+                <FormItem className="max-w-xs">
+                  <FormControl>
+                    <NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={viewOnly} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
               <button
                 type="button"

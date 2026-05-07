@@ -38,6 +38,7 @@ import { Resident } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { CalendarIcon, Plus, X } from "lucide-react";
+import NextReviewDateField from "./NextReviewDateField";
 import { useState, useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -147,6 +148,7 @@ export default function OralAssessmentDialog({
       residentId, teamId, organizationId, userId,
       residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
       dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : ""),
+      nextReviewDate: initialData.nextReviewDate || initialData.assessment_details?.nextReviewDate || "",
       weight: initialData.assessment_details?.weight || "", height: initialData.assessment_details?.height || "",
       completedBy: initialData.completed_by || userName, signature: initialData.assessment_details?.signature || userName,
       assessmentDate: initialData.assessment_date ? new Date(initialData.assessment_date).getTime() : Date.now(),
@@ -179,6 +181,7 @@ export default function OralAssessmentDialog({
       residentId, teamId, organizationId, userId,
       residentName: `${resident.first_name} ${resident.last_name}`,
       dateOfBirth: resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : "",
+      nextReviewDate: "",
       weight: "", height: "", completedBy: userName, signature: userName, assessmentDate: Date.now(),
       normalOralHygieneRoutine: "", isRegisteredWithDentist: false, lastSeenByDentist: "", dentistName: "",
       dentalPracticeAddress: "", contactTelephone: "",
@@ -210,7 +213,7 @@ export default function OralAssessmentDialog({
           exam_findings: { lipsDryCracked: values.lipsDryCracked, tongueDryCracked: values.tongueDryCracked, tongueUlceration: values.tongueUlceration, hasTopDenture: values.hasTopDenture, hasLowerDenture: values.hasLowerDenture, hasDenturesAndNaturalTeeth: values.hasDenturesAndNaturalTeeth, hasNaturalTeeth: values.hasNaturalTeeth, evidencePlaqueDebris: values.evidencePlaqueDebris, dryMouth: values.dryMouth },
           symptoms: { painWhenEating: values.painWhenEating, gumsUlceration: values.gumsUlceration, difficultySwallowing: values.difficultySwallowing, poorFluidDietaryIntake: values.poorFluidDietaryIntake, dehydrated: values.dehydrated, speechDifficultyDryMouth: values.speechDifficultyDryMouth, speechDifficultyDenturesSlipping: values.speechDifficultyDenturesSlipping, dexterityProblems: values.dexterityProblems, cognitiveImpairment: values.cognitiveImpairment },
           care_recommendations: { lipsDryCrackedCare: values.lipsDryCrackedCare, tongueDryCrackedCare: values.tongueDryCrackedCare, tongueUlcerationCare: values.tongueUlcerationCare, topDentureCare: values.topDentureCare, lowerDentureCare: values.lowerDentureCare, denturesAndNaturalTeethCare: values.denturesAndNaturalTeethCare, naturalTeethCare: values.naturalTeethCare, plaqueDebrisCare: values.plaqueDebrisCare, dryMouthCare: values.dryMouthCare, painWhenEatingCare: values.painWhenEatingCare, gumsUlcerationCare: values.gumsUlcerationCare, difficultySwallowingCare: values.difficultySwallowingCare, poorFluidDietaryIntakeCare: values.poorFluidDietaryIntakeCare, dehydratedCare: values.dehydratedCare, speechDifficultyDryMouthCare: values.speechDifficultyDryMouthCare, speechDifficultyDenturesSlippingCare: values.speechDifficultyDenturesSlippingCare, dexterityProblemsCare: values.dexterityProblemsCare, cognitiveImpairmentCare: values.cognitiveImpairmentCare },
-          assessment_details: { height: values.height, weight: values.weight, signature: values.signature },
+          assessment_details: { height: values.height, weight: values.weight, signature: values.signature, nextReviewDate: values.nextReviewDate },
           assessment_date: new Date(values.assessmentDate || Date.now()).toISOString().split('T')[0],
           completed_by: values.completedBy, status: 'completed', created_by: currentUserId
         };
@@ -280,6 +283,9 @@ export default function OralAssessmentDialog({
       <div>
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+            <div className="mb-4 p-4 border rounded-lg bg-muted/40">
+              <FormField control={form.control} name="nextReviewDate" render={({ field }) => <FormItem className="max-w-xs"><FormControl><NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={viewOnly} /></FormControl></FormItem>} />
+            </div>
             <form onSubmit={form.handleSubmit(onSubmit, onValidationError)} className="space-y-4">
               <button
                 type="button"

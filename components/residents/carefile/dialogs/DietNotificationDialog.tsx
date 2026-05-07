@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface DietNotificationDialogProps {
   teamId: string;
@@ -39,6 +40,12 @@ export default function DietNotificationDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { profile } = useProfile();
 
+  const isMissingColumn = (error: any) => {
+    const msg = error?.message?.toLowerCase() || "";
+    return (error?.code === "PGRST204" || error?.code === "42703") &&
+      (msg.includes("next_review_date") || msg.includes("assessment_data"));
+  };
+
   const form = useForm<z.infer<typeof dietNotificationSchema>>({
     resolver: zodResolver(dietNotificationSchema) as any,
     defaultValues: initialData ? {
@@ -54,6 +61,7 @@ export default function DietNotificationDialog({
       signature: initialData.assessment_data?.signature || initialData.signature || "",
       dateCompleted: initialData.assessment_data?.dateCompleted || initialData.date_completed || initialData.dateCompleted || Date.now(),
       reviewDate: initialData.assessment_data?.reviewDate || initialData.review_date || initialData.reviewDate || Date.now() + 30 * 24 * 60 * 60 * 1000,
+      nextReviewDate: initialData.assessment_data?.nextReviewDate || initialData.next_review_date || "",
       chokingRiskAssessment: initialData.assessment_data?.chokingRiskAssessment || initialData.choking_risk || "Low Risk",
       preferredMealSize: initialData.assessment_data?.preferredMealSize || initialData.preferred_meal_size || "Standard",
       // Flatten from JSONB
@@ -92,6 +100,7 @@ export default function DietNotificationDialog({
       signature: "",
       dateCompleted: Date.now(),
       reviewDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      nextReviewDate: "",
       chokingRiskAssessment: "Low Risk",
       preferredMealSize: "Standard",
       likesFavouriteFoods: "",
@@ -202,15 +211,31 @@ export default function DietNotificationDialog({
         job_role: data.jobRole,
         signature: data.signature,
         team_id: teamId,
-        created_by: currentUserId
+        created_by: currentUserId,
+        next_review_date: data.nextReviewDate || null,
+        assessment_data: data
       };
 
-      await submitAssessmentWithVersioning(
-        'diet_notifications',
-        payload,
-        initialData,
-        isEditMode
-      );
+      try {
+        await submitAssessmentWithVersioning(
+          'diet_notifications',
+          payload,
+          initialData,
+          isEditMode
+        );
+      } catch (error: any) {
+        if (isMissingColumn(error)) {
+          const { next_review_date: _, assessment_data: __, ...fallbackPayload } = payload;
+          await submitAssessmentWithVersioning(
+            'diet_notifications',
+            fallbackPayload,
+            initialData,
+            isEditMode
+          );
+        } else {
+          throw error;
+        }
+      }
 
       if (isEditMode && initialData?.id) {
         await supabase.from('manager_audits').insert({
@@ -242,6 +267,24 @@ export default function DietNotificationDialog({
       <Form {...form}>
         <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
+            <div className="mb-6 p-4 border rounded-lg bg-muted/40">
+              <FormField
+                control={form.control}
+                name="nextReviewDate"
+                render={({ field }) => (
+                  <FormItem className="max-w-xs">
+                    <FormControl>
+                      <NextReviewDateField
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        disabled={viewOnly}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <button
               type="button"
               id="care-file-submit-btn"

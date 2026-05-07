@@ -22,6 +22,7 @@ import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
+import NextReviewDateField from "./NextReviewDateField";
 import {
     Form,
     FormControl,
@@ -76,6 +77,7 @@ export default function BradenRiskAssessmentDialog({
             residentName: initialData?.residentName || `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
             bedroomNumber: initialData?.bedroomNumber || initialData?.bedroom_number || resident.room_number || "—",
             assessmentDate: Date.now(),
+            nextReviewDate: initialData?.nextReviewDate || initialData?.assessment_details?.nextReviewDate || "",
             completedBy: userName,
             // Categories always start empty for new assessments as per user request
             sensoryPerception: initialData?.assessment_details?.sensoryPerception?.toString() || undefined,
@@ -121,6 +123,7 @@ export default function BradenRiskAssessmentDialog({
                     resident_id: residentId,
                     organization_id: organizationId,
                     assessment_details: {
+                        nextReviewDate: data.nextReviewDate,
                         sensoryPerception: parseInt(data.sensoryPerception),
                         moisture: parseInt(data.moisture),
                         activity: parseInt(data.activity),
@@ -150,6 +153,7 @@ export default function BradenRiskAssessmentDialog({
                     bedroomNumber: form.getValues('bedroomNumber'),
                     completedBy: form.getValues('completedBy'),
                     assessmentDate: Date.now(),
+                    nextReviewDate: "",
                     sensoryPerception: undefined,
                     moisture: undefined,
                     activity: undefined,
@@ -189,6 +193,19 @@ export default function BradenRiskAssessmentDialog({
                 </div>
 
                 <Form {...form}>
+                    <div className="mb-4 p-4 border rounded-lg bg-muted/40 px-1">
+                        <FormField
+                            control={form.control}
+                            name="nextReviewDate"
+                            render={({ field }) => (
+                                <FormItem className="space-y-1 max-w-xs">
+                                    <FormControl>
+                                        <NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={viewOnly} />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                    </div>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 pb-10 px-1">
                         <button
                             type="button"
@@ -359,6 +376,7 @@ export default function BradenRiskAssessmentDialog({
                                 <TableHeader className="bg-muted/50">
                                     <TableRow>
                                         <TableHead className="w-24">Date</TableHead>
+                                        <TableHead className="w-32">Next Review Date</TableHead>
                                         <TableHead className="text-center text-xs">Sensory</TableHead>
                                         <TableHead className="text-center text-xs">Moist</TableHead>
                                         <TableHead className="text-center text-xs">Activity</TableHead>
@@ -374,6 +392,11 @@ export default function BradenRiskAssessmentDialog({
                                         <TableRow key={item.id} className="cursor-pointer hover:bg-muted/20">
                                             <TableCell className="font-medium text-xs whitespace-nowrap">
                                                 {format(new Date(item.assessment_date), "dd MMM yyyy")}
+                                            </TableCell>
+                                            <TableCell className="text-xs whitespace-nowrap">
+                                                {item.assessment_details?.nextReviewDate
+                                                    ? format(new Date(item.assessment_details.nextReviewDate), "dd MMM yyyy")
+                                                    : "—"}
                                             </TableCell>
                                             <TableCell className="text-center text-xs">{item.assessment_details?.sensoryPerception || "—"}</TableCell>
                                             <TableCell className="text-center text-xs">{item.assessment_details?.moisture || "—"}</TableCell>

@@ -33,6 +33,7 @@ import { z } from "zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface RestraintsConsentDialogProps {
     teamId: string;
@@ -74,6 +75,7 @@ export default function RestraintsConsentDialog({
         defaultValues: initialData ? {
             ...initialData.assessment_data,
             residentName: initialData.assessment_data?.residentName ?? (resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : ""),
+            nextReviewDate: initialData.assessment_data?.nextReviewDate ?? initialData.nextReviewDate ?? "",
             careHomeUnit: initialData.assessment_data?.careHomeUnit ?? (resident?.care_home_id ?? ""),
             dateOfBirth: initialData.assessment_data?.dateOfBirth ?? (resident?.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now()),
             selectedRestraints: initialData.assessment_data?.selectedRestraints ?? [],
@@ -100,6 +102,7 @@ export default function RestraintsConsentDialog({
             }
         } : {
             residentName: (resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : ""),
+            nextReviewDate: "",
             careHomeUnit: "",
             dateOfBirth: resident?.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now(),
             selectedRestraints: [],
@@ -181,6 +184,20 @@ export default function RestraintsConsentDialog({
 
             <Form {...form}>
                 <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+                    <div className="mb-6 p-4 border rounded-lg bg-muted/40 px-1">
+                        <FormField
+                            control={form.control}
+                            name="nextReviewDate"
+                            render={({ field }) => (
+                                <FormItem className="max-w-xs">
+                                    <FormControl>
+                                        <NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={viewOnly} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
                         <button
                             type="button"

@@ -96,6 +96,7 @@ const TABLE_MAP: Record<string, string> = {
     "v2-must-assessment": "must_assessments",
     "v2-personal-profile": "personal_profiles",
     "v2-abbey-pain": "abbey_pain_assessments",
+    "v2-weight-chart": "weight_records",
     "v2-specimen-log": "specimen_records",
     "progress-note-form": "progress_notes"
 };
@@ -450,6 +451,16 @@ export default function CareFileV2FolderPage() {
     };
 
     const handleSaveSuccess = (data: any) => {
+        // Dependency assessment must remain submittable without switching to view-only mode.
+        if (activeFormKey === "dependency-assessment") {
+            setFormDataForEdit(null);
+            setIsViewOnly(false);
+            setIsReviewMode(false);
+            setIsSaving(false);
+            refreshForms();
+            return;
+        }
+
         setFormDataForEdit(data);
         setIsViewOnly(true);
         setIsReviewMode(false);

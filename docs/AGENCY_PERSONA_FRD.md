@@ -51,11 +51,20 @@ CareO aims to extend its ecosystem by allowing third-party staffing agencies to 
 ### 4.1 Agency Portal
 - Dedicated dashboard for Agency Admins.
 - Interface to view "Active Assignments" and "History".
-- Ability to manage "Staff Pool" (Add/Edit/Remove staff).
+- Ability to manage "Staff Pool":
+  - **Comprehensive Staff Profiles**: Maintain detailed records including full name, contact information, professional registration numbers (e.g., NMC for nurses), and specialized skills.
+  - **Compliance Tracking**: Upload and track expiration dates for mandatory documents such as DBS checks, right-to-work, and clinical certifications.
+  - **Status Management**: Toggle staff availability (Active, Inactive, On Leave) to ensure only eligible staff are assigned.
+  - **Performance History**: View a consolidated history of all past assignments, duration worked, and any feedback or incidents recorded by care homes.
 
 ### 4.2 Assignment System
 - **Care Home ID Verification**: The system must validate that the entered Care Home ID exists before allowing the assignment request to be sent.
 - **Role Mapping**: Agency roles must map to existing system permissions (`nurse` permissions for Agency Nurse, etc.).
+- **Multiple Assignments Handling**:
+  - **Conflict Prevention**: The system must prevent a staff member from being assigned to overlapping shifts. An assignment request will be blocked if the staff member has another "Approved" or "Active" assignment during the same period.
+  - **Concurrent Queueing**: A staff member can have multiple future assignments scheduled across different care homes, provided their time slots do not overlap.
+  - **Context-Switching**: When a staff member logs in, they are presented with their "Active" assignment for the current time. If they have no active assignment, access is denied.
+  - **Assignment Buffers**: Optional administrative setting to enforce a "cool-down" period (e.g., 1 hour) between assignments at different locations to allow for travel and rest.
 
 ### 4.3 Session & Security Management
 - **Force Logout Implementation**:
@@ -76,10 +85,11 @@ CareO aims to extend its ecosystem by allowing third-party staffing agencies to 
   - `care_home_id` (UUID - Foreign Key to `organizations`)
   - `role` (Enum: `agency_nurse`, `agency_care_assistant`)
   - `status` (Enum: `pending`, `approved`, `active`, `completed`, `rejected`)
+  - `start_at` (Timestamp - Scheduled start time)
   - `duration_minutes` (Integer)
   - `force_logout` (Boolean)
   - `approved_at` (Timestamp)
-  - `expires_at` (Timestamp - Calculated as `approved_at + duration`)
+  - `expires_at` (Timestamp - Calculated as `max(approved_at, start_at) + duration`)
 
 ### 5.2 UI Components
 - **Agency Registration Form**: Sleek, multi-step form with document upload for agency credentials.

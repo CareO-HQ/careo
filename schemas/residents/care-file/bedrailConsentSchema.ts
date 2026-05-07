@@ -66,6 +66,7 @@ export const bedrailConsentSchema = z.object({
   residentName: z.string().min(1, "Resident name is required"),
   bedroomNumber: z.string().min(1, "Bedroom number is required"),
   dateOfBirth: z.number(),
+  nextReviewDate: z.string().optional(),
 
   // Consent Type - determines which section is active
   consentType: ConsentType,

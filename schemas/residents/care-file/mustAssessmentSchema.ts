@@ -8,6 +8,7 @@ export const mustAssessmentSchema = z.object({
   residentName: z.string().min(1),
   bedroomNumber: z.string().optional(),
   dateOfBirth: z.string().optional(),
+  nextReviewDate: z.string().min(1, "Next review date is required"),
   assessmentDate: z.number(),
   weightKg: z
     .number({ invalid_type_error: "Weight must be a number" })

@@ -93,6 +93,7 @@ export const fallRiskAssessmentSchema = z.object({
     residentName: z.string().optional(),
     dateOfBirth: z.string().optional(),
     dateOfAssessment: z.string().optional(),
+    nextReviewDate: z.string().optional(),
     time: z.string().optional(),
 
     // Assessment Categories (storing labels for unique selection)

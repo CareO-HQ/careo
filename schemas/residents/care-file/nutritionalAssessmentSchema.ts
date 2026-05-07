@@ -52,6 +52,7 @@ export const nutritionalAssessmentSchema = z.object({
   // Section 1: Resident Information
   residentName: z.string().optional(),
   dateOfBirth: z.string().optional(),
+  nextReviewDate: z.string().optional(),
   bedroomNumber: z.string().optional(),
   height: z.string().optional(),
   weight: z.string().optional(),

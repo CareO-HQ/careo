@@ -23,6 +23,7 @@ export const dependencyAssessmentSchema = z.object({
     residentName: z.string().optional(),
     dateOfBirth: z.string().optional(),
     dateOfAssessment: z.string().optional(),
+    nextReviewDate: z.string().min(1, "Next review date is required"),
     time: z.string().optional(),
 
     // Assessment Categories

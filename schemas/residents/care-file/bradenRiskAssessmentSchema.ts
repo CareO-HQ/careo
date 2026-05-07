@@ -4,6 +4,7 @@ export const bradenRiskAssessmentSchema = z.object({
     residentName: z.string().min(1, "Resident name is required"),
     bedroomNumber: z.string().min(1, "Bedroom number is required"),
     assessmentDate: z.number().min(1, "Assessment date is required"),
+    nextReviewDate: z.string().optional(),
     completedBy: z.string().optional(),
 
     sensoryPerception: z.enum(["1", "2", "3", "4"]),

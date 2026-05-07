@@ -35,6 +35,7 @@ import { z } from "zod";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface ResidentValuablesProps {
   teamId: string;
@@ -55,6 +56,11 @@ export default function ResidentValuables({
   onClose, initialData, isEditMode = false, isInline = false, viewOnly = false
 }: ResidentValuablesProps) {
   const [isLoading, startTransition] = useTransition();
+
+  const isMissingNextReviewDateColumn = (error: any) => {
+    return (error?.code === "PGRST204" || error?.code === "42703") &&
+      error?.message?.toLowerCase().includes("next_review_date");
+  };
 
   const form = useForm<z.infer<typeof residentValuablesSchema>>({
     resolver: zodResolver(residentValuablesSchema),
@@ -98,7 +104,8 @@ export default function ResidentValuables({
         total: initialData.assessment_data?.total ?? initialData.total ?? 0,
         clothing: initialData.assessment_data?.clothing ?? initialData.clothing ?? [],
         other: initialData.assessment_data?.other ?? initialData.other ?? [],
-        comments: initialData.assessment_data?.comments ?? initialData.comments ?? ""
+        comments: initialData.assessment_data?.comments ?? initialData.comments ?? "",
+        nextReviewDate: initialData.assessment_data?.nextReviewDate ?? initialData.nextReviewDate ?? ""
       }
       : {
         residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim() || "",
@@ -113,7 +120,7 @@ export default function ResidentValuables({
         n2: undefined, n1: undefined,
         p50: undefined, p20: undefined, p10: undefined, p5: undefined,
         p2: undefined, p1: undefined,
-        total: 0, clothing: [], other: [], comments: ""
+        total: 0, clothing: [], other: [], comments: "", nextReviewDate: ""
       }
   });
 
@@ -158,11 +165,23 @@ export default function ResidentValuables({
           resident_id: residentId,
           organization_id: organizationId,
           assessment_data: formData,
-          created_by: userId
+          created_by: userId,
+          next_review_date: formData.nextReviewDate || null
         };
-        await submitAssessmentWithVersioning(
-          "resident_valuables_assessments", payload, initialData, isEditMode
-        );
+        try {
+          await submitAssessmentWithVersioning(
+            "resident_valuables_assessments", payload, initialData, isEditMode
+          );
+        } catch (error: any) {
+          if (isMissingNextReviewDateColumn(error)) {
+            const { next_review_date: _, ...fallbackPayload } = payload;
+            await submitAssessmentWithVersioning(
+              "resident_valuables_assessments", fallbackPayload, initialData, isEditMode
+            );
+          } else {
+            throw error;
+          }
+        }
         toast.success(isEditMode
           ? "Resident valuables updated successfully!"
           : "Resident valuables saved successfully");
@@ -219,6 +238,24 @@ export default function ResidentValuables({
                 toast.error("Please fill in all required fields correctly.");
               })}
             />
+            <div className="mb-6 p-4 border rounded-lg bg-muted/40">
+              <FormField
+                control={form.control}
+                name="nextReviewDate"
+                render={({ field }) => (
+                  <FormItem className="max-w-xs">
+                    <FormControl>
+                      <NextReviewDateField
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        disabled={viewOnly}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <div className="space-y-8 px-1">
 
               {/* Section 1: Resident Information */}

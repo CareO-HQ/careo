@@ -24,6 +24,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface DependencyAssessmentDialogProps {
     teamId: string;
@@ -59,6 +60,7 @@ export default function DependencyAssessmentDialog({
             residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
             dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
             dateOfAssessment: initialData.dateOfAssessment || new Date().toISOString().split("T")[0],
+            nextReviewDate: initialData.nextReviewDate || initialData.assessment_details?.nextReviewDate || "",
             time: initialData.time || new Date().toTimeString().slice(0, 5),
             completedBy: initialData.completedBy || profile?.name || "",
             signature: initialData.signature || "",
@@ -78,6 +80,7 @@ export default function DependencyAssessmentDialog({
             residentName: `${resident.first_name} ${resident.last_name}`,
             dateOfBirth: resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).toISOString().split("T")[0] : "",
             dateOfAssessment: new Date().toISOString().split("T")[0],
+            nextReviewDate: "",
             time: new Date().toTimeString().slice(0, 5),
             completedBy: userName || profile?.name || "",
             signature: "",
@@ -135,6 +138,7 @@ export default function DependencyAssessmentDialog({
             if (!currentUserId) throw new Error("User not authenticated");
 
             const assessmentDetails = {
+                nextReviewDate: data.nextReviewDate,
                 mobility: data.mobility,
                 dressing: data.dressing,
                 personalHygiene: data.personalHygiene,
@@ -179,6 +183,7 @@ export default function DependencyAssessmentDialog({
                     ...form.getValues(),
                     signature: "",
                     dateOfAssessment: new Date().toISOString().split("T")[0],
+                    nextReviewDate: "",
                     time: new Date().toTimeString().slice(0, 5),
                     mobility: 0,
                     dressing: 0,
@@ -254,6 +259,15 @@ export default function DependencyAssessmentDialog({
             </div>
 
             <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+                <div className="mb-4 p-4 border rounded-lg bg-muted/40">
+                    <div className="space-y-2 max-w-xs">
+                        <NextReviewDateField
+                            value={form.watch("nextReviewDate") || ""}
+                            onChange={(value) => form.setValue("nextReviewDate", value, { shouldDirty: true })}
+                            disabled={viewOnly}
+                        />
+                    </div>
+                </div>
                 <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6 pb-20">
                     <button
                         type="button"
@@ -512,6 +526,7 @@ export default function DependencyAssessmentDialog({
                             <TableHeader>
                                 <TableRow className="bg-muted/50">
                                     <TableHead className="whitespace-nowrap">Date</TableHead>
+                                    <TableHead className="whitespace-nowrap">Next Review Date</TableHead>
                                     <TableHead className="whitespace-nowrap">Completed By</TableHead>
                                     <TableHead className="text-center font-bold text-[10px] uppercase">Mob</TableHead>
                                     <TableHead className="text-center font-bold text-[10px] uppercase">Dre</TableHead>
@@ -534,6 +549,11 @@ export default function DependencyAssessmentDialog({
                                     <TableRow key={assessment.id} className="hover:bg-muted/30 text-xs">
                                         <TableCell className="font-medium whitespace-nowrap">
                                             {format(new Date(assessment.assessment_date), "dd/MM/yyyy")}
+                                        </TableCell>
+                                        <TableCell className="whitespace-nowrap">
+                                            {assessment.assessment_details?.nextReviewDate
+                                                ? format(new Date(assessment.assessment_details.nextReviewDate), "dd/MM/yyyy")
+                                                : "—"}
                                         </TableCell>
                                         <TableCell className="max-w-[100px] truncate">{assessment.completed_by}</TableCell>
                                         <TableCell className="text-center">{assessment.assessment_details?.mobility}</TableCell>

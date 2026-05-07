@@ -4,6 +4,7 @@ export const smokingRiskAssessmentSchema = z.object({
     // Resident information
     residentName: z.string().optional(),
     residentDateOfBirth: z.number().optional(),
+    nextReviewDate: z.string().optional(),
 
     // Assessment Questions - 1. Controlled Materials
     materialsControlled: z.boolean().optional(),

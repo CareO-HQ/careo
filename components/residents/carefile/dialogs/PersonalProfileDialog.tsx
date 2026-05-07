@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { toast } from "sonner";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 
 const VIEW_DIV = "w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-90 whitespace-pre-wrap break-words min-h-10";
 
@@ -70,6 +71,11 @@ export default function PersonalProfileDialog({
   const [dobPopoverOpen, setDobPopoverOpen] = useState(false);
   const [familyRepDatePopoverOpen, setFamilyRepDatePopoverOpen] = useState(false);
   const [completedDatePopoverOpen, setCompletedDatePopoverOpen] = useState(false);
+
+  const isMissingNextReviewDateColumn = (error: any) => {
+    return (error?.code === "PGRST204" || error?.code === "42703") &&
+      error?.message?.toLowerCase().includes("next_review_date");
+  };
 
   const defaultFormValues: z.infer<typeof PersonalProfileSchema> = {
     residentId,
@@ -111,6 +117,7 @@ export default function PersonalProfileDialog({
     completedByDate: Date.now(),
     completedBySignature: userName,
     assessmentDate: Date.now(),
+    nextReviewDate: "",
     status: "draft",
   };
 
@@ -137,15 +144,30 @@ export default function PersonalProfileDialog({
           assessment_date: new Date(formData.assessmentDate).toISOString().split('T')[0],
           completed_by: formData.completedByName || userName,
           created_by: userId,
+          next_review_date: formData.nextReviewDate || null,
           status: "completed"
         };
 
-        await submitAssessmentWithVersioning(
-          'personal_profiles',
-          payload,
-          initialData,
-          isEditMode
-        );
+        try {
+          await submitAssessmentWithVersioning(
+            'personal_profiles',
+            payload,
+            initialData,
+            isEditMode
+          );
+        } catch (error: any) {
+          if (isMissingNextReviewDateColumn(error)) {
+            const { next_review_date: _, ...fallbackPayload } = payload;
+            await submitAssessmentWithVersioning(
+              'personal_profiles',
+              fallbackPayload,
+              initialData,
+              isEditMode
+            );
+          } else {
+            throw error;
+          }
+        }
 
         toast.success(isEditMode ? "Personal Profile updated successfully!" : "Personal Profile saved successfully");
         onClose?.();
@@ -182,6 +204,24 @@ export default function PersonalProfileDialog({
 
       <Form {...form}>
         <fieldset disabled={viewOnly} className={cn("space-y-8", viewOnly && "pointer-events-none opacity-90")}>
+          <div className="mb-6 p-4 border rounded-lg bg-muted/40">
+            <FormField
+              control={form.control}
+              name="nextReviewDate"
+              render={({ field }) => (
+                <FormItem className="max-w-xs">
+                  <FormControl>
+                    <NextReviewDateField
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      disabled={viewOnly}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8 pb-10">
             
             {/* Resident Details */}

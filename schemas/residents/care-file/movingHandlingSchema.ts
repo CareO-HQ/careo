@@ -22,6 +22,7 @@ export const movingHandlingAssessmentSchema = z.object({
   // Section 1: Resident information
   residentName: z.string(),
   dateOfBirth: z.number(),
+  nextReviewDate: z.string().optional(),
   bedroomNumber: z.string(),
   weight: z.number(),
   height: z.number(),

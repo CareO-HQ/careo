@@ -21,6 +21,7 @@ export const painAssessmentV2Schema = z.object({
   roomNumber: z.string().min(1, "Room number is required"),
   nameOfHome: z.string().min(1, "Name of home is required"),
   assessmentDate: z.number().min(1, "Assessment date is required"),
+  nextReviewDate: z.string().optional(),
 
   // Body Map & Pain Details
   bodyMapMarkers: z.array(bodyMapMarkerSchema).default([]),

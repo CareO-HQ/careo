@@ -17,6 +17,7 @@ export const chokingRiskAssessmentSchema = z.object({
   residentName: z.string().optional(),
   dateOfBirth: z.string().optional(),
   dateOfAssessment: z.string().optional(),
+  nextReviewDate: z.string().optional(),
   time: z.string().optional(),
 
   // 1. Respiratory Risks (10 points each if YES)

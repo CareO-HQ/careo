@@ -16,6 +16,7 @@ export const dietNotificationSchema = z.object({
   signature: z.string().min(1, "Signature is required"),
   dateCompleted: z.number(),
   reviewDate: z.number(),
+  nextReviewDate: z.string().optional(),
 
   // Dietary Preferences & Risks
   likesFavouriteFoods: z.string().optional(),

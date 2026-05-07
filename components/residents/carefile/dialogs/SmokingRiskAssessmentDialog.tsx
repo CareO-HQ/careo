@@ -43,6 +43,7 @@ import { z } from "zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
 import { useCareFileForms } from "@/hooks/use-care-file-forms";
 import { useProfile } from "@/hooks/use-profile";
@@ -85,6 +86,11 @@ export default function SmokingRiskAssessmentDialog({
     const [completionDatePopoverOpen, setCompletionDatePopoverOpen] = useState(false);
     const [isSubmittedLocal, setIsSubmittedLocal] = useState(false);
 
+    const isMissingNextReviewDateColumn = (error: any) => {
+        return (error?.code === "PGRST204" || error?.code === "42703") &&
+            error?.message?.toLowerCase().includes("next_review_date");
+    };
+
     const isViewMode = viewOnly || isSubmittedLocal;
 
     // Reset local submission state when parent switches modes or data changes
@@ -100,6 +106,7 @@ export default function SmokingRiskAssessmentDialog({
         defaultValues: initialData
             ? {
                 ...initialData,
+                nextReviewDate: initialData.nextReviewDate || initialData.next_review_date || "",
                 materialsControlled: initialData.materials_controlled ?? false,
                 materialsControlledDetails: initialData.materials_controlled_details ?? "",
                 assistanceLighting: initialData.assistance_lighting ?? false,
@@ -150,6 +157,7 @@ export default function SmokingRiskAssessmentDialog({
             : {
                 residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
                 residentDateOfBirth: resident.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now(),
+                nextReviewDate: "",
                 materialsControlled: false,
                 materialsControlledDetails: "",
                 assistanceLighting: false,
@@ -213,6 +221,7 @@ export default function SmokingRiskAssessmentDialog({
                     resident_id: residentId,
                     organization_id: organizationId,
                     assessment_date: format(new Date(values.assessmentDate || Date.now()), "yyyy-MM-dd"),
+                    next_review_date: values.nextReviewDate || null,
                     created_by: userId,
                     completed_by: values.completedBy,
                     status: "active", // Explicitly set to active upon submission
@@ -267,12 +276,26 @@ export default function SmokingRiskAssessmentDialog({
 
                 console.log("Sending payload to DB:", payload);
 
-                await submitAssessmentWithVersioning(
-                    'smoking_risk_assessments',
-                    payload,
-                    initialData,
-                    isEditMode
-                );
+                try {
+                    await submitAssessmentWithVersioning(
+                        'smoking_risk_assessments',
+                        payload,
+                        initialData,
+                        isEditMode
+                    );
+                } catch (error: any) {
+                    if (isMissingNextReviewDateColumn(error)) {
+                        const { next_review_date: _, ...fallbackPayload } = payload;
+                        await submitAssessmentWithVersioning(
+                            'smoking_risk_assessments',
+                            fallbackPayload,
+                            initialData,
+                            isEditMode
+                        );
+                    } else {
+                        throw error;
+                    }
+                }
 
                 toast.success(isEditMode ? "Assessment updated successfully" : "Assessment saved successfully");
 
@@ -501,6 +524,20 @@ export default function SmokingRiskAssessmentDialog({
 
             <div className="space-y-12 pb-20">
                 <Form {...form}>
+                    <div className="mb-6 p-4 border rounded-lg bg-muted/40">
+                        <FormField
+                            control={form.control}
+                            name="nextReviewDate"
+                            render={({ field }) => (
+                                <FormItem className="max-w-xs">
+                                    <FormControl>
+                                        <NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={isViewMode} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
                     <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-8">
                         <button
                             type="submit"
