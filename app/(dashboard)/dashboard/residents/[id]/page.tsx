@@ -61,6 +61,8 @@ import {
   carePlanEvaluationAlertFolderLabel,
   extractRawCareFileFolderKeyFromGoals,
 } from "@/lib/care-plan-evaluation-alerts";
+import { FORM_REVIEW_DUE_TOMORROW_ALERT_TYPE } from "@/lib/form-review-alerts";
+import { formReviewAlertCareFileHref } from "@/lib/form-review-alert-navigation";
 
 const NON_DISMISSIBLE_ALERT_TYPES = new Set<string>([
   "resident_photo_refresh_required",
@@ -71,6 +73,7 @@ const NON_DISMISSIBLE_ALERT_TYPES = new Set<string>([
   PRN_PROTOCOL_PENDING_12H_ALERT_TYPE,
   CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE,
   CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE,
+  FORM_REVIEW_DUE_TOMORROW_ALERT_TYPE,
 ]);
 const NURSE_ONLY_ALERT_TYPES = new Set<string>([
   "resident_photo_refresh_required",
@@ -78,6 +81,7 @@ const NURSE_ONLY_ALERT_TYPES = new Set<string>([
   PRN_PROTOCOL_PENDING_12H_ALERT_TYPE,
   CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE,
   CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE,
+  FORM_REVIEW_DUE_TOMORROW_ALERT_TYPE,
 ]);
 const NURSE_AND_CARE_ASSISTANT_ALERT_TYPES = new Set<string>([
   "weight_check_due_tomorrow",
@@ -109,6 +113,9 @@ function getNonDismissibleAlertMessage(type?: string) {
     type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE
   ) {
     return "This alert cannot be dismissed until the care plan evaluation is completed";
+  }
+  if (type === FORM_REVIEW_DUE_TOMORROW_ALERT_TYPE) {
+    return "This alert cannot be dismissed until the form review is completed";
   }
   if (type === "medication") {
     return "This alert cannot be dismissed until the medication is restocked";
@@ -1095,6 +1102,13 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                   carePlanEvalCareFileHref !== null;
                 const isMedicationNavAlert =
                   alert.type === "medication" && userRole === "nurse";
+                const formReviewCareFileHref =
+                  FEATURES.SHOW_CARE_FILE_V2 && userRole === "nurse"
+                    ? formReviewAlertCareFileHref(id, alert.metadata)
+                    : null;
+                const isFormReviewNavAlert =
+                  alert.type === FORM_REVIEW_DUE_TOMORROW_ALERT_TYPE &&
+                  formReviewCareFileHref !== null;
                 const carePlanEvalFolderLabel = isCarePlanEvalNavAlert
                   ? carePlanEvaluationAlertFolderLabel(alert.metadata)
                   : null;
@@ -1103,7 +1117,8 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                   isUrineNavAlert ||
                   isPrnProtocolNavAlert ||
                   isCarePlanEvalNavAlert ||
-                  isMedicationNavAlert;
+                  isMedicationNavAlert ||
+                  isFormReviewNavAlert;
                 const goToFoodFluid = () => {
                   setShowAlertsDialog(false);
                   router.push(`/dashboard/residents/${id}/food-fluid`);
@@ -1125,6 +1140,11 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                   setShowAlertsDialog(false);
                   router.push(`/dashboard/residents/${id}/medication?tab=active` as Route);
                 };
+                const goToFormReviewForm = () => {
+                  if (!formReviewCareFileHref) return;
+                  setShowAlertsDialog(false);
+                  router.push(formReviewCareFileHref as Route);
+                };
                 return (
                   <div
                     key={alert.id}
@@ -1145,6 +1165,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                       if (isPrnProtocolNavAlert) goToMedicationDocs();
                       if (isCarePlanEvalNavAlert) goToCarePlanFolder();
                       if (isMedicationNavAlert) goToMedication();
+                      if (isFormReviewNavAlert) goToFormReviewForm();
                     }}
                     onKeyDown={(e) => {
                       if (!isNavigationAlert) return;
@@ -1164,6 +1185,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                         }
                         if (isMedicationNavAlert) {
                           goToMedication();
+                        }
+                        if (isFormReviewNavAlert) {
+                          goToFormReviewForm();
                         }
                       }
                     }}
@@ -1221,6 +1245,11 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                         {isMedicationNavAlert && (
                           <p className="text-xs text-muted-foreground mt-2">
                             Click this alert to open medication
+                          </p>
+                        )}
+                        {isFormReviewNavAlert && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Click this alert to open the related care file form
                           </p>
                         )}
                       </div>

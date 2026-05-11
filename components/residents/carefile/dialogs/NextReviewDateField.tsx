@@ -2,7 +2,7 @@
 
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { addMonths, addYears, format, isValid, parseISO } from "date-fns";
+import { addMonths, addYears, format, isValid, parse, parseISO } from "date-fns";
 
 type NextReviewPreset = "one_month" | "six_months" | "next_year" | "pick_date" | "na";
 
@@ -16,8 +16,26 @@ interface NextReviewDateFieldProps {
 
 function toDateValue(value: string): Date | null {
   if (!value) return null;
-  const parsed = parseISO(value);
-  if (isValid(parsed)) return parsed;
+
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return null;
+
+  // Primary format used by input[type="date"] and DB date columns.
+  const isoDate = parseISO(trimmedValue);
+  if (isValid(isoDate)) return isoDate;
+
+  // Defensive fallback for legacy / locale-formatted values.
+  const ukDate = parse(trimmedValue, "dd/MM/yyyy", new Date());
+  if (isValid(ukDate)) return ukDate;
+
+  // Epoch support in case a numeric string is passed by older code paths.
+  if (/^\d{10,13}$/.test(trimmedValue)) {
+    const numeric = Number(trimmedValue);
+    const normalized = trimmedValue.length === 10 ? numeric * 1000 : numeric;
+    const epochDate = new Date(normalized);
+    if (isValid(epochDate)) return epochDate;
+  }
+
   return null;
 }
 

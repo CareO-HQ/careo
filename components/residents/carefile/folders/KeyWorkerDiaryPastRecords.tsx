@@ -44,11 +44,17 @@ interface KeyWorkerDiaryEntry {
     date: string;
     time: string;
     comments: string;
+    comment?: string | null;
     author_id: string;
     author_name: string;
     created_at: string;
     updated_at: string;
 }
+
+const normalizeDiaryEntry = (entry: KeyWorkerDiaryEntry): KeyWorkerDiaryEntry => ({
+    ...entry,
+    comments: entry.comments ?? entry.comment ?? "",
+});
 
 export function KeyWorkerDiaryPastRecords({ residentId, resident }: KeyWorkerDiaryPastRecordsProps) {
     const router = useRouter();
@@ -92,8 +98,9 @@ export function KeyWorkerDiaryPastRecords({ residentId, resident }: KeyWorkerDia
             }
 
             if (data) {
-                setDiaryEntries(data);
-                setFilteredEntries(data);
+                const normalizedEntries = data.map(normalizeDiaryEntry);
+                setDiaryEntries(normalizedEntries);
+                setFilteredEntries(normalizedEntries);
             }
         } catch (error) {
             console.error("Error fetching key worker diary entries:", error);
@@ -534,11 +541,11 @@ export function KeyWorkerDiaryPastRecords({ residentId, resident }: KeyWorkerDia
                             </div>
 
                             <div className="space-y-1 w-full">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 text-center">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
                                     Comments
                                 </p>
                                 <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed w-full">
-                                    {entry.comments}
+                                    {entry.comments ?? entry.comment ?? ""}
                                 </p>
                             </div>
                         </div>

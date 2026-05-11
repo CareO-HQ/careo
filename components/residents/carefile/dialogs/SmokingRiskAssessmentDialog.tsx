@@ -86,12 +86,49 @@ export default function SmokingRiskAssessmentDialog({
     const [completionDatePopoverOpen, setCompletionDatePopoverOpen] = useState(false);
     const [isSubmittedLocal, setIsSubmittedLocal] = useState(false);
 
-    const isMissingNextReviewDateColumn = (error: any) => {
-        return (error?.code === "PGRST204" || error?.code === "42703") &&
-            error?.message?.toLowerCase().includes("next_review_date");
+    const isNextReviewDateSchemaCacheLag = (error: unknown): boolean => {
+        if (!error || typeof error !== "object") return false;
+        const maybeError = error as { code?: string; message?: string };
+        const message = maybeError.message?.toLowerCase() ?? "";
+        return (
+            maybeError.code === "PGRST204" &&
+            message.includes("next_review_date") &&
+            message.includes("schema cache")
+        );
+    };
+
+    const isMissingNextReviewDateColumn = (error: unknown): boolean => {
+        if (!error || typeof error !== "object") return false;
+        const maybeError = error as { code?: string; message?: string };
+        const message = maybeError.message?.toLowerCase() ?? "";
+        return (
+            (maybeError.code === "PGRST204" || maybeError.code === "42703") &&
+            message.includes("next_review_date")
+        );
     };
 
     const isViewMode = viewOnly || isSubmittedLocal;
+
+    const normalizeNextReviewDate = (value: unknown): string => {
+        if (!value) return "";
+        if (typeof value === "string") {
+            const trimmedValue = value.trim();
+            if (!trimmedValue) return "";
+            if (/^\d{4}-\d{2}-\d{2}$/.test(trimmedValue)) return trimmedValue;
+            const parsedDate = new Date(trimmedValue);
+            if (!Number.isNaN(parsedDate.getTime())) {
+                return format(parsedDate, "yyyy-MM-dd");
+            }
+            return "";
+        }
+        if (typeof value === "number" && Number.isFinite(value)) {
+            const parsedDate = new Date(value < 1_000_000_000_000 ? value * 1000 : value);
+            if (!Number.isNaN(parsedDate.getTime())) {
+                return format(parsedDate, "yyyy-MM-dd");
+            }
+        }
+        return "";
+    };
 
     // Reset local submission state when parent switches modes or data changes
     useEffect(() => {
@@ -106,7 +143,7 @@ export default function SmokingRiskAssessmentDialog({
         defaultValues: initialData
             ? {
                 ...initialData,
-                nextReviewDate: initialData.nextReviewDate || initialData.next_review_date || "",
+                nextReviewDate: normalizeNextReviewDate(initialData.nextReviewDate ?? initialData.next_review_date),
                 materialsControlled: initialData.materials_controlled ?? false,
                 materialsControlledDetails: initialData.materials_controlled_details ?? "",
                 assistanceLighting: initialData.assistance_lighting ?? false,
@@ -283,15 +320,18 @@ export default function SmokingRiskAssessmentDialog({
                         initialData,
                         isEditMode
                     );
-                } catch (error: any) {
-                    if (isMissingNextReviewDateColumn(error)) {
-                        const { next_review_date: _, ...fallbackPayload } = payload;
+                } catch (error: unknown) {
+                    if (isNextReviewDateSchemaCacheLag(error)) {
+                        await new Promise((resolve) => setTimeout(resolve, 400));
                         await submitAssessmentWithVersioning(
                             'smoking_risk_assessments',
-                            fallbackPayload,
+                            payload,
                             initialData,
                             isEditMode
                         );
+                    } else if (isMissingNextReviewDateColumn(error)) {
+                        toast.error("Smoking Risk Assessment requires the latest database migration for next review date.");
+                        return;
                     } else {
                         throw error;
                     }

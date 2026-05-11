@@ -84,9 +84,27 @@ export default function GeneralRiskAssessmentDialog({
     const [isLoading, startTransition] = useTransition();
     const [loadingState, setLoadingState] = useState<string>("");
 
-    const isMissingNextReviewDateColumn = (error: any) => {
-        return (error?.code === "PGRST204" || error?.code === "42703") &&
-            error?.message?.toLowerCase().includes("next_review_date");
+    const isMissingNextReviewDateColumn = (error: unknown): boolean => {
+        const mentionsMissingColumn = (value: unknown): boolean => {
+            if (!value || typeof value !== "object") return false;
+            const maybeError = value as {
+                code?: string;
+                message?: string;
+                cause?: unknown;
+            };
+            const message = maybeError.message?.toLowerCase() ?? "";
+            const code = maybeError.code;
+            const hasMissingColumnText =
+                message.includes("next_review_date") &&
+                message.includes("general_risk_assessments");
+            const hasKnownCode = code === "PGRST204" || code === "42703";
+            if (hasMissingColumnText || (hasKnownCode && message.includes("next_review_date"))) {
+                return true;
+            }
+            return mentionsMissingColumn(maybeError.cause);
+        };
+
+        return mentionsMissingColumn(error);
     };
 
     const residentFullName = resident

@@ -41,9 +41,55 @@ export default function DietNotificationDialog({
   const { profile } = useProfile();
 
   const isMissingColumn = (error: any) => {
-    const msg = error?.message?.toLowerCase() || "";
-    return (error?.code === "PGRST204" || error?.code === "42703") &&
-      (msg.includes("next_review_date") || msg.includes("assessment_data"));
+    const message = String(error?.message ?? "").toLowerCase();
+    const code = String(error?.code ?? "");
+    const cause = (error?.cause ?? null) as { message?: string; code?: string } | null;
+    const causeMessage = String(cause?.message ?? "").toLowerCase();
+    const causeCode = String(cause?.code ?? "");
+
+    const hasMissingColumnMessage =
+      message.includes("next_review_date") ||
+      message.includes("assessment_data") ||
+      causeMessage.includes("next_review_date") ||
+      causeMessage.includes("assessment_data");
+
+    const hasKnownMissingColumnCode =
+      code === "PGRST204" ||
+      code === "42703" ||
+      causeCode === "PGRST204" ||
+      causeCode === "42703";
+
+    // Wrapped errors from submitAssessmentWithVersioning may keep the real code in error.cause
+    // and include only message text at top level.
+    return hasMissingColumnMessage && (hasKnownMissingColumnCode || message.includes("schema cache") || causeMessage.includes("schema cache"));
+  };
+
+  const removeMissingColumnsFromPayload = (
+    error: any,
+    targetPayload: {
+      next_review_date?: string | null;
+      assessment_data?: z.infer<typeof dietNotificationSchema>;
+    }
+  ): boolean => {
+    const message = String(error?.message ?? "").toLowerCase();
+    const causeMessage = String(error?.cause?.message ?? "").toLowerCase();
+    let changed = false;
+
+    const mentionsNextReviewDate =
+      message.includes("next_review_date") || causeMessage.includes("next_review_date");
+    const mentionsAssessmentData =
+      message.includes("assessment_data") || causeMessage.includes("assessment_data");
+
+    if (mentionsNextReviewDate && "next_review_date" in targetPayload) {
+      delete targetPayload.next_review_date;
+      changed = true;
+    }
+    if (mentionsAssessmentData && "assessment_data" in targetPayload) {
+      delete targetPayload.assessment_data;
+      changed = true;
+    }
+
+    return changed;
   };
 
   const form = useForm<z.infer<typeof dietNotificationSchema>>({
@@ -61,7 +107,11 @@ export default function DietNotificationDialog({
       signature: initialData.assessment_data?.signature || initialData.signature || "",
       dateCompleted: initialData.assessment_data?.dateCompleted || initialData.date_completed || initialData.dateCompleted || Date.now(),
       reviewDate: initialData.assessment_data?.reviewDate || initialData.review_date || initialData.reviewDate || Date.now() + 30 * 24 * 60 * 60 * 1000,
-      nextReviewDate: initialData.assessment_data?.nextReviewDate || initialData.next_review_date || "",
+      nextReviewDate:
+        initialData.assessment_data?.nextReviewDate ||
+        initialData.next_review_date ||
+        initialData.kitchen_review?.nextReviewDate ||
+        "",
       chokingRiskAssessment: initialData.assessment_data?.chokingRiskAssessment || initialData.choking_risk || "Low Risk",
       preferredMealSize: initialData.assessment_data?.preferredMealSize || initialData.preferred_meal_size || "Standard",
       // Flatten from JSONB
@@ -204,7 +254,8 @@ export default function DietNotificationDialog({
           reviewerPrintName: data.reviewerPrintName,
           reviewerJobTitle: data.reviewerJobTitle,
           reviewerSignature: data.reviewerSignature,
-          reviewerDate: data.reviewerDate
+          reviewerDate: data.reviewerDate,
+          nextReviewDate: data.nextReviewDate || null
         },
         completed_by: data.completedBy,
         print_name: data.printName,
@@ -225,13 +276,37 @@ export default function DietNotificationDialog({
         );
       } catch (error: any) {
         if (isMissingColumn(error)) {
-          const { next_review_date: _, assessment_data: __, ...fallbackPayload } = payload;
-          await submitAssessmentWithVersioning(
-            'diet_notifications',
-            fallbackPayload,
-            initialData,
-            isEditMode
-          );
+          const fallbackPayload: typeof payload = { ...payload };
+          const changed = removeMissingColumnsFromPayload(error, fallbackPayload);
+          if (!changed) {
+            throw error;
+          }
+
+          try {
+            await submitAssessmentWithVersioning(
+              'diet_notifications',
+              fallbackPayload,
+              initialData,
+              isEditMode
+            );
+          } catch (retryError: any) {
+            if (!isMissingColumn(retryError)) {
+              throw retryError;
+            }
+
+            const secondFallbackPayload: typeof payload = { ...fallbackPayload };
+            const secondChanged = removeMissingColumnsFromPayload(retryError, secondFallbackPayload);
+            if (!secondChanged) {
+              throw retryError;
+            }
+
+            await submitAssessmentWithVersioning(
+              'diet_notifications',
+              secondFallbackPayload,
+              initialData,
+              isEditMode
+            );
+          }
         } else {
           throw error;
         }

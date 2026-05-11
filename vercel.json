@@ -47,6 +47,10 @@
     {
       "path": "/api/cron/checks-interval-alerts",
       "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/form-review-alerts",
+      "schedule": "0 * * * *"
     }
   ]
 }
