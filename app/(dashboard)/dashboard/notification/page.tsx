@@ -119,7 +119,19 @@ export default function NotificationPage() {
     const fetchActionPlan = async () => {
       if (selectedNotification?.metadata?.actionPlanId) {
         try {
-          const details = await getActionPlanById(selectedNotification.metadata.actionPlanId);
+          const meta = selectedNotification.metadata as {
+            actionPlanId?: string;
+            auditCategory?: string;
+            category?: string;
+          };
+          if (!meta.actionPlanId) {
+            setActionPlanDetails(null);
+            return;
+          }
+          const details = await getActionPlanById(
+            meta.actionPlanId,
+            meta.auditCategory ?? meta.category
+          );
           setActionPlanDetails(details);
         } catch (error) {
           console.error("Failed to fetch action plan details:", error);
@@ -236,12 +248,6 @@ export default function NotificationPage() {
       setIsDetailModalOpen(false);
       setSelectedNotification(null);
       setStatusComment("");
-
-      // Refresh action plan details if still selected
-      if (selectedNotification?.metadata?.actionPlanId) {
-        const details = await getActionPlanById(selectedNotification.metadata.actionPlanId);
-        setActionPlanDetails(details);
-      }
     } catch (error) {
       console.error("Failed to update status:", error);
       toast.error("Failed to update status. Please try again.");

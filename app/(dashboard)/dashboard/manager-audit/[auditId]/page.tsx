@@ -296,10 +296,33 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         if (stateData.staff_type) setSavedStaffType(stateData.staff_type as any);
 
         if (stateData.action_plans) {
-          const plans = (stateData.action_plans as any[]).map(plan => ({
+          let plans = (stateData.action_plans as ActionPlan[]).map((plan) => ({
             ...plan,
-            dueDate: plan.dueDate ? new Date(plan.dueDate) : undefined
+            dueDate: plan.dueDate ? new Date(plan.dueDate as unknown as string) : undefined,
           }));
+          // Action plan status is updated on audit_manager_action_plans (e.g. from /dashboard/action-plans).
+          // manager_audit_state.action_plans JSON can be stale — merge status from DB.
+          if (activeCareHomeId) {
+            try {
+              const dbPlans = await auditService.getManagerActionPlans(auditId, activeCareHomeId);
+              const dbById = new Map((dbPlans || []).map((p: { id: string }) => [p.id, p]));
+              plans = plans.map((plan) => {
+                const row = dbById.get(plan.id) as
+                  | { status?: string; latest_comment?: string | null }
+                  | undefined;
+                if (!row) return plan;
+                let status = row.status ?? plan.status;
+                if (status === "in-progress") status = "in_progress";
+                return {
+                  ...plan,
+                  status,
+                  latestComment: row.latest_comment ?? plan.latestComment,
+                };
+              });
+            } catch (e) {
+              console.warn("Could not merge manager action plan status from DB:", e);
+            }
+          }
           setActionPlans(plans);
         }
 

@@ -79,7 +79,13 @@ export function canViewSidebarIncidents(role?: string): boolean {
 }
 
 export function canViewSidebarActionPlans(role?: string): boolean {
-  return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin";
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "saas_admin"
+  );
 }
 
 export function canViewSidebarNotification(role?: string): boolean {

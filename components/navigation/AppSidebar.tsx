@@ -136,7 +136,7 @@ export function AppSidebar() {
       );
       setUnreadAppointmentsCount(unreadAppointmentList.length);
 
-      // 3. System Notifications (exclude appointment and incident types — they have their own badges)
+      // 3. System Notifications (exclude types that have their own sidebar badges)
       const { data: allNotifs } = await supabase
         .from("notifications")
         .select("id, type, user_id, team_id")
@@ -158,23 +158,40 @@ export function AppSidebar() {
         !readIds.has(n.id) &&
         !dismissedIds.has(n.id) &&
         n.type !== "incident" &&
-        !(n.type || "").startsWith("appointment_")
+        !(n.type || "").startsWith("appointment_") &&
+        !(n.type || "").startsWith("action_plan")
       );
       setUnreadNotificationCount(unreadNotifs.length);
 
       // 4. Action Plans (via notifications table)
-      const { data: allActionPlanNotifs } = await supabase
+      let actionPlanQuery = supabase
         .from("notifications")
-        .select("id")
+        .select("id, metadata")
         .eq("organization_id", activeOrganizationId)
         .eq("care_home_id", activeCareHomeId)
-        .in("type", ["action_plan", "action_plan_status"])
-        .or(`user_id.eq.${user.id},user_id.is.null`);
+        .in("type", ["action_plan", "action_plan_status"]);
 
-      const unreadActionPlanList = (allActionPlanNotifs || []).filter(n =>
-        !readIds.has(n.id) && !dismissedIds.has(n.id)
+      if (isPowerUser) {
+        actionPlanQuery = actionPlanQuery.or(`user_id.eq.${user.id},user_id.is.null`);
+      } else {
+        actionPlanQuery = actionPlanQuery.eq("user_id", user.id);
+      }
+
+      const { data: allActionPlanNotifs } = await actionPlanQuery;
+
+      const unreadActionPlanRows = (allActionPlanNotifs || []).filter(
+        (n) => !readIds.has(n.id) && !dismissedIds.has(n.id)
       );
-      setTotalNewActionPlansCount(unreadActionPlanList.length);
+
+      const seenActionPlanKeys = new Set<string>();
+      for (const n of unreadActionPlanRows) {
+        const meta = n.metadata as { actionPlanId?: string } | undefined;
+        const planKey = meta?.actionPlanId
+          ? `plan:${meta.actionPlanId}`
+          : `notif:${n.id}`;
+        seenActionPlanKeys.add(planKey);
+      }
+      setTotalNewActionPlansCount(seenActionPlanKeys.size);
 
       // 5. Unread wounds (per-user via wound_alert_reads)
       let woundsQuery = supabase
@@ -299,7 +316,8 @@ export function AppSidebar() {
       'audit_care_file_action_plans',
       'audit_governance_action_plans',
       'audit_clinical_action_plans',
-      'audit_environment_action_plans'
+      'audit_environment_action_plans',
+      'care_home_common_action_plans',
     ];
 
     const apChannels = apTables.map(tableName =>

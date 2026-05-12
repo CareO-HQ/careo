@@ -408,7 +408,31 @@ export const deleteAllNotifications = async (userId: string, careHomeId?: string
     return { deleted: notificationIds.length };
 };
 
-export const getActionPlanById = async (actionPlanId: string) => {
+export const getActionPlanById = async (actionPlanId: string, auditCategoryHint?: string) => {
+    if (auditCategoryHint === "common") {
+        const { data, error } = await supabase
+            .from("care_home_common_action_plans")
+            .select("*")
+            .eq("id", actionPlanId)
+            .single();
+
+        if (error) {
+            console.error("Error fetching common action plan:", error);
+            throw error;
+        }
+        return data ? { ...data, auditCategory: "common" } : null;
+    }
+
+    const commonTry = await supabase
+        .from("care_home_common_action_plans")
+        .select("*")
+        .eq("id", actionPlanId)
+        .maybeSingle();
+
+    if (!commonTry.error && commonTry.data) {
+        return { ...commonTry.data, auditCategory: "common" };
+    }
+
     const { data, error } = await supabase
         .from("audit_action_plans")
         .select("*, resident:residents(first_name, last_name)")
