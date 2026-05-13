@@ -5,15 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -31,36 +22,35 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ArrowLeft, Plus, X, Trash2, MoreHorizontal, CalendarIcon } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useProfile } from "@/hooks/use-profile";
 import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
-import { auditService, AuditTemplate, AuditCompletion } from "@/lib/audit-service";
+import { auditService, AuditTemplate } from "@/lib/audit-service";
 import { supabase } from "@/lib/supabase";
-
-interface Item {
-  id: string;
-  name: string;
-  type: "compliance" | "checkbox" | "notes";
-}
-
-interface ItemResponse {
-  itemId: string;
-  itemName: string;
-  status?: "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked";
-  notes?: string;
-  date?: string;
-}
+import {
+  CareFileAuditWorkspace,
+  type CareFileAuditItem,
+  type CareFileItemResponse,
+  type CareFileActionPlanRow,
+} from "@/components/careo-audit/care-file-audit-workspace";
+import {
+  normalizeCareFileItemStatus,
+  nextCareFileItemStatus,
+  persistCareFileItemStatus,
+  coerceCareFileCompletionItem,
+} from "@/lib/care-file-audit";
 
 interface ActionPlan {
   id: string;
   auditId: string;
   text: string;
-  assignedTo: string; // This will be the UUID
-  assignedToName: string; // This will be the name for display
+  assignedTo: string;
+  assignedToName: string;
   assignedToEmail: string;
   dueDate: Date | undefined;
   priority: string;
@@ -68,6 +58,56 @@ interface ActionPlan {
   latestComment?: string;
   residentId?: string;
   residentName?: string;
+  /** Checklist item this plan was created for (persists to DB). */
+  sourceItemId?: string;
+}
+
+function mapLoadedCareFilePlan(p: Record<string, unknown>): ActionPlan {
+  const sourceRaw = p.source_item_id;
+  return {
+    id: String(p.id),
+    auditId: String(p.audit_response_id),
+    text: String(p.description ?? ""),
+    assignedTo: String(p.assigned_to ?? ""),
+    assignedToName: String(p.assigned_to_name ?? p.assigned_to ?? ""),
+    assignedToEmail: String(p.assigned_to_email ?? ""),
+    dueDate: p.due_date ? new Date(String(p.due_date)) : undefined,
+    priority: String(p.priority ?? ""),
+    status: p.status ? String(p.status) : undefined,
+    latestComment: p.latest_comment ? String(p.latest_comment) : undefined,
+    residentId: p.resident_id ? String(p.resident_id) : undefined,
+    residentName: p.resident_name ? String(p.resident_name) : undefined,
+    sourceItemId:
+      typeof sourceRaw === "string" && sourceRaw.trim() !== ""
+        ? sourceRaw.trim()
+        : undefined,
+  };
+}
+
+function toAuditItems(raw: unknown[]): CareFileAuditItem[] {
+  return raw.map((r) => {
+    const o = r as Record<string, unknown>;
+    const id = String(o.id ?? "");
+    const name = String(o.name ?? "");
+    const t = o.type;
+    const type: CareFileAuditItem["type"] =
+      t === "checkbox" || t === "notes" ? t : "compliance";
+    return {
+      id,
+      name,
+      type,
+      sectionId: typeof o.sectionId === "string" ? o.sectionId : undefined,
+      sectionTitle:
+        typeof o.sectionTitle === "string" ? o.sectionTitle : undefined,
+      subsectionId:
+        typeof o.subsectionId === "string" ? o.subsectionId : undefined,
+      subsectionTitle:
+        typeof o.subsectionTitle === "string" ? o.subsectionTitle : undefined,
+      sourceLabel:
+        typeof o.sourceLabel === "string" ? o.sourceLabel : undefined,
+      sourceHref: typeof o.sourceHref === "string" ? o.sourceHref : undefined,
+    };
+  });
 }
 
 function CareFileAuditEditorPageContent() {
@@ -75,149 +115,235 @@ function CareFileAuditEditorPageContent() {
   const router = useRouter();
   const residentId = params.residentId as string;
   const auditId = params.auditId as string;
-  const { activeTeamId, activeOrganizationId, activeCareHomeId } = useActiveTeam();
+  const { activeTeamId, activeOrganizationId, activeCareHomeId } =
+    useActiveTeam();
   const { profile } = useProfile();
 
-  // Fetch resident data
-  const [resident, setResident] = useState<any>(undefined);
+  const [resident, setResident] = useState<
+    Record<string, unknown> | null | undefined
+  >(undefined);
   const [template, setTemplate] = useState<AuditTemplate | null>(null);
   const [responseId, setResponseId] = useState<string | null>(null);
+  const [completionStatus, setCompletionStatus] = useState<string>("draft");
+  const [auditedAtLabel, setAuditedAtLabel] = useState<string>("");
+  const [lastEditedHint, setLastEditedHint] = useState<string>("");
+  const [saveDraftPending, setSaveDraftPending] = useState(false);
 
-  // States
-  const [items, setItems] = useState<Item[]>([]);
-  const [itemResponses, setItemResponses] = useState<Map<string, ItemResponse>>(new Map());
+  const [items, setItems] = useState<CareFileAuditItem[]>([]);
+  const [itemResponses, setItemResponses] = useState<
+    Map<string, CareFileItemResponse>
+  >(new Map());
   const [overallNotes, setOverallNotes] = useState("");
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
 
-  // Dialogs
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
-  const [newItemForm, setNewItemForm] = useState({ name: "", type: "compliance" as any });
+  const [newItemForm, setNewItemForm] = useState({
+    name: "",
+    type: "compliance" as CareFileAuditItem["type"],
+  });
   const [isActionPlanDialogOpen, setIsActionPlanDialogOpen] = useState(false);
   const [actionPlanText, setActionPlanText] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [assignedToEmail, setAssignedToEmail] = useState("");
   const [dueDate, setDueDate] = useState<Date>();
   const [priority, setPriority] = useState("");
-  const [orgMembers, setOrgMembers] = useState<any[]>([]);
+  const [orgMembers, setOrgMembers] = useState<
+    { id: string; email: string; name?: string; image_url?: string | null }[]
+  >([]);
   const [dueDatePopoverOpen, setDueDatePopoverOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [actionPlanToDelete, setActionPlanToDelete] = useState<string | null>(null);
+  const [actionPlanToDelete, setActionPlanToDelete] = useState<string | null>(
+    null
+  );
+  const [actionPlanSourceItemId, setActionPlanSourceItemId] = useState<
+    string | undefined
+  >(undefined);
 
-  // Refs
   const isCreatingDraft = useRef(false);
   const hasLoadedDraft = useRef(false);
   const lastSavedData = useRef("");
   const isSaving = useRef(false);
+  const actionPlanSourceItemIdRef = useRef<string | undefined>(undefined);
 
-  // Load Initial Data
   useEffect(() => {
     const load = async () => {
       if (residentId) {
-        const { data } = await supabase.from('residents').select('*').eq('id', residentId).single();
-        if (data) setResident(data);
+        const { data, error } = await supabase
+          .from("residents")
+          .select("*")
+          .eq("id", residentId)
+          .single();
+        if (data) setResident(data as Record<string, unknown>);
+        else if (error) setResident(null);
       }
 
-      // Try loading as template first
       const tmpl = await auditService.getCareFileTemplateById(auditId);
       if (tmpl) {
         setTemplate(tmpl);
-        if (tmpl.items) setItems(tmpl.items);
+        if (tmpl.items?.length) setItems(toAuditItems(tmpl.items as unknown[]));
+        setAuditedAtLabel(format(new Date(), "dd MMM yyyy"));
+        setCompletionStatus("draft");
       } else {
-        // Try loading as response
         const resp = await auditService.getCareFileResponseById(auditId);
         if (resp) {
           setResponseId(resp.id);
-          // Also get template info from response if possible or set dummy
+          setCompletionStatus(resp.status ?? "draft");
+          const stamp = resp.audited_at || resp.updated_at || resp.created_at;
+          if (stamp) setAuditedAtLabel(format(new Date(stamp), "dd MMM yyyy"));
+
           if (resp.template_id) {
-            const t = await auditService.getCareFileTemplateById(resp.template_id);
+            const t = await auditService.getCareFileTemplateById(
+              resp.template_id
+            );
             if (t) {
               setTemplate(t);
-              if (t.items) setItems(t.items);
+              if (t.items?.length)
+                setItems(toAuditItems(t.items as unknown[]));
             }
           } else {
-            // Fallback if template details are embedded or missing
             if (resp.items) {
-              setItems(resp.items.map((i: any) => ({
-                id: i.itemId,
-                name: i.itemName,
-                type: i.status === 'checked' || i.status === 'unchecked' ? 'checkbox' : 'compliance'
-              })));
+              setItems(
+                resp.items.map((i: CareFileItemResponse & { itemName?: string }) => ({
+                  id: i.itemId,
+                  name: i.itemName ?? "",
+                  type: "compliance",
+                }))
+              );
             }
-            setTemplate({ name: resp.template_name || "Audit", id: "unknown" } as any);
+            setTemplate({
+              name: resp.template_name || "Audit",
+              id: "unknown",
+            } as AuditTemplate);
           }
 
-          // Load response content
           if (resp.items) {
-            const map = new Map();
-            resp.items.forEach((i: any) => map.set(i.itemId, i));
+            const map = new Map<string, CareFileItemResponse>();
+            resp.items.forEach((row: unknown) => {
+              const item = coerceCareFileCompletionItem(row);
+              if (item) map.set(item.itemId, item as CareFileItemResponse);
+            });
             setItemResponses(map);
           }
           if (resp.overall_notes) setOverallNotes(resp.overall_notes);
 
-          // Load action plans
           const plans = await auditService.getCareFileActionPlans(resp.id);
           if (plans) {
-            setActionPlans(plans.map((p: any) => ({
-              id: p.id,
-              auditId: p.audit_response_id,
-              text: p.description,
-              assignedTo: p.assigned_to,
-              assignedToName: p.assigned_to_name || p.assigned_to,
-              assignedToEmail: p.assigned_to_email || "",
-              dueDate: p.due_date ? new Date(p.due_date) : undefined,
-              priority: p.priority,
-              status: p.status,
-              latestComment: p.latest_comment,
-              residentId: p.resident_id,
-              residentName: p.resident_name
-            })));
+            setActionPlans(
+              plans.map((p: Record<string, unknown>) =>
+                mapLoadedCareFilePlan(p)
+              )
+            );
           }
         }
       }
-
-      // Load org members
-      if (activeOrganizationId) {
-        const members = await auditService.getOrganizationMembers(activeOrganizationId);
-        setOrgMembers(members || []);
-      }
-    }
+    };
     load();
-  }, [residentId, auditId, activeOrganizationId]);
+  }, [residentId, auditId]);
 
-
-  // Check for drafts if we have a template but no response ID yet
+  // Same pattern as sidebar "Care File Audit" (manager-audit/0/resident/.../audit):
+  // load members only when org + care home context exist; primary query uses organization_id on users.
   useEffect(() => {
-    if (!template || responseId || hasLoadedDraft.current || !residentId) return;
+    if (!activeOrganizationId || !activeCareHomeId) {
+      setOrgMembers([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    type AssignableMember = {
+      id: string;
+      email: string;
+      name?: string;
+      image_url?: string | null;
+      role?: string;
+    };
+
+    const normalize = (rows: unknown): AssignableMember[] =>
+      (Array.isArray(rows) ? rows : []) as AssignableMember[];
+
+    void (async () => {
+      const { data: byOrgColumn, error: orgColumnError } = await supabase
+        .from("users")
+        .select("id, email, name, image_url")
+        .eq("organization_id", activeOrganizationId);
+
+      if (cancelled) return;
+
+      if (!orgColumnError && byOrgColumn && byOrgColumn.length > 0) {
+        setOrgMembers(normalize(byOrgColumn));
+        return;
+      }
+
+      const { data: byActiveOrg, error: activeOrgError } = await supabase
+        .from("users")
+        .select("id, email, name, image_url, role")
+        .eq("active_organization_id", activeOrganizationId);
+
+      if (cancelled) return;
+
+      if (!activeOrgError && byActiveOrg && byActiveOrg.length > 0) {
+        setOrgMembers(normalize(byActiveOrg));
+        return;
+      }
+
+      const { data: rlsScoped, error: rlsError } = await supabase
+        .from("users")
+        .select("id, email, name, image_url, role");
+
+      if (cancelled) return;
+
+      if (rlsError) {
+        console.warn("[care-file-audit] assignable members:", rlsError);
+        setOrgMembers([]);
+        return;
+      }
+
+      setOrgMembers(normalize(rlsScoped));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrganizationId, activeCareHomeId]);
+
+  useEffect(() => {
+    if (!template || responseId || hasLoadedDraft.current || !residentId)
+      return;
 
     const checkDraft = async () => {
-      const drafts = await auditService.getDraftCareFileResponses(template.id, residentId);
+      const drafts = await auditService.getDraftCareFileResponses(
+        template.id,
+        residentId
+      );
       if (drafts && drafts.length > 0) {
         const draft = drafts[0];
         setResponseId(draft.id);
+        setCompletionStatus(draft.status ?? "draft");
+        const stamp =
+          draft.audited_at || draft.updated_at || draft.created_at;
+        if (stamp) setAuditedAtLabel(format(new Date(stamp), "dd MMM yyyy"));
         if (draft.items) {
-          const map = new Map();
-          draft.items.forEach((i: any) => map.set(i.itemId, i));
+          const map = new Map<string, CareFileItemResponse>();
+          draft.items.forEach((row: unknown) => {
+            const item = coerceCareFileCompletionItem(row);
+            if (item) map.set(item.itemId, item as CareFileItemResponse);
+          });
           setItemResponses(map);
         }
         if (draft.overall_notes) setOverallNotes(draft.overall_notes);
 
         const plans = await auditService.getCareFileActionPlans(draft.id);
         if (plans) {
-          setActionPlans(plans.map((p: any) => ({
-            id: p.id,
-            auditId: p.audit_response_id,
-            text: p.description,
-            assignedTo: p.assigned_to,
-            assignedToName: p.assigned_to_name || p.assigned_to,
-            assignedToEmail: p.assigned_to_email || "",
-            dueDate: p.due_date ? new Date(p.due_date) : undefined,
-            priority: p.priority,
-            status: p.status
-          })));
+          setActionPlans(
+            plans.map((p: Record<string, unknown>) => mapLoadedCareFilePlan(p))
+          );
         }
         hasLoadedDraft.current = true;
-      } else if (!isCreatingDraft.current && activeOrganizationId && activeTeamId) {
-        // Create new draft
+      } else if (
+        !isCreatingDraft.current &&
+        activeOrganizationId &&
+        activeTeamId
+      ) {
         isCreatingDraft.current = true;
         try {
           const newDraft = await auditService.createCareFileResponse({
@@ -228,24 +354,38 @@ function CareFileAuditEditorPageContent() {
             team_id: activeTeamId,
             audited_by: profile?.name || profile?.email || "Unknown",
             frequency: template.frequency,
-            items: template.items ? template.items.map((i: any) => ({
-              itemId: i.id,
-              itemName: i.name,
-              status: ""
-            })) : [],
-            status: 'draft'
+            items: template.items
+              ? template.items.map((i: { id: string; name: string }) => ({
+                  itemId: i.id,
+                  itemName: i.name,
+                  status: "",
+                }))
+              : [],
+            status: "draft",
           });
           setResponseId(newDraft.id);
+          setCompletionStatus(newDraft.status ?? "draft");
+          setAuditedAtLabel(format(new Date(), "dd MMM yyyy"));
+          if (newDraft.items?.length) {
+            const map = new Map<string, CareFileItemResponse>();
+            newDraft.items.forEach((row: unknown) => {
+              const item = coerceCareFileCompletionItem(row);
+              if (item) map.set(item.itemId, item as CareFileItemResponse);
+            });
+            setItemResponses(map);
+          }
           hasLoadedDraft.current = true;
-        } catch (e) { console.error(e); }
-        finally { isCreatingDraft.current = false; }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          isCreatingDraft.current = false;
+        }
       }
     };
 
     checkDraft();
   }, [template, responseId, residentId, activeOrganizationId, activeTeamId, profile]);
 
-  // Auto-Save
   useEffect(() => {
     if (!responseId) return;
 
@@ -262,96 +402,190 @@ function CareFileAuditEditorPageContent() {
         await auditService.updateCareFileResponse(responseId, {
           items: itemsArr,
           overall_notes: overallNotes,
-          status: 'in-progress'
+          status: "in-progress",
         });
         lastSavedData.current = hash;
-      } catch (e) { console.error("Auto-save failed", e); }
-      finally { isSaving.current = false; }
+        setLastEditedHint(
+          `Last auto-saved · ${format(new Date(), "dd MMM yyyy, HH:mm")}`
+        );
+      } catch (e) {
+        console.error("Auto-save failed", e);
+      } finally {
+        isSaving.current = false;
+      }
     }, 5000);
 
     return () => clearTimeout(timer);
   }, [itemResponses, overallNotes, responseId]);
 
-  // Handlers
   const handleAddItem = async () => {
     if (!newItemForm.name || !template) return;
-    const newItem: Item = { id: `item_${Date.now()}`, name: newItemForm.name, type: newItemForm.type };
+    const newItem: CareFileAuditItem = {
+      id: `item_${Date.now()}`,
+      name: newItemForm.name,
+      type: newItemForm.type,
+    };
     const updatedItems = [...items, newItem];
     setItems(updatedItems);
 
-    // Update template in DB
     try {
-      await auditService.updateCareFileTemplate(template.id, { items: updatedItems });
+      await auditService.updateCareFileTemplate(template.id, {
+        items: updatedItems as unknown as AuditTemplate["items"],
+      });
       toast.success("Item added");
       setIsAddItemDialogOpen(false);
       setNewItemForm({ name: "", type: "compliance" });
-    } catch (e) { toast.error("Failed to add item to template"); }
+    } catch {
+      toast.error("Failed to add item to template");
+    }
   };
 
-  const handleItemResponseChange = (itemId: string, itemName: string, field: string, value: any) => {
-    const newMap = new Map(itemResponses);
-    const existing = newMap.get(itemId) || { itemId, itemName };
-    newMap.set(itemId, { ...existing, [field]: value });
-    setItemResponses(newMap);
+  const handleItemResponseChange = (
+    itemId: string,
+    itemName: string,
+    field: string,
+    value: unknown
+  ) => {
+    setItemResponses((prev) => {
+      const newMap = new Map(prev);
+      const existing = newMap.get(itemId) || { itemId, itemName };
+      let nextValue: unknown = value;
+      if (field === "status" && typeof value === "string") {
+        nextValue = persistCareFileItemStatus(
+          normalizeCareFileItemStatus(value)
+        );
+      }
+      newMap.set(itemId, {
+        ...existing,
+        [field]: nextValue,
+      } as CareFileItemResponse);
+      return newMap;
+    });
+  };
+
+  const handleCycleItemStatus = (itemId: string, itemName: string) => {
+    const cur = normalizeCareFileItemStatus(
+      itemResponses.get(itemId)?.status
+    );
+    const next = nextCareFileItemStatus(cur);
+    handleItemResponseChange(
+      itemId,
+      itemName,
+      "status",
+      persistCareFileItemStatus(next)
+    );
   };
 
   const handleRemoveItem = async (itemId: string) => {
     if (!template) return;
-    const updatedItems = items.filter(i => i.id !== itemId);
+    const updatedItems = items.filter((i) => i.id !== itemId);
     setItems(updatedItems);
     try {
-      await auditService.updateCareFileTemplate(template.id, { items: updatedItems });
+      await auditService.updateCareFileTemplate(template.id, {
+        items: updatedItems as unknown as AuditTemplate["items"],
+      });
       const newMap = new Map(itemResponses);
       newMap.delete(itemId);
       setItemResponses(newMap);
       toast.success("Item removed");
-    } catch (e) { toast.error("Failed to remove item"); }
+    } catch {
+      toast.error("Failed to remove item");
+    }
   };
 
+  const handleSaveDraft = async () => {
+    if (!responseId) {
+      toast.error("No draft to save yet");
+      return;
+    }
+    setSaveDraftPending(true);
+    try {
+      const itemsArr = Array.from(itemResponses.values());
+      await auditService.updateCareFileResponse(responseId, {
+        items: itemsArr,
+        overall_notes: overallNotes,
+        status: "draft",
+      });
+      lastSavedData.current = JSON.stringify({ items: itemsArr, overallNotes });
+      setCompletionStatus("draft");
+      setLastEditedHint(
+        `Last saved · ${format(new Date(), "dd MMM yyyy, HH:mm")}`
+      );
+      toast.success("Draft saved");
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to save draft");
+    } finally {
+      setSaveDraftPending(false);
+    }
+  };
 
   const handleAddActionPlan = async () => {
-    if (!actionPlanText || !assignedTo || !assignedToEmail || !priority || !dueDate) {
+    const sourceItemId =
+      (actionPlanSourceItemIdRef.current ?? actionPlanSourceItemId)?.trim() ||
+      undefined;
+
+    if (
+      !actionPlanText ||
+      !assignedTo ||
+      !priority ||
+      !dueDate
+    ) {
       toast.error("Please fill all action plan fields");
       return;
     }
 
     try {
-      let savedPlan;
+      let savedPlan: { id: string } | undefined;
       if (responseId) {
         savedPlan = await auditService.createCareFileActionPlan({
           audit_response_id: responseId,
           resident_id: residentId,
-          resident_name: resident ? `${resident.first_name || resident.firstName} ${resident.last_name || resident.lastName}` : "Unknown",
+          resident_name: resident
+            ? `${resident.first_name ?? resident.firstName ?? ""} ${resident.last_name ?? resident.lastName ?? ""}`.trim()
+            : "Unknown",
           description: actionPlanText,
-          assigned_to: assignedToEmail,
-          assigned_to_name: assignedTo,
-          priority: priority,
+          assigned_to: assignedTo,
+          assigned_to_name:
+            orgMembers.find((m) => m.id === assignedTo)?.name ||
+            assignedToEmail,
+          priority,
           due_date: dueDate.toISOString(),
           organization_id: activeOrganizationId,
           careHomeId: activeCareHomeId,
           created_by: profile?.email,
           created_by_name: profile?.name || profile?.email,
           creatorId: profile?.id,
-          status: 'pending'
+          status: "pending",
+          ...(sourceItemId
+            ? { source_item_id: sourceItemId }
+            : {}),
         });
       }
 
       const newPlan: ActionPlan = {
         id: savedPlan?.id || `temp-${Date.now()}`,
-        auditId: responseId || 'new',
+        auditId: responseId || "new",
         text: actionPlanText,
-        assignedTo: assignedTo, // This is the UUID
-        assignedToName: orgMembers.find(m => m.id === assignedTo)?.name || assignedToEmail,
-        assignedToEmail: assignedToEmail,
-        dueDate: dueDate,
-        priority: priority,
-        status: 'pending',
+        assignedTo,
+        assignedToName:
+          orgMembers.find((m) => m.id === assignedTo)?.name || assignedToEmail,
+        assignedToEmail,
+        dueDate,
+        priority,
+        status: "pending",
         residentId: residentId,
-        residentName: resident ? `${resident.first_name || resident.firstName} ${resident.last_name || resident.lastName}` : "Unknown"
+        residentName: resident
+          ? `${resident.first_name ?? resident.firstName ?? ""} ${resident.last_name ?? resident.lastName ?? ""}`.trim()
+          : "Unknown",
+        sourceItemId,
       };
 
-      setActionPlans([...actionPlans, newPlan]);
+      setActionPlans((current) => [...current, newPlan]);
       setIsActionPlanDialogOpen(false);
+      setActionPlanText("");
+      setActionPlanSourceItemId(undefined);
+      actionPlanSourceItemIdRef.current = undefined;
       toast.success("Action plan added to audit");
     } catch (e) {
       console.error("Error adding action plan:", e);
@@ -367,8 +601,8 @@ function CareFileAuditEditorPageContent() {
   const confirmDeleteActionPlan = async () => {
     if (!actionPlanToDelete) return;
 
-    const plan = actionPlans.find(p => p.id === actionPlanToDelete);
-    if (plan && plan.id && !plan.id.startsWith('temp-')) {
+    const plan = actionPlans.find((p) => p.id === actionPlanToDelete);
+    if (plan && plan.id && !plan.id.startsWith("temp-")) {
       try {
         await auditService.deleteCareFileActionPlan(plan.id);
       } catch (e) {
@@ -376,7 +610,7 @@ function CareFileAuditEditorPageContent() {
       }
     }
 
-    setActionPlans(actionPlans.filter(p => p.id !== actionPlanToDelete));
+    setActionPlans(actionPlans.filter((p) => p.id !== actionPlanToDelete));
     setDeleteDialogOpen(false);
     setActionPlanToDelete(null);
     toast.success("Action plan removed");
@@ -390,187 +624,258 @@ function CareFileAuditEditorPageContent() {
       await auditService.completeCareFileResponse(responseId, {
         items: itemsArr,
         overall_notes: overallNotes,
-        status: 'completed',
-        completed_at: new Date().toISOString()
+        status: "completed",
+        completed_at: new Date().toISOString(),
       });
 
-      // Save action plans (only those that are newly added and not yet in DB)
-      for (const plan of actionPlans.filter(p => !p.id || p.id.startsWith('temp-'))) {
+      for (const plan of actionPlans.filter(
+        (p) => !p.id || p.id.startsWith("temp-")
+      )) {
         await auditService.createCareFileActionPlan({
           audit_response_id: responseId,
           description: plan.text,
-          assigned_to: plan.assignedTo, // This is the UUID
+          assigned_to: plan.assignedTo,
           assigned_to_name: plan.assignedToName,
           priority: plan.priority,
           due_date: plan.dueDate?.toISOString(),
           organization_id: activeOrganizationId,
           careHomeId: activeCareHomeId,
           resident_id: residentId,
-          resident_name: resident ? `${resident.first_name || resident.firstName} ${resident.last_name || resident.lastName}` : "Unknown",
+          resident_name: resident
+            ? `${resident.first_name ?? resident.firstName ?? ""} ${resident.last_name ?? resident.lastName ?? ""}`.trim()
+            : "Unknown",
           created_by: profile?.email,
           created_by_name: profile?.name || profile?.email,
           creatorId: profile?.id,
-          status: 'pending'
+          status: "pending",
+          ...(plan.sourceItemId
+            ? { source_item_id: plan.sourceItemId }
+            : {}),
         });
       }
 
       toast.success("Audit completed!");
       router.push(`/dashboard/careo-audit/${residentId}/carefileaudit`);
-    } catch (e) { console.error(e); toast.error("Failed to complete audit"); }
-  };
-
-  const getItemStatusColor = (status: string) => {
-    switch (status) {
-      case "compliant":
-      case "checked":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-      case "non-compliant":
-      case "unchecked":
-        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-      case "not-applicable":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to complete audit");
     }
   };
 
-  if (!resident) return <div className="p-10">Loading...</div>;
+  const openActionPlanDialog = (opts?: {
+    prefill?: string;
+    sourceItemId?: string;
+  }) => {
+    setActionPlanText(opts?.prefill ? `Follow up: ${opts.prefill}` : "");
+    const sourceItemId = opts?.sourceItemId?.trim() || undefined;
+    setActionPlanSourceItemId(sourceItemId);
+    actionPlanSourceItemIdRef.current = sourceItemId;
+    setAssignedTo("");
+    setAssignedToEmail("");
+    setDueDate(undefined);
+    setPriority("");
+    setIsActionPlanDialogOpen(true);
+  };
+
+  const actionPlanRows: CareFileActionPlanRow[] = actionPlans.map((p) => ({
+    id: p.id,
+    text: p.text,
+    assignedToName: p.assignedToName || p.assignedTo,
+    dueDate: p.dueDate,
+    priority: p.priority,
+    status: p.status,
+    sourceItemId: p.sourceItemId,
+  }));
+
+  if (resident === undefined) {
+    return (
+      <div className="flex items-center justify-center p-10 text-muted-foreground">
+        Loading…
+      </div>
+    );
+  }
+
+  if (resident === null) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 p-10">
+        <p className="text-muted-foreground">Resident not found</p>
+        <Button
+          variant="outline"
+          onClick={() =>
+            router.push(`/dashboard/careo-audit/${residentId}/carefileaudit`)
+          }
+        >
+          Back
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-full w-full bg-background">
-      <div className="flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push(`/dashboard/careo-audit/${residentId}/carefileaudit`)}>
-            <ArrowLeft className="h-4 w-4" />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="hidden items-center gap-3 border-b border-border px-4 py-3 lg:flex">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() =>
+            router.push(`/dashboard/careo-audit/${residentId}/carefileaudit`)
+          }
+        >
+          <ArrowLeft className="size-4" />
+        </Button>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-foreground">
+            {template?.name ?? "Care file audit"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Editor · {String(resident.first_name ?? resident.firstName ?? "")}{" "}
+            {String(resident.last_name ?? resident.lastName ?? "")}
+          </p>
+        </div>
+        <div className="ml-auto flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openActionPlanDialog()}
+          >
+            <Plus className="mr-1 size-4" />
+            Add action plan
           </Button>
-          <div>
-            <h1 className="text-xl font-semibold">{template?.name || "Care File Audit"}</h1>
-            <p className="text-sm text-muted-foreground">{resident.first_name || resident.firstName} {resident.last_name || resident.lastName}</p>
-          </div>
         </div>
       </div>
 
-      <div className="flex items-center justify-between border-b px-6 py-3">
-        <div className="flex items-center gap-2"></div>
-        <div className="flex gap-2">
-          <Button onClick={() => setIsActionPlanDialogOpen(true)} variant="outline" size="sm" className="h-8">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Action Plan
-          </Button>
-          <Button onClick={() => setIsAddItemDialogOpen(true)} size="sm" className="h-8">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Question
-          </Button>
-          <Button onClick={handleCompleteAudit} size="sm" className="h-8">
-            Complete Audit
-          </Button>
-        </div>
-      </div>
+      <CareFileAuditWorkspace
+        residentId={residentId}
+        resident={resident}
+        templateName={template?.name ?? "Care file audit"}
+        templateFrequency={template?.frequency}
+        items={items}
+        itemResponses={itemResponses}
+        onItemResponseChange={handleItemResponseChange}
+        onCycleItemStatus={handleCycleItemStatus}
+        onRemoveItem={handleRemoveItem}
+        responseId={responseId}
+        completionStatus={completionStatus}
+        auditedAtLabel={auditedAtLabel}
+        auditorLabel={profile?.name || profile?.email || undefined}
+        actionPlans={actionPlanRows}
+        onOpenAddItem={() => setIsAddItemDialogOpen(true)}
+        onOpenActionPlan={openActionPlanDialog}
+        onRemoveActionPlan={handleRemoveActionPlan}
+        onSaveDraft={handleSaveDraft}
+        onSubmitAudit={handleCompleteAudit}
+        saveDraftPending={saveDraftPending}
+        lastEditedHint={lastEditedHint}
+      />
 
-      <div className="flex-1 overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Question</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Comment</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map(item => {
-              const resp = itemResponses.get(item.id);
-              return (
-                <TableRow key={item.id}>
-                  <TableCell>{item.name}</TableCell>
-                  <TableCell>
-                    <Select value={resp?.status || ""} onValueChange={(val) => handleItemResponseChange(item.id, item.name, 'status', val)}>
-                      <SelectTrigger className={`h-6 w-[140px] ${getItemStatusColor(resp?.status || "")}`}>
-                        <SelectValue placeholder="-" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="compliant">Compliant</SelectItem>
-                        <SelectItem value="non-compliant">Non-Compliant</SelectItem>
-                        <SelectItem value="not-applicable">N/A</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" className="h-7 justify-start text-xs">
-                          {resp?.date ? format(new Date(resp.date), "MMM dd") : "Pick date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={resp?.date ? new Date(resp.date) : undefined} onSelect={(date) => { if (date) handleItemResponseChange(item.id, item.name, 'date', date.toISOString()) }} />
-                      </PopoverContent>
-                    </Popover>
-                  </TableCell>
-                  <TableCell>
-                    <Input value={resp?.notes || ""} onChange={(e) => handleItemResponseChange(item.id, item.name, 'notes', e.target.value)} className="h-8" />
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.id)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+      <div className="mx-auto w-full max-w-[1400px] px-4 pb-6 pt-2 sm:px-5">
+        <Label htmlFor="care-audit-overall-notes" className="text-xs text-muted-foreground">
+          Overall notes (optional)
+        </Label>
+        <Textarea
+          id="care-audit-overall-notes"
+          value={overallNotes}
+          onChange={(e) => setOverallNotes(e.target.value)}
+          placeholder="Add overall notes for this audit…"
+          className="mt-1.5 min-h-[72px] text-sm"
+        />
       </div>
 
       <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Question</DialogTitle></DialogHeader>
-          <div className="py-4"><Input placeholder="Item name" value={newItemForm.name} onChange={(e) => setNewItemForm({ ...newItemForm, name: e.target.value })} /></div>
-          <DialogFooter><Button onClick={handleAddItem}>Add</Button></DialogFooter>
+          <DialogHeader>
+            <DialogTitle>Add custom item</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Item name"
+              value={newItemForm.name}
+              onChange={(e) =>
+                setNewItemForm({ ...newItemForm, name: e.target.value })
+              }
+            />
+          </div>
+          <DialogFooter>
+            <Button onClick={handleAddItem}>Add</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isActionPlanDialogOpen} onOpenChange={setIsActionPlanDialogOpen}>
-        <DialogContent>
+      <Dialog
+        open={isActionPlanDialogOpen}
+        onOpenChange={(open) => {
+          setIsActionPlanDialogOpen(open);
+          if (!open) {
+            setActionPlanText("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add Action Plan</DialogTitle>
-            <DialogDescription>Assign a task to address a concern identified during the audit.</DialogDescription>
+            <DialogTitle>Add action plan</DialogTitle>
+            <DialogDescription>
+              Assign a task to address a concern identified during the audit.
+            </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Action</Label>
-              <Input value={actionPlanText} onChange={(e) => setActionPlanText(e.target.value)} className="col-span-3" placeholder="What needs to be done?" />
+          <div className="grid gap-3 py-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Action</Label>
+              <Textarea
+                value={actionPlanText}
+                onChange={(e) => setActionPlanText(e.target.value)}
+                placeholder="What needs to be done?"
+                className="min-h-[84px] text-sm"
+              />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Assign To</Label>
-              <Select value={assignedToEmail} onValueChange={(val) => {
-                setAssignedToEmail(val);
-                const member = orgMembers.find(m => m.email === val);
-                if (member) setAssignedTo(member.id); // Store UUID instead of name/email
-              }}>
-                <SelectTrigger className="col-span-3"><SelectValue placeholder="Select member" /></SelectTrigger>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Assign to</Label>
+              <Select
+                value={assignedToEmail || assignedTo}
+                onValueChange={(val) => {
+                  const member = orgMembers.find(
+                    (m) => m.email === val || m.id === val
+                  );
+                  if (member) {
+                    setAssignedTo(member.id);
+                    setAssignedToEmail(member.email || "");
+                  }
+                }}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select member" />
+                </SelectTrigger>
                 <SelectContent>
-                  {orgMembers.map(member => (
-                    <SelectItem key={member.email} value={member.email}>
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-6 w-6">
-                          <AvatarImage src={member.image_url || ""} />
-                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                            {(member.name?.[0] || member.email[0]).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span>{member.name || member.email}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {orgMembers.map((member) => {
+                    const optionValue = member.email || member.id;
+                    return (
+                      <SelectItem key={member.id} value={optionValue}>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-5 w-5">
+                            <AvatarImage src={member.image_url || ""} />
+                            <AvatarFallback className="bg-primary/10 text-[9px] text-primary">
+                              {(
+                                member.name?.[0] ||
+                                member.email?.[0] ||
+                                "?"
+                              ).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm">
+                            {member.name || member.email || member.id}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Priority</Label>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Priority</Label>
               <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger className="col-span-3"><SelectValue placeholder="Select priority" /></SelectTrigger>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Low">Low</SelectItem>
                   <SelectItem value="Medium">Medium</SelectItem>
@@ -578,24 +883,50 @@ function CareFileAuditEditorPageContent() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Due Date</Label>
-              <Popover open={dueDatePopoverOpen} onOpenChange={setDueDatePopoverOpen} modal={true}>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Due date</Label>
+              <Popover
+                open={dueDatePopoverOpen}
+                onOpenChange={setDueDatePopoverOpen}
+                modal
+              >
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="col-span-3 justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dueDate ? format(dueDate, "dd/MM/yyyy") : <span>Pick a date</span>}
+                  <Button
+                    variant="outline"
+                    className="h-9 w-full justify-start text-left font-normal"
+                  >
+                    <CalendarIcon className="mr-2 size-4" />
+                    {dueDate ? (
+                      format(dueDate, "dd/MM/yyyy")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={dueDate} onSelect={(date) => { if (date) { setDueDate(date); setDueDatePopoverOpen(false); } }} initialFocus />
+                  <Calendar
+                    mode="single"
+                    selected={dueDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        setDueDate(date);
+                        setDueDatePopoverOpen(false);
+                      }
+                    }}
+                    initialFocus
+                  />
                 </PopoverContent>
               </Popover>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsActionPlanDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleAddActionPlan}>Add Action Plan</Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsActionPlanDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAddActionPlan}>Add action plan</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -603,73 +934,30 @@ function CareFileAuditEditorPageContent() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove Action Plan</DialogTitle>
-            <DialogDescription>Are you sure you want to remove this action plan from the audit? This cannot be undone.</DialogDescription>
+            <DialogTitle>Remove action plan</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this action plan from the audit?
+              This cannot be undone.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDeleteActionPlan}>Remove</Button>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteActionPlan}>
+              Remove
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Action Plans Summary */}
-      {actionPlans.length > 0 && (
-        <div className="p-6 border-t bg-muted/30">
-          <h3 className="text-lg font-semibold mb-4 text-primary">Audit Action Plans</h3>
-          <div className="rounded-md border bg-card overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Action Required</TableHead>
-                  <TableHead>Assigned To</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Latest Comment</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {actionPlans.map((plan) => (
-                  <TableRow key={plan.id}>
-                    <TableCell className="font-medium">{plan.text}</TableCell>
-                    <TableCell>{plan.assignedToName || plan.assignedTo}</TableCell>
-                    <TableCell>{plan.dueDate ? format(plan.dueDate, "dd/MM/yyyy") : 'N/A'}</TableCell>
-                    <TableCell>
-                      <Badge variant={plan.priority === 'High' ? 'destructive' : 'outline'}>
-                        {plan.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={
-                        plan.status === 'completed' ? 'bg-green-500 hover:bg-green-600' :
-                          plan.status === 'in_progress' ? 'bg-blue-500 hover:bg-blue-600' :
-                            'bg-yellow-500 hover:bg-yellow-600'
-                      }>
-                        {(plan.status || 'pending').replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[150px] truncate">
-                      {plan.latestComment || '-'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => handleRemoveActionPlan(plan.id)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
 
 export default function CareFileAuditEditorPage() {
-  return <ErrorBoundary fallback={<AuditErrorFallback />}><CareFileAuditEditorPageContent /></ErrorBoundary>;
+  return (
+    <ErrorBoundary fallback={<AuditErrorFallback />}>
+      <CareFileAuditEditorPageContent />
+    </ErrorBoundary>
+  );
 }

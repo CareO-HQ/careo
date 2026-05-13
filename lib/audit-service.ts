@@ -116,7 +116,11 @@ async function fetchCareHomeCommonPlansForParticipant(params: {
         }
         const { data, error } = await query;
         if (error || !data) return [];
-        return data.map((p) => ({ ...p, auditCategory: "common" }));
+        return data.map((p) => ({
+            ...p,
+            auditCategory: "common",
+            actionPlanTable: CARE_HOME_COMMON_ACTION_PLANS_TABLE,
+        }));
     } catch (err) {
         console.error("Error fetching care home common action plans:", err);
         return [];
@@ -135,6 +139,44 @@ export type CareHomeCommonActionPlanInput = {
     creatorId?: string | null;
     created_by?: string | null;
     created_by_name?: string | null;
+};
+
+export type CareFileActionPlanInput = {
+    audit_response_id: string;
+    description: string;
+    priority: string;
+    due_date?: string;
+    assigned_to: string;
+    assigned_to_email?: string | null;
+    assigned_to_name?: string | null;
+    organization_id?: string | null;
+    careHomeId?: string | null;
+    resident_id?: string | null;
+    resident_name?: string | null;
+    created_by?: string | null;
+    created_by_name?: string | null;
+    creatorId?: string | null;
+    status?: string;
+    source_item_id?: string;
+};
+
+export type ManagerActionPlanInput = {
+    audit_type_id: string;
+    description: string;
+    priority: string;
+    due_date: string;
+    assigned_to: string;
+    assigned_to_email?: string | null;
+    assigned_to_name?: string | null;
+    resident_id?: string | null;
+    resident_name?: string | null;
+    careHomeId?: string | null;
+    organization_id: string;
+    created_by?: string | null;
+    created_by_name?: string | null;
+    creatorId?: string | null;
+    status?: string;
+    source_item_id?: string | null;
 };
 
 export const auditService = {
@@ -472,14 +514,14 @@ export const auditService = {
         return data;
     },
 
-    async createCareFileActionPlan(plan: any) {
+    async createCareFileActionPlan(plan: CareFileActionPlanInput) {
         const { creatorId, careHomeId, ...dbPlan } = plan;
         const { data, error } = await supabase
             .from('audit_care_file_action_plans')
             .insert({ 
                 ...dbPlan, 
                 status: dbPlan.status || 'pending',
-                care_home_id: careHomeId 
+                care_home_id: careHomeId ?? null
             })
             .select()
             .single();
@@ -1070,14 +1112,14 @@ export const auditService = {
         return data;
     },
 
-    async createManagerActionPlan(plan: any) {
+    async createManagerActionPlan(plan: ManagerActionPlanInput) {
         const { creatorId, careHomeId, ...dbPlan } = plan;
         const { data, error } = await supabase
             .from('audit_manager_action_plans')
             .insert({ 
                 ...dbPlan, 
                 status: dbPlan.status || 'pending',
-                care_home_id: careHomeId 
+                care_home_id: careHomeId ?? null
             })
             .select()
             .single();
@@ -1152,11 +1194,11 @@ export const auditService = {
     },
 
     // --- Global / Helper ---
-    async getOrganizationMembers(organizationId: string) {
+    /** Staff list for pickers; kept org-shaped for callers but not filtered by DB column here — RLS already limits rows to who the viewer may see (same care home / org owner rules), and team-visible staff often have null active_organization_id. */
+    async getOrganizationMembers(_organizationId: string) {
         const { data, error } = await supabase
-            .from('users')
-            .select('id, email, name, image_url, role')
-            .eq('active_organization_id', organizationId);
+            .from("users")
+            .select("id, email, name, image_url, role");
         if (error) {
             console.warn("Could not fetch users:", error);
             return [];
@@ -1224,7 +1266,11 @@ export const auditService = {
                 const { data, error } = await query;
 
                 if (!error && data) {
-                    allPlans.push(...data.map((p) => ({ ...p, auditCategory: table.category })));
+                    allPlans.push(...data.map((p) => ({
+                        ...p,
+                        auditCategory: table.category,
+                        actionPlanTable: table.name,
+                    })));
                 }
             } catch (err) {
                 console.error(`Error fetching from ${table.name}:`, err);
@@ -1259,7 +1305,11 @@ export const auditService = {
                     .eq('organization_id', organizationId);
 
                 if (!error && data) {
-                    allPlans.push(...data.map(p => ({ ...p, auditCategory: table.category })));
+                    allPlans.push(...data.map(p => ({
+                        ...p,
+                        auditCategory: table.category,
+                        actionPlanTable: table.name,
+                    })));
                 }
             } catch (err) {
                 console.error(`Error fetching from ${table.name}:`, err);
@@ -1288,7 +1338,11 @@ export const auditService = {
                 const { data, error } = await query;
 
                 if (!error && data) {
-                    allPlans.push(...data.map(p => ({ ...p, auditCategory: table.category })));
+                    allPlans.push(...data.map(p => ({
+                        ...p,
+                        auditCategory: table.category,
+                        actionPlanTable: table.name,
+                    })));
                 }
             } catch (err) {
                 console.error(`Error fetching from ${table.name}:`, err);
@@ -1388,7 +1442,7 @@ export const auditService = {
                         actionPlanId: data.id,
                         status,
                         category,
-                        ...(category === "common" ? { auditCategory: "common" as const } : {}),
+                        auditCategory: category,
                     },
                 }));
 

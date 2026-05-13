@@ -1200,6 +1200,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                 const getAnswerColor = (value?: string) => {
                   if (!value) return "text-muted-foreground";
                   if (value === "yes" || value === "compliant") return "text-green-600 font-medium";
+                  if (value === "action-required") return "text-amber-700 font-medium";
                   if (value === "no" || value === "non-compliant") return "text-red-600 font-medium";
                   if (value === "not-applicable") return "text-gray-500 font-medium";
                   return "";
@@ -1250,7 +1251,11 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                             />
                           ) : (
                             <Select
-                              value={answer?.value}
+                              value={
+                                answer?.value && answer.value.trim() !== ""
+                                  ? answer.value
+                                  : undefined
+                              }
                               onValueChange={(val) => handleGridAnswerChange(rowQ.id, colQ.id, val)}
                             >
                               <SelectTrigger className={`w-full border-none shadow-none text-sm h-8 ${getAnswerColor(answer?.value)}`}>
@@ -1265,6 +1270,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                                 ) : (
                                   <>
                                     <SelectItem value="compliant" className="text-green-600 font-medium">✓ Compliant</SelectItem>
+                                    <SelectItem value="action-required" className="text-amber-700 font-medium">⚠ Action required</SelectItem>
                                     <SelectItem value="non-compliant" className="text-red-600 font-medium">✗ Non-Compliant</SelectItem>
                                     <SelectItem value="not-applicable" className="text-gray-500 font-medium">— N/A</SelectItem>
                                   </>
@@ -1593,6 +1599,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                     const getAnswerColor = (value?: string) => {
                       if (!value) return "text-muted-foreground";
                       if (value === "yes" || value === "compliant") return "text-green-600 font-medium";
+                      if (value === "action-required") return "text-amber-700 font-medium";
                       if (value === "no" || value === "non-compliant") return "text-red-600 font-medium";
                       if (value === "not-applicable") return "text-gray-500 font-medium";
                       return "";
@@ -1616,7 +1623,11 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                           />
                         ) : (
                           <Select
-                            value={answer?.value}
+                            value={
+                              answer?.value && answer.value.trim() !== ""
+                                ? answer.value
+                                : undefined
+                            }
                             onValueChange={(val) => handleAnswerChange(resident._id, q.id, val)}
                           >
                             <SelectTrigger className={`w-full border-none shadow-none text-sm h-8 ${getAnswerColor(answer?.value)}`}>
@@ -1631,6 +1642,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                               ) : (
                                 <>
                                   <SelectItem value="compliant" className="text-green-600 font-medium">✓ Compliant</SelectItem>
+                                  <SelectItem value="action-required" className="text-amber-700 font-medium">⚠ Action required</SelectItem>
                                   <SelectItem value="non-compliant" className="text-red-600 font-medium">✗ Non-Compliant</SelectItem>
                                   <SelectItem value="not-applicable" className="text-gray-500 font-medium">— N/A</SelectItem>
                                 </>

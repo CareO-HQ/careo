@@ -82,10 +82,11 @@ function isMissingNextReviewDateColumn(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
 
   const postgrestError = error as PostgrestErrorLike;
+  const msg = postgrestError.message?.toLowerCase() ?? "";
   return (
     (postgrestError.code === "PGRST204" || postgrestError.code === "42703")
-    && postgrestError.message?.toLowerCase().includes("next_review_date")
-    && postgrestError.message?.toLowerCase().includes("must_assessments")
+    && msg.includes("next_review_date")
+    && msg.includes("must_assessments")
   );
 }
 

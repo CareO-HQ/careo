@@ -102,7 +102,9 @@ export const CreateMedicationSchema = z
       PRNProtocolSchema.extend({
         protocolLabel: z.string().min(1, "Protocol name is required")
       })
-    ).optional()
+    ).optional(),
+    /** Secondary signatory verifying the MAR entry — must differ from the logged-in user in the UI */
+    checkedByUserId: z.string().uuid({ message: "Select a staff member for Checked by" })
   })
   .refine(
     (data) => {

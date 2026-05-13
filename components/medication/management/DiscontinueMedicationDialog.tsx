@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -39,9 +39,14 @@ import { Badge } from "@/components/ui/badge";
 const discontinueSchema = z.object({
   discontinuation_reason: z.string().min(1, "Please select a reason"),
   discontinuation_notes: z.string().optional(),
+  discontinuation_checked_by_user_id: z
+    .string()
+    .uuid({ message: "Please select Checked by staff" }),
 });
 
 type DiscontinueFormData = z.infer<typeof discontinueSchema>;
+
+type OrgUserRow = { id: string; name: string | null; email: string | null };
 
 interface DiscontinueMedicationDialogProps {
   medication: {
@@ -84,19 +89,64 @@ export function DiscontinueMedicationDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [formData, setFormData] = useState<DiscontinueFormData | null>(null);
+  const [orgUsers, setOrgUsers] = useState<OrgUserRow[]>([]);
 
   const form = useForm<DiscontinueFormData>({
     resolver: zodResolver(discontinueSchema),
     defaultValues: {
       discontinuation_reason: "",
       discontinuation_notes: "",
+      discontinuation_checked_by_user_id: "",
     },
   });
+
+  useEffect(() => {
+    if (!open || !profile?.active_organization_id) {
+      if (!open) setOrgUsers([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, name, email")
+        .eq("active_organization_id", profile.active_organization_id);
+      if (!cancelled) {
+        if (error) {
+          console.error("[DiscontinueMedicationDialog] load users:", error);
+          setOrgUsers([]);
+        } else {
+          setOrgUsers((data ?? []) as OrgUserRow[]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, profile?.active_organization_id]);
+
+  const checkerStaffOptions = useMemo(() => {
+    return [...orgUsers]
+      .filter((u) => u.id !== profile?.id)
+      .sort((a, b) => {
+        const an = (a.name || a.email || "").toLowerCase();
+        const bn = (b.name || b.email || "").toLowerCase();
+        return an.localeCompare(bn);
+      })
+      .map((u) => ({
+        id: u.id,
+        label: u.name?.trim() || u.email || u.id,
+      }));
+  }, [orgUsers, profile?.id]);
 
   // Reset form when dialog closes
   useEffect(() => {
     if (!open) {
-      form.reset();
+      form.reset({
+        discontinuation_reason: "",
+        discontinuation_notes: "",
+        discontinuation_checked_by_user_id: "",
+      });
       setIsSubmitting(false);
       setShowConfirmation(false);
       setFormData(null);
@@ -104,6 +154,18 @@ export function DiscontinueMedicationDialog({
   }, [open, form]);
 
   const onSubmit = (data: DiscontinueFormData) => {
+    if (!profile?.id) {
+      toast.error("You must be signed in to discontinue medication");
+      return;
+    }
+    if (data.discontinuation_checked_by_user_id === profile.id) {
+      form.setError("discontinuation_checked_by_user_id", {
+        type: "manual",
+        message: "Must be another staff member",
+      });
+      toast.error("Checked by must be another staff member");
+      return;
+    }
     setFormData(data);
     setShowConfirmation(true);
   };
@@ -111,6 +173,12 @@ export function DiscontinueMedicationDialog({
   const handleConfirmDiscontinue = async () => {
     if (!profile || !formData || !medication) {
       toast.error("Unable to discontinue medication");
+      return;
+    }
+
+    if (formData.discontinuation_checked_by_user_id === profile.id) {
+      toast.error("Checked by must be another staff member");
+      setShowConfirmation(false);
       return;
     }
 
@@ -123,6 +191,7 @@ export function DiscontinueMedicationDialog({
           status: "discontinued",
           discontinued_at: new Date().toISOString(),
           discontinued_by: profile.id,
+          discontinuation_checked_by: formData.discontinuation_checked_by_user_id,
           discontinuation_reason: formData.discontinuation_reason,
           discontinuation_notes: formData.discontinuation_notes || null,
           updated_at: new Date().toISOString(),
@@ -139,7 +208,11 @@ export function DiscontinueMedicationDialog({
         `${medication.name} has been discontinued. Reason: ${reasonLabel}`
       );
 
-      form.reset();
+      form.reset({
+        discontinuation_reason: "",
+        discontinuation_notes: "",
+        discontinuation_checked_by_user_id: "",
+      });
       setShowConfirmation(false);
       onOpenChange(false);
       onSuccess();
@@ -153,7 +226,11 @@ export function DiscontinueMedicationDialog({
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen && !isSubmitting) {
-      form.reset();
+      form.reset({
+        discontinuation_reason: "",
+        discontinuation_notes: "",
+        discontinuation_checked_by_user_id: "",
+      });
       setShowConfirmation(false);
       setFormData(null);
     }
@@ -199,6 +276,21 @@ export function DiscontinueMedicationDialog({
                         Notes: {formData.discontinuation_notes}
                       </div>
                     )}
+                    <div className="pt-2 space-y-0.5 text-muted-foreground border-t mt-2">
+                      <div>
+                        <span className="font-medium text-foreground">Discontinued by: </span>
+                        {profile?.name?.trim() || profile?.email || "—"}
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">Checked by: </span>
+                        {(() => {
+                          const u = orgUsers.find(
+                            (row) => row.id === formData.discontinuation_checked_by_user_id
+                          );
+                          return u?.name?.trim() || u?.email?.trim() || "—";
+                        })()}
+                      </div>
+                    </div>
                   </div>
                 )}
                 <p className="text-red-600 font-medium">
@@ -304,6 +396,50 @@ export function DiscontinueMedicationDialog({
                       </FormItem>
                     )}
                   />
+
+                  <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
+                    <div className="text-[11px] space-y-0.5">
+                      <p className="text-muted-foreground font-medium">Discontinued by</p>
+                      <p className="font-medium">{profile?.name?.trim() || profile?.email || "—"}</p>
+                      <FormDescription className="text-[10px]">
+                        Signed-in staff initiating discontinuation
+                      </FormDescription>
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="discontinuation_checked_by_user_id"
+                      render={({ field }) => (
+                        <FormItem className="space-y-1">
+                          <FormLabel required className="text-xs">
+                            Checked by
+                          </FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value || undefined}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Select verifying staff..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {checkerStaffOptions.map((opt) => (
+                                <SelectItem key={opt.id} value={opt.id}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {checkerStaffOptions.length === 0 && (
+                            <p className="text-[11px] text-amber-600">
+                              No other organisation staff found for dual check.
+                            </p>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   <DialogFooter className="pt-2">
                     <Button

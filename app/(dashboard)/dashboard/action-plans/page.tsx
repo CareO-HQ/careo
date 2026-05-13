@@ -53,13 +53,42 @@ type OrgMemberRow = {
   role: string | null;
 };
 
-function isCommonActionPlan(plan: { auditCategory?: string }) {
-  return plan.auditCategory === "common";
+type ActionPlanRecord = Record<string, unknown> & {
+  auditCategory?: string;
+  id: string;
+  actionPlanTable?: string;
+};
+
+function normalizeFetchedActionPlan(plan: ActionPlanRecord): ActionPlanRecord {
+  if (plan.actionPlanTable === "audit_care_file_action_plans") {
+    return { ...plan, auditCategory: "carefile" };
+  }
+  return plan;
+}
+
+function isCommonActionPlan(plan: unknown): boolean {
+  if (!plan || typeof plan !== "object") return false;
+  const p = plan as Record<string, unknown>;
+  return (
+    p["auditCategory"] === "common" &&
+    p["actionPlanTable"] !== "audit_care_file_action_plans"
+  );
 }
 
 function normalizePlanStatus(status: unknown): string {
   if (typeof status !== "string") return "";
   return status.replace(/-/g, "_");
+}
+
+function readPlanDueRaw(plan: unknown): unknown {
+  if (!plan || typeof plan !== "object") return undefined;
+  const p = plan as Record<string, unknown>;
+  return p["due_date"] ?? p["dueDate"];
+}
+
+function planHasDueDate(plan: unknown): boolean {
+  const raw = readPlanDueRaw(plan);
+  return raw != null && String(raw).trim().length > 0;
 }
 
 /** Prefer stored label, then org roster match (id / email), then email fallback (never raw UUID when avoidable). */
@@ -106,20 +135,30 @@ export default function MyActionPlansPage() {
   const { activeOrganizationId, activeCareHomeId, role } = useActiveTeam();
   const isOwner = role === "owner" || role === "saas_admin";
 
-  const userIsPlanCreator = (plan: { created_by?: string }) =>
-    plan.created_by === userEmail || (!!user?.id && plan.created_by === user.id);
-  const userIsPlanAssignee = (plan: { assigned_to?: string }) =>
-    plan.assigned_to === userEmail || (!!user?.id && plan.assigned_to === user.id);
+  const userIsPlanCreator = (plan: unknown): boolean => {
+    if (!plan || typeof plan !== "object") return false;
+    const p = plan as Record<string, unknown>;
+    const created = p["created_by"];
+    const createdStr = typeof created === "string" ? created : "";
+    return createdStr === userEmail || (!!user?.id && createdStr === user.id);
+  };
+  const userIsPlanAssignee = (plan: unknown): boolean => {
+    if (!plan || typeof plan !== "object") return false;
+    const p = plan as Record<string, unknown>;
+    const assigned = p["assigned_to"];
+    const assignedStr = typeof assigned === "string" ? assigned : "";
+    return assignedStr === userEmail || (!!user?.id && assignedStr === user.id);
+  };
 
   // State
-  const [allActionPlans, setAllActionPlans] = useState<Array<Record<string, unknown> & { auditCategory?: string; id: string }>>([]);
+  const [allActionPlans, setAllActionPlans] = useState<ActionPlanRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedActionPlan, setSelectedActionPlan] = useState<(Record<string, unknown> & { auditCategory?: string; id: string }) | null>(null);
+  const [selectedActionPlan, setSelectedActionPlan] = useState<ActionPlanRecord | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<ActionPlanStatus>("pending");
   const [statusComment, setStatusComment] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [planToDelete, setPlanToDelete] = useState<(Record<string, unknown> & { auditCategory?: string; id: string }) | null>(null);
+  const [planToDelete, setPlanToDelete] = useState<ActionPlanRecord | null>(null);
 
   const [orgMembers, setOrgMembers] = useState<OrgMemberRow[]>([]);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -142,7 +181,7 @@ export default function MyActionPlansPage() {
         careHomeId: activeCareHomeId,
       };
 
-      let plans: Array<Record<string, unknown> & { auditCategory?: string; id: string }> = [];
+      let plans: ActionPlanRecord[] = [];
 
       if (isOwner && activeOrganizationId) {
         plans = await auditService.getOrgActionPlans(activeOrganizationId);
@@ -159,7 +198,9 @@ export default function MyActionPlansPage() {
         });
       }
 
-      const uniquePlans = plans.filter((plan, index, self) => {
+      const normalizedPlans = plans.map(normalizeFetchedActionPlan);
+
+      const uniquePlans = normalizedPlans.filter((plan, index, self) => {
         const cat = typeof plan.auditCategory === "string" ? plan.auditCategory : "";
         const key = `${cat}:${plan.id}`;
         return (
@@ -168,7 +209,27 @@ export default function MyActionPlansPage() {
         );
       });
 
-      setAllActionPlans(uniquePlans);
+      // If the same id ever appears twice (e.g. data quirk), prefer audit-sourced rows over "common".
+      const rankCategory = (c: string | undefined) => (c === "common" ? 0 : 1);
+      const byId = new Map<string, (typeof uniquePlans)[number]>();
+      for (const plan of uniquePlans) {
+        const id = String(plan.id);
+        const prev = byId.get(id);
+        if (!prev) {
+          byId.set(id, plan);
+          continue;
+        }
+        const prevCat =
+          typeof prev.auditCategory === "string" ? prev.auditCategory : undefined;
+        const nextCat =
+          typeof plan.auditCategory === "string" ? plan.auditCategory : undefined;
+        if (rankCategory(nextCat) > rankCategory(prevCat)) {
+          byId.set(id, plan);
+        }
+      }
+      const mergedUnique = Array.from(byId.values());
+
+      setAllActionPlans(mergedUnique);
     } catch (error) {
       console.error("Failed to fetch action plans:", error);
       toast.error("Failed to load action plans");
@@ -270,11 +331,19 @@ export default function MyActionPlansPage() {
   const inProgressCount = inProgressPlans.length;
   const completedCount = completedPlans.length;
 
-  // Check if overdue
-  const isOverdue = (plan: { due_date?: string; dueDate?: string; status?: unknown }) => {
-    const dueDate = plan.due_date || plan.dueDate;
-    const s = normalizePlanStatus(plan.status);
-    return !!dueDate && new Date(String(dueDate)).getTime() < Date.now() && s !== "completed";
+  // Check if overdue (plan rows are loosely typed from API)
+  const isOverdue = (plan: unknown): boolean => {
+    if (!plan || typeof plan !== "object") return false;
+    const p = plan as Record<string, unknown>;
+    const rawDue = p["due_date"] ?? p["dueDate"];
+    const dueDate =
+      typeof rawDue === "string" && rawDue.trim().length > 0
+        ? rawDue.trim()
+        : rawDue != null
+          ? String(rawDue)
+          : "";
+    const s = normalizePlanStatus(p["status"]);
+    return !!dueDate && new Date(dueDate).getTime() < Date.now() && s !== "completed";
   };
 
   // Handle action plan click
@@ -467,11 +536,11 @@ export default function MyActionPlansPage() {
                     <Badge className={getStatusColor(String(plan.status || "pending")) + " text-xs font-normal"}>
                       {getStatusLabel(String(plan.status || "pending"))}
                     </Badge>
-                    {(plan.due_date || plan.dueDate) && (
+                    {planHasDueDate(plan) ? (
                       <span className={`text-xs ${isOverdue(plan) ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                        {format(new Date(String(plan.due_date || plan.dueDate)), "dd/MM/yyyy")}
+                        {format(new Date(String(readPlanDueRaw(plan))), "dd/MM/yyyy")}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
                 <p className="text-sm leading-relaxed line-clamp-2 text-foreground">
@@ -539,11 +608,11 @@ export default function MyActionPlansPage() {
                     <Badge className={getStatusColor(String(plan.status ?? "")) + " text-xs font-normal"}>
                       {getStatusLabel(String(plan.status ?? ""))}
                     </Badge>
-                    {(plan.due_date || plan.dueDate) && (
+                    {planHasDueDate(plan) ? (
                       <span className="text-xs text-muted-foreground">
-                        {format(new Date(String(plan.due_date || plan.dueDate)), "dd/MM/yyyy")}
+                        {format(new Date(String(readPlanDueRaw(plan))), "dd/MM/yyyy")}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
                 <p className="text-sm leading-relaxed line-clamp-2 text-foreground">
@@ -611,11 +680,11 @@ export default function MyActionPlansPage() {
                     <Badge className={getStatusColor(String(plan.status ?? "")) + " text-xs font-normal"}>
                       {getStatusLabel(String(plan.status ?? ""))}
                     </Badge>
-                    {(plan.due_date || plan.dueDate) && (
+                    {planHasDueDate(plan) ? (
                       <span className="text-xs text-muted-foreground">
-                        {format(new Date(String(plan.due_date || plan.dueDate)), "dd/MM/yyyy")}
+                        {format(new Date(String(readPlanDueRaw(plan))), "dd/MM/yyyy")}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
                 <p className="text-sm leading-relaxed line-clamp-2 text-muted-foreground">
@@ -800,15 +869,13 @@ export default function MyActionPlansPage() {
                   >
                     {String(selectedActionPlan.priority ?? "")} Priority
                   </span>
-                  {(selectedActionPlan.due_date || selectedActionPlan.dueDate) ? (
+                  {planHasDueDate(selectedActionPlan) ? (
                     <>
                       <span>•</span>
                       <span className={isOverdue(selectedActionPlan) ? "text-destructive font-medium" : ""}>
                         Due{" "}
                         {format(
-                          new Date(
-                            String(selectedActionPlan.due_date || selectedActionPlan.dueDate)
-                          ),
+                          new Date(String(readPlanDueRaw(selectedActionPlan))),
                           "dd/MM/yyyy"
                         )}
                       </span>

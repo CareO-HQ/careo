@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useProfile } from "@/hooks/use-profile";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
@@ -73,6 +73,7 @@ import { BodyMapData } from "@/types/body-map";
 import { generateBodyMapPDF } from "@/lib/body-map-pdf-utils";
 import { generatePassportPDF } from "@/lib/hospital-passport-pdf-utils";
 import KardexModal from "@/components/medication/KardexModal";
+import { enrichMedicationsWithKardexStaffNames } from "@/lib/medication/kardex-staff-names";
 
 type HospitalTransferPageProps = {
   params: Promise<{ id: string }>;
@@ -106,6 +107,9 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const [transferLogs, setTransferLogs] = useState<any[]>([]);
   const [residentBodyMaps, setResidentBodyMaps] = useState<any[]>([]);
   const [medications, setMedications] = useState<any[]>([]);
+  const [kardexStaffUsers, setKardexStaffUsers] = useState<
+    Array<{ id: string; name: string | null; email: string | null }>
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // UI State
@@ -154,6 +158,35 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
     loadData();
   }, [id, supabase]);
+
+  useEffect(() => {
+    if (!activeOrganizationId || !supabase) {
+      setKardexStaffUsers([]);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("users")
+      .select("id, name, email")
+      .eq("active_organization_id", activeOrganizationId)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("[HospitalTransfer] Failed to load users for Kardex:", error);
+          setKardexStaffUsers([]);
+        } else {
+          setKardexStaffUsers((data ?? []) as Array<{ id: string; name: string | null; email: string | null }>);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrganizationId, supabase]);
+
+  const medicationsForKardex = useMemo(
+    () => enrichMedicationsWithKardexStaffNames(medications, kardexStaffUsers),
+    [medications, kardexStaffUsers]
+  );
 
   // Refresh data helper
   const refreshData = async () => {
@@ -578,7 +611,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
                <div className="flex-1 overflow-hidden">
                  <KardexModal
                    resident={resident}
-                   medications={medications}
+                   medications={medicationsForKardex}
                    inlineMode={true}
                  />
                </div>

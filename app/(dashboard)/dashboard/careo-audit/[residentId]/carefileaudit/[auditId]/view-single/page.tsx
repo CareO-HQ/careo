@@ -34,7 +34,14 @@ import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
 interface ItemResponse {
   itemId: string;
   itemName: string;
-  status?: "compliant" | "non-compliant" | "not-applicable" | "checked" | "unchecked";
+  status?:
+    | ""
+    | "compliant"
+    | "action-required"
+    | "non-compliant"
+    | "not-applicable"
+    | "checked"
+    | "unchecked";
   notes?: string;
   date?: string;
 }
@@ -149,14 +156,16 @@ function CareFileAuditViewSinglePageContent() {
     switch (status) {
       case "compliant":
       case "checked":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+        return "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300";
+      case "action-required":
+        return "bg-amber-100 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100";
       case "non-compliant":
       case "unchecked":
         return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
       case "not-applicable":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+        return "bg-muted text-muted-foreground";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+        return "bg-muted text-muted-foreground";
     }
   };
 
@@ -164,6 +173,8 @@ function CareFileAuditViewSinglePageContent() {
     switch (status) {
       case "compliant":
         return "Compliant";
+      case "action-required":
+        return "Action required";
       case "non-compliant":
         return "Non-Compliant";
       case "not-applicable":
@@ -171,9 +182,9 @@ function CareFileAuditViewSinglePageContent() {
       case "checked":
         return "Checked";
       case "unchecked":
-        return "Unchecked";
+        return "Not reviewed";
       default:
-        return status;
+        return status ? status : "Not reviewed";
     }
   };
 
@@ -407,7 +418,12 @@ function CareFileAuditViewSinglePageContent() {
                                   {getStatusLabel(item.status)}
                                 </Badge>
                               ) : (
-                                <span className="text-xs text-muted-foreground">-</span>
+                                <Badge
+                                  variant="secondary"
+                                  className={`text-xs ${getStatusColor("")}`}
+                                >
+                                  {getStatusLabel("")}
+                                </Badge>
                               )}
                             </TableCell>
                             <TableCell className="text-sm">

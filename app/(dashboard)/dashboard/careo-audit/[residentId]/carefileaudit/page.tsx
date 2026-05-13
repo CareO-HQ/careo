@@ -1,11 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import type { Route } from "next";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, MoreHorizontal, Eye, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import {
   Table,
   TableBody,
@@ -44,6 +54,24 @@ import { ErrorBoundary, AuditErrorFallback } from "@/components/error-boundary";
 import { auditService, AuditTemplate, AuditCompletion } from "@/lib/audit-service";
 import { supabase } from "@/lib/supabase";
 
+function residentFirstName(r: Record<string, unknown>): string {
+  return String(r.first_name ?? r.firstName ?? "");
+}
+
+function residentLastName(r: Record<string, unknown>): string {
+  return String(r.last_name ?? r.lastName ?? "");
+}
+
+function residentRoom(r: Record<string, unknown>): string {
+  const v = r.room_number ?? r.roomNumber ?? r.room;
+  return v != null && String(v).trim() ? String(v) : "N/A";
+}
+
+function residentImage(r: Record<string, unknown>): string | undefined {
+  const u = r.image_url ?? r.imageUrl;
+  return typeof u === "string" ? u : undefined;
+}
+
 function CareFileAuditPageContent() {
   const params = useParams();
   const router = useRouter();
@@ -52,16 +80,23 @@ function CareFileAuditPageContent() {
   const { profile } = useProfile();
 
   // Fetch resident data
-  const [resident, setResident] = useState<any>(undefined);
+  const [resident, setResident] = useState<Record<string, unknown> | null | undefined>(
+    undefined
+  );
   const [templates, setTemplates] = useState<AuditTemplate[]>([]);
   const [responses, setResponses] = useState<AuditCompletion[]>([]);
 
   useEffect(() => {
     if (residentId) {
-      supabase.from('residents').select('*').eq('id', residentId).single().then(({ data, error }) => {
-        if (data) setResident(data);
-        else if (error) setResident(null);
-      });
+      supabase
+        .from("residents")
+        .select("*")
+        .eq("id", residentId)
+        .single()
+        .then(({ data, error }) => {
+          if (data) setResident(data as Record<string, unknown>);
+          else if (error) setResident(null);
+        });
     }
   }, [residentId]);
 
@@ -172,12 +207,18 @@ function CareFileAuditPageContent() {
     )[0];
   };
 
-  const getCompletionPercentage = (completion: any) => {
-    if (!completion || !completion.items || completion.items.length === 0) return 0;
-    const compliantItems = completion.items.filter(
-      (item: any) => item.status === "compliant" || item.status === "checked"
-    ).length;
-    return Math.round((compliantItems / completion.items.length) * 100);
+  const getCompletionPercentage = (completion: {
+    items?: { status?: string }[];
+  }) => {
+    if (!completion?.items?.length) return 0;
+    const total = completion.items.length;
+    const reviewed = completion.items.filter((item) => {
+      const s = item.status;
+      if (!s || s === "") return false;
+      if (s === "unchecked" || s === "not-reviewed") return false;
+      return true;
+    }).length;
+    return Math.round((reviewed / total) * 100);
   };
 
   if (resident === undefined) {
@@ -192,7 +233,7 @@ function CareFileAuditPageContent() {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <p className="text-muted-foreground">Resident not found</p>
-        <Button onClick={() => router.push("/dashboard/careo-audit")}>
+        <Button onClick={() => router.push("/dashboard/careo-audit?tab=careFile" as Route)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Audits
         </Button>
@@ -200,54 +241,72 @@ function CareFileAuditPageContent() {
     );
   }
 
+  const fn = residentFirstName(resident);
+  const ln = residentLastName(resident);
+  const residentLabel = `${fn} ${ln}`.trim() || "Resident";
+  const initials = `${fn[0] ?? ""}${ln[0] ?? ""}`.toUpperCase() || "?";
+
   return (
-    <div className="flex flex-col h-full w-full bg-background">
-      <div className="flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-4">
+    <div className="flex w-full flex-col bg-background pb-8">
+      <div className="mx-auto w-full max-w-[1400px] overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-3 sm:px-5">
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.push("/dashboard/careo-audit?tab=careFile")}
+            className="shrink-0"
+            onClick={() => router.push("/dashboard/careo-audit?tab=careFile" as Route)}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={resident.imageUrl} alt={`${resident.firstName} ${resident.lastName}`} />
-              <AvatarFallback>
-                {resident.firstName?.[0]}{resident.lastName?.[0]}
+          <Breadcrumb className="min-w-0 flex-1 text-muted-foreground">
+            <BreadcrumbList className="flex-wrap sm:gap-1">
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link href={"/dashboard/careo-audit?tab=careFile" as Route}>
+                    Audits
+                  </Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage className="text-foreground max-w-[220px] truncate font-medium sm:max-w-none">
+                  Care file audits · {residentLabel} · Rm {residentRoom(resident)}
+                </BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          <Button onClick={() => setIsAddAuditDialogOpen(true)} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Add audit
+          </Button>
+        </div>
+
+        <div className="flex flex-col gap-4 border-b border-border bg-background px-4 py-4 sm:flex-row sm:items-center sm:px-5">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <Avatar className="h-10 w-10 shrink-0">
+              <AvatarImage src={residentImage(resident)} alt="" />
+              <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                {initials}
               </AvatarFallback>
             </Avatar>
-            <div>
-              <h1 className="text-xl font-semibold">
-                {resident.firstName} {resident.lastName} - Care File Audit
+            <div className="min-w-0">
+              <h1 className="text-base font-medium text-foreground">
+                Care file audit · {residentLabel}
               </h1>
-              <p className="text-sm text-muted-foreground">
-                Room {resident.roomNumber || "N/A"}
+              <p className="text-xs text-muted-foreground">
+                Choose a template below to open the checklist workspace. Room{" "}
+                {residentRoom(resident)}.
               </p>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" className="hidden sm:inline-flex">
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </div>
-      </div>
 
-      <div className="flex items-center justify-between border-b px-6 py-3">
-        <div className="flex items-center gap-2"></div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => setIsAddAuditDialogOpen(true)} variant="default" className="bg-black hover:bg-black/90 text-white rounded-md px-4 py-2 flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Add Audit
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-auto">
-        <Table>
-          <TableHeader>
+        <div className="overflow-x-auto bg-muted/20 px-2 py-4 sm:px-4">
+          <Table>
+            <TableHeader>
             <TableRow className="hover:bg-transparent border-b">
               <TableHead className="w-12 border-r last:border-r-0">
                 <input type="checkbox" className="rounded border-gray-300 ml-1" />
@@ -345,7 +404,7 @@ function CareFileAuditPageContent() {
             )}
           </TableBody>
         </Table>
-        <div className="border-t"></div>
+        </div>
       </div>
 
       <Dialog open={isAddAuditDialogOpen} onOpenChange={setIsAddAuditDialogOpen}>

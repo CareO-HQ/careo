@@ -56,6 +56,8 @@ interface Medication {
   body_regions?: string[];
   is_controlled_drug?: boolean;
   container_type?: string;
+  discontinued_by?: string | null;
+  discontinuation_checked_by?: string | null;
 }
 
 export const createMedicationColumns = (
@@ -65,7 +67,9 @@ export const createMedicationColumns = (
   currentUser?: { name: string; userId: string },
   useSimplifiedTopicalDialog: boolean = true,
   administeredTimesToday: Record<string, Array<{ time: string, by: string }>> = {},
-  preSelectedTime?: string | null
+  preSelectedTime?: string | null,
+  showDiscontinuationSignOff: boolean = false,
+  resolveStaffDisplayName?: (userId: string | null | undefined) => string
 ): ColumnDef<Medication>[] => [
     {
       id: "medication",
@@ -229,6 +233,34 @@ export const createMedicationColumns = (
         );
       }
     },
+    ...(showDiscontinuationSignOff && resolveStaffDisplayName
+      ? [
+          {
+            id: "discontinuedBy",
+            header: "Discontinued by",
+            cell: ({ row }) => {
+              const medication = row.original;
+              return (
+                <p className="text-sm">
+                  {resolveStaffDisplayName(medication.discontinued_by)}
+                </p>
+              );
+            },
+          },
+          {
+            id: "discontinuationWitness",
+            header: "Witness",
+            cell: ({ row }) => {
+              const medication = row.original;
+              return (
+                <p className="text-sm">
+                  {resolveStaffDisplayName(medication.discontinuation_checked_by)}
+                </p>
+              );
+            },
+          },
+        ] as ColumnDef<Medication>[]
+      : []),
     // Only show Actions column for non-PRN medications when Administer button is shown
     ...(showAdministerButton ? [] : [
       {
@@ -890,7 +922,9 @@ export const createTopicalMedicationColumns = (
     currentUser,
     false,
     administeredTimesToday,
-    preSelectedTime
+    preSelectedTime,
+    false,
+    undefined
   );
 
   // Remove prescriber column and extract action columns

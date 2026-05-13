@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       const [endHours, endMinutes] = config.end_time.split(':').map(Number);
       const [startHours, startMinutes] = config.start_time.split(':').map(Number);
 
-      let expirationDate = new Date(ukCreatedAt);
+      const expirationDate = new Date(ukCreatedAt);
       expirationDate.setHours(endHours, endMinutes, 0, 0);
 
       if (startHours > endHours) {
