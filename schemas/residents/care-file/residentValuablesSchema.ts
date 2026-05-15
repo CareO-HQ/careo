@@ -33,7 +33,8 @@ export const residentValuablesSchema = z.object({
 
   // Other
   other: z.array(z.object({ value: z.string(), count: z.number().min(1) })),
-  comments: z.string().optional()
+  comments: z.string().optional(),
+  nextReviewDate: z.string().optional(),
 });
 
 export type ResidentValuablesFormValues = z.infer<

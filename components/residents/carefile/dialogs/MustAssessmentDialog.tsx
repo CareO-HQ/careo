@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { mustAssessmentSchema, MustAssessmentFormValues } from "@/schemas/residents/care-file/mustAssessmentSchema";
 import { Resident } from "@/types";
+import NextReviewDateField from "./NextReviewDateField";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
@@ -56,6 +57,7 @@ interface MustAssessmentDialogProps {
 interface MustAssessmentRecord {
   id: string;
   assessment_date: string;
+  next_review_date: string | null;
   resident_name: string;
   bedroom_number: string | null;
   date_of_birth: string | null;
@@ -69,6 +71,23 @@ interface MustAssessmentRecord {
   signature: string;
   job_role: string;
   created_at: string;
+}
+
+interface PostgrestErrorLike {
+  code?: string;
+  message?: string;
+}
+
+function isMissingNextReviewDateColumn(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const postgrestError = error as PostgrestErrorLike;
+  const msg = postgrestError.message?.toLowerCase() ?? "";
+  return (
+    (postgrestError.code === "PGRST204" || postgrestError.code === "42703")
+    && msg.includes("next_review_date")
+    && msg.includes("must_assessments")
+  );
 }
 
 function getResidentName(resident: Resident): string {
@@ -133,6 +152,7 @@ export default function MustAssessmentDialog({
       organizationId,
       userId,
       ...identityDefaults,
+      nextReviewDate: "",
       assessmentDate: Date.now(),
       weightKg: 0,
       heightCm: 0,
@@ -168,14 +188,36 @@ export default function MustAssessmentDialog({
       const { data, error } = await supabase
         .from("must_assessments")
         .select(
-          "id, assessment_date, resident_name, bedroom_number, date_of_birth, weight_kg, height_cm, bmi_value, step1_score, step2_score, step3_score, total_must_score, signature, job_role, created_at"
+          "id, assessment_date, next_review_date, resident_name, bedroom_number, date_of_birth, weight_kg, height_cm, bmi_value, step1_score, step2_score, step3_score, total_must_score, signature, job_role, created_at"
         )
         .eq("resident_id", residentId)
         .eq("status", "active")
         .order("assessment_date", { ascending: false })
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        if (!isMissingNextReviewDateColumn(error)) throw error;
+
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("must_assessments")
+          .select(
+            "id, assessment_date, resident_name, bedroom_number, date_of_birth, weight_kg, height_cm, bmi_value, step1_score, step2_score, step3_score, total_must_score, signature, job_role, created_at"
+          )
+          .eq("resident_id", residentId)
+          .eq("status", "active")
+          .order("assessment_date", { ascending: false })
+          .order("created_at", { ascending: false });
+
+        if (fallbackError) throw fallbackError;
+
+        const normalizedData = (fallbackData || []).map((record) => ({
+          ...record,
+          next_review_date: null
+        }));
+        setRecords(normalizedData as MustAssessmentRecord[]);
+        return;
+      }
+
       setRecords((data || []) as MustAssessmentRecord[]);
     } catch (error) {
       console.error("Error fetching MUST assessments:", error);
@@ -196,6 +238,7 @@ export default function MustAssessmentDialog({
       organizationId,
       userId,
       ...identityDefaults,
+      nextReviewDate: "",
       assessmentDate: Date.now(),
       weightKg: 0,
       heightCm: 0,
@@ -220,6 +263,7 @@ export default function MustAssessmentDialog({
           resident_name: values.residentName,
           bedroom_number: values.bedroomNumber || null,
           date_of_birth: values.dateOfBirth || null,
+          next_review_date: values.nextReviewDate,
           assessment_date: new Date(values.assessmentDate).toISOString().split("T")[0],
           weight_kg: values.weightKg,
           height_cm: values.heightCm,
@@ -235,7 +279,18 @@ export default function MustAssessmentDialog({
         };
 
         const { error } = await supabase.from("must_assessments").insert(payload);
-        if (error) throw error;
+
+        if (error) {
+          if (!isMissingNextReviewDateColumn(error)) throw error;
+
+          // Some environments may not have received the migration yet.
+          // Retry insert without next_review_date so the assessment can still be saved.
+          const { next_review_date: _, ...fallbackPayload } = payload;
+          const { error: fallbackError } = await supabase.from("must_assessments").insert(fallbackPayload);
+          if (fallbackError) throw fallbackError;
+
+          toast.warning("Saved without next review date. Please apply latest DB migrations.");
+        }
 
         toast.success("MUST assessment submitted successfully");
         resetToDefault();
@@ -259,6 +314,20 @@ export default function MustAssessmentDialog({
 
       <Form {...form}>
         <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+          <div className="mb-4 p-4 border rounded-lg bg-muted/40">
+            <FormField
+              control={form.control}
+              name="nextReviewDate"
+              render={({ field }) => (
+                <FormItem className="max-w-xs">
+                  <FormControl>
+                    <NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={viewOnly} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <button
               type="button"
@@ -528,6 +597,7 @@ export default function MustAssessmentDialog({
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
+                <TableHead>Next Review Date</TableHead>
                 <TableHead>Weight (kg)</TableHead>
                 <TableHead>Height (cm)</TableHead>
                 <TableHead>BMI</TableHead>
@@ -543,13 +613,13 @@ export default function MustAssessmentDialog({
             <TableBody>
               {isRecordsLoading ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center h-24">
+                  <TableCell colSpan={12} className="text-center h-24">
                     Loading records...
                   </TableCell>
                 </TableRow>
               ) : records.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center h-24 text-muted-foreground">
+                  <TableCell colSpan={12} className="text-center h-24 text-muted-foreground">
                     No MUST assessments submitted yet.
                   </TableCell>
                 </TableRow>
@@ -557,6 +627,11 @@ export default function MustAssessmentDialog({
                 records.map((record) => (
                   <TableRow key={record.id}>
                     <TableCell>{format(new Date(record.assessment_date), "dd/MM/yyyy")}</TableCell>
+                    <TableCell>
+                      {record.next_review_date
+                        ? format(new Date(record.next_review_date), "dd/MM/yyyy")
+                        : "—"}
+                    </TableCell>
                     <TableCell>{record.weight_kg}</TableCell>
                     <TableCell>{record.height_cm}</TableCell>
                     <TableCell>{record.bmi_value.toFixed(1)}</TableCell>

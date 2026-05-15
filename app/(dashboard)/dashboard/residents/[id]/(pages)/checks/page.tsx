@@ -51,6 +51,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
+  AlertTriangle,
   Moon,
   Calendar,
   Clock,
@@ -63,14 +64,28 @@ import {
   StickyNote,
   RotateCw,
   X,
-
-  Scale,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge as BadgeComponent } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { getUKTodayDate, formatTimestampToUKTime } from "@/lib/date-utils";
-import { WeightChart } from "@/components/residents/carefile/WeightChart";
+import {
+  CHECKS_INTERVAL_OVERDUE_ALERT_TYPE,
+  formatCheckTypeLabel,
+} from "@/lib/checks-interval-alerts";
+
+interface ChecksAlertRow {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  severity: "critical" | "warning" | "info";
+  metadata: {
+    check_type?: string;
+    overdue_by_minutes?: number;
+  } | null;
+}
+
 
 // Types
 type NightCheckPageProps = {
@@ -136,6 +151,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
   const [resident, setResident] = useState<any>(null);
   const [nightCheckConfigs, setNightCheckConfigs] = useState<any[]>([]);
   const [todayRecordings, setTodayRecordings] = useState<any[]>([]);
+  const [checkAlerts, setCheckAlerts] = useState<ChecksAlertRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Dialog & Form State
@@ -149,6 +165,10 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     "night_check" | "positioning" | "pad_change" | "bed_rails" | "environmental" | "night_note" | "cleaning"
   >("night_check");
   const [frequencyDialogType, setFrequencyDialogType] = React.useState<"night_check" | "positioning" | "pad_change">("night_check");
+  const [frequencyDialogStep, setFrequencyDialogStep] = React.useState<"interval" | "frequency">("interval");
+  const [selectedInterval, setSelectedInterval] = React.useState<string>("night_only");
+  const [customStartTime, setCustomStartTime] = React.useState<string>("20:00");
+  const [customEndTime, setCustomEndTime] = React.useState<string>("08:00");
 
   const [selectedFrequency, setSelectedFrequency] = React.useState<string>("30");
   const [bedRailsFrequency, setBedRailsFrequency] = React.useState<string>("60");
@@ -236,6 +256,32 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         .eq('is_active', true);
       if (cError) throw cError;
       setNightCheckConfigs(cData || []);
+
+      const { data: alertRows, error: alertError } = await supabase
+        .from("alerts")
+        .select("id, type, title, message, severity, metadata")
+        .eq("resident_id", id)
+        .eq("type", CHECKS_INTERVAL_OVERDUE_ALERT_TYPE)
+        .eq("is_resolved", false)
+        .order("created_at", { ascending: false });
+      if (alertError) throw alertError;
+
+      const alertList = (alertRows as ChecksAlertRow[] | null) ?? [];
+      if (!profile?.id || alertList.length === 0) {
+        setCheckAlerts(alertList);
+      } else {
+        const { data: dismissalsData, error: dismissalsError } = await supabase
+          .from("alert_dismissals")
+          .select("alert_id")
+          .eq("user_id", profile.id)
+          .in("alert_id", alertList.map((alert) => alert.id));
+        if (dismissalsError) throw dismissalsError;
+
+        const dismissedSet = new Set(
+          (dismissalsData ?? []).map((item: { alert_id: string }) => item.alert_id)
+        );
+        setCheckAlerts(alertList.filter((alert) => !dismissedSet.has(alert.id)));
+      }
 
       // 3. Fetch Today's Recordings (using UK timezone)
       const today = getUKTodayDate(); // Returns YYYY-MM-DD format
@@ -411,6 +457,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
   useEffect(() => {
     if (pendingNightCheckAdd || pendingPositioningAdd || pendingPadChangeAdd) {
       const timer = setTimeout(() => {
+        setFrequencyDialogStep("interval");
         setIsFrequencyDialogOpen(true);
         if (pendingPadChangeAdd) setSelectedFrequency("120"); // Default 2h
       }, 300);
@@ -494,10 +541,45 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     }
   };
 
+  const dismissCheckAlert = async (alertId: string) => {
+    if (!profile?.id) {
+      toast.error("Unable to dismiss alert");
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from("alert_dismissals").insert({
+        alert_id: alertId,
+        user_id: profile.id,
+      });
+
+      if (error && error.code !== "23505") {
+        throw error;
+      }
+
+      setCheckAlerts((current) => current.filter((alert) => alert.id !== alertId));
+      toast.success("Alert dismissed");
+    } catch (error) {
+      console.error("Failed to dismiss check alert:", error);
+      toast.error("Failed to dismiss alert");
+    }
+  };
+
   const confirmFrequencyAndAdd = async () => {
     if (!profile?.active_organization_id || !id) return;
     try {
       const type = frequencyDialogType;
+      
+      let startTime = '20:00';
+      let endTime = '08:00';
+      if (selectedInterval === '24hrs') {
+          startTime = '00:00';
+          endTime = '23:59';
+      } else if (selectedInterval === 'custom') {
+          startTime = customStartTime || '00:00';
+          endTime = customEndTime || '23:59';
+      }
+
       const { error } = await supabase.from('night_check_configurations').insert({
         resident_id: id,
         organization_id: profile.active_organization_id,
@@ -505,6 +587,8 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         team_id: resident?.team_id,
         check_type: type,
         frequency_minutes: parseInt(selectedFrequency),
+        start_time: startTime,
+        end_time: endTime,
         created_by: profile.id,
         is_active: true
       });
@@ -910,6 +994,59 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           </div>
         </div>
 
+        {checkAlerts.length > 0 && (
+          <Card className="border-amber-200 bg-amber-50/40">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-900">
+                <AlertTriangle className="h-5 w-5" />
+                <span>Check Alerts</span>
+                <BadgeComponent variant="outline" className="ml-auto border-amber-300 text-amber-800">
+                  {checkAlerts.length}
+                </BadgeComponent>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {checkAlerts.map((alert) => {
+                  const overdueByMinutes = alert.metadata?.overdue_by_minutes ?? 0;
+                  const overdueHours = Math.floor(overdueByMinutes / 60);
+                  const overdueMins = overdueByMinutes % 60;
+                  const overdueText =
+                    overdueHours > 0
+                      ? `${overdueHours}h${overdueMins > 0 ? ` ${overdueMins}m` : ""}`
+                      : `${overdueMins}m`;
+
+                  return (
+                    <div
+                      key={alert.id}
+                      className="rounded-md border border-amber-200 bg-white p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <p className="font-medium text-amber-950">{alert.title}</p>
+                          <p className="text-sm text-amber-900">{alert.message}</p>
+                          {alert.metadata?.check_type && (
+                            <p className="text-xs text-amber-700">
+                              Type: {formatCheckTypeLabel(alert.metadata.check_type)} | Overdue: {overdueText}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => dismissCheckAlert(alert.id)}
+                        >
+                          Dismiss
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Configured Items */}
         <Card className="border-0">
           <CardHeader>
@@ -1150,43 +1287,66 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           </CardContent>
         </Card>
 
-        {/* Weight Monitoring Section */}
-        <Card className="border-0">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-3">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <Scale className="w-5 h-5 text-gray-600" />
-              </div>
-              <span className="text-gray-900">Weight Monitoring</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <WeightChart residentId={id} residentName={fullName} />
-          </CardContent>
-        </Card>
+
 
         {/* Dialogs */}
-        <Dialog open={isFrequencyDialogOpen} onOpenChange={setIsFrequencyDialogOpen}>
+        <Dialog open={isFrequencyDialogOpen} onOpenChange={(open) => {
+          setIsFrequencyDialogOpen(open);
+          if (!open) {
+            setTimeout(() => setFrequencyDialogStep("interval"), 300);
+          }
+        }}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Set Frequency</DialogTitle></DialogHeader>
-            <div className="flex flex-col gap-2 py-4">
-              {[
-                { value: "15", label: "Every 15 min" },
-                { value: "30", label: "Every 30 min" },
-                { value: "60", label: "Every hour" },
-                { value: "120", label: "Every 2 hours" },
-                { value: "180", label: "Every 3 hours" },
-                { value: "240", label: "Every 4 hours" },
-                { value: "300", label: "Every 5 hours" },
-                { value: "360", label: "Every 6 hours" }
-              ].map(freq => (
-                <Button key={freq.value} variant={selectedFrequency === freq.value ? "default" : "outline"} onClick={() => setSelectedFrequency(freq.value)}>{freq.label}</Button>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsFrequencyDialogOpen(false)}>Cancel</Button>
-              <Button onClick={confirmFrequencyAndAdd}>Confirm</Button>
-            </div>
+            <DialogHeader><DialogTitle>{frequencyDialogStep === "interval" ? "Select Interval" : "Set Frequency"}</DialogTitle></DialogHeader>
+            
+            {frequencyDialogStep === "interval" ? (
+              <div className="flex flex-col gap-4 py-4">
+                <div className="flex flex-col gap-2">
+                  <Button variant={selectedInterval === "24hrs" ? "default" : "outline"} onClick={() => setSelectedInterval("24hrs")}>24 Hours (All Day)</Button>
+                  <Button variant={selectedInterval === "night_only" ? "default" : "outline"} onClick={() => setSelectedInterval("night_only")}>Night Only (8:00 PM to 8:00 AM)</Button>
+                  <Button variant={selectedInterval === "custom" ? "default" : "outline"} onClick={() => setSelectedInterval("custom")}>Custom</Button>
+                </div>
+                
+                {selectedInterval === "custom" && (
+                  <div className="grid grid-cols-2 gap-4 mt-2 p-4 border rounded-md">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-medium">Start Time</label>
+                      <Input type="time" value={customStartTime} onChange={(e) => setCustomStartTime(e.target.value)} />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-medium">End Time</label>
+                      <Input type="time" value={customEndTime} onChange={(e) => setCustomEndTime(e.target.value)} />
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex justify-end gap-2 mt-4">
+                  <Button variant="outline" onClick={() => setIsFrequencyDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={() => setFrequencyDialogStep("frequency")}>Next</Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col gap-2 py-4">
+                  {[
+                    { value: "15", label: "Every 15 min" },
+                    { value: "30", label: "Every 30 min" },
+                    { value: "60", label: "Every hour" },
+                    { value: "120", label: "Every 2 hours" },
+                    { value: "180", label: "Every 3 hours" },
+                    { value: "240", label: "Every 4 hours" },
+                    { value: "300", label: "Every 5 hours" },
+                    { value: "360", label: "Every 6 hours" }
+                  ].map(freq => (
+                    <Button key={freq.value} variant={selectedFrequency === freq.value ? "default" : "outline"} onClick={() => setSelectedFrequency(freq.value)}>{freq.label}</Button>
+                  ))}
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setFrequencyDialogStep("interval")}>Back</Button>
+                  <Button onClick={confirmFrequencyAndAdd}>Confirm</Button>
+                </div>
+              </>
+            )}
           </DialogContent>
         </Dialog>
 

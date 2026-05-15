@@ -96,7 +96,9 @@ const TABLE_MAP: Record<string, string> = {
     "v2-must-assessment": "must_assessments",
     "v2-personal-profile": "personal_profiles",
     "v2-abbey-pain": "abbey_pain_assessments",
+    "v2-weight-chart": "weight_records",
     "v2-specimen-log": "specimen_records",
+    "key-worker-diary-form": "key_worker_diary",
     "progress-note-form": "progress_notes"
 };
 
@@ -240,6 +242,9 @@ export default function CareFileV2FolderPage() {
     });
 
     const carePlanIdFromQuery = searchParams.get("carePlanId");
+    const formKeyFromQuery = searchParams.get("formKey") as CareFileFormKey | null;
+    const formRecordIdFromQuery = searchParams.get("formRecordId");
+    const openedFormFromQueryRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (!carePlanIdFromQuery) {
@@ -249,6 +254,7 @@ export default function CareFileV2FolderPage() {
 
     useEffect(() => {
         openedCarePlanFromQueryRef.current = null;
+        openedFormFromQueryRef.current = null;
     }, [folderKey]);
 
     useEffect(() => {
@@ -273,6 +279,56 @@ export default function CareFileV2FolderPage() {
         setIsViewOnly(true);
         setIsReviewMode(false);
     }, [carePlanIdFromQuery, activeCarePlanForms, folderFormsLoading, folderKey]);
+
+    useEffect(() => {
+        const openFormFromQuery = async () => {
+            if (!formKeyFromQuery || !formRecordIdFromQuery || !residentId) {
+                return;
+            }
+
+            const existsInCurrentFolder = filteredForms.some((form) => form.key === formKeyFromQuery);
+            if (!existsInCurrentFolder) {
+                return;
+            }
+
+            const openKey = `${folderKey}:${formKeyFromQuery}:${formRecordIdFromQuery}`;
+            if (openedFormFromQueryRef.current === openKey) {
+                return;
+            }
+
+            const table = TABLE_MAP[formKeyFromQuery];
+            if (!table) {
+                return;
+            }
+
+            setActiveFileId(null);
+            setActiveFormKey(formKeyFromQuery);
+            setIsReviewMode(false);
+            setIsViewOnly(true);
+
+            const { data, error } = await supabase
+                .from(table)
+                .select("*")
+                .eq("id", formRecordIdFromQuery)
+                .eq("resident_id", residentId)
+                .maybeSingle();
+
+            if (error) {
+                console.error("Failed to open form from alert query:", error);
+                return;
+            }
+
+            if (!data) {
+                toast.error("Unable to open this form record.");
+                return;
+            }
+
+            setFormDataForEdit(data);
+            openedFormFromQueryRef.current = openKey;
+        };
+
+        void openFormFromQuery();
+    }, [formKeyFromQuery, formRecordIdFromQuery, residentId, filteredForms, folderKey]);
 
     const activeFile = uploadedFiles.find((f) => f.id === activeFileId);
 
@@ -450,6 +506,16 @@ export default function CareFileV2FolderPage() {
     };
 
     const handleSaveSuccess = (data: any) => {
+        // Dependency assessment must remain submittable without switching to view-only mode.
+        if (activeFormKey === "dependency-assessment") {
+            setFormDataForEdit(null);
+            setIsViewOnly(false);
+            setIsReviewMode(false);
+            setIsSaving(false);
+            refreshForms();
+            return;
+        }
+
         setFormDataForEdit(data);
         setIsViewOnly(true);
         setIsReviewMode(false);

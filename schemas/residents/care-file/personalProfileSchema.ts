@@ -58,6 +58,7 @@ export const PersonalProfileSchema = z.object({
 
   // Form Metadata
   assessmentDate: z.number(),
+  nextReviewDate: z.string().optional(),
   status: z.string().optional(),
 });
 

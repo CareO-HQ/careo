@@ -32,6 +32,8 @@ import {
   carePlanEvaluationAlertFolderLabel,
   extractRawCareFileFolderKeyFromGoals,
 } from "@/lib/care-plan-evaluation-alerts";
+import { FORM_REVIEW_DUE_TOMORROW_ALERT_TYPE } from "@/lib/form-review-alerts";
+import { formReviewAlertCareFileHref } from "@/lib/form-review-alert-navigation";
 import { FEATURES } from "@/lib/config/features";
 
 const NON_DISMISSIBLE_ALERT_TYPES = new Set<string>([
@@ -41,12 +43,14 @@ const NON_DISMISSIBLE_ALERT_TYPES = new Set<string>([
   URINE_NOT_RECORDED_6H_ALERT_TYPE,
   CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE,
   CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE,
+  FORM_REVIEW_DUE_TOMORROW_ALERT_TYPE,
 ]);
 const NURSE_ONLY_ALERT_TYPES = new Set<string>([
   "resident_photo_refresh_required",
   "bowel_not_recorded_3_days",
   CARE_PLAN_EVALUATION_DUE_SOON_ALERT_TYPE,
   CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE,
+  FORM_REVIEW_DUE_TOMORROW_ALERT_TYPE,
 ]);
 const NURSE_AND_CARE_ASSISTANT_ALERT_TYPES = new Set<string>([
   FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE,
@@ -71,6 +75,9 @@ function getNonDismissibleAlertMessage(type?: string) {
     type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE
   ) {
     return "This alert cannot be dismissed until the care plan evaluation is completed";
+  }
+  if (type === FORM_REVIEW_DUE_TOMORROW_ALERT_TYPE) {
+    return "This alert cannot be dismissed until the form review is completed";
   }
   if (type === "medication") {
     return "This alert cannot be dismissed until the medication is restocked";
@@ -681,6 +688,13 @@ const NotificationsCell = ({
 
   const canNavigateMedicationAlert =
     topAlert.type === "medication" && userRole === "nurse";
+  const formReviewCareFileHref =
+    FEATURES.SHOW_CARE_FILE_V2 && userRole === "nurse"
+      ? formReviewAlertCareFileHref(residentId, topAlert.metadata)
+      : null;
+  const canNavigateFormReviewAlert =
+    topAlert.type === FORM_REVIEW_DUE_TOMORROW_ALERT_TYPE &&
+    formReviewCareFileHref !== null;
 
   const topDismissible = canDismissAlert(
     topAlert,
@@ -807,6 +821,22 @@ const NotificationsCell = ({
                 }}
               >
                 Open medication
+              </Button>
+            </div>
+          )}
+          {canNavigateFormReviewAlert && formReviewCareFileHref && (
+            <div className="pt-2 border-t">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="w-full text-xs h-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(formReviewCareFileHref as Route);
+                }}
+              >
+                Open care file form
               </Button>
             </div>
           )}

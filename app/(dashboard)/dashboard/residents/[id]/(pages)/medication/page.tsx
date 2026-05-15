@@ -24,10 +24,11 @@ import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
 import { ArrowLeft, CalendarIcon, CheckCircle, Download, Eye, FileDown, FileText } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { config } from "@/config";
 import { toast } from "sonner";
 import { formatTimestampToUKTime, formatTimestampToUKDateTime, getUKTodayDate, UK_TIMEZONE, getNearestMedicationTime } from "@/lib/date-utils";
+import { enrichMedicationsWithKardexStaffNames } from "@/lib/medication/kardex-staff-names";
 import {
   ColumnDef,
   SortingState,
@@ -118,6 +119,19 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams?.get("tab") || "today");
+
+  const medicationsForKardex = useMemo(() => {
+    const staffRows = (allUsers ?? [])
+      .filter((u): u is { id: string; name: string | null; email: string | null } =>
+        typeof u?.id === "string"
+      )
+      .map((u) => ({
+        id: u.id,
+        name: u.name ?? null,
+        email: u.email ?? null,
+      }));
+    return enrichMedicationsWithKardexStaffNames(allActiveMedications, staffRows);
+  }, [allActiveMedications, allUsers]);
 
   const fetchData = React.useCallback(async (silentRefresh = false) => {
     if (!silentRefresh) {
@@ -1017,6 +1031,16 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     return map;
   }, [selectedDateIntakes, topicalAdministrations, allUsers]);
 
+  const resolveStaffDisplayName = useCallback(
+    (userId: string | null | undefined): string => {
+      if (!userId) return "—";
+      const u = allUsers.find((row) => row.id === userId);
+      const label = u?.name?.trim() || u?.email?.trim();
+      return label || "—";
+    },
+    [allUsers]
+  );
+
   const prnTopicalColumns = useMemo(
     () => createMedicationColumns(
       createAndAdministerMedicationIntake,
@@ -1024,7 +1048,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       availableMembers,
       profile ? { name: profile.name || "", userId: profile.id } : undefined,
       true,  // Use simplified dialog for PRN medications in Today's tab
-      administeredTimesToday
+      administeredTimesToday,
+      undefined,
+      false,
+      undefined
     ),
     [availableMembers, profile, administeredTimesToday]
   );
@@ -1048,9 +1075,28 @@ export default function MedicationPage({ params }: MedicationPageProps) {
       availableMembers,
       profile ? { name: profile.name || "", userId: profile.id } : undefined,
       true,  // Default to simplified
-      administeredTimesToday
+      administeredTimesToday,
+      undefined,
+      false,
+      undefined
     ),
     [availableMembers, profile, administeredTimesToday]
+  );
+
+  const discontinuedMedicationTableColumns = useMemo(
+    () =>
+      createMedicationColumns(
+        createAndAdministerMedicationIntake,
+        false,
+        availableMembers,
+        profile ? { name: profile.name || "", userId: profile.id } : undefined,
+        true,
+        administeredTimesToday,
+        undefined,
+        true,
+        resolveStaffDisplayName
+      ),
+    [availableMembers, profile, administeredTimesToday, resolveStaffDisplayName]
   );
 
   const supplementColumns: ColumnDef<any>[] = useMemo(
@@ -1543,7 +1589,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
                   <p className="font-semibold text-sm">
                     Discontinued ({discontinuedMedications.length})
                   </p>
-                  <DataTable columns={allActiveMedicationColumns} data={discontinuedMedications} />
+                  <DataTable columns={discontinuedMedicationTableColumns} data={discontinuedMedications} />
                 </div>
               )}
               {completedCancelledMedications.length > 0 && (
@@ -1560,7 +1606,7 @@ export default function MedicationPage({ params }: MedicationPageProps) {
 
         {/* ── Kardex ── */}
         <TabsContent value="kardex" className="mt-4">
-          <KardexModal medications={allActiveMedications} resident={resident} inlineMode />
+          <KardexModal medications={medicationsForKardex} resident={resident} inlineMode />
         </TabsContent>
 
         {/* ── History ── */}

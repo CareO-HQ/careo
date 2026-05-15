@@ -24,6 +24,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface FallRiskAssessmentDialogProps {
     teamId: string;
@@ -59,6 +60,7 @@ export default function FallRiskAssessmentDialog({
             residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
             dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
             dateOfAssessment: initialData.assessment_date ? new Date(initialData.assessment_date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+            nextReviewDate: initialData.nextReviewDate || initialData.assessment_details?.nextReviewDate || "",
             time: initialData.assessment_date ? new Date(initialData.assessment_date).toTimeString().slice(0, 5) : new Date().toTimeString().slice(0, 5),
             completedBy: initialData.completed_by || profile?.name || "",
             signature: initialData.signature || "",
@@ -82,6 +84,7 @@ export default function FallRiskAssessmentDialog({
             residentName: `${resident.first_name} ${resident.last_name}`,
             dateOfBirth: resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).toISOString().split("T")[0] : "",
             dateOfAssessment: new Date().toISOString().split("T")[0],
+            nextReviewDate: "",
             time: new Date().toTimeString().slice(0, 5),
             completedBy: userName || profile?.name || "",
             signature: "",
@@ -151,6 +154,7 @@ export default function FallRiskAssessmentDialog({
                 assessment_date: data.dateOfAssessment ? new Date(`${data.dateOfAssessment}T${data.time || "00:00"}`).toISOString() : new Date().toISOString(),
                 completed_by: data.completedBy,
                 assessment_details: {
+                    nextReviewDate: data.nextReviewDate,
                     age: data.age,
                     gender: data.gender,
                     historyOfFalls: data.historyOfFalls,
@@ -190,6 +194,7 @@ export default function FallRiskAssessmentDialog({
                     dateOfBirth: resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).toISOString().split("T")[0] : "",
                     dateOfAssessment: new Date().toISOString().split("T")[0],
                     time: new Date().toTimeString().slice(0, 5),
+                    nextReviewDate: "",
                     completedBy: userName || profile?.name || "",
                     signature: "",
                     age: "Under 65",
@@ -269,6 +274,15 @@ export default function FallRiskAssessmentDialog({
             </div>
 
             <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+                <div className="mb-4 p-4 border rounded-lg bg-muted/40">
+                    <div className="space-y-2 max-w-xs">
+                        <NextReviewDateField
+                            value={form.watch("nextReviewDate") || ""}
+                            onChange={(value) => form.setValue("nextReviewDate", value, { shouldDirty: true })}
+                            disabled={viewOnly}
+                        />
+                    </div>
+                </div>
                 <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6 pb-20">
                     <button
                         type="button"
@@ -397,6 +411,7 @@ export default function FallRiskAssessmentDialog({
                             <TableHeader>
                                 <TableRow className="bg-muted/50">
                                     <TableHead className="whitespace-nowrap px-4">Date</TableHead>
+                                    <TableHead className="whitespace-nowrap px-4">Next Review Date</TableHead>
                                     <TableHead className="whitespace-nowrap px-2 text-center text-[10px] font-bold">Age</TableHead>
                                     <TableHead className="whitespace-nowrap px-2 text-center text-[10px] font-bold">Sex</TableHead>
                                     <TableHead className="whitespace-nowrap px-2 text-center text-[10px] font-bold">Falls</TableHead>
@@ -422,6 +437,11 @@ export default function FallRiskAssessmentDialog({
                                     <TableRow key={assessment.id} className="hover:bg-muted/30 text-[11px]">
                                         <TableCell className="font-medium whitespace-nowrap px-4">
                                             {format(new Date(assessment.assessment_date), "dd/MM/yyyy")}
+                                        </TableCell>
+                                        <TableCell className="font-medium whitespace-nowrap px-4">
+                                            {assessment.assessment_details?.nextReviewDate
+                                                ? format(new Date(assessment.assessment_details.nextReviewDate), "dd/MM/yyyy")
+                                                : "—"}
                                         </TableCell>
                                         <TableCell className="text-center px-2">{getSectionScore('age', assessment.assessment_details?.age)}</TableCell>
                                         <TableCell className="text-center px-2">{getSectionScore('gender', assessment.assessment_details?.gender)}</TableCell>

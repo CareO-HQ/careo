@@ -43,6 +43,7 @@ import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
 import { useSpecimenRecords } from "@/hooks/use-specimen-records";
 import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
+import NextReviewDateField from "./NextReviewDateField";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -100,6 +101,11 @@ export default function SpecimenRecordLogDialog({
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const [resolvedLogoUrl, setResolvedLogoUrl] = useState<string | undefined>(orgLogoUrl);
 
+    const isMissingNextReviewDateColumn = (error: any) => {
+        return (error?.code === "PGRST204" || error?.code === "42703") &&
+            error?.message?.toLowerCase().includes("next_review_date");
+    };
+
     useEffect(() => {
         if (orgLogoUrl) {
             setResolvedLogoUrl(orgLogoUrl);
@@ -145,7 +151,8 @@ export default function SpecimenRecordLogDialog({
         dateResultsReceived: null,
         results: "",
         staffReceivingSignature: "",
-        status: "active" as const
+        status: "active" as const,
+        nextReviewDate: ""
     };
 
     const form = useForm<SpecimenRecordFormData>({
@@ -169,13 +176,24 @@ export default function SpecimenRecordLogDialog({
                     date_results_received: values.dateResultsReceived ? new Date(values.dateResultsReceived).toISOString() : null,
                     results: values.results,
                     staff_receiving_signature: values.staffReceivingSignature,
+                    next_review_date: values.nextReviewDate || null,
                 };
 
                 const { error } = await supabase
                     .from("specimen_records")
                     .insert(payload);
 
-                if (error) throw error;
+                if (error) {
+                    if (isMissingNextReviewDateColumn(error)) {
+                        const { next_review_date: _, ...fallbackPayload } = payload;
+                        const { error: fallbackError } = await supabase
+                            .from("specimen_records")
+                            .insert(fallbackPayload);
+                        if (fallbackError) throw fallbackError;
+                    } else {
+                        throw error;
+                    }
+                }
 
                 toast.success("Specimen record added successfully");
 
@@ -235,6 +253,24 @@ export default function SpecimenRecordLogDialog({
                 <Card className="p-6 border-primary/20 bg-primary/5 max-w-3xl mx-auto w-full">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                            <div className="mb-6 p-4 border rounded-lg bg-muted/40">
+                                <FormField
+                                    control={form.control}
+                                    name="nextReviewDate"
+                                    render={({ field }) => (
+                                        <FormItem className="max-w-xs">
+                                            <FormControl>
+                                                <NextReviewDateField
+                                                    value={field.value || ""}
+                                                    onChange={field.onChange}
+                                                    disabled={viewOnly}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
                             <div className="space-y-6">
                                 <div className="border-b pb-2 mb-4">
                                     <h3 className="text-sm font-bold uppercase text-primary">Obtaining Specimen</h3>
@@ -472,6 +508,7 @@ export default function SpecimenRecordLogDialog({
                                 <TableHead>Results Date</TableHead>
                                 <TableHead>Results</TableHead>
                                 <TableHead>Received By</TableHead>
+                                <TableHead>Next Review</TableHead>
                                 {!viewOnly && <TableHead className="w-[50px]"></TableHead>}
                             </TableRow>
                         </TableHeader>
@@ -502,6 +539,7 @@ export default function SpecimenRecordLogDialog({
                                         </TableCell>
                                         <TableCell>{record.results || "-"}</TableCell>
                                         <TableCell>{record.staff_receiving_signature || "-"}</TableCell>
+                                        <TableCell>{record.next_review_date ? format(new Date(record.next_review_date), "dd/MM/yyyy") : "-"}</TableCell>
                                         {!viewOnly && (
                                             <TableCell>
                                                 <Button

@@ -34,6 +34,7 @@ import { z } from "zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface PeepDialogProps {
   teamId: string;
@@ -91,6 +92,7 @@ export default function PeepDialog({
         resident.room_number ||
         "",
       unit: formData.unit || teamName || "",
+      nextReviewDate: formData.nextReviewDate || "",
       informedBy: {
         alarmSystem: formData.informedBy?.alarmSystem ?? false,
         visualAlarm: formData.informedBy?.visualAlarm ?? false,
@@ -171,6 +173,20 @@ export default function PeepDialog({
       )}
 
       <Form {...form}>
+        <div className="mb-4 p-4 border rounded-lg bg-muted/40">
+          <FormField
+            control={form.control}
+            name="nextReviewDate"
+            render={({ field }) => (
+              <FormItem className="max-w-xs">
+                <FormControl>
+                  <NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={viewOnly} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField

@@ -119,7 +119,7 @@ function ResidentCareFileHistoryPage({ params }: ResidentCareFileHistoryPageProp
   };
 
   const handleBack = () => {
-    router.push("/dashboard/manager-audit");
+    router.push("/dashboard/manager-audit/0");
   };
 
   const handleViewReport = (recordId: string) => {

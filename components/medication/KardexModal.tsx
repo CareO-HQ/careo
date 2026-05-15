@@ -32,6 +32,9 @@ interface Medication {
   end_date: string | null;
   is_controlled_drug: boolean;
   status: string;
+  /** Resolved labels for Kardex (optional; enriched by callers) */
+  added_by_name?: string | null;
+  checked_by_name?: string | null;
 }
 
 const getMedUnitLabel = (med: Medication, quantity: number) => {
@@ -69,6 +72,17 @@ interface KardexModalProps {
 }
 
 const UK_TIMEZONE = "Europe/London";
+
+function KardexStaffVerificationLines({ med }: { med: Medication }) {
+  const added = med.added_by_name?.trim() || "—";
+  const checked = med.checked_by_name?.trim() || "—";
+  return (
+    <>
+      <p className="text-[7px] text-gray-600 mt-0.5 leading-tight">Added: {added}</p>
+      <p className="text-[7px] text-gray-600 leading-tight">Checked: {checked}</p>
+    </>
+  );
+}
 
 // --- Time Slots Configuration ---------------------------------------------------------------------------------
 
@@ -319,6 +333,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                     <td className="border border-black px-1 py-0.5 align-top">
                       <p className="font-bold leading-tight">{med.name}</p>
                       {med.is_controlled_drug && <p className="text-red-700 font-bold">⚠️ CD</p>}
+                      <KardexStaffVerificationLines med={med} />
                     </td>
                     <td className="border border-black px-1 py-0.5 align-top text-gray-600">
                       {med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""}
@@ -391,6 +406,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                   <td className="border border-black px-1 py-0.5 align-top">
                     <p className="font-bold leading-tight">{med.name}</p>
                     <p className="text-gray-600">{med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""} {med.dosage_form}</p>
+                    <KardexStaffVerificationLines med={med} />
                   </td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "-"}</td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600"><div>{med.frequency || "-"}</div></td>
@@ -454,6 +470,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                   <td className="border border-black px-1 py-0.5 align-top">
                     <p className="font-bold leading-tight">{med.name}</p>
                     <p className="text-gray-600">{med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""} {med.dosage_form}</p>
+                    <KardexStaffVerificationLines med={med} />
                   </td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "-"}</td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600"><div>{med.frequency || "-"}</div></td>
@@ -523,6 +540,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                     <p className="text-gray-600">{med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""} {med.dosage_form}</p>
                     {med.route && <p className="text-gray-500">Route: {med.route}</p>}
                     {med.is_controlled_drug && <p className="text-red-700 font-bold">⚠️ CD</p>}
+                    <KardexStaffVerificationLines med={med} />
                   </td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "-"}</td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight"><div>{med.frequency || "-"}</div></td>
@@ -572,6 +590,7 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
                     <p className="font-bold leading-tight">{med.name}</p>
                     <p className="text-gray-600">{med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""} {med.dosage_form}</p>
                     {med.route && <p className="text-gray-500">Route: {med.route}</p>}
+                    <KardexStaffVerificationLines med={med} />
                   </td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "-"}</td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600 leading-tight"><div>{med.frequency || "-"}</div></td>

@@ -43,6 +43,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { Calendar } from "@/components/ui/calendar";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface BladderBowelDialogProps {
   teamId: string;
@@ -73,6 +74,11 @@ export default function ContinenceDialog({
 }: BladderBowelDialogProps) {
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   const [isLoading, startTransition] = useTransition();
+
+  const isMissingNextReviewDateColumn = (error: any) => {
+    return (error?.code === "PGRST204" || error?.code === "42703") &&
+      error?.message?.toLowerCase().includes("next_review_date");
+  };
 
   // Helper to map old YES/NO values to new Yes/No
   const mapYesNo = (val: any) => {
@@ -212,7 +218,8 @@ export default function ContinenceDialog({
         bowelRecordCommenced: mapYesNo(initialData.bowel_pattern?.bowelRecordCommenced ? "Yes" : "No"),
         bowelReferralRequired: initialData.bowel_pattern?.bowelReferralRequired || "NONE",
 
-        dateNextReview: initialData.next_review_date ? new Date(initialData.next_review_date).getTime() : new Date().getTime()
+        dateNextReview: initialData.next_review_date ? new Date(initialData.next_review_date).getTime() : new Date().getTime(),
+        nextReviewDate: initialData.next_review_date || ""
       }
       : {
         residentId,
@@ -258,7 +265,8 @@ export default function ContinenceDialog({
         bladderContinent: "No", bladderIncontinent: "No", bladderIncontinentType: "FUNCTIONAL", bladderCarePlanCommenced: "No", bladderReferralRequired: "NONE", bladderTreatmentPlanFollowed: "URGE",
         bowelContinent: "No", bowelIncontinent: "No", bowelCarePlanCommenced: "No", bowelRecordCommenced: "No", bowelReferralRequired: "NONE",
 
-        dateNextReview: new Date().getTime() + (30 * 24 * 60 * 60 * 1000)
+        dateNextReview: new Date().getTime() + (30 * 24 * 60 * 60 * 1000),
+        nextReviewDate: ""
       }
   });
 
@@ -367,16 +375,30 @@ export default function ContinenceDialog({
           bowel_pattern: bowelPattern,
           symptoms: symptoms,
           plan_commenced: values.bladderCarePlanCommenced === "Yes" || values.bowelCarePlanCommenced === "Yes",
-          next_review_date: values.dateNextReview ? new Date(values.dateNextReview).toISOString().split('T')[0] : null,
+          next_review_date: values.nextReviewDate || null,
           created_by: userId,
         };
 
-        await submitAssessmentWithVersioning(
-          'bladder_bowel_assessments',
-          payload,
-          initialData,
-          isEditMode
-        );
+        try {
+          await submitAssessmentWithVersioning(
+            'bladder_bowel_assessments',
+            payload,
+            initialData,
+            isEditMode
+          );
+        } catch (error: any) {
+          if (isMissingNextReviewDateColumn(error)) {
+            const { next_review_date: _, ...fallbackPayload } = payload;
+            await submitAssessmentWithVersioning(
+              'bladder_bowel_assessments',
+              fallbackPayload,
+              initialData,
+              isEditMode
+            );
+          } else {
+            throw error;
+          }
+        }
 
         toast.success(isEditMode ? "Assessment updated" : "Assessment submitted");
         onClose?.();
@@ -442,6 +464,24 @@ export default function ContinenceDialog({
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+              <div className="mb-6 p-4 border rounded-lg bg-muted/40">
+                <FormField
+                  control={form.control}
+                  name="nextReviewDate"
+                  render={({ field }) => (
+                    <FormItem className="max-w-xs">
+                      <FormControl>
+                        <NextReviewDateField
+                          value={field.value || ""}
+                          onChange={field.onChange}
+                          disabled={viewOnly}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <button
                 type="button"
                 id="care-file-submit-btn"
@@ -1163,7 +1203,7 @@ export default function ContinenceDialog({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField control={form.control} name="sigantureCompletingAssessment" render={({ field }) => <FormItem><FormLabel>Staff Name</FormLabel><FormControl><div className="p-2 border rounded bg-muted whitespace-pre-wrap break-words min-h-[38px] text-sm">{field.value}</div></FormControl><FormMessage /></FormItem>} />
-                  <FormField control={form.control} name="sigantureResident" render={({ field }) => (
+                   <FormField control={form.control} name="sigantureResident" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Resident/Representative Signature</FormLabel>
                       <FormControl>
@@ -1173,18 +1213,6 @@ export default function ContinenceDialog({
                           <Input {...field} />
                         )}
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                   <FormField control={form.control} name="dateNextReview" render={({ field }) => (
-                    <FormItem className="flex flex-col sm:col-span-2">
-                      <FormLabel required>Date of Next Review</FormLabel>
-                      {viewOnly ? (
-                        <div className="p-2 border rounded bg-muted whitespace-pre-wrap break-words min-h-[38px] text-sm">{field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : ""}</div>
-                      ) : (
-                        <Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value && (typeof field.value === 'number' || typeof field.value === 'string') ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? new Date(field.value) : undefined} captionLayout="dropdown" onSelect={d => field.onChange(d?.getTime())} initialFocus /></PopoverContent></Popover>
-                      )}
                       <FormMessage />
                     </FormItem>
                   )} />

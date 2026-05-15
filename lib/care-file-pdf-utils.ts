@@ -2807,7 +2807,11 @@ export const generateCareFilePDF = async ({
             rawEntries.length > 0
                 ? rawEntries.map((entry) => {
                       const r = entryRecord(entry);
-                      return [entryDateTimeLabel(r), diaryCell(r.author_name), diaryCell(r.comments)];
+                      return [
+                          entryDateTimeLabel(r),
+                          diaryCell(r.author_name),
+                          diaryCell(r.comments ?? r.comment),
+                      ];
                   })
                 : [head.map(() => "N/A")];
 

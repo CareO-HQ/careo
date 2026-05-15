@@ -50,6 +50,7 @@ export const bedRailsRiskAssessmentSchema = z.object({
   residentName: z.string().min(1, "Resident name is required"),
   bedroomNumber: z.string().min(1, "Bedroom number is required"),
   dateOfBirth: z.number(),
+  nextReviewDate: z.string().optional(),
   assessmentCompletedBy: z.string().min(1, "Assessor name is required"),
   jobRole: z.string().min(1, "Job role is required"),
   assessmentDate: z.string().min(1, "Date of assessment is required"),

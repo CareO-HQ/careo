@@ -34,7 +34,7 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -48,7 +48,11 @@ import { BODY_REGIONS } from "@/lib/config/body-regions";
 import type { BodyRegion } from "@/types/body-map";
 import { isLiquidDosageForm } from "@/lib/medication/liquid-helpers";
 
-
+type OrgUserRow = {
+  id: string;
+  name: string | null;
+  email: string | null;
+};
 export default function CreateMedicationForm({
   residentId,
   residentName,
@@ -73,6 +77,7 @@ export default function CreateMedicationForm({
   const { profile } = useProfile();
   const [isLoading, startTransition] = useTransition();
   const [residentData, setResidentData] = useState<any>(null);
+  const [orgUsers, setOrgUsers] = useState<OrgUserRow[]>([]);
 
   const [step, setStep] = useState(initialType ? 1 : 0);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
@@ -106,9 +111,50 @@ export default function CreateMedicationForm({
       maxDailyDose: undefined,
       maxDailyDoseUnit: undefined,
       bodyRegions: [],
-      prnProtocols: []
+      prnProtocols: [],
+      checkedByUserId: ""
     }
   });
+
+  useEffect(() => {
+    const orgId = organizationId ?? profile?.active_organization_id ?? null;
+    if (!orgId) {
+      setOrgUsers([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, name, email")
+        .eq("active_organization_id", orgId);
+      if (!cancelled) {
+        if (error) {
+          console.error("[CreateMedicationForm] Failed to load org users:", error);
+          setOrgUsers([]);
+        } else {
+          setOrgUsers((data ?? []) as OrgUserRow[]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, profile?.active_organization_id]);
+
+  const checkerStaffOptions = useMemo(() => {
+    return [...orgUsers]
+      .filter((u) => u.id !== profile?.id)
+      .sort((a, b) => {
+        const an = (a.name || a.email || "").toLowerCase();
+        const bn = (b.name || b.email || "").toLowerCase();
+        return an.localeCompare(bn);
+      })
+      .map((u) => ({
+        id: u.id,
+        label: u.name?.trim() || u.email || u.id,
+      }));
+  }, [orgUsers, profile?.id]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -139,6 +185,15 @@ export default function CreateMedicationForm({
       return;
     }
 
+    if (!profile?.id) {
+      toast.error("You must be signed in to add a medication");
+      return;
+    }
+    if (values.checkedByUserId === profile.id) {
+      toast.error("Checked by must be another staff member");
+      return;
+    }
+
     startTransition(async () => {
       try {
         const { data: newMedication, error } = await supabase
@@ -148,6 +203,7 @@ export default function CreateMedicationForm({
             team_id: teamId,
             organization_id: organizationId,
             created_by: profile?.id,
+            checked_by: values.checkedByUserId,
             name: values.name,
             strength: values.strength,
             strength_unit: values.strengthUnit,
@@ -317,12 +373,24 @@ export default function CreateMedicationForm({
   };
 
   const handleThirdStepValidation = async () => {
-    const fieldsToValidate = ["startDate"] as const;
+    const fieldsToValidate = ["startDate", "checkedByUserId"] as const;
 
     const isValid = await form.trigger(fieldsToValidate);
 
     if (!isValid) {
       toast.error("Please fill in all required fields correctly");
+      return false;
+    }
+
+    const checkerId = form.getValues("checkedByUserId");
+    if (!checkerId || checkerId === profile?.id) {
+      if (checkerId === profile?.id) {
+        form.setError("checkedByUserId", {
+          type: "manual",
+          message: "Must be another staff member",
+        });
+        toast.error("Checked by must be another staff member");
+      }
       return false;
     }
 
@@ -1432,6 +1500,54 @@ export default function CreateMedicationForm({
                           />
                         </PopoverContent>
                       </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
+                <div className="text-xs space-y-0.5">
+                  <p className="text-muted-foreground font-medium">Added by</p>
+                  <p className="font-medium">
+                    {profile?.name?.trim() || profile?.email || "—"}
+                  </p>
+                  <FormDescription className="text-[11px]">
+                    Signed in staff member submitting this medication
+                  </FormDescription>
+                </div>
+                <FormField
+                  control={form.control}
+                  name="checkedByUserId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required className="text-xs">
+                        Checked by
+                      </FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || undefined}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="Select verifying staff..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {checkerStaffOptions.map((opt) => (
+                            <SelectItem key={opt.id} value={opt.id}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription className="text-[11px]">
+                        Dual check: choose another colleague who verifies this MAR entry.
+                      </FormDescription>
+                      {checkerStaffOptions.length === 0 && (
+                        <p className="text-[11px] text-amber-600">
+                          No other staff loaded for your organisation — ensure teammates are invited and you have an organisation selected.
+                        </p>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}

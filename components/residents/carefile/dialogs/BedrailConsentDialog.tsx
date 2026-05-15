@@ -29,6 +29,7 @@ import { z } from "zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { toast } from "sonner";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface BedrailConsentDialogProps {
   teamId: string;
@@ -111,6 +112,7 @@ export default function BedrailConsentDialog({
         dateOfBirth: resident.date_of_birth
           ? new Date(resident.date_of_birth).getTime()
           : Date.now(),
+        nextReviewDate: "",
         consentType: "ABLE_TO_CONSENT",
         ableToConsentSection: {
           consentChoice: undefined as any,
@@ -219,6 +221,20 @@ export default function BedrailConsentDialog({
 
       <Form {...form}>
         <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+          <div className="mb-6 p-4 border rounded-lg bg-muted/40 px-1">
+            <FormField
+              control={form.control}
+              name="nextReviewDate"
+              render={({ field }) => (
+                <FormItem className="max-w-xs">
+                  <FormControl>
+                    <NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={viewOnly} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
             <button
               type="button"

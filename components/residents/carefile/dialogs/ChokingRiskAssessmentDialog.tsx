@@ -24,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface ChokingRiskAssessmentDialogProps {
   teamId: string;
@@ -57,6 +58,7 @@ export default function ChokingRiskAssessmentDialog({
       residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
       dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
       dateOfAssessment: initialData.dateOfAssessment || new Date().toISOString().split("T")[0],
+      nextReviewDate: initialData.nextReviewDate || initialData.risk_factors?.nextReviewDate || "",
       time: initialData.time || new Date().toTimeString().slice(0, 5),
       completedBy: initialData.completedBy || profile?.name || "",
       signature: initialData.signature || "",
@@ -103,6 +105,7 @@ export default function ChokingRiskAssessmentDialog({
       residentName: `${resident.first_name} ${resident.last_name}`,
       dateOfBirth: resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).toISOString().split("T")[0] : "",
       dateOfAssessment: new Date().toISOString().split("T")[0],
+      nextReviewDate: "",
       time: new Date().toTimeString().slice(0, 5),
       completedBy: userName || profile?.name || "",
       signature: "",
@@ -171,7 +174,7 @@ export default function ChokingRiskAssessmentDialog({
       const riskFactors: any = {};
       const schemaFields = Object.keys(chokingRiskAssessmentSchema.shape);
       schemaFields.forEach(field => {
-        if (!['residentName', 'dateOfBirth', 'dateOfAssessment', 'time', 'completedBy', 'signature', 'residentId', 'teamId', 'organizationId', 'userId', 'savedAsDraft'].includes(field)) {
+        if (!['residentName', 'dateOfBirth', 'dateOfAssessment', 'nextReviewDate', 'time', 'completedBy', 'signature', 'residentId', 'teamId', 'organizationId', 'userId', 'savedAsDraft'].includes(field)) {
           riskFactors[field] = (data as any)[field];
         }
       });
@@ -184,7 +187,7 @@ export default function ChokingRiskAssessmentDialog({
         created_by: currentUserId,
         assessment_date: data.dateOfAssessment ? new Date(`${data.dateOfAssessment}T${data.time || "00:00"}`).toISOString() : new Date().toISOString(),
         completed_by: data.completedBy,
-        risk_factors: riskFactors,
+        risk_factors: { ...riskFactors, nextReviewDate: data.nextReviewDate },
         total_score: currentScore,
         risk_level: currentRiskLevel,
         signature: data.signature,
@@ -210,6 +213,7 @@ export default function ChokingRiskAssessmentDialog({
           residentName: `${resident.first_name} ${resident.last_name}`,
           dateOfBirth: resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : "",
           dateOfAssessment: new Date().toISOString().split("T")[0],
+          nextReviewDate: "",
           time: new Date().toTimeString().slice(0, 5),
           completedBy: form.getValues("completedBy"),
           signature: "",
@@ -271,6 +275,15 @@ export default function ChokingRiskAssessmentDialog({
       </div>
 
       <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+        <div className="mb-4 p-4 border rounded-lg bg-muted/40">
+          <div className="space-y-2 max-w-xs">
+            <NextReviewDateField
+              value={form.watch("nextReviewDate") || ""}
+              onChange={(value) => form.setValue("nextReviewDate", value, { shouldDirty: true })}
+              disabled={viewOnly}
+            />
+          </div>
+        </div>
         <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6 pb-20">
           <button
             type="button"
@@ -422,6 +435,7 @@ export default function ChokingRiskAssessmentDialog({
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="whitespace-nowrap">Date</TableHead>
+                  <TableHead className="whitespace-nowrap">Next Review Date</TableHead>
                   <TableHead className="whitespace-nowrap">Completed By</TableHead>
                   <TableHead className="text-center">Respiratory Risks (Score)</TableHead>
                   <TableHead className="text-center">At Risk Groups (Score)</TableHead>
@@ -448,6 +462,11 @@ export default function ChokingRiskAssessmentDialog({
                     <TableRow key={assessment.id} className="hover:bg-muted/30">
                       <TableCell className="font-medium whitespace-nowrap">
                         {format(new Date(assessment.assessment_date), "dd/MM/yyyy")}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {factors.nextReviewDate
+                          ? format(new Date(factors.nextReviewDate), "dd/MM/yyyy")
+                          : "—"}
                       </TableCell>
                       <TableCell className="max-w-[120px] truncate">{assessment.completed_by}</TableCell>
                       <TableCell className="text-center font-medium">

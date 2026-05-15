@@ -71,6 +71,14 @@ interface Resident {
   imageUrl?: string;
 }
 
+/** Radix tab values are case-sensitive; normalize legacy/query typos. */
+function normalizeCareOAuditTab(tab: string | null): string {
+  if (!tab) return "resident";
+  const t = tab.trim();
+  if (t.toLowerCase() === "carefile") return "careFile";
+  return t;
+}
+
 function CareOAuditPageContent() {
   const router = useRouter();
   const push = (href: string) => router.push(href as Parameters<typeof router.push>[0]);
@@ -80,7 +88,7 @@ function CareOAuditPageContent() {
   const { profile } = useProfile();
 
   // Get tab from URL query params, default to "resident"
-  const tabFromUrl = searchParams.get("tab") || "resident";
+  const tabFromUrl = normalizeCareOAuditTab(searchParams.get("tab"));
   const [activeTab, setActiveTab] = useState(tabFromUrl);
 
   // State for fetched data
@@ -179,7 +187,7 @@ function CareOAuditPageContent() {
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab) {
-      setActiveTab(tab);
+      setActiveTab(normalizeCareOAuditTab(tab));
     }
   }, [searchParams]);
 
@@ -448,6 +456,14 @@ function CareOAuditPageContent() {
   // State to store resident completion percentages for care file audits
   const [residentCompletions, setResidentCompletions] = useState<{ [residentId: string]: number }>({});
 
+  const getCareFileResidentHref = (residentId: string) => {
+    const firstTemplate = careFileTemplates[0];
+    if (firstTemplate?.id) {
+      return `/dashboard/careo-audit/${residentId}/carefileaudit/${firstTemplate.id}`;
+    }
+    return `/dashboard/careo-audit/${residentId}/carefileaudit`;
+  };
+
   return (
     <div className="flex-1 space-y-4 p-4 pt-6">
       <div className="flex items-center justify-between space-y-2">
@@ -585,7 +601,7 @@ function CareOAuditPageContent() {
                         className="cursor-pointer hover:bg-muted/50 transition-colors"
                         onClick={() => {
                           const id = resident.id || resident._id;
-                          if (id) push(`/dashboard/careo-audit/${id}/carefileaudit`);
+                          if (id) push(getCareFileResidentHref(id));
                         }}
                       >
                         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -633,9 +649,9 @@ function CareOAuditPageContent() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => {
                                 const id = resident.id || resident._id;
-                                if (id) push(`/dashboard/careo-audit/${id}/carefileaudit`);
+                                if (id) push(getCareFileResidentHref(id));
                               }}>
-                                <Eye className="mr-2 h-4 w-4" /> View Audits
+                                <Eye className="mr-2 h-4 w-4" /> Open Audit
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>

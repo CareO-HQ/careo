@@ -25,7 +25,7 @@ export function AuditErrorFallback({
   };
 
   const handleGoHome = () => {
-    router.push("/dashboard/careo-audit?tab=carefile");
+    router.push("/dashboard/careo-audit?tab=careFile");
   };
 
   const getContextMessage = () => {

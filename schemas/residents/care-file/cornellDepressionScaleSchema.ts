@@ -18,6 +18,7 @@ export const cornellDepressionScaleSchema = z.object({
   residentName: z.string().min(1, "Resident name is required"),
   dateOfBirth: z.string().min(1, "Date of birth is required"),
   dateOfAssessment: z.string().min(1, "Date of assessment is required"),
+  nextReviewDate: z.string().optional(),
   assessedBy: z.string().min(1, "Assessed by is required"),
 
   // A. Mood-Related Signs (5 items)

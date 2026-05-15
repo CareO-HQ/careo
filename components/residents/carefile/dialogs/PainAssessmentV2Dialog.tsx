@@ -34,6 +34,7 @@ import { BodyRegion, BodyMapEntry } from "@/types/body-map";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import NextReviewDateField from "./NextReviewDateField";
 
 const VIEW_DIV = "w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-90 whitespace-pre-wrap break-words min-h-10 flex items-center";
 
@@ -70,6 +71,7 @@ export default function PainAssessmentV2Dialog({
     dateOfBirth: entries.dateOfBirth || data?.dateOfBirth || (resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : ""),
     roomNumber: entries.roomNumber || data?.roomNumber || resident.room_number || "",
     nameOfHome: entries.nameOfHome || data?.nameOfHome || careHomeName || "",
+    nextReviewDate: entries.nextReviewDate || data?.nextReviewDate || "",
     assessmentDate: data?.assessment_date ? new Date(data.assessment_date).getTime() : (entries.assessmentDate || Date.now()),
     bodyMapMarkers: entries.bodyMapMarkers || data?.body_map_markers || [],
     descriptionOfPain: entries.descriptionOfPain || data?.description_of_pain || "",
@@ -194,6 +196,20 @@ export default function PainAssessmentV2Dialog({
   return (
     <div className="space-y-6">
       <Form {...form}>
+        <div className="mb-4 p-4 border rounded-lg bg-muted/40">
+          <FormField
+            control={form.control}
+            name="nextReviewDate"
+            render={({ field }) => (
+              <FormItem className="max-w-xs">
+                <FormControl>
+                  <NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={viewOnly} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-8">
           <button type="submit" id="care-file-submit-btn" className="hidden" />
 

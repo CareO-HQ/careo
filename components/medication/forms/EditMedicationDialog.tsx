@@ -39,61 +39,107 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
-import { useState, useTransition, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useState, useEffect } from "react";
+import { useForm, type FieldErrors } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+
+const STRENGTH_UNITS = ["mg", "mcg", "g", "mL", "drops", "IU", "%"] as const;
+const DOSAGE_FORMS = [
+  "Tablet",
+  "Capsule",
+  "Softgel",
+  "Chewable Tablet",
+  "Gummy",
+  "Liquid",
+  "Syrup",
+  "Drops",
+  "Powder",
+  "Effervescent Tablet",
+  "Spray",
+  "Lozenge",
+  "Injection",
+  "Cream",
+  "Ointment",
+  "Gel",
+  "Patch",
+  "Inhaler"
+] as const;
+const ROUTES = [
+  "Oral",
+  "Topical",
+  "Intramuscular (IM)",
+  "Intravenous (IV)",
+  "Subcutaneous",
+  "Inhalation",
+  "Rectal",
+  "Sublingual"
+] as const;
+const SCHEDULE_TYPES = ["Scheduled", "PRN (As Needed)", "Topical", "Supplement"] as const;
+const CONTAINER_TYPES = ["Vial", "Bottle", "Insulin pen", "Pen cartridge"] as const;
+
+const EDIT_FIELD_LABELS: Record<string, string> = {
+  name: "Medication name",
+  strength: "Strength / dose",
+  strengthUnit: "Unit",
+  totalCount: "Stock count",
+  dosageForm: "Dosage form",
+  route: "Route",
+  frequency: "Frequency",
+  scheduleType: "Schedule type",
+  times: "Medication times",
+  timeQuantities: "Dose quantities",
+  instructions: "Instructions",
+  prescriberName: "Prescriber",
+  startDate: "Start date",
+  containerType: "Container type"
+};
+
+function formatValidationErrors(
+  errors: FieldErrors<z.infer<typeof UpdateMedicationSchema>>
+): string {
+  const messages: string[] = [];
+
+  const walk = (obj: FieldErrors, path = "") => {
+    for (const [key, value] of Object.entries(obj)) {
+      if (!value) continue;
+      const fullKey = path ? `${path}.${key}` : key;
+      if (typeof value === "object" && "message" in value && value.message) {
+        const label = EDIT_FIELD_LABELS[fullKey] ?? EDIT_FIELD_LABELS[key] ?? fullKey;
+        messages.push(`${label}: ${String(value.message)}`);
+      } else if (typeof value === "object") {
+        walk(value as FieldErrors, fullKey);
+      }
+    }
+  };
+
+  walk(errors);
+  return messages.slice(0, 4).join("; ");
+}
+
+/** Allow existing DB enum values while still validating known options on edit. */
+function editEnumField<const T extends readonly [string, ...string[]]>(values: T) {
+  return z.union([z.enum(values), z.string()]).optional();
+}
 
 const UpdateMedicationSchema = z.object({
   name: z.string().optional(),
   strength: z.string().optional(),
-  strengthUnit: z.enum(["mg", "mcg", "g", "mL", "drops", "IU", "%"]).optional(),
-  totalCount: z.number().positive().optional(),
-  dosageForm: z
-    .enum([
-      "Tablet",
-      "Capsule",
-      "Softgel",
-      "Chewable Tablet",
-      "Gummy",
-      "Liquid",
-      "Syrup",
-      "Drops",
-      "Powder",
-      "Effervescent Tablet",
-      "Spray",
-      "Lozenge",
-      "Injection",
-      "Cream",
-      "Ointment",
-      "Gel",
-      "Patch",
-      "Inhaler"
-    ])
-    .optional(),
-  route: z
-    .enum([
-      "Oral",
-      "Topical",
-      "Intramuscular (IM)",
-      "Intravenous (IV)",
-      "Subcutaneous",
-      "Inhalation",
-      "Rectal",
-      "Sublingual"
-    ])
-    .optional(),
+  strengthUnit: editEnumField(STRENGTH_UNITS),
+  totalCount: z.number().min(0).optional(),
+  dosageForm: editEnumField(DOSAGE_FORMS),
+  route: editEnumField(ROUTES),
   frequency: z.string().optional(),
-  scheduleType: z.enum(["Scheduled", "PRN (As Needed)", "Topical", "Supplement"]).optional(),
+  scheduleType: editEnumField(SCHEDULE_TYPES),
   times: z.array(z.string()).optional(),
-  timeQuantities: z.record(z.number()).optional(),
+  timeQuantities: z.record(z.string(), z.number().min(0)).optional(),
   instructions: z.string().optional(),
   prescriberName: z.string().optional(),
   startDate: z.date().optional(),
   status: z.enum(["active", "completed", "cancelled", "discontinued"]).optional(),
   revertToActive: z.boolean().optional(),
   isControlledDrug: z.boolean().optional(),
-  containerType: z.enum(["Vial", "Bottle", "Insulin pen", "Pen cartridge"]).optional()
+  containerType: editEnumField(CONTAINER_TYPES)
 });
 
 interface Medication {
@@ -113,7 +159,7 @@ interface Medication {
   start_date: string;
   end_date?: string;
   status: string;
-  total_count: number;
+  total_count: number | null;
   is_controlled_drug?: boolean;
   container_type?: string;
 }
@@ -136,7 +182,8 @@ export default function EditMedicationDialog({
 
   const form = useForm<z.infer<typeof UpdateMedicationSchema>>({
     resolver: zodResolver(UpdateMedicationSchema),
-    mode: "onBlur",
+    mode: "onSubmit",
+    reValidateMode: "onBlur",
   });
 
   // Reset form when dialog opens or closes
@@ -147,20 +194,23 @@ export default function EditMedicationDialog({
         name: medication.name,
         strength: medication.strength,
         strengthUnit: medication.strength_unit as any,
-        totalCount: medication.total_count,
+        totalCount: medication.total_count ?? 0,
         dosageForm: medication.dosage_form as any,
         route: medication.route as any,
         frequency: medication.frequency as any,
         scheduleType: medication.schedule_type as any,
         times: medication.times || [],
         timeQuantities: medication.time_quantities || {},
-        instructions: medication.instructions || undefined,
-        prescriberName: medication.prescriber_name,
+        instructions: medication.instructions ?? undefined,
+        prescriberName: medication.prescriber_name ?? undefined,
         startDate: medication.start_date ? new Date(medication.start_date) : new Date(),
         status: medication.status as any,
         revertToActive: false,
         isControlledDrug: medication.is_controlled_drug || false,
-        containerType: medication.container_type as any
+        containerType:
+          medication.dosage_form === "Injection"
+            ? (medication.container_type ?? undefined)
+            : undefined
       });
     } else if (!open) {
       // Dialog closing - reset form to default empty state
@@ -298,7 +348,17 @@ export default function EditMedicationDialog({
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form
+            onSubmit={form.handleSubmit(onSubmit, (errors) => {
+              const detail = formatValidationErrors(errors);
+              toast.error(
+                detail
+                  ? `Please fix: ${detail}`
+                  : "Please check the form for errors before updating."
+              );
+            })}
+            className="space-y-4"
+          >
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -518,7 +578,7 @@ export default function EditMedicationDialog({
                     <FormLabel>Unit</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -550,7 +610,7 @@ export default function EditMedicationDialog({
                     <FormLabel>Dosage Form</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -591,7 +651,7 @@ export default function EditMedicationDialog({
                     <FormLabel>Route</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -646,7 +706,7 @@ export default function EditMedicationDialog({
                     <FormLabel>Container type</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -674,7 +734,7 @@ export default function EditMedicationDialog({
                   <FormLabel>Schedule Type</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    value={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -705,7 +765,7 @@ export default function EditMedicationDialog({
                     <FormLabel>Frequency</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -751,7 +811,7 @@ export default function EditMedicationDialog({
                     <FormLabel>Default Dosage Unit</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>

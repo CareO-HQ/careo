@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface DietNotificationDialogProps {
   teamId: string;
@@ -39,6 +40,58 @@ export default function DietNotificationDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { profile } = useProfile();
 
+  const isMissingColumn = (error: any) => {
+    const message = String(error?.message ?? "").toLowerCase();
+    const code = String(error?.code ?? "");
+    const cause = (error?.cause ?? null) as { message?: string; code?: string } | null;
+    const causeMessage = String(cause?.message ?? "").toLowerCase();
+    const causeCode = String(cause?.code ?? "");
+
+    const hasMissingColumnMessage =
+      message.includes("next_review_date") ||
+      message.includes("assessment_data") ||
+      causeMessage.includes("next_review_date") ||
+      causeMessage.includes("assessment_data");
+
+    const hasKnownMissingColumnCode =
+      code === "PGRST204" ||
+      code === "42703" ||
+      causeCode === "PGRST204" ||
+      causeCode === "42703";
+
+    // Wrapped errors from submitAssessmentWithVersioning may keep the real code in error.cause
+    // and include only message text at top level.
+    return hasMissingColumnMessage && (hasKnownMissingColumnCode || message.includes("schema cache") || causeMessage.includes("schema cache"));
+  };
+
+  const removeMissingColumnsFromPayload = (
+    error: any,
+    targetPayload: {
+      next_review_date?: string | null;
+      assessment_data?: z.infer<typeof dietNotificationSchema>;
+    }
+  ): boolean => {
+    const message = String(error?.message ?? "").toLowerCase();
+    const causeMessage = String(error?.cause?.message ?? "").toLowerCase();
+    let changed = false;
+
+    const mentionsNextReviewDate =
+      message.includes("next_review_date") || causeMessage.includes("next_review_date");
+    const mentionsAssessmentData =
+      message.includes("assessment_data") || causeMessage.includes("assessment_data");
+
+    if (mentionsNextReviewDate && "next_review_date" in targetPayload) {
+      delete targetPayload.next_review_date;
+      changed = true;
+    }
+    if (mentionsAssessmentData && "assessment_data" in targetPayload) {
+      delete targetPayload.assessment_data;
+      changed = true;
+    }
+
+    return changed;
+  };
+
   const form = useForm<z.infer<typeof dietNotificationSchema>>({
     resolver: zodResolver(dietNotificationSchema) as any,
     defaultValues: initialData ? {
@@ -54,6 +107,11 @@ export default function DietNotificationDialog({
       signature: initialData.assessment_data?.signature || initialData.signature || "",
       dateCompleted: initialData.assessment_data?.dateCompleted || initialData.date_completed || initialData.dateCompleted || Date.now(),
       reviewDate: initialData.assessment_data?.reviewDate || initialData.review_date || initialData.reviewDate || Date.now() + 30 * 24 * 60 * 60 * 1000,
+      nextReviewDate:
+        initialData.assessment_data?.nextReviewDate ||
+        initialData.next_review_date ||
+        initialData.kitchen_review?.nextReviewDate ||
+        "",
       chokingRiskAssessment: initialData.assessment_data?.chokingRiskAssessment || initialData.choking_risk || "Low Risk",
       preferredMealSize: initialData.assessment_data?.preferredMealSize || initialData.preferred_meal_size || "Standard",
       // Flatten from JSONB
@@ -92,6 +150,7 @@ export default function DietNotificationDialog({
       signature: "",
       dateCompleted: Date.now(),
       reviewDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      nextReviewDate: "",
       chokingRiskAssessment: "Low Risk",
       preferredMealSize: "Standard",
       likesFavouriteFoods: "",
@@ -195,22 +254,63 @@ export default function DietNotificationDialog({
           reviewerPrintName: data.reviewerPrintName,
           reviewerJobTitle: data.reviewerJobTitle,
           reviewerSignature: data.reviewerSignature,
-          reviewerDate: data.reviewerDate
+          reviewerDate: data.reviewerDate,
+          nextReviewDate: data.nextReviewDate || null
         },
         completed_by: data.completedBy,
         print_name: data.printName,
         job_role: data.jobRole,
         signature: data.signature,
         team_id: teamId,
-        created_by: currentUserId
+        created_by: currentUserId,
+        next_review_date: data.nextReviewDate || null,
+        assessment_data: data
       };
 
-      await submitAssessmentWithVersioning(
-        'diet_notifications',
-        payload,
-        initialData,
-        isEditMode
-      );
+      try {
+        await submitAssessmentWithVersioning(
+          'diet_notifications',
+          payload,
+          initialData,
+          isEditMode
+        );
+      } catch (error: any) {
+        if (isMissingColumn(error)) {
+          const fallbackPayload: typeof payload = { ...payload };
+          const changed = removeMissingColumnsFromPayload(error, fallbackPayload);
+          if (!changed) {
+            throw error;
+          }
+
+          try {
+            await submitAssessmentWithVersioning(
+              'diet_notifications',
+              fallbackPayload,
+              initialData,
+              isEditMode
+            );
+          } catch (retryError: any) {
+            if (!isMissingColumn(retryError)) {
+              throw retryError;
+            }
+
+            const secondFallbackPayload: typeof payload = { ...fallbackPayload };
+            const secondChanged = removeMissingColumnsFromPayload(retryError, secondFallbackPayload);
+            if (!secondChanged) {
+              throw retryError;
+            }
+
+            await submitAssessmentWithVersioning(
+              'diet_notifications',
+              secondFallbackPayload,
+              initialData,
+              isEditMode
+            );
+          }
+        } else {
+          throw error;
+        }
+      }
 
       if (isEditMode && initialData?.id) {
         await supabase.from('manager_audits').insert({
@@ -242,6 +342,24 @@ export default function DietNotificationDialog({
       <Form {...form}>
         <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
+            <div className="mb-6 p-4 border rounded-lg bg-muted/40">
+              <FormField
+                control={form.control}
+                name="nextReviewDate"
+                render={({ field }) => (
+                  <FormItem className="max-w-xs">
+                    <FormControl>
+                      <NextReviewDateField
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        disabled={viewOnly}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <button
               type="button"
               id="care-file-submit-btn"

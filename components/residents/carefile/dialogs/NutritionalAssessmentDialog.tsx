@@ -39,6 +39,7 @@ import { monthlyEvaluationSchema } from "@/schemas/residents/care-file/nutrition
 import { supabase } from "@/lib/supabase";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface NutritionalAssessmentDialogProps {
   teamId: string;
@@ -155,6 +156,7 @@ export default function NutritionalAssessmentDialog({
         userId,
         residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
         dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : ""),
+        nextReviewDate: initialData.nextReviewDate || initialData.assessment_details?.nextReviewDate || "",
         bedroomNumber: initialData.bedroomNumber || resident.room_number || "",
         height: initialData.assessment_details?.height || initialData.height || "",
         weight: initialData.assessment_details?.weight || initialData.weight || "",
@@ -183,6 +185,7 @@ export default function NutritionalAssessmentDialog({
         userId,
         residentName: `${resident.first_name} ${resident.last_name}`,
         dateOfBirth: resident.date_of_birth ? format(new Date(resident.date_of_birth), "dd/MM/yyyy") : "",
+        nextReviewDate: "",
         bedroomNumber: resident.room_number || "",
         height: "",
         weight: "",
@@ -238,6 +241,7 @@ export default function NutritionalAssessmentDialog({
           foodFortificationRequired: values.foodFortificationRequired,
           supplementsPrescribed: values.supplementsPrescribed,
           assistanceRequired: values.assistanceRequired,
+          nextReviewDate: values.nextReviewDate,
           jobRole: values.jobRole,
           signature: values.signature,
           monthlyEvaluations: values.monthlyEvaluations || []
@@ -295,6 +299,9 @@ export default function NutritionalAssessmentDialog({
       <div>
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+            <div className="mb-4 p-4 border rounded-lg bg-muted/40">
+              <FormField control={form.control} name="nextReviewDate" render={({ field }) => (<FormItem className="max-w-xs"><FormControl><NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={viewOnly} /></FormControl><FormMessage /></FormItem>)} />
+            </div>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <button
                 type="button"

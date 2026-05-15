@@ -156,7 +156,8 @@ export const bladderBowelAssessmentSchema = z.object({
   // Section 12 - Final Sign-off
   sigantureCompletingAssessment: z.string().optional(),
   sigantureResident: z.string().optional(),
-  dateNextReview: z.number().optional()
+  dateNextReview: z.number().optional(),
+  nextReviewDate: z.string().optional()
 });
 
 export type BladderBowelAssessment = z.infer<typeof bladderBowelAssessmentSchema>;

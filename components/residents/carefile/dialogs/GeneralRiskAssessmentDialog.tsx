@@ -39,6 +39,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface GeneralRiskAssessmentDialogProps {
     teamId: string;
@@ -82,6 +83,29 @@ export default function GeneralRiskAssessmentDialog({
 }: GeneralRiskAssessmentDialogProps) {
     const [isLoading, startTransition] = useTransition();
     const [loadingState, setLoadingState] = useState<string>("");
+
+    const isMissingNextReviewDateColumn = (error: unknown): boolean => {
+        const mentionsMissingColumn = (value: unknown): boolean => {
+            if (!value || typeof value !== "object") return false;
+            const maybeError = value as {
+                code?: string;
+                message?: string;
+                cause?: unknown;
+            };
+            const message = maybeError.message?.toLowerCase() ?? "";
+            const code = maybeError.code;
+            const hasMissingColumnText =
+                message.includes("next_review_date") &&
+                message.includes("general_risk_assessments");
+            const hasKnownCode = code === "PGRST204" || code === "42703";
+            if (hasMissingColumnText || (hasKnownCode && message.includes("next_review_date"))) {
+                return true;
+            }
+            return mentionsMissingColumn(maybeError.cause);
+        };
+
+        return mentionsMissingColumn(error);
+    };
 
     const residentFullName = resident
         ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim()
@@ -186,15 +210,30 @@ export default function GeneralRiskAssessmentDialog({
                     assessment_date: values.dateOfAssessment || todayStr,
                     completed_by: userName,
                     created_by: userId,
+                    next_review_date: values.nextReviewDate || null,
                     assessment_data: values
                 };
 
-                await submitAssessmentWithVersioning(
-                    "general_risk_assessments",
-                    payload,
-                    initialData,
-                    isEditMode
-                );
+                try {
+                    await submitAssessmentWithVersioning(
+                        "general_risk_assessments",
+                        payload,
+                        initialData,
+                        isEditMode
+                    );
+                } catch (error: any) {
+                    if (isMissingNextReviewDateColumn(error)) {
+                        const { next_review_date: _, ...fallbackPayload } = payload;
+                        await submitAssessmentWithVersioning(
+                            "general_risk_assessments",
+                            fallbackPayload,
+                            initialData,
+                            isEditMode
+                        );
+                    } else {
+                        throw error;
+                    }
+                }
 
                 toast.success(
                     isEditMode
@@ -243,6 +282,25 @@ export default function GeneralRiskAssessmentDialog({
                                 toast.error("Please fill in all required fields correctly.");
                             })}
                         />
+
+                        <div className="mb-6 p-4 border rounded-lg bg-muted/40">
+                            <FormField
+                                control={form.control}
+                                name="nextReviewDate"
+                                render={({ field }) => (
+                                    <FormItem className="max-w-xs">
+                                        <FormControl>
+                                            <NextReviewDateField
+                                                value={field.value || ""}
+                                                onChange={field.onChange}
+                                                disabled={viewOnly}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
 
                         <div className="space-y-8 px-1">
                             {/* ── Section A — Resident Information ── */}
@@ -792,22 +850,6 @@ export default function GeneralRiskAssessmentDialog({
                                         )}
                                     />
                                 </div>
-                                <FormField
-                                    control={form.control}
-                                    name="nextReviewDate"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Next Review Date</FormLabel>
-                                            <FormControl>
-                                                {viewOnly ? (
-                                                    <div className={VIEW_DIV}>{field.value || " "}</div>
-                                                ) : (
-                                                    <Input {...field} type="date" />
-                                                )}
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
                             </div>
 
                             {/* ── Section J — Signatures ── */}

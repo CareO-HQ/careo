@@ -637,7 +637,11 @@ export default function ResidentAuditPage() {
                   return (
                     <TableCell key={q.id} className="text-center p-2">
                       <Select
-                        value={answer?.value}
+                        value={
+                          answer?.value && answer.value.trim() !== ""
+                            ? answer.value
+                            : undefined
+                        }
                         onValueChange={(val) => handleAnswerChange(resident._id, q.id, val)}
                       >
                         <SelectTrigger className="mx-auto w-[110px]">
@@ -652,6 +656,7 @@ export default function ResidentAuditPage() {
                           ) : (
                             <>
                               <SelectItem value="compliant">Compliant</SelectItem>
+                              <SelectItem value="action-required">Action required</SelectItem>
                               <SelectItem value="non-compliant">Non-Compliant</SelectItem>
                               <SelectItem value="not-applicable">N/A</SelectItem>
                             </>

@@ -408,7 +408,67 @@ export const deleteAllNotifications = async (userId: string, careHomeId?: string
     return { deleted: notificationIds.length };
 };
 
-export const getActionPlanById = async (actionPlanId: string) => {
+export const getActionPlanById = async (actionPlanId: string, auditCategoryHint?: string) => {
+    const hint = typeof auditCategoryHint === "string" ? auditCategoryHint.trim() : "";
+
+    if (hint === "common") {
+        const { data, error } = await supabase
+            .from("care_home_common_action_plans")
+            .select("*")
+            .eq("id", actionPlanId)
+            .single();
+
+        if (error) {
+            console.error("Error fetching common action plan:", error);
+            throw error;
+        }
+        return data ? { ...data, auditCategory: "common" } : null;
+    }
+
+    const tableByCategory: Record<string, string> = {
+        resident: "audit_resident_action_plans",
+        carefile: "audit_care_file_action_plans",
+        governance: "audit_governance_action_plans",
+        clinical: "audit_clinical_action_plans",
+        environment: "audit_environment_action_plans",
+        manager: "audit_manager_action_plans",
+    };
+
+    if (hint && hint !== "common") {
+        const table = tableByCategory[hint];
+        if (table) {
+            const { data, error } = await supabase
+                .from(table)
+                .select("*")
+                .eq("id", actionPlanId)
+                .maybeSingle();
+            if (!error && data) {
+                return { ...data, auditCategory: hint };
+            }
+        }
+    }
+
+    const commonTry = await supabase
+        .from("care_home_common_action_plans")
+        .select("*")
+        .eq("id", actionPlanId)
+        .maybeSingle();
+
+    if (!commonTry.error && commonTry.data) {
+        return { ...commonTry.data, auditCategory: "common" };
+    }
+
+    for (const [cat, table] of Object.entries(tableByCategory)) {
+        const { data, error } = await supabase
+            .from(table)
+            .select("*")
+            .eq("id", actionPlanId)
+            .maybeSingle();
+        if (!error && data) {
+            return { ...data, auditCategory: cat };
+        }
+    }
+
     const { data, error } = await supabase
         .from("audit_action_plans")
         .select("*, resident:residents(first_name, last_name)")

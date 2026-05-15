@@ -38,6 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface BedRailsRiskAssessmentDialogProps {
   residentId: string;
@@ -78,6 +79,7 @@ export default function BedRailsRiskAssessmentDialog({
       residentName: initialData.residentName || (resident ? `${resident.first_name || ""} ${resident.last_name || ""}`.trim() : ""),
       bedroomNumber: initialData.bedroom_number || initialData.bedroomNumber || resident?.room_number || "",
       dateOfBirth: initialData.dateOfBirth || (resident?.date_of_birth ? new Date(resident.date_of_birth).getTime() : Date.now()),
+      nextReviewDate: initialData.nextReviewDate || initialData.decision?.nextReviewDate || "",
       assessmentCompletedBy: initialData.assessmentCompletedBy || initialData.completed_by || (userName || ""),
       jobRole: initialData.job_role || initialData.jobRole || "",
       assessmentDate: initialData.assessmentDate || initialData.date_of_assessment || initialData.assessment_date || format(new Date(), "yyyy-MM-dd"),
@@ -253,6 +255,7 @@ export default function BedRailsRiskAssessmentDialog({
             reasons: data.reasonsAlternativesNotSuccessful
           },
           decision: {
+            nextReviewDate: data.nextReviewDate,
             typeOfBed: data.typeOfBed,
             typeOfMattress: data.typeOfMattress,
             typeOfBedrails: data.typeOfBedrails,
@@ -315,6 +318,11 @@ export default function BedRailsRiskAssessmentDialog({
       <div className="space-y-12 pb-20">
         <Form {...form}>
           <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+            <div className="mb-6 p-4 border rounded-lg bg-muted/40">
+              <FormField control={form.control} name="nextReviewDate" render={({ field }) => (
+                <FormItem className="max-w-xs"><FormControl><NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={viewOnly} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
               <button
                 type="button"

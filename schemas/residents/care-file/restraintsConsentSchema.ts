@@ -16,6 +16,7 @@ export const restraintsConsentSchema = z.object({
     residentName: z.string().min(1, "Resident name is required"),
     careHomeUnit: z.string().min(1, "Care Home/Unit is required"),
     dateOfBirth: z.number().optional(),
+    nextReviewDate: z.string().optional(),
 
     // Restraints
     selectedRestraints: z.array(z.string()).min(1, "At least one restraint must be selected"),

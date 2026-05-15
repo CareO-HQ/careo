@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -29,9 +31,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Trash2, CalendarIcon, PlusCircle } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useProfile } from "@/hooks/use-profile";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
@@ -40,50 +46,275 @@ import { markActionPlanNotificationsAsRead } from "@/lib/notifications";
 
 type ActionPlanStatus = "pending" | "in_progress" | "completed";
 
+type ActionPlanScope = "all" | "for_me" | "by_me";
+
+function isActionPlanScope(value: string): value is ActionPlanScope {
+  return value === "all" || value === "for_me" || value === "by_me";
+}
+
+type OrgMemberRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  image_url: string | null;
+  role: string | null;
+};
+
+type ActionPlanRecord = Record<string, unknown> & {
+  auditCategory?: string;
+  id: string;
+  actionPlanTable?: string;
+};
+
+function normalizeFetchedActionPlan(plan: ActionPlanRecord): ActionPlanRecord {
+  if (plan.actionPlanTable === "audit_care_file_action_plans") {
+    return { ...plan, auditCategory: "carefile" };
+  }
+  return plan;
+}
+
+function isCommonActionPlan(plan: unknown): boolean {
+  if (!plan || typeof plan !== "object") return false;
+  const p = plan as Record<string, unknown>;
+  return (
+    p["auditCategory"] === "common" &&
+    p["actionPlanTable"] !== "audit_care_file_action_plans"
+  );
+}
+
+function normalizePlanStatus(status: unknown): string {
+  if (typeof status !== "string") return "";
+  return status.replace(/-/g, "_");
+}
+
+function readPlanDueRaw(plan: unknown): unknown {
+  if (!plan || typeof plan !== "object") return undefined;
+  const p = plan as Record<string, unknown>;
+  return p["due_date"] ?? p["dueDate"];
+}
+
+function planHasDueDate(plan: unknown): boolean {
+  const raw = readPlanDueRaw(plan);
+  return raw != null && String(raw).trim().length > 0;
+}
+
+/** Prefer stored label, then org roster match (id / email), then email fallback (never raw UUID when avoidable). */
+function resolveStaffDisplayName(
+  members: OrgMemberRow[],
+  opts: { userId?: unknown; email?: unknown; storedName?: unknown }
+): string {
+  const stored =
+    typeof opts.storedName === "string" && opts.storedName.trim().length > 0
+      ? opts.storedName.trim()
+      : "";
+  if (stored) return stored;
+
+  const uid = typeof opts.userId === "string" ? opts.userId.trim() : "";
+  const mailRaw = typeof opts.email === "string" ? opts.email.trim() : "";
+  const mailLc = mailRaw.toLowerCase();
+
+  const byId = uid.length > 0 && !uid.includes("@") ? members.find((m) => m.id === uid) : undefined;
+  const byEmail = mailLc
+    ? members.find((m) => (m.email || "").toLowerCase() === mailLc)
+    : undefined;
+  const byUidEmail = uid.includes("@")
+    ? members.find((m) => (m.email || "").toLowerCase() === uid.toLowerCase())
+    : undefined;
+
+  const row = byId ?? byEmail ?? byUidEmail;
+  if (row) {
+    const n = row.name?.trim();
+    if (n) return n;
+    if (row.email) return row.email;
+  }
+
+  if (mailRaw.length > 0) return mailRaw;
+  if (uid.includes("@")) return uid;
+  return uid;
+}
+
 export default function MyActionPlansPage() {
   const { user } = useSupabase();
   const { profile } = useProfile();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const userEmail = user?.email || "";
   const { activeOrganizationId, activeCareHomeId, role } = useActiveTeam();
   const isOwner = role === "owner" || role === "saas_admin";
 
+  const userIsPlanCreator = (plan: unknown): boolean => {
+    if (!plan || typeof plan !== "object") return false;
+    const p = plan as Record<string, unknown>;
+    const created = p["created_by"];
+    const createdStr = typeof created === "string" ? created : "";
+    return createdStr === userEmail || (!!user?.id && createdStr === user.id);
+  };
+  const userIsPlanAssignee = (plan: unknown): boolean => {
+    if (!plan || typeof plan !== "object") return false;
+    const p = plan as Record<string, unknown>;
+    const assigned = p["assigned_to"];
+    const assignedStr = typeof assigned === "string" ? assigned : "";
+    return assignedStr === userEmail || (!!user?.id && assignedStr === user.id);
+  };
+
   // State
-  const [allActionPlans, setAllActionPlans] = useState<any[]>([]);
+  const [allActionPlans, setAllActionPlans] = useState<ActionPlanRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedActionPlan, setSelectedActionPlan] = useState<any>(null);
+  const [selectedActionPlan, setSelectedActionPlan] = useState<ActionPlanRecord | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<ActionPlanStatus>("pending");
   const [statusComment, setStatusComment] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [planToDelete, setPlanToDelete] = useState<any>(null);
+  const [planToDelete, setPlanToDelete] = useState<ActionPlanRecord | null>(null);
+
+  const [orgMembers, setOrgMembers] = useState<OrgMemberRow[]>([]);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [actionPlanText, setActionPlanText] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [assignedToEmail, setAssignedToEmail] = useState("");
+  const [createPriority, setCreatePriority] = useState("");
+  const [createDueDate, setCreateDueDate] = useState<Date | undefined>();
+  const [dueDatePopoverOpen, setDueDatePopoverOpen] = useState(false);
+  const [actionPlanScope, setActionPlanScope] = useState<ActionPlanScope>("all");
 
   // Fetch Data
   const fetchData = React.useCallback(async () => {
-    if (!userEmail) return;
+    if (!userEmail && !user?.id) return;
     setIsLoading(true);
     try {
-      let plans: any[] = [];
+      const commonArgs = {
+        userId: user?.id ?? "",
+        email: userEmail,
+        organizationId: activeOrganizationId,
+        careHomeId: activeCareHomeId,
+      };
+
+      let plans: ActionPlanRecord[] = [];
+
       if (isOwner && activeOrganizationId) {
         plans = await auditService.getOrgActionPlans(activeOrganizationId);
-      } else if (role === 'manager' && activeOrganizationId && activeCareHomeId) {
+        const common = await auditService.getCareHomeCommonActionPlansForParticipant(commonArgs);
+        plans = [...plans, ...common];
+      } else if (role === "manager" && activeOrganizationId && activeCareHomeId) {
         plans = await auditService.getCareHomeActionPlans(activeOrganizationId, activeCareHomeId);
+        const common = await auditService.getCareHomeCommonActionPlansForParticipant(commonArgs);
+        plans = [...plans, ...common];
       } else {
-        plans = await auditService.getMyActionPlans(userEmail);
+        plans = await auditService.getMyActionPlans({
+          ...commonArgs,
+          role,
+        });
       }
 
-      // Remove duplicates by id if any
-      const uniquePlans = plans.filter((plan, index, self) =>
-        index === self.findIndex((p) => p.id === plan.id)
-      );
+      const normalizedPlans = plans.map(normalizeFetchedActionPlan);
 
-      setAllActionPlans(uniquePlans);
+      const uniquePlans = normalizedPlans.filter((plan, index, self) => {
+        const cat = typeof plan.auditCategory === "string" ? plan.auditCategory : "";
+        const key = `${cat}:${plan.id}`;
+        return (
+          index ===
+          self.findIndex((p) => `${typeof p.auditCategory === "string" ? p.auditCategory : ""}:${p.id}` === key)
+        );
+      });
+
+      // If the same id ever appears twice (e.g. data quirk), prefer audit-sourced rows over "common".
+      const rankCategory = (c: string | undefined) => (c === "common" ? 0 : 1);
+      const byId = new Map<string, (typeof uniquePlans)[number]>();
+      for (const plan of uniquePlans) {
+        const id = String(plan.id);
+        const prev = byId.get(id);
+        if (!prev) {
+          byId.set(id, plan);
+          continue;
+        }
+        const prevCat =
+          typeof prev.auditCategory === "string" ? prev.auditCategory : undefined;
+        const nextCat =
+          typeof plan.auditCategory === "string" ? plan.auditCategory : undefined;
+        if (rankCategory(nextCat) > rankCategory(prevCat)) {
+          byId.set(id, plan);
+        }
+      }
+      const mergedUnique = Array.from(byId.values());
+
+      setAllActionPlans(mergedUnique);
     } catch (error) {
       console.error("Failed to fetch action plans:", error);
       toast.error("Failed to load action plans");
     } finally {
       setIsLoading(false);
     }
-  }, [userEmail, activeOrganizationId, activeCareHomeId, isOwner, role]);
+  }, [userEmail, user?.id, activeOrganizationId, activeCareHomeId, isOwner, role]);
+
+  useEffect(() => {
+    if (!activeOrganizationId) return;
+    let cancelled = false;
+    void auditService.getOrganizationMembers(activeOrganizationId).then((data) => {
+      if (!cancelled && Array.isArray(data)) {
+        setOrgMembers(data as OrgMemberRow[]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrganizationId]);
+
+  useEffect(() => {
+    if (searchParams.get("create") === "1") {
+      setCreateDialogOpen(true);
+    }
+  }, [searchParams]);
+
+  const assignableOrgMembers = orgMembers.filter((m) => m.role !== "owner");
+
+  const handleCreateDialogOpenChange = (open: boolean) => {
+    setCreateDialogOpen(open);
+    if (!open && searchParams.get("create") === "1") {
+      router.replace("/dashboard/action-plans", { scroll: false });
+    }
+  };
+
+  const handleAddCommonActionPlan = async () => {
+    if (!actionPlanText.trim() || !assignedTo || !assignedToEmail || !createPriority || !createDueDate) {
+      toast.error("Please fill all action plan fields");
+      return;
+    }
+    if (!activeOrganizationId || !activeCareHomeId || !profile?.id) {
+      toast.error("Select organization and care home to add an action plan");
+      return;
+    }
+    const assigneeMember = assignableOrgMembers.find((m) => m.email === assignedToEmail);
+    if (!assigneeMember || assigneeMember.role === "owner") {
+      toast.error("Cannot assign common action plans to the organization owner.");
+      return;
+    }
+    try {
+      await auditService.createCareHomeCommonActionPlan({
+        description: actionPlanText.trim(),
+        priority: createPriority,
+        due_date: createDueDate.toISOString(),
+        assigned_to: assignedTo,
+        assigned_to_email: assignedToEmail,
+        assigned_to_name: assigneeMember.name?.trim() || assigneeMember.email || undefined,
+        organization_id: activeOrganizationId,
+        careHomeId: activeCareHomeId,
+        creatorId: profile.id,
+        created_by: profile.id,
+        created_by_name: profile.name || profile.email || "Staff",
+      });
+      toast.success("Action plan created");
+      setActionPlanText("");
+      setAssignedTo("");
+      setAssignedToEmail("");
+      setCreatePriority("");
+      setCreateDueDate(undefined);
+      handleCreateDialogOpenChange(false);
+      await fetchData();
+    } catch (error) {
+      console.error("Failed to create common action plan:", error);
+      toast.error("Failed to create action plan. Try again.");
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -96,26 +327,48 @@ export default function MyActionPlansPage() {
     }
   }, [user?.id, activeOrganizationId]);
 
+  const scopedActionPlans = useMemo(() => {
+    if (actionPlanScope === "all") return allActionPlans;
+    if (actionPlanScope === "for_me") return allActionPlans.filter((p) => userIsPlanAssignee(p));
+    return allActionPlans.filter((p) => userIsPlanCreator(p));
+  }, [allActionPlans, actionPlanScope, userEmail, user?.id]);
+
   // Group action plans by status
-  const pendingPlans = allActionPlans.filter((p) => p.status === "pending" || !p.status) || [];
-  const inProgressPlans = allActionPlans.filter((p) => p.status === "in_progress") || [];
-  const completedPlans = allActionPlans.filter((p) => p.status === "completed") || [];
+  const pendingPlans = scopedActionPlans.filter((p) => {
+    const s = normalizePlanStatus(p.status);
+    return !s || s === "pending";
+  });
+  const inProgressPlans = scopedActionPlans.filter((p) => normalizePlanStatus(p.status) === "in_progress");
+  const completedPlans = scopedActionPlans.filter((p) => normalizePlanStatus(p.status) === "completed");
 
   const pendingCount = pendingPlans.length;
   const inProgressCount = inProgressPlans.length;
   const completedCount = completedPlans.length;
 
-  // Check if overdue
-  const isOverdue = (plan: any) => {
-    const dueDate = plan.due_date || plan.dueDate;
-    return dueDate && new Date(dueDate).getTime() < Date.now() && plan.status !== "completed";
+  // Check if overdue (plan rows are loosely typed from API)
+  const isOverdue = (plan: unknown): boolean => {
+    if (!plan || typeof plan !== "object") return false;
+    const p = plan as Record<string, unknown>;
+    const rawDue = p["due_date"] ?? p["dueDate"];
+    const dueDate =
+      typeof rawDue === "string" && rawDue.trim().length > 0
+        ? rawDue.trim()
+        : rawDue != null
+          ? String(rawDue)
+          : "";
+    const s = normalizePlanStatus(p["status"]);
+    return !!dueDate && new Date(dueDate).getTime() < Date.now() && s !== "completed";
   };
 
   // Handle action plan click
-  const handleActionPlanClick = (plan: any) => {
+  const handleActionPlanClick = (plan: (typeof allActionPlans)[number]) => {
     setSelectedActionPlan(plan);
-    setNewStatus(plan.status || "pending");
-    setStatusComment(plan.latest_comment || "");
+    const s = normalizePlanStatus(plan.status);
+    let next: ActionPlanStatus = "pending";
+    if (s === "in_progress") next = "in_progress";
+    else if (s === "completed") next = "completed";
+    setNewStatus(next);
+    setStatusComment((plan.latest_comment as string) || "");
     setIsDetailModalOpen(true);
   };
 
@@ -125,12 +378,16 @@ export default function MyActionPlansPage() {
     if (!user) return;
 
     try {
+      const cat =
+        typeof selectedActionPlan.auditCategory === "string"
+          ? selectedActionPlan.auditCategory
+          : "";
       await auditService.updateActionPlanStatus(
-        selectedActionPlan.auditCategory,
+        cat,
         selectedActionPlan.id,
         newStatus,
         statusComment || undefined,
-        user.id, // Pass UUID instead of email for sender_id
+        user.id,
         user?.user_metadata?.name || userEmail
       );
 
@@ -146,7 +403,7 @@ export default function MyActionPlansPage() {
   };
 
   // Handle delete action plan
-  const handleDeleteClick = (e: React.MouseEvent, plan: any) => {
+  const handleDeleteClick = (e: React.MouseEvent, plan: (typeof allActionPlans)[number]) => {
     e.stopPropagation(); // Prevent card click
     setPlanToDelete(plan);
     setDeleteDialogOpen(true);
@@ -156,7 +413,9 @@ export default function MyActionPlansPage() {
     if (!planToDelete) return;
 
     try {
-      await auditService.deleteActionPlan(planToDelete.auditCategory, planToDelete.id);
+      const cat =
+        typeof planToDelete.auditCategory === "string" ? planToDelete.auditCategory : "";
+      await auditService.deleteActionPlan(cat, planToDelete.id);
       toast.success("Action plan deleted successfully");
       setDeleteDialogOpen(false);
       setPlanToDelete(null);
@@ -171,35 +430,35 @@ export default function MyActionPlansPage() {
   const getPriorityColor = (priority: string) => {
     switch (priority?.toLowerCase()) {
       case "high":
-        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+        return "bg-red-100 text-red-800 border-0";
       case "medium":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+        return "bg-amber-100 text-amber-900 border-0";
       case "low":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+        return "bg-emerald-100 text-emerald-900 border-0";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+        return "bg-muted text-muted-foreground border-0";
     }
   };
 
   // Get status color
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (normalizePlanStatus(status)) {
       case "pending":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+        return "bg-amber-100 text-amber-900 border-0";
       case "in_progress":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+        return "bg-sky-100 text-sky-900 border-0";
       case "completed":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+        return "bg-emerald-100 text-emerald-900 border-0";
       case "overdue":
-        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+        return "bg-red-100 text-red-800 border-0";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+        return "bg-muted text-muted-foreground border-0";
     }
   };
 
   // Get status label
   const getStatusLabel = (status: string) => {
-    switch (status) {
+    switch (normalizePlanStatus(status)) {
       case "pending":
         return "Pending";
       case "in_progress":
@@ -215,44 +474,66 @@ export default function MyActionPlansPage() {
   const getCategoryColor = (category: string) => {
     switch (category) {
       case "resident":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400";
+        return "bg-violet-100 text-violet-900 border-violet-200/80";
       case "carefile":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+        return "bg-sky-100 text-sky-900 border-sky-200/80";
       case "environment":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+        return "bg-emerald-100 text-emerald-900 border-emerald-200/80";
       case "governance":
-        return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400";
+        return "bg-orange-100 text-orange-900 border-orange-200/80";
       case "clinical":
-        return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400";
+        return "bg-indigo-100 text-indigo-900 border-indigo-200/80";
+      case "manager":
+        return "bg-teal-100 text-teal-900 border-teal-200/80";
+      case "common":
+        return "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-200/80";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+        return "bg-muted text-muted-foreground border-border";
     }
   };
 
-  if (isLoading && allActionPlans.length === 0) {
-    return <div className="p-10 text-center">Loading action plans...</div>;
-  }
-
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 space-y-6 text-foreground">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-3xl font-bold">Action Plans</h1>
-            <p className="text-muted-foreground">
-              Track action plans you&apos;ve created and been assigned to
-            </p>
-          </div>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 space-y-3">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Action Plans</h1>
+          <Tabs
+            value={actionPlanScope}
+            onValueChange={(v) => {
+              if (isActionPlanScope(v)) setActionPlanScope(v);
+            }}
+            className="w-full max-w-md"
+          >
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="for_me">For me</TabsTrigger>
+              <TabsTrigger value="by_me">By me</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <p className="text-muted-foreground">
+            Track action plans you&apos;ve created and been assigned to
+          </p>
         </div>
+        <Button
+          type="button"
+          variant="default"
+          className="gap-2 shrink-0"
+          onClick={() => setCreateDialogOpen(true)}
+        >
+          <PlusCircle className="h-4 w-4" aria-hidden />
+          Add action plan
+        </Button>
       </div>
 
-      {/* Kanban Board - 3 Columns */}
+      {isLoading && allActionPlans.length === 0 ? (
+        <div className="p-10 text-center text-muted-foreground">Loading action plans...</div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Pending Column */}
         <div className="space-y-3">
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <h2 className="text-sm font-medium text-foreground">
               Pending
             </h2>
             <Badge variant="secondary" className="text-xs">
@@ -262,50 +543,60 @@ export default function MyActionPlansPage() {
           <div className="space-y-2">
             {pendingPlans.map((plan) => (
               <div
-                key={plan.id}
-                className={`border rounded-lg p-3 space-y-2 cursor-pointer hover:border-gray-400 transition-colors bg-white dark:bg-gray-950 ${isOverdue(plan) ? "border-l-4 border-l-red-500" : "border-gray-200 dark:border-gray-800"
+                key={`${plan.auditCategory ?? "?"}:${plan.id}`}
+                className={`border border-border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-accent/40 hover:border-muted-foreground/25 transition-colors bg-card text-card-foreground shadow-sm ${isOverdue(plan) ? "border-l-4 border-l-destructive" : ""
                   }`}
                 onClick={() => handleActionPlanClick(plan)}
               >
+                {isCommonActionPlan(plan) ? (
+                  <div className="rounded-md border border-primary/25 bg-primary/10 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    Common action plan · shared with assignee only
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-2">
-                  <Badge className={getPriorityColor(plan.priority) + " text-xs font-normal"}>
-                    {plan.priority}
+                  <Badge className={getPriorityColor(String(plan.priority ?? "")) + " text-xs font-normal"}>
+                    {String(plan.priority ?? "")}
                   </Badge>
                   <div className="flex items-center gap-1.5">
-                    <Badge className={getStatusColor(plan.status || "pending") + " text-xs font-normal"}>
-                      {getStatusLabel(plan.status)}
+                    <Badge className={getStatusColor(String(plan.status || "pending")) + " text-xs font-normal"}>
+                      {getStatusLabel(String(plan.status || "pending"))}
                     </Badge>
-                    {(plan.due_date || plan.dueDate) && (
-                      <span className={`text-xs ${isOverdue(plan) ? "text-red-500 font-medium" : "text-gray-500"}`}>
-                        {format(new Date(plan.due_date || plan.dueDate), "dd/MM/yyyy")}
+                    {planHasDueDate(plan) ? (
+                      <span className={`text-xs ${isOverdue(plan) ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                        {format(new Date(String(readPlanDueRaw(plan))), "dd/MM/yyyy")}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
-                <p className="text-sm leading-relaxed line-clamp-2">
-                  {plan.description}
+                <p className="text-sm leading-relaxed line-clamp-2 text-foreground">
+                  {String(plan.description ?? "")}
                 </p>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className={`text-[10px] uppercase font-bold py-0 h-4 ${getCategoryColor(plan.auditCategory)}`}>
-                      {plan.auditCategory}
+                    <Badge variant="outline" className={`text-[10px] uppercase font-bold py-0 h-4 ${getCategoryColor(String(plan.auditCategory ?? ""))}`}>
+                      {String(plan.auditCategory ?? "")}
                     </Badge>
-                    {plan.resident_name && (
+                    {plan.resident_name ? (
                       <span className="text-[10px] font-medium text-muted-foreground">
-                        {plan.resident_name}
+                        {String(plan.resident_name)}
                       </span>
-                    )}
+                    ) : null}
                   </div>
-                  {plan.created_by === userEmail && plan.assigned_to !== userEmail && (
-                    <p className="text-xs text-gray-600 dark:text-gray-300">
-                      Assigned to: {plan.assigned_to_name || plan.assigned_to}
+                  {userIsPlanCreator(plan) && !userIsPlanAssignee(plan) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Assigned to:{" "}
+                      {resolveStaffDisplayName(orgMembers, {
+                        userId: plan.assigned_to,
+                        email: plan.assigned_to_email,
+                        storedName: plan.assigned_to_name,
+                      })}
                     </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
             ))}
             {pendingPlans.length === 0 && (
-              <div className="text-center py-8 text-sm text-gray-400">
+              <div className="text-center py-8 text-sm text-muted-foreground">
                 No pending tasks
               </div>
             )}
@@ -315,7 +606,7 @@ export default function MyActionPlansPage() {
         {/* In Progress Column */}
         <div className="space-y-3">
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <h2 className="text-sm font-medium text-foreground">
               In Progress
             </h2>
             <Badge variant="secondary" className="text-xs">
@@ -325,49 +616,59 @@ export default function MyActionPlansPage() {
           <div className="space-y-2">
             {inProgressPlans.map((plan) => (
               <div
-                key={plan.id}
-                className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 space-y-2 cursor-pointer hover:border-gray-400 transition-colors bg-white dark:bg-gray-950"
+                key={`${plan.auditCategory ?? "?"}:${plan.id}`}
+                className="border border-border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-accent/40 hover:border-muted-foreground/25 transition-colors bg-card text-card-foreground shadow-sm"
                 onClick={() => handleActionPlanClick(plan)}
               >
+                {isCommonActionPlan(plan) ? (
+                  <div className="rounded-md border border-primary/25 bg-primary/10 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    Common action plan · shared with assignee only
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-2">
-                  <Badge className={getPriorityColor(plan.priority) + " text-xs font-normal"}>
-                    {plan.priority}
+                  <Badge className={getPriorityColor(String(plan.priority ?? "")) + " text-xs font-normal"}>
+                    {String(plan.priority ?? "")}
                   </Badge>
                   <div className="flex items-center gap-1.5">
-                    <Badge className={getStatusColor(plan.status) + " text-xs font-normal"}>
-                      {getStatusLabel(plan.status)}
+                    <Badge className={getStatusColor(String(plan.status ?? "")) + " text-xs font-normal"}>
+                      {getStatusLabel(String(plan.status ?? ""))}
                     </Badge>
-                    {(plan.due_date || plan.dueDate) && (
-                      <span className="text-xs text-gray-500">
-                        {format(new Date(plan.due_date || plan.dueDate), "dd/MM/yyyy")}
+                    {planHasDueDate(plan) ? (
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(String(readPlanDueRaw(plan))), "dd/MM/yyyy")}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
-                <p className="text-sm leading-relaxed line-clamp-2">
-                  {plan.description}
+                <p className="text-sm leading-relaxed line-clamp-2 text-foreground">
+                  {String(plan.description ?? "")}
                 </p>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className={`text-[10px] uppercase font-bold py-0 h-4 ${getCategoryColor(plan.auditCategory)}`}>
-                      {plan.auditCategory}
+                    <Badge variant="outline" className={`text-[10px] uppercase font-bold py-0 h-4 ${getCategoryColor(String(plan.auditCategory ?? ""))}`}>
+                      {String(plan.auditCategory ?? "")}
                     </Badge>
-                    {plan.resident_name && (
+                    {plan.resident_name ? (
                       <span className="text-[10px] font-medium text-muted-foreground">
-                        {plan.resident_name}
+                        {String(plan.resident_name)}
                       </span>
-                    )}
+                    ) : null}
                   </div>
-                  {plan.created_by === userEmail && plan.assigned_to !== userEmail && (
-                    <p className="text-xs text-gray-600 dark:text-gray-300">
-                      Assigned to: {plan.assigned_to_name || plan.assigned_to}
+                  {userIsPlanCreator(plan) && !userIsPlanAssignee(plan) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Assigned to:{" "}
+                      {resolveStaffDisplayName(orgMembers, {
+                        userId: plan.assigned_to,
+                        email: plan.assigned_to_email,
+                        storedName: plan.assigned_to_name,
+                      })}
                     </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
             ))}
             {inProgressPlans.length === 0 && (
-              <div className="text-center py-8 text-sm text-gray-400">
+              <div className="text-center py-8 text-sm text-muted-foreground">
                 No tasks in progress
               </div>
             )}
@@ -377,7 +678,7 @@ export default function MyActionPlansPage() {
         {/* Completed Column */}
         <div className="space-y-3">
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <h2 className="text-sm font-medium text-foreground">
               Completed
             </h2>
             <Badge variant="secondary" className="text-xs">
@@ -387,66 +688,174 @@ export default function MyActionPlansPage() {
           <div className="space-y-2">
             {completedPlans.map((plan) => (
               <div
-                key={plan.id}
-                className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 space-y-2 cursor-pointer hover:border-gray-400 transition-colors bg-white dark:bg-gray-950 relative group"
+                key={`${plan.auditCategory ?? "?"}:${plan.id}`}
+                className="border border-border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-accent/40 hover:border-muted-foreground/25 transition-colors bg-card text-card-foreground shadow-sm relative group"
                 onClick={() => handleActionPlanClick(plan)}
               >
+                {isCommonActionPlan(plan) ? (
+                  <div className="rounded-md border border-primary/25 bg-primary/10 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    Common action plan · shared with assignee only
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-2">
-                  <Badge className={getPriorityColor(plan.priority) + " text-xs font-normal"}>
-                    {plan.priority}
+                  <Badge className={getPriorityColor(String(plan.priority ?? "")) + " text-xs font-normal"}>
+                    {String(plan.priority ?? "")}
                   </Badge>
                   <div className="flex items-center gap-1.5">
-                    <Badge className={getStatusColor(plan.status) + " text-xs font-normal"}>
-                      {getStatusLabel(plan.status)}
+                    <Badge className={getStatusColor(String(plan.status ?? "")) + " text-xs font-normal"}>
+                      {getStatusLabel(String(plan.status ?? ""))}
                     </Badge>
-                    {(plan.due_date || plan.dueDate) && (
-                      <span className="text-xs text-gray-500">
-                        {format(new Date(plan.due_date || plan.dueDate), "dd/MM/yyyy")}
+                    {planHasDueDate(plan) ? (
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(String(readPlanDueRaw(plan))), "dd/MM/yyyy")}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
-                <p className="text-sm leading-relaxed line-clamp-2 text-gray-500 dark:text-gray-400">
-                  {plan.description}
+                <p className="text-sm leading-relaxed line-clamp-2 text-muted-foreground">
+                  {String(plan.description ?? "")}
                 </p>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex gap-2">
-                      <Badge variant="outline" className={`text-[10px] uppercase font-bold py-0 h-4 ${getCategoryColor(plan.auditCategory)}`}>
-                        {plan.auditCategory}
+                      <Badge variant="outline" className={`text-[10px] uppercase font-bold py-0 h-4 ${getCategoryColor(String(plan.auditCategory ?? ""))}`}>
+                        {String(plan.auditCategory ?? "")}
                       </Badge>
-                      {plan.resident_name && (
+                      {plan.resident_name ? (
                         <span className="text-[10px] font-medium text-muted-foreground">
-                          {plan.resident_name}
+                          {String(plan.resident_name)}
                         </span>
-                      )}
+                      ) : null}
                     </div>
-                    {/* Delete Button */}
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 flex-shrink-0"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive flex-shrink-0"
                       onClick={(e) => handleDeleteClick(e, plan)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                  {plan.created_by === userEmail && plan.assigned_to !== userEmail && (
-                    <p className="text-xs text-gray-600 dark:text-gray-300">
-                      Assigned to: {plan.assigned_to_name || plan.assigned_to}
+                  {userIsPlanCreator(plan) && !userIsPlanAssignee(plan) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Assigned to:{" "}
+                      {resolveStaffDisplayName(orgMembers, {
+                        userId: plan.assigned_to,
+                        email: plan.assigned_to_email,
+                        storedName: plan.assigned_to_name,
+                      })}
                     </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
             ))}
             {completedPlans.length === 0 && (
-              <div className="text-center py-8 text-sm text-gray-400">
+              <div className="text-center py-8 text-sm text-muted-foreground">
                 No completed tasks
               </div>
             )}
           </div>
         </div>
       </div>
+      )}
+
+      <Dialog open={createDialogOpen} onOpenChange={handleCreateDialogOpenChange}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-base">Add action plan</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Action</Label>
+              <Input
+                value={actionPlanText}
+                onChange={(e) => setActionPlanText(e.target.value)}
+                placeholder="What needs to be done?"
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Assign To</Label>
+              <Select
+                value={assignedToEmail}
+                onValueChange={(val) => {
+                  setAssignedToEmail(val);
+                  const member = assignableOrgMembers.find((m) => m.email === val);
+                  if (member) setAssignedTo(member.id);
+                }}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select team member (owner excluded)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assignableOrgMembers.map((member) => (
+                    <SelectItem key={member.email} value={member.email}>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-5 w-5">
+                          <AvatarImage src={member.image_url ?? ""} />
+                          <AvatarFallback className="text-[9px] bg-primary/10 text-primary">
+                            {(member.name?.[0] || member.email[0] || "").toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm">{member.name || member.email}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Priority</Label>
+                <Select value={createPriority} onValueChange={setCreatePriority}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Due Date</Label>
+                <Popover open={dueDatePopoverOpen} onOpenChange={setDueDatePopoverOpen} modal>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full h-9 justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                      <span className="text-sm">
+                        {createDueDate ? format(createDueDate, "dd/MM/yy") : "Pick date"}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={createDueDate}
+                      onSelect={(date) => {
+                        if (date) {
+                          setCreateDueDate(date);
+                          setDueDatePopoverOpen(false);
+                        }
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => handleCreateDialogOpenChange(false)} className="h-9">
+              Cancel
+            </Button>
+            <Button onClick={() => void handleAddCommonActionPlan()} className="h-9">
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Detail Modal - Simplified */}
       <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
@@ -454,40 +863,71 @@ export default function MyActionPlansPage() {
           {selectedActionPlan && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-lg">Update Action Plan</DialogTitle>
+                <DialogTitle className="text-lg text-foreground">Update Action Plan</DialogTitle>
               </DialogHeader>
 
               <div className="space-y-4 py-2">
-                {/* Description */}
+                {selectedActionPlan && isCommonActionPlan(selectedActionPlan) ? (
+                  <div className="rounded-md border border-primary/25 bg-primary/10 px-2 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    Common action plan · care home · visible to you and the other party only
+                  </div>
+                ) : null}
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  {selectedActionPlan.description}
+                  {String(selectedActionPlan.description ?? "")}
                 </p>
 
-                {/* Compact Info */}
                 <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
                   <Badge variant="outline" className="text-xs uppercase">
-                    {selectedActionPlan.auditCategory}
+                    {String(selectedActionPlan.auditCategory ?? "")}
                   </Badge>
-                  {selectedActionPlan.resident_name && (
+                  {selectedActionPlan.resident_name ? (
                     <>
                       <span>•</span>
-                      <span className="font-medium">{selectedActionPlan.resident_name}</span>
+                      <span className="font-medium">{String(selectedActionPlan.resident_name)}</span>
                     </>
-                  )}
+                  ) : null}
                   <span>•</span>
-                  <span className={selectedActionPlan.priority === "High" ? "text-red-600 font-medium" : ""}>
-                    {selectedActionPlan.priority} Priority
+                  <span
+                    className={
+                      selectedActionPlan.priority === "High" ? "text-destructive font-medium" : ""
+                    }
+                  >
+                    {String(selectedActionPlan.priority ?? "")} Priority
                   </span>
-                  {(selectedActionPlan.due_date || selectedActionPlan.dueDate) && (
+                  {planHasDueDate(selectedActionPlan) ? (
                     <>
                       <span>•</span>
-                      <span className={isOverdue(selectedActionPlan) ? "text-red-600 font-medium" : ""}>
-                        Due {format(new Date(selectedActionPlan.due_date || selectedActionPlan.dueDate), "dd/MM/yyyy")}
+                      <span className={isOverdue(selectedActionPlan) ? "text-destructive font-medium" : ""}>
+                        Due{" "}
+                        {format(
+                          new Date(String(readPlanDueRaw(selectedActionPlan))),
+                          "dd/MM/yyyy"
+                        )}
                       </span>
                     </>
-                  )}
+                  ) : null}
                   <span>•</span>
-                  <span>By {selectedActionPlan.assigned_to_name || selectedActionPlan.created_by || selectedActionPlan.createdBy}</span>
+                  <span>
+                    Assigned to{" "}
+                    {resolveStaffDisplayName(orgMembers, {
+                      userId: selectedActionPlan.assigned_to,
+                      email: selectedActionPlan.assigned_to_email,
+                      storedName: selectedActionPlan.assigned_to_name,
+                    })}
+                  </span>
+                  {String(selectedActionPlan.created_by ?? "") !==
+                  String(selectedActionPlan.assigned_to ?? "") ? (
+                    <>
+                      <span>•</span>
+                      <span>
+                        Created by{" "}
+                        {resolveStaffDisplayName(orgMembers, {
+                          userId: selectedActionPlan.created_by,
+                          storedName: selectedActionPlan.created_by_name,
+                        })}
+                      </span>
+                    </>
+                  ) : null}
                 </div>
 
                 {/* Status Update */}
@@ -528,7 +968,11 @@ export default function MyActionPlansPage() {
                 </Button>
                 <Button
                   onClick={handleStatusUpdate}
-                  disabled={newStatus === selectedActionPlan.status && statusComment === (selectedActionPlan.latest_comment || "")}
+                  disabled={
+                    normalizePlanStatus(newStatus) ===
+                      normalizePlanStatus(String(selectedActionPlan.status ?? "")) &&
+                    statusComment === String(selectedActionPlan.latest_comment || "")
+                  }
                 >
                   Update
                 </Button>
@@ -546,22 +990,22 @@ export default function MyActionPlansPage() {
             <AlertDialogDescription>
               Are you sure you want to delete this action plan? This action cannot be undone.
             </AlertDialogDescription>
-            {planToDelete && (
-              <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {planToDelete.description}
+            {planToDelete ? (
+              <div className="mt-3 p-3 bg-muted rounded-md border border-border/60">
+                <p className="text-sm font-medium text-foreground">
+                  {String(planToDelete.description ?? "")}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 uppercase">
-                  {planToDelete.auditCategory}
+                <p className="text-xs text-muted-foreground mt-1 uppercase">
+                  {String(planToDelete.auditCategory ?? "")}
                 </p>
               </div>
-            )}
+            ) : null}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive"
             >
               Delete
             </AlertDialogAction>

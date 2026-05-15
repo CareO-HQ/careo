@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CareO · Care File Audit (live mockup)</title>
+<style>
+  :root {
+    --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    --color-background-primary: #ffffff;
+    --color-background-secondary: #f5f4ef;
+    --color-background-tertiary: #faf9f5;
+    --color-background-info: #e6f1fb;
+    --color-text-primary: #1f1e1c;
+    --color-text-secondary: #6b6a64;
+    --color-text-tertiary: #9b9a92;
+    --color-text-info: #185fa5;
+    --color-border-tertiary: rgba(0, 0, 0, 0.08);
+    --color-border-secondary: rgba(0, 0, 0, 0.18);
+    --border-radius-md: 8px;
+    --border-radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-background-primary: #1f1e1c;
+      --color-background-secondary: #2a2927;
+      --color-background-tertiary: #161513;
+      --color-background-info: #042c53;
+      --color-text-primary: #f5f4ef;
+      --color-text-secondary: #a8a79f;
+      --color-text-tertiary: #75746d;
+      --color-text-info: #85b7eb;
+      --color-border-tertiary: rgba(255, 255, 255, 0.1);
+      --color-border-secondary: rgba(255, 255, 255, 0.2);
+    }
+  }
+  body { margin: 0; padding: 24px; background: var(--color-background-tertiary); font-family: var(--font-sans); color: var(--color-text-primary); font-size: 14px; line-height: 1.6; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  button { font-family: inherit; background: transparent; color: var(--color-text-primary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; transition: background 0.15s; }
+  button:hover { background: var(--color-background-secondary); }
+  textarea { font-family: inherit; background: var(--color-background-primary); color: var(--color-text-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); resize: vertical; }
+  a { color: var(--color-text-info); }
+  .audit-row { cursor: pointer; transition: background 0.12s; }
+  .audit-row:hover { background: var(--color-background-secondary); }
+  .audit-row.selected { background: var(--color-background-secondary); }
+  .pill { cursor: pointer; user-select: none; }
+  .pill:hover { filter: brightness(0.96); }
+  .nav-item { cursor: pointer; transition: background 0.12s; border-radius: var(--border-radius-md); }
+  .nav-item:hover { background: var(--color-background-secondary); }
+  .nav-item.active { background: var(--color-background-secondary); font-weight: 500; color: var(--color-text-primary) !important; }
+  .status-btn { cursor: pointer; }
+</style>
+</head>
+<body>
+
+<h2 class="sr-only">CareO Care File Audit — interactive prototype with live status updates, navigable sections, and dynamic progress.</h2>
+
+<div style="font-family: var(--font-sans); color: var(--color-text-primary); background: var(--color-background-tertiary); border-radius: var(--border-radius-lg); border: 0.5px solid var(--color-border-tertiary); overflow: hidden; max-width: 1400px; margin: 0 auto;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: var(--color-background-primary); border-bottom: 0.5px solid var(--color-border-tertiary);">
+    <div style="display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-text-secondary);">
+      <span style="display: inline-flex; align-items: center; gap: 6px;">
+        <span style="width: 18px; height: 18px; border-radius: 4px; background: var(--color-background-info); color: var(--color-text-info); font-size: 11px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center;">C</span>
+        CareO
+      </span>
+      <span style="opacity: .4;">/</span>
+      <span>Audits</span>
+      <span style="opacity: .4;">/</span>
+      <span>Care file audits</span>
+      <span style="opacity: .4;">/</span>
+      <span style="color: var(--color-text-primary); font-weight: 500;">Margaret O'Reilly · Rm 14</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button style="font-size: 13px; padding: 6px 12px;">Save draft</button>
+      <button style="font-size: 13px; padding: 6px 12px; background: var(--color-text-primary); color: var(--color-background-primary); border: 0.5px solid var(--color-text-primary);">Submit audit</button>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 18px; padding: 14px 18px; background: var(--color-background-primary); border-bottom: 0.5px solid var(--color-border-tertiary);">
+    <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--color-background-info); color: var(--color-text-info); display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 13px;">MO</div>
+    <div style="flex: 1;">
+      <div style="font-size: 15px; font-weight: 500;">Care file audit · Margaret O'Reilly</div>
+      <div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 2px;">Belmont House · Northern Ireland · v1.1</div>
+    </div>
+    <div style="display: flex; gap: 22px; font-size: 12px;">
+      <div><div style="color: var(--color-text-tertiary); margin-bottom: 2px;">Auditor</div><div>S. Doherty (RGN)</div></div>
+      <div><div style="color: var(--color-text-tertiary); margin-bottom: 2px;">Date</div><div>07 May 2026</div></div>
+      <div><div style="color: var(--color-text-tertiary); margin-bottom: 2px;">Home manager verified</div><div>Pending</div></div>
+      <div><div style="color: var(--color-text-tertiary); margin-bottom: 2px;">Status</div><div><span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #FAEEDA; color: #633806;">In progress</span></div></div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; background: var(--color-background-primary); border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 12px; color: var(--color-text-secondary);">
+    <span id="progress-text">— of — items complete</span>
+    <div style="flex: 1; height: 4px; background: var(--color-background-secondary); border-radius: 999px; overflow: hidden;">
+      <div id="progress-bar" style="width: 0%; height: 100%; background: #1D9E75; transition: width .3s;"></div>
+    </div>
+    <span id="progress-summary">—</span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 240px minmax(0, 1fr) 320px; min-height: 720px;">
+
+    <aside id="sidebar" style="background: var(--color-background-primary); border-right: 0.5px solid var(--color-border-tertiary); padding: 12px 8px; font-size: 13px;"></aside>
+
+    <main style="background: var(--color-background-tertiary); padding: 18px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px;">
+        <div>
+          <div id="main-eyebrow" style="font-size: 11px; color: var(--color-text-tertiary); letter-spacing: .04em; text-transform: uppercase;">Section 1</div>
+          <h2 id="main-title" style="margin: 2px 0 0; font-size: 18px; font-weight: 500;">General</h2>
+        </div>
+        <div id="main-meta" style="font-size: 12px; color: var(--color-text-secondary);"></div>
+      </div>
+      <p style="font-size: 13px; color: var(--color-text-secondary); margin: 4px 0 14px; max-width: 640px;">Click any row to open it on the right. Click the status pill to cycle through Compliant → Action required → Non-compliant → N/A.</p>
+
+      <div id="audit-table" style="background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden;"></div>
+
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button id="btn-add-item" style="font-size: 12px; padding: 6px 12px;">+ Add custom item</button>
+        <button id="btn-mark-all" style="font-size: 12px; padding: 6px 12px;">Mark all as compliant</button>
+        <button style="font-size: 12px; padding: 6px 12px;">Generate actions report ↗</button>
+      </div>
+    </main>
+
+    <aside id="detail-panel" style="background: var(--color-background-primary); border-left: 0.5px solid var(--color-border-tertiary); padding: 16px;"></aside>
+
+  </div>
+</div>
+
+<script>
+(function() {
+  const STATUSES = {
+    not_reviewed: { label: 'Not reviewed', short: 'Not reviewed', bg: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', box: 'transparent', boxBorder: '0.5px solid var(--color-border-secondary)', icon: '', rowBg: '' },
+    compliant:    { label: 'Compliant',    short: 'Compliant',    bg: '#E1F5EE', color: '#0F6E56', box: '#1D9E75', boxBorder: 'none', icon: '✓', rowBg: '' },
+    action:       { label: 'Action required', short: 'Action required', bg: '#FAEEDA', color: '#854F0B', box: '#BA7517', boxBorder: 'none', icon: '!', rowBg: '#FAEEDA33' },
+    non_compliant:{ label: 'Non-compliant', short: 'Non-compliant', bg: '#FCEBEB', color: '#791F1F', box: '#A32D2D', boxBorder: 'none', icon: '×', rowBg: '#FCEBEB33' },
+    na:           { label: 'N/A', short: 'N/A', bg: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', box: 'var(--color-background-secondary)', boxBorder: 'none', icon: '–', rowBg: '' }
+  };
+  const STATUS_CYCLE = ['not_reviewed', 'compliant', 'action', 'non_compliant', 'na'];
+
+  const data = {
+    '1': {
+      number: '1', name: 'General', folder: 'Environment & staff observations',
+      items: [
+        { id: '1.1', q: 'Is the home/area clean and tidy?', status: 'compliant', comment: 'Communal areas inspected at 09:30. Lounge, dining and corridor all visibly clean.', source: 'Environment', sourceLink: 'Environment check ↗' },
+        { id: '1.2', q: 'Is the home/unit free from odours?', status: 'compliant', comment: 'No malodours detected on Belmont 1 unit.', source: 'Environment', sourceLink: 'Environment check ↗' },
+        { id: '1.3', q: 'Are staff wearing name badges?', status: 'action', comment: 'Two new HCAs (S. Patel, J. McGuire) on shift without badges. New badges ordered.', source: 'Staff observation', sourceLink: 'HR record ↗' },
+        { id: '1.4', q: 'Are staff dressed appropriately?', status: 'compliant', comment: 'Uniform compliant. PPE available at all stations.', source: 'Staff observation', sourceLink: 'Uniform policy ↗' },
+        { id: '1.5', q: 'Are staff interacting with residents appropriately?', status: 'compliant', comment: 'Observed warm, person-centred interactions during morning routine.', source: 'Staff observation', sourceLink: 'Observation log ↗' },
+        { id: '1.6', q: 'Is the external area of the building clean and tidy?', status: 'not_reviewed', comment: '', source: 'Environment', sourceLink: 'Environment check ↗' }
+      ]
+    },
+    '2': {
+      number: '2', name: 'Admission Section', folder: 'Admission',
+      items: [
+        { id: '2.1', q: 'Physical and Social Assessment reflective of current needs and updated at least yearly but sooner if changes occur (mobility/consistency of diet etc.)', status: 'compliant', comment: 'Last review 22 Feb 2026. Diet consistency updated after SALT review.', source: 'Admission folder', sourceLink: 'Physical & Social Assessment ↗' },
+        { id: '2.2', q: 'Admission information complete (preferred name, DOB, date of admission, NOK, GP details etc.)', status: 'compliant', comment: 'All fields present. Verified against Trust referral.', source: 'Admission folder', sourceLink: 'Admission Assessment ↗' },
+        { id: '2.3', q: 'Property list completed within last 3 months', status: 'action', comment: 'Last property list dated 18 Jan 2026 — overdue, needs refresh by named nurse.', source: 'Property record', sourceLink: 'Valuables & Property ↗' },
+        { id: '2.4', q: 'Consent for photos / agreements with relatives completed', status: 'compliant', comment: 'Photographic consent on file, signed 14 Jan 2026 by daughter (POA).', source: 'Consent', sourceLink: 'Photographic Consent ↗' },
+        { id: '2.5', q: 'Care plan agreements signed by resident and next of kin', status: 'compliant', comment: 'Resident signed where able; NOK countersigned.', source: 'Admission folder', sourceLink: 'Care plan agreements ↗' }
+      ]
+    },
+    '3': {
+      number: '3', name: 'Assessments & Care Plans', folder: 'Care plan folders',
+      isContainer: true,
+      subsections: [
+        { id: '3.1', name: 'Maintaining a Safe Environment', flag: true },
+        { id: '3.2', name: 'Dependency' },
+        { id: '3.3', name: 'This Is My Life' },
+        { id: '3.4', name: 'Medication' },
+        { id: '3.5', name: 'Mobility' },
+        { id: '3.6', name: 'Nutrition & Hydration' },
+        { id: '3.7', name: 'Incontinence' },
+        { id: '3.8', name: 'Personal Hygiene & Dressing' },
+        { id: '3.9', name: 'Skin Integrity / Tissue Viability' },
+        { id: '3.10', name: 'Additional Care Plans' },
+        { id: '3.11', name: 'Psychological & Emotional Needs' },
+        { id: '3.12', name: 'Record of Specimens' },
+        { id: '3.13', name: 'Safeguarding & DoLS' },
+        { id: '3.14', name: 'End of Life / Death' }
+      ],
+      items: []
+    },
+    '4': {
+      number: '4', name: 'Additional', folder: 'Multi-disciplinary & comms',
+      items: [
+        { id: '4.1', q: 'Multi-disciplinary Treatment Notes complete and contemporaneous', status: 'not_reviewed', comment: '', source: 'MDT notes', sourceLink: 'MDT notes ↗' },
+        { id: '4.2', q: 'Communication with family / relatives recorded at least monthly', status: 'not_reviewed', comment: '', source: 'Key worker diary', sourceLink: 'Key worker diary ↗' },
+        { id: '4.3', q: 'Latest Care Review Record on file (older versions archived)', status: 'compliant', comment: 'April review on file.', source: 'Care reviews', sourceLink: 'Care review ↗' },
+        { id: '4.4', q: 'Pre-admission assessments (Home & Trust) uploaded', status: 'compliant', comment: 'Both versions on file in poly-pocket order.', source: 'Pre-admission', sourceLink: 'Pre-admission ↗' },
+        { id: '4.5', q: 'Hospital discharge records (latest on top)', status: 'not_reviewed', comment: '', source: 'Hospital records', sourceLink: 'Discharge records ↗' }
+      ]
+    }
+  };
+
+  const state = { activeSection: '1', selectedItemId: '1.3' };
+
+  function pill(status, opts = {}) {
+    const s = STATUSES[status];
+    return `<span class="pill" data-action="cycle" data-id="${opts.id || ''}" style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: ${s.bg}; color: ${s.color};">${s.short}</span>`;
+  }
+
+  function statusBox(status) {
+    const s = STATUSES[status];
+    if (status === 'not_reviewed') {
+      return `<span style="width: 16px; height: 16px; border-radius: 4px; border: ${s.boxBorder}; display: inline-block;"></span>`;
+    }
+    const fontColor = (status === 'na') ? 'var(--color-text-tertiary)' : 'white';
+    return `<span style="width: 16px; height: 16px; border-radius: 4px; background: ${s.box}; color: ${fontColor}; font-size: 11px; display: inline-flex; align-items: center; justify-content: center;">${s.icon}</span>`;
+  }
+
+  function countItems() {
+    let total = 0, reviewed = 0, comp = 0, act = 0, noncomp = 0, na = 0;
+    Object.values(data).forEach(sec => {
+      if (sec.isContainer) return;
+      sec.items.forEach(it => {
+        total++;
+        if (it.status !== 'not_reviewed') reviewed++;
+        if (it.status === 'compliant') comp++;
+        if (it.status === 'action') act++;
+        if (it.status === 'non_compliant') noncomp++;
+        if (it.status === 'na') na++;
+      });
+    });
+    // section 3 has 56 placeholder questions across subsections - simulate
+    const sec3total = 56, sec3reviewed = 29, sec3comp = 26, sec3act = 2, sec3noncomp = 1;
+    return {
+      total: total + sec3total,
+      reviewed: reviewed + sec3reviewed,
+      comp: comp + sec3comp,
+      act: act + sec3act,
+      noncomp: noncomp + sec3noncomp
+    };
+  }
+
+  function renderProgress() {
+    const c = countItems();
+    document.getElementById('progress-text').textContent = `${c.reviewed} of ${c.total} items complete`;
+    document.getElementById('progress-bar').style.width = `${Math.round(c.reviewed/c.total*100)}%`;
+    document.getElementById('progress-summary').innerHTML =
+      `<span style="color: #0F6E56; font-weight: 500;">${c.comp} compliant</span> · ` +
+      `<span style="color: #854F0B; font-weight: 500;">${c.act} action required</span> · ` +
+      `<span style="color: #993C1D; font-weight: 500;">${c.noncomp} non-compliant</span>`;
+  }
+
+  function sectionStats(sec) {
+    if (sec.isContainer) return { reviewed: 29, total: 56, hasFlag: true };
+    let r = 0;
+    sec.items.forEach(it => { if (it.status !== 'not_reviewed') r++; });
+    const hasFlag = sec.items.some(it => it.status === 'action' || it.status === 'non_compliant');
+    return { reviewed: r, total: sec.items.length, hasFlag };
+  }
+
+  function renderSidebar() {
+    const sb = document.getElementById('sidebar');
+    let html = `<div style="padding: 6px 10px; font-size: 11px; color: var(--color-text-tertiary); letter-spacing: .04em; text-transform: uppercase;">Sections</div>`;
+    html += `<div style="margin: 4px 0 8px;">`;
+    ['1', '2'].forEach(k => {
+      const sec = data[k];
+      const st = sectionStats(sec);
+      const isActive = state.activeSection === k;
+      const ratioColor = st.reviewed === st.total ? '#0F6E56' : (st.hasFlag ? '#BA7517' : 'var(--color-text-tertiary)');
+      html += `<div class="nav-item ${isActive ? 'active' : ''}" data-action="nav" data-section="${k}" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; color: var(--color-text-secondary);">
+        <span>${sec.number} · ${sec.name}</span>
+        <span style="font-size: 11px; color: ${ratioColor};">${st.reviewed}/${st.total}</span>
+      </div>`;
+    });
+    html += `</div>`;
+
+    // Section 3 container
+    const isThreeActive = state.activeSection.startsWith('3');
+    html += `<div class="nav-item ${isThreeActive ? 'active' : ''}" data-action="nav" data-section="3" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px;">
+      <span>3 · Assessments &amp; Care Plans</span>
+      <span style="font-size: 11px; color: var(--color-text-secondary);">29/56</span>
+    </div>`;
+    html += `<div style="margin: 4px 0 8px; padding-left: 10px; border-left: 0.5px solid var(--color-border-tertiary); margin-left: 14px;">`;
+    data['3'].subsections.forEach(sub => {
+      const isSubActive = state.activeSection === sub.id;
+      html += `<div class="nav-item ${isSubActive ? 'active' : ''}" data-action="nav" data-section="${sub.id}" style="padding: 5px 10px; font-size: 12px; color: var(--color-text-secondary);">
+        ${sub.id} ${sub.name}${sub.flag ? '<span style="float: right; color: #BA7517;">●</span>' : ''}
+      </div>`;
+    });
+    html += `</div>`;
+
+    const sec4 = data['4'];
+    const st4 = sectionStats(sec4);
+    const isFourActive = state.activeSection === '4';
+    html += `<div class="nav-item ${isFourActive ? 'active' : ''}" data-action="nav" data-section="4" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; color: var(--color-text-secondary);">
+      <span>4 · Additional</span>
+      <span style="font-size: 11px; color: ${st4.reviewed === st4.total ? '#0F6E56' : 'var(--color-text-tertiary)'};">${st4.reviewed}/${st4.total}</span>
+    </div>`;
+
+    sb.innerHTML = html;
+  }
+
+  function getActiveSection() {
+    if (state.activeSection.startsWith('3.')) {
+      // Subsection — return a stub
+      const sub = data['3'].subsections.find(s => s.id === state.activeSection);
+      return {
+        number: state.activeSection,
+        name: sub ? sub.name : '',
+        folder: 'Care plan',
+        isSubsection: true,
+        items: [
+          { id: state.activeSection + '.demo', q: 'Sample audit question (auto-generated for ' + (sub ? sub.name : '') + ')', status: 'not_reviewed', comment: '', source: 'Care plan', sourceLink: (sub ? sub.name : '') + ' ↗' }
+        ]
+      };
+    }
+    if (state.activeSection === '3') {
+      return { number: '3', name: 'Assessments & Care Plans', folder: 'Care plan folders', isContainer: true };
+    }
+    return data[state.activeSection];
+  }
+
+  function renderMain() {
+    const sec = getActiveSection();
+    document.getElementById('main-eyebrow').textContent = `Section ${sec.number}`;
+    document.getElementById('main-title').textContent = sec.name;
+    document.getElementById('main-meta').innerHTML = `Linked folder · <span style="color: var(--color-text-info); font-weight: 500;">${sec.folder}</span>`;
+
+    const tbl = document.getElementById('audit-table');
+    if (sec.isContainer) {
+      tbl.innerHTML = `<div style="padding: 24px; font-size: 13px; color: var(--color-text-secondary);">Pick a subsection from the sidebar (3.1 – 3.14) to start auditing care plans.</div>`;
+      return;
+    }
+    let html = `<div style="display: grid; grid-template-columns: 28px minmax(0,1fr) 130px 130px; align-items: center; padding: 10px 14px; background: var(--color-background-secondary); border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 11px; color: var(--color-text-tertiary); letter-spacing: .04em; text-transform: uppercase;">
+      <span></span><span>Item</span><span>Status</span><span style="text-align: right;">Source</span></div>`;
+    sec.items.forEach((it, idx) => {
+      const s = STATUSES[it.status];
+      const last = idx === sec.items.length - 1;
+      const isSelected = it.id === state.selectedItemId;
+      html += `<div class="audit-row ${isSelected ? 'selected' : ''}" data-action="select" data-id="${it.id}" style="display: grid; grid-template-columns: 28px minmax(0,1fr) 130px 130px; align-items: center; padding: 12px 14px; ${last ? '' : 'border-bottom: 0.5px solid var(--color-border-tertiary);'} background: ${s.rowBg};">
+        ${statusBox(it.status)}
+        <div>
+          <div style="font-size: 13px; font-weight: 500;">${it.q}</div>
+          ${it.comment ? `<div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 2px;">${it.comment}</div>` : ''}
+        </div>
+        <span>${pill(it.status, { id: it.id })}</span>
+        <span style="text-align: right; font-size: 12px; color: var(--color-text-info);">${it.sourceLink}</span>
+      </div>`;
+    });
+    tbl.innerHTML = html;
+  }
+
+  function findItem(id) {
+    for (const k of Object.keys(data)) {
+      const sec = data[k];
+      if (sec.isContainer) continue;
+      const f = sec.items.find(i => i.id === id);
+      if (f) return f;
+    }
+    return null;
+  }
+
+  function renderDetail() {
+    const dp = document.getElementById('detail-panel');
+    const sec = getActiveSection();
+    if (sec.isContainer || sec.isSubsection || !sec.items || !sec.items.length) {
+      dp.innerHTML = `<div style="font-size: 12px; color: var(--color-text-tertiary);">No item selected.</div>`;
+      return;
+    }
+    let item = findItem(state.selectedItemId);
+    if (!item || !sec.items.find(i => i.id === item.id)) {
+      item = sec.items[0];
+      state.selectedItemId = item.id;
+    }
+    const isOutstanding = item.status === 'action' || item.status === 'non_compliant';
+
+    dp.innerHTML = `
+      <div style="font-size: 11px; color: var(--color-text-tertiary); letter-spacing: .04em; text-transform: uppercase; margin-bottom: 6px;">Selected item</div>
+      <div style="font-size: 14px; font-weight: 500; line-height: 1.4;">${item.q}</div>
+      <div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">Section ${sec.number} · ${sec.name}</div>
+
+      <div style="margin: 14px 0 10px;">
+        <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 4px;">Status</div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          ${['compliant','action','non_compliant','na'].map(st => {
+            const s = STATUSES[st];
+            const sel = item.status === st;
+            return `<span class="status-btn" data-action="set-status" data-id="${item.id}" data-status="${st}" style="font-size: 11px; padding: 4px 10px; border-radius: 999px; background: ${sel ? s.bg : 'var(--color-background-secondary)'}; color: ${sel ? s.color : 'var(--color-text-secondary)'}; border: 0.5px solid ${sel ? s.box : 'var(--color-border-tertiary)'};">${s.label}</span>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div style="margin: 12px 0;">
+        <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 4px;">Auditor comments</div>
+        <textarea id="comment-input" data-id="${item.id}" style="width: 100%; min-height: 70px; font-size: 12px; padding: 8px; box-sizing: border-box;" placeholder="Add comment...">${item.comment || ''}</textarea>
+      </div>
+
+      <div style="margin: 12px 0;">
+        <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 4px;">Action required</div>
+        ${isOutstanding ? `
+        <div style="border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 10px; font-size: 12px;">
+          <div style="font-weight: 500; margin-bottom: 4px;">Follow up: ${item.q.length > 60 ? item.q.slice(0, 60) + '…' : item.q}</div>
+          <div style="color: var(--color-text-secondary);">Assigned to <span style="color: var(--color-text-primary);">Aoife McKenna</span> · due <span style="color: var(--color-text-primary);">14 May 2026</span></div>
+        </div>` : `<div style="font-size: 12px; color: var(--color-text-tertiary); padding: 8px 10px; border: 0.5px dashed var(--color-border-tertiary); border-radius: var(--border-radius-md);">No action — status is compliant or N/A</div>`}
+      </div>
+
+      <div style="margin: 12px 0;">
+        <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 4px;">Action completed</div>
+        <div style="font-size: 12px; color: var(--color-text-tertiary); padding: 8px 10px; border: 0.5px dashed var(--color-border-tertiary); border-radius: var(--border-radius-md);">${isOutstanding ? 'Not yet completed' : '—'}</div>
+      </div>
+
+      <div style="margin: 12px 0;">
+        <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 6px;">Linked records</div>
+        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+          <a href="#" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); text-decoration: none; color: var(--color-text-primary);">
+            <span>${item.source}</span><span style="color: var(--color-text-tertiary);">↗</span>
+          </a>
+        </div>
+      </div>
+
+      <div style="margin: 14px 0 0; padding-top: 12px; border-top: 0.5px solid var(--color-border-tertiary); font-size: 11px; color: var(--color-text-tertiary);">
+        Last edited by S. Doherty · just now
+      </div>
+    `;
+  }
+
+  function rerenderAll() {
+    renderSidebar();
+    renderMain();
+    renderDetail();
+    renderProgress();
+  }
+
+  document.body.addEventListener('click', e => {
+    const t = e.target.closest('[data-action]');
+    if (!t) return;
+    const action = t.dataset.action;
+    if (action === 'nav') {
+      state.activeSection = t.dataset.section;
+      const sec = getActiveSection();
+      if (sec.items && sec.items.length) state.selectedItemId = sec.items[0].id;
+      rerenderAll();
+    } else if (action === 'cycle') {
+      e.stopPropagation();
+      const item = findItem(t.dataset.id);
+      if (!item) return;
+      const cur = STATUS_CYCLE.indexOf(item.status);
+      item.status = STATUS_CYCLE[(cur + 1) % STATUS_CYCLE.length];
+      state.selectedItemId = item.id;
+      rerenderAll();
+    } else if (action === 'select') {
+      state.selectedItemId = t.dataset.id;
+      rerenderAll();
+    } else if (action === 'set-status') {
+      const item = findItem(t.dataset.id);
+      if (!item) return;
+      item.status = t.dataset.status;
+      rerenderAll();
+    }
+  });
+
+  document.body.addEventListener('input', e => {
+    if (e.target.id === 'comment-input') {
+      const item = findItem(e.target.dataset.id);
+      if (item) item.comment = e.target.value;
+    }
+  });
+
+  document.getElementById('btn-mark-all').addEventListener('click', () => {
+    const sec = getActiveSection();
+    if (!sec.items) return;
+    sec.items.forEach(it => { if (it.status === 'not_reviewed') it.status = 'compliant'; });
+    rerenderAll();
+  });
+
+  rerenderAll();
+})();
+</script>
+
+</body>
+</html>

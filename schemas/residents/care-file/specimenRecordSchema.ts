@@ -20,7 +20,8 @@ export const specimenRecordSchema = z.object({
     staffReceivingSignature: z.string().optional().nullable(),
 
     // Metadata
-    status: z.enum(["draft", "active"]).default("active")
+    status: z.enum(["draft", "active"]).default("active"),
+    nextReviewDate: z.string().optional()
 });
 
 export type SpecimenRecordFormData = z.infer<typeof specimenRecordSchema>;

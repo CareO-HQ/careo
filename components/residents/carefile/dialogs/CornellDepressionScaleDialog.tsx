@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { submitAssessmentWithVersioning } from "@/lib/form-submission";
+import NextReviewDateField from "./NextReviewDateField";
 
 interface CornellDepressionScaleDialogProps {
   teamId: string;
@@ -43,6 +44,7 @@ export default function CornellDepressionScaleDialog({
       residentName: initialData.residentName || `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
       dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
       dateOfAssessment: initialData.dateOfAssessment || initialData.assessment_date || new Date().toISOString().split("T")[0],
+      nextReviewDate: initialData.nextReviewDate || initialData.scale_items?.nextReviewDate || "",
       assessedBy: initialData.assessedBy || initialData.assessed_by || userName,
       anxiety: initialData.scale_items?.anxiety || "a",
       sadness: initialData.scale_items?.sadness || "a",
@@ -68,6 +70,7 @@ export default function CornellDepressionScaleDialog({
       residentName: `${resident.first_name || ""} ${resident.last_name || ""}`.trim(),
       dateOfBirth: resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : "",
       dateOfAssessment: new Date().toISOString().split("T")[0],
+      nextReviewDate: "",
       assessedBy: userName,
       signature: userName,
       anxiety: "a", sadness: "a", lackOfReactivity: "a", irritability: "a",
@@ -94,6 +97,7 @@ export default function CornellDepressionScaleDialog({
       if (!currentUserId) throw new Error("User not authenticated");
 
       const scaleItems = {
+        nextReviewDate: data.nextReviewDate,
         anxiety: data.anxiety, sadness: data.sadness, lackOfReactivity: data.lackOfReactivity, irritability: data.irritability,
         agitation: data.agitation, retardation: data.retardation, multiplePhysicalComplaints: data.multiplePhysicalComplaints, lossOfInterest: data.lossOfInterest,
         appetiteLoss: data.appetiteLoss, weightLoss: data.weightLoss, lackOfEnergy: data.lackOfEnergy,
@@ -170,6 +174,15 @@ export default function CornellDepressionScaleDialog({
       </div>
 
       <fieldset disabled={viewOnly} className={viewOnly ? "pointer-events-none" : ""}>
+        <div className="mb-4 p-4 border rounded-lg bg-muted/40">
+          <div className="space-y-2 max-w-xs">
+            <NextReviewDateField
+              value={form.watch("nextReviewDate") || ""}
+              onChange={(value) => form.setValue("nextReviewDate", value, { shouldDirty: true })}
+              disabled={viewOnly}
+            />
+          </div>
+        </div>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
           <button
             type="button"

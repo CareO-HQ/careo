@@ -99,8 +99,14 @@ export function CareFileDialogRenderer({
   // For care plan new creation, pass the pre-selected name as a synthetic initialData
   const carePlanInitialData = editData ?? (newCarePlanName ? { nameOfCarePlan: newCarePlanName } : null);
 
-  // If we're in review/view mode and still loading data, show loading state
-  if ((isReviewMode || viewOnly) && formDataForEdit === undefined) {
+  // If we're in review/view mode and still loading data, show loading state.
+  // Weight chart loads its own rows and does not use formDataForEdit — skip wait so it never spins forever
+  // when the parent table map is wrong or while formDataForEdit is briefly undefined during fetch.
+  if (
+    (isReviewMode || viewOnly) &&
+    formDataForEdit === undefined &&
+    formKey !== "v2-weight-chart"
+  ) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">

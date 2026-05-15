@@ -11,6 +11,7 @@ export const oralAssessmentSchema = z.object({
   // Section 1: Basic Resident Information
   residentName: z.string().min(1, "Resident name is required"),
   dateOfBirth: z.string().min(1, "Date of birth is required"),
+  nextReviewDate: z.string().optional(),
   weight: z.string().optional(),
   height: z.string().optional(),
   completedBy: z.string().optional(),

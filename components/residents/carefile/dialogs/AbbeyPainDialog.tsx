@@ -37,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
+import NextReviewDateField from "./NextReviewDateField";
 
 const VIEW_DIV = "w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-foreground opacity-90 whitespace-pre-wrap break-words min-h-10";
 
@@ -116,6 +117,7 @@ export default function AbbeyPainDialog({
   const defaultValues: z.infer<typeof AbbeyPainSchema> = initialData
     ? {
         ...initialData.assessment_data,
+        nextReviewDate: initialData.assessment_data?.nextReviewDate || initialData.nextReviewDate || "",
       }
     : {
         residentId,
@@ -130,6 +132,7 @@ export default function AbbeyPainDialog({
         totalScore: 0,
         painClassification: "No pain",
         completedByName: userName,
+        nextReviewDate: "",
         completedByDesignation: userRole || "",
         completedByDate: Date.now(),
         completedBySignature: userName,
@@ -256,9 +259,22 @@ export default function AbbeyPainDialog({
       )}
 
       <Form {...form}>
+        <div className="mb-4 p-4 border rounded-lg bg-muted/40 mt-4">
+          <FormField
+            control={form.control}
+            name="nextReviewDate"
+            render={({ field }) => (
+              <FormItem className="max-w-xs">
+                <FormControl>
+                  <NextReviewDateField value={field.value || ""} onChange={field.onChange} disabled={viewOnly} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 pb-10 mt-4">
           <fieldset disabled={viewOnly} className={cn("space-y-6", viewOnly && "opacity-90")}>
-            
             {domains.map((domain) => (
               <FormField
                 key={domain.key}
@@ -458,6 +474,7 @@ export default function AbbeyPainDialog({
                 <TableHeader>
                   <TableRow className="bg-muted/50">
                     <TableHead>Date</TableHead>
+                    <TableHead className="whitespace-nowrap">Next Review Date</TableHead>
                     <TableHead className="text-center">Vocal</TableHead>
                     <TableHead className="text-center">Facial</TableHead>
                     <TableHead className="text-center">Body</TableHead>
@@ -475,6 +492,11 @@ export default function AbbeyPainDialog({
                       <TableRow key={assessment.id} className="hover:bg-muted/30">
                         <TableCell className="font-medium">
                           {format(new Date(assessment.assessment_date), "dd/MM/yyyy")}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {data.nextReviewDate
+                            ? format(new Date(data.nextReviewDate), "dd/MM/yyyy")
+                            : "—"}
                         </TableCell>
                         <TableCell className="text-center">{data.vocalization}</TableCell>
                         <TableCell className="text-center">{data.facialExpression}</TableCell>

@@ -1062,6 +1062,7 @@ const FORM_SCHEMAS: Record<string, SectionDef[]> = {
       title: "Summary",
       fields: [
         { label: "Assessment Date", path: "assessment_date", fmt: "date" },
+        { label: "Next Review Date", path: "next_review_date", fmt: "date" },
         { label: "Completed By", path: "completed_by" },
         { label: "Role", path: "completed_by_role" },
       ],

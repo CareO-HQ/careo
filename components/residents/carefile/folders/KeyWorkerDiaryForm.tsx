@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { Resident } from "@/types";
 import Link from "next/link";
+import NextReviewDateField from "@/components/residents/carefile/dialogs/NextReviewDateField";
 
 const UK_TIMEZONE = "Europe/London";
 
@@ -27,11 +28,18 @@ interface KeyWorkerDiaryEntry {
     date: string;
     time: string;
     comments: string;
+    comment?: string | null;
+    next_review_date: string | null;
     author_id: string;
     author_name: string;
     created_at: string;
     updated_at: string;
 }
+
+const normalizeDiaryEntry = (entry: KeyWorkerDiaryEntry): KeyWorkerDiaryEntry => ({
+    ...entry,
+    comments: entry.comments ?? entry.comment ?? "",
+});
 
 export function KeyWorkerDiaryForm({ residentId, resident }: KeyWorkerDiaryFormProps) {
     const { profile } = useProfile();
@@ -42,6 +50,7 @@ export function KeyWorkerDiaryForm({ residentId, resident }: KeyWorkerDiaryFormP
     const [comments, setComments] = useState("");
     const [entryDate, setEntryDate] = useState("");
     const [entryTime, setEntryTime] = useState("");
+    const [nextReviewDate, setNextReviewDate] = useState("");
     const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
 
@@ -60,7 +69,7 @@ export function KeyWorkerDiaryForm({ residentId, resident }: KeyWorkerDiaryFormP
             }
 
             if (data) {
-                setDiaryEntries(data);
+                setDiaryEntries(data.map(normalizeDiaryEntry));
             }
         } catch (error) {
             console.error("Error fetching key worker diary entries:", error);
@@ -91,7 +100,8 @@ export function KeyWorkerDiaryForm({ residentId, resident }: KeyWorkerDiaryFormP
         setIsEditing(true);
         setEntryDate(entry.date);
         setEntryTime(entry.time);
-        setComments(entry.comments);
+        setNextReviewDate(entry.next_review_date ?? "");
+        setComments(entry.comments ?? entry.comment ?? "");
         setShowForm(true);
     };
 
@@ -102,6 +112,7 @@ export function KeyWorkerDiaryForm({ residentId, resident }: KeyWorkerDiaryFormP
         setComments("");
         setEntryDate("");
         setEntryTime("");
+        setNextReviewDate("");
     };
 
     const handleSubmit = async () => {
@@ -129,6 +140,7 @@ export function KeyWorkerDiaryForm({ residentId, resident }: KeyWorkerDiaryFormP
                     date: entryDate,
                     time: entryTime,
                     comments: comments.trim(),
+                    next_review_date: nextReviewDate || null,
                     updated_at: new Date().toISOString(),
                 };
 
@@ -153,6 +165,7 @@ export function KeyWorkerDiaryForm({ residentId, resident }: KeyWorkerDiaryFormP
                     date: entryDate,
                     time: entryTime,
                     comments: comments.trim(),
+                    next_review_date: nextReviewDate || null,
                     author_id: profile.id,
                     author_name: profile.name || profile.email || "Unknown",
                 };
@@ -174,6 +187,7 @@ export function KeyWorkerDiaryForm({ residentId, resident }: KeyWorkerDiaryFormP
             setComments("");
             setEditingEntryId(null);
             setIsEditing(false);
+            setNextReviewDate("");
             // Keep form open and refresh date/time
             const now = new Date();
             setEntryDate(formatInTimeZone(now, UK_TIMEZONE, "yyyy-MM-dd"));
@@ -297,6 +311,12 @@ export function KeyWorkerDiaryForm({ residentId, resident }: KeyWorkerDiaryFormP
                                 className="min-h-[120px] bg-background"
                             />
                         </div>
+                        <NextReviewDateField
+                            value={nextReviewDate}
+                            onChange={setNextReviewDate}
+                            disabled={isSubmitting}
+                            className="max-w-xs"
+                        />
 
                         <div className="flex gap-2 justify-end">
                             <Button
@@ -384,13 +404,18 @@ export function KeyWorkerDiaryForm({ residentId, resident }: KeyWorkerDiaryFormP
                             </div>
 
                             <div className="space-y-1 w-full">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 text-center">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
                                     Comments
                                 </p>
                                 <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed w-full">
-                                    {entry.comments}
+                                    {entry.comments ?? entry.comment ?? ""}
                                 </p>
                             </div>
+                            {entry.next_review_date && (
+                                <div className="text-xs text-muted-foreground">
+                                    Next review date: {format(new Date(entry.next_review_date), "dd MMM yyyy")}
+                                </div>
+                            )}
                         </div>
                     ))}
                     </div>
