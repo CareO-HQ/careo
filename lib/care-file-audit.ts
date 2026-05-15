@@ -231,3 +231,56 @@ export function buildCareFileAuditNavEntries(
 
   return entries;
 }
+
+function readTemplateStringField(
+  o: Record<string, unknown>,
+  ...keys: string[]
+): string | undefined {
+  for (const k of keys) {
+    const v = o[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+/**
+ * Coerce `audit_care_file_templates` JSON (`items` or legacy `questions`) into checklist items.
+ */
+export function parseCareFileTemplateItemsFromApi(
+  templateRow: Record<string, unknown> | null | undefined
+): CareFileTemplateItemShape[] | null {
+  if (!templateRow) return null;
+  const raw =
+    templateRow.items ??
+    templateRow.questions ??
+    templateRow.template_items;
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out: CareFileTemplateItemShape[] = [];
+  for (const el of raw) {
+    if (!el || typeof el !== "object") continue;
+    const o = el as Record<string, unknown>;
+    const id =
+      readTemplateStringField(o, "id", "itemId", "item_id") ??
+      (typeof o.key === "string" ? o.key.trim() : undefined);
+    if (!id) continue;
+    const name =
+      readTemplateStringField(o, "name", "itemName", "item_name", "label", "text") ??
+      id;
+    out.push({
+      id,
+      name,
+      type: readTemplateStringField(o, "type"),
+      sectionId: readTemplateStringField(o, "sectionId", "section_id"),
+      sectionTitle: readTemplateStringField(o, "sectionTitle", "section_title"),
+      subsectionId: readTemplateStringField(o, "subsectionId", "subsection_id"),
+      subsectionTitle: readTemplateStringField(
+        o,
+        "subsectionTitle",
+        "subsection_title"
+      ),
+      sourceLabel: readTemplateStringField(o, "sourceLabel", "source_label"),
+      sourceHref: readTemplateStringField(o, "sourceHref", "source_href"),
+    });
+  }
+  return out.length > 0 ? out : null;
+}

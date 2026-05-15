@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -44,6 +45,12 @@ import { auditService } from "@/lib/audit-service";
 import { markActionPlanNotificationsAsRead } from "@/lib/notifications";
 
 type ActionPlanStatus = "pending" | "in_progress" | "completed";
+
+type ActionPlanScope = "all" | "for_me" | "by_me";
+
+function isActionPlanScope(value: string): value is ActionPlanScope {
+  return value === "all" || value === "for_me" || value === "by_me";
+}
 
 type OrgMemberRow = {
   id: string;
@@ -168,6 +175,7 @@ export default function MyActionPlansPage() {
   const [createPriority, setCreatePriority] = useState("");
   const [createDueDate, setCreateDueDate] = useState<Date | undefined>();
   const [dueDatePopoverOpen, setDueDatePopoverOpen] = useState(false);
+  const [actionPlanScope, setActionPlanScope] = useState<ActionPlanScope>("all");
 
   // Fetch Data
   const fetchData = React.useCallback(async () => {
@@ -319,13 +327,19 @@ export default function MyActionPlansPage() {
     }
   }, [user?.id, activeOrganizationId]);
 
+  const scopedActionPlans = useMemo(() => {
+    if (actionPlanScope === "all") return allActionPlans;
+    if (actionPlanScope === "for_me") return allActionPlans.filter((p) => userIsPlanAssignee(p));
+    return allActionPlans.filter((p) => userIsPlanCreator(p));
+  }, [allActionPlans, actionPlanScope, userEmail, user?.id]);
+
   // Group action plans by status
-  const pendingPlans = allActionPlans.filter((p) => {
+  const pendingPlans = scopedActionPlans.filter((p) => {
     const s = normalizePlanStatus(p.status);
     return !s || s === "pending";
   });
-  const inProgressPlans = allActionPlans.filter((p) => normalizePlanStatus(p.status) === "in_progress");
-  const completedPlans = allActionPlans.filter((p) => normalizePlanStatus(p.status) === "completed");
+  const inProgressPlans = scopedActionPlans.filter((p) => normalizePlanStatus(p.status) === "in_progress");
+  const completedPlans = scopedActionPlans.filter((p) => normalizePlanStatus(p.status) === "completed");
 
   const pendingCount = pendingPlans.length;
   const inProgressCount = inProgressPlans.length;
@@ -481,14 +495,25 @@ export default function MyActionPlansPage() {
   return (
     <div className="container mx-auto py-6 space-y-6 text-foreground">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3 min-w-0">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Action Plans</h1>
-            <p className="text-muted-foreground">
-              Track action plans you&apos;ve created and been assigned to
-            </p>
-          </div>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 space-y-3">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Action Plans</h1>
+          <Tabs
+            value={actionPlanScope}
+            onValueChange={(v) => {
+              if (isActionPlanScope(v)) setActionPlanScope(v);
+            }}
+            className="w-full max-w-md"
+          >
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="for_me">For me</TabsTrigger>
+              <TabsTrigger value="by_me">By me</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <p className="text-muted-foreground">
+            Track action plans you&apos;ve created and been assigned to
+          </p>
         </div>
         <Button
           type="button"

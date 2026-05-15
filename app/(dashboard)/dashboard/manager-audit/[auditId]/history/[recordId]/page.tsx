@@ -56,6 +56,8 @@ const auditNames: Record<string, string> = {
   "31": "Resident Agreement",
 };
 
+const AUDIT_LEVEL_SUBJECT_ID = "audit-level";
+
 interface AuditRecordViewPageProps {
   params: Promise<{ auditId: string; recordId: string }>;
 }
@@ -190,7 +192,70 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
 
       {/* Audit Results Table */}
       <div className="rounded-md border flex-1 overflow-auto bg-white">
-        {auditData.gridData ? (
+        {auditData.homeBasedData ? (
+          /* New home-based audit view */
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="w-[45%] font-semibold">Question</TableHead>
+                <TableHead className="min-w-[160px] font-semibold">Status / Response</TableHead>
+                <TableHead className="min-w-[260px] font-semibold">Audit Comment</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(auditData.homeBasedData.questions || []).length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="h-32 text-center text-muted-foreground">
+                    No questions in this audit
+                  </TableCell>
+                </TableRow>
+              ) : (
+                (auditData.homeBasedData.questions || []).map((question: any) => {
+                  if (question.isSection) {
+                    return (
+                      <TableRow key={question.id} className="bg-accent/30 font-bold">
+                        <TableCell colSpan={3}>{question.text}</TableCell>
+                      </TableRow>
+                    );
+                  }
+
+                  const subjectId = auditData.homeBasedData.subjectId || AUDIT_LEVEL_SUBJECT_ID;
+                  const answer = (auditData.homeBasedData.answers || []).find(
+                    (item: any) => item.residentId === subjectId && item.questionId === question.id
+                  );
+                  const comment = (auditData.homeBasedData.comments || []).find(
+                    (item: any) => item.residentId === subjectId
+                  );
+
+                  return (
+                    <TableRow key={question.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="font-medium">
+                        <div className="text-sm">{question.text}</div>
+                        <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">
+                          {question.type === "yesno"
+                            ? "Yes / No"
+                            : question.type === "text"
+                              ? "Text"
+                              : question.type === "date"
+                                ? "Date"
+                                : "Compliance"}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`text-sm ${getAnswerColor(answer?.value)}`}>
+                          {getAnswerDisplay(answer?.value)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {comment?.text || "-"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        ) : auditData.gridData ? (
           /* Grid-based Audit View */
           <Table>
             <TableHeader>
@@ -334,7 +399,7 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
                   <TableRow key={plan.id} className="hover:bg-muted/30 transition-colors">
                     <TableCell className="font-medium text-primary">{plan.residentName || 'General'}</TableCell>
                     <TableCell>{plan.text}</TableCell>
-                    <TableCell>{plan.assignedTo}</TableCell>
+                    <TableCell>{plan.assignedToName || plan.assignedToEmail || plan.assignedTo}</TableCell>
                     <TableCell>{plan.dueDate ? format(new Date(plan.dueDate), "dd/MM/yyyy") : 'N/A'}</TableCell>
                     <TableCell>
                       <Badge variant={plan.priority === 'High' ? 'destructive' : 'outline'}>

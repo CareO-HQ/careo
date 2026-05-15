@@ -44,6 +44,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { withRoleGuard } from "@/lib/route-guards";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { supabase } from "@/lib/supabase";
+import { ManagerAuditShell } from "@/components/manager-audit/manager-audit-shell";
 
 interface ManagerAudit {
   id: string;
@@ -951,26 +952,29 @@ function ManagerAuditPage() {
   }, [allResidents, residentSearchQuery]);
 
   return (
-    <div className="flex-1 space-y-4 p-4 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Manager Audit</h2>
-        <div className="flex items-center space-x-2">
-          <input 
-            type="file" 
-            accept=".csv" 
-            className="hidden" 
-            ref={fileInputRef} 
-            onChange={handleCsvUpload} 
+    <ManagerAuditShell
+      breadcrumbs={[
+        { label: "Audits" },
+        { label: "Manager Audit" },
+      ]}
+      topActions={
+        <>
+          <input
+            type="file"
+            accept=".csv"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleCsvUpload}
           />
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
             <Upload className="mr-2 h-4 w-4" /> Upload CSV
           </Button>
-          <Button onClick={handleNewAudit}>
+          <Button size="sm" onClick={handleNewAudit}>
             <Plus className="mr-2 h-4 w-4" /> New Audit
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="clinical">Clinical Audits</TabsTrigger>
@@ -1565,7 +1569,7 @@ function ManagerAuditPage() {
           </Dialog>
         </TabsContent>
       </Tabs>
-    </div>
+    </ManagerAuditShell>
   );
 }
 

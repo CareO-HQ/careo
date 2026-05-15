@@ -23,6 +23,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -39,8 +48,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, Plus, History, Check, AlertCircle, X, CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { ArrowLeft, Plus, History, Check, AlertCircle, X, CalendarIcon, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { format, parse, isValid } from "date-fns";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -56,12 +65,26 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 import { supabase } from "@/lib/supabase";
 import { auditService } from "@/lib/audit-service";
 import { withRoleGuard } from "@/lib/route-guards";
+import {
+  compareAuditSectionNumbers,
+  findInsertIndexForNewSection,
+  getParentSectionNumber,
+  getSectionBlockEndExclusive,
+  reorderAuditSectionHierarchy,
+} from "@/lib/audit-section-number";
+import type { CareFileActionPlanSnapshot } from "@/lib/manager-care-file-audit-history";
+import {
+  countCareFileAuditSnapshotQuestionRows,
+  flattenAuditSectionsToSnapshotRows,
+} from "@/lib/care-file-audit-snapshot-rows";
 
 interface Question {
   id: string;
   text: string;
   type: "compliance" | "yesno" | "text";
   isSection?: boolean;
+  /** Display order key for custom sections (e.g. "4", "3.2"). */
+  sectionNumber?: string;
   sourceFolderKey?: string;
   sourceLabel?: string;
 }
@@ -154,6 +177,22 @@ const STATUS_CYCLE: AttioStatus[] = [
   "non-compliant",
   "not-applicable",
 ];
+
+/** Next review date from completion day + list frequency (matches manager-audit list logic). */
+function calculateCareFileNextAuditFromCompletedDate(
+  lastAuditedYmd: string,
+  frequency: string
+): string {
+  const base = parse(lastAuditedYmd, "yyyy-MM-dd", new Date());
+  if (!isValid(base)) return lastAuditedYmd;
+  const d = new Date(base.getTime());
+  const f = (frequency || "monthly").toLowerCase();
+  if (f === "quarterly") d.setMonth(d.getMonth() + 3);
+  else if (f === "6month") d.setMonth(d.getMonth() + 6);
+  else if (f === "yearly") d.setFullYear(d.getFullYear() + 1);
+  else d.setMonth(d.getMonth() + 1);
+  return format(d, "yyyy-MM-dd");
+}
 
 const defaultQuestion = (
   id: string,
@@ -860,6 +899,20 @@ const DEFAULT_AUDIT_SECTIONS: AuditSection[] = [
   },
 ];
 
+const DEFAULT_CARE_FILE_AUDIT_SECTION_NUMBERS: ReadonlySet<string> = new Set(
+  DEFAULT_AUDIT_SECTIONS.map((s) => s.number)
+);
+
+function parentSectionExistsForCareFileAudit(
+  parentNum: string,
+  rowQuestions: Question[]
+): boolean {
+  if (DEFAULT_CARE_FILE_AUDIT_SECTION_NUMBERS.has(parentNum)) return true;
+  return rowQuestions.some(
+    (q) => q.isSection && (q.sectionNumber ?? "").trim() === parentNum
+  );
+}
+
 interface ResidentCareFileAuditPageProps {
   params: Promise<{ residentId: string }>;
 }
@@ -894,6 +947,9 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
   const [newQuestionType, setNewQuestionType] = useState<"compliance" | "yesno" | "text">("compliance");
   const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
   const [isActionPlanDialogOpen, setIsActionPlanDialogOpen] = useState(false);
+  const [incompleteCompleteDialogOpen, setIncompleteCompleteDialogOpen] =
+    useState(false);
+  const [completeAuditSubmitting, setCompleteAuditSubmitting] = useState(false);
   const [actionPlanText, setActionPlanText] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [assignedToEmail, setAssignedToEmail] = useState("");
@@ -905,6 +961,10 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
     string | undefined
   >(undefined);
   const actionPlanSourceItemIdRef = useRef<string | undefined>(undefined);
+  const auditSectionsRef = useRef<AuditSection[]>([]);
+  const [isSectionDialogOpen, setIsSectionDialogOpen] = useState(false);
+  const [newSectionNumber, setNewSectionNumber] = useState("");
+  const [newSectionTitle, setNewSectionTitle] = useState("");
 
   // Load data
   const loadData = useCallback(async () => {
@@ -1056,10 +1116,34 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
   };
 
   const handleRemoveRowQuestion = async (questionId: string) => {
-    const updatedRowQuestions = rowQuestions.filter(q => q.id !== questionId);
+    const idx = rowQuestions.findIndex((q) => q.id === questionId);
+    if (idx === -1) return;
+    const removeIds: string[] = [];
+    const target = rowQuestions[idx];
+    if (target.isSection) {
+      const end = getSectionBlockEndExclusive(rowQuestions, idx);
+      for (let i = idx; i < end; i++) {
+        removeIds.push(rowQuestions[i].id);
+      }
+    } else {
+      removeIds.push(questionId);
+    }
+    const removed = new Set(removeIds);
+    const updatedRowQuestions = rowQuestions.filter((q) => !removed.has(q.id));
+    const updatedAnswers = answers.filter((a) => !removed.has(a.residentId));
+    const updatedFixed: typeof fixedColumnData = { ...fixedColumnData };
+    for (const id of removeIds) {
+      delete updatedFixed[id];
+    }
     setRowQuestions(updatedRowQuestions);
-    await upsertState('template-0', { row_questions: updatedRowQuestions });
-    toast.success("Row removed");
+    setAnswers(updatedAnswers);
+    setFixedColumnData(updatedFixed);
+    await upsertState("template-0", { row_questions: updatedRowQuestions });
+    await upsertState(`resident-0-${residentId}`, {
+      answers: updatedAnswers,
+      fixed_column_data: updatedFixed,
+    });
+    toast.success(target.isSection ? "Section removed" : "Row removed");
   };
 
   // Column Question Management
@@ -1090,20 +1174,111 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
   };
 
   // Section Management
-  const handleAddSection = async () => {
-    const sectionText = prompt("Enter section title:");
-    if (!sectionText?.trim()) return;
+  const openAddSectionDialog = () => {
+    setNewSectionNumber("");
+    setNewSectionTitle("");
+    setIsSectionDialogOpen(true);
+  };
 
+  const handleConfirmAddSection = async () => {
+    const num = newSectionNumber.trim();
+    const title = newSectionTitle.trim();
+    if (!num) {
+      toast.error("Please enter a section number");
+      return;
+    }
+    if (!/^\d+(\.\d+)*$/.test(num)) {
+      toast.error("Use digits and dots only (e.g. 4 or 3.2)");
+      return;
+    }
+    if (!title) {
+      toast.error("Please enter a section title");
+      return;
+    }
+    const parentNum = getParentSectionNumber(num);
+    if (parentNum && !parentSectionExistsForCareFileAudit(parentNum, rowQuestions)) {
+      toast.error(
+        `The parent folder (section ${parentNum}) does not exist. Add section ${parentNum} first.`
+      );
+      return;
+    }
     const newSection: Question = {
       id: `section-${Date.now()}`,
-      text: sectionText,
+      text: title,
       type: "text",
-      isSection: true
+      isSection: true,
+      sectionNumber: num,
     };
-    const updatedRowQuestions = [...rowQuestions, newSection];
+    const insertAt = findInsertIndexForNewSection(rowQuestions, num, {
+      fallbackTopLevelWhenParentRowMissing: Boolean(
+        parentNum && DEFAULT_CARE_FILE_AUDIT_SECTION_NUMBERS.has(parentNum)
+      ),
+    });
+    if (insertAt < 0) {
+      toast.error(
+        parentNum
+          ? `The parent folder (section ${parentNum}) does not exist. Add section ${parentNum} first.`
+          : "Could not determine where to place this section."
+      );
+      return;
+    }
+    const updatedRowQuestions = [
+      ...rowQuestions.slice(0, insertAt),
+      newSection,
+      ...rowQuestions.slice(insertAt),
+    ];
     setRowQuestions(updatedRowQuestions);
-    await upsertState('template-0', { row_questions: updatedRowQuestions });
+    await upsertState("template-0", { row_questions: updatedRowQuestions });
+    setIsSectionDialogOpen(false);
     toast.success("Section added");
+  };
+
+  const handleUpdateSectionNumber = async (sectionId: string, nextRaw: string) => {
+    const nextNum = nextRaw.trim();
+    if (!nextNum || !/^\d+(\.\d+)*$/.test(nextNum)) {
+      toast.error("Invalid section number");
+      return;
+    }
+    const idx = rowQuestions.findIndex((q) => q.id === sectionId);
+    if (idx === -1 || !rowQuestions[idx].isSection) return;
+    const cur = rowQuestions[idx].sectionNumber?.trim();
+    if (cur === nextNum) return;
+    const end = getSectionBlockEndExclusive(rowQuestions, idx);
+    const block = rowQuestions.slice(idx, end);
+    const without = [...rowQuestions.slice(0, idx), ...rowQuestions.slice(end)];
+    const updatedHeader: Question = { ...block[0], sectionNumber: nextNum };
+    const blockNext = [updatedHeader, ...block.slice(1)];
+    const nextParent = getParentSectionNumber(nextNum);
+    if (
+      nextParent &&
+      !parentSectionExistsForCareFileAudit(nextParent, without)
+    ) {
+      toast.error(
+        `The parent folder (section ${nextParent}) does not exist. Add section ${nextParent} first.`
+      );
+      return;
+    }
+    const insertAt = findInsertIndexForNewSection(without, nextNum, {
+      fallbackTopLevelWhenParentRowMissing: Boolean(
+        nextParent && DEFAULT_CARE_FILE_AUDIT_SECTION_NUMBERS.has(nextParent)
+      ),
+    });
+    if (insertAt < 0) {
+      toast.error(
+        nextParent
+          ? `The parent folder (section ${nextParent}) does not exist. Add section ${nextParent} first.`
+          : "Could not determine where to place this section."
+      );
+      return;
+    }
+    const merged = [
+      ...without.slice(0, insertAt),
+      ...blockNext,
+      ...without.slice(insertAt),
+    ];
+    setRowQuestions(merged);
+    await upsertState("template-0", { row_questions: merged });
+    toast.success("Section order updated");
   };
 
   const handleUpdateSectionText = async (sectionId: string, text: string) => {
@@ -1217,17 +1392,81 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
     return { pct: total ? Math.round((done / total) * 100) : 0, done, total };
   }, [rowQuestions, columnQuestions, answers, fixedColumnData]);
 
-  // Completion
-  const handleCompleteAudit = async () => {
-    if (rowQuestions.length === 0) {
+  type ResidentAuditScheduleRow = {
+    frequency: string;
+    lastAudited: string;
+    nextAudit: string;
+    auditor: string;
+  };
+
+  const persistCareFileListScheduleAfterCompletion = async (params: {
+    careHomeId: string;
+    organizationId: string;
+    lastAuditedYmd: string;
+    nextReviewYmd: string;
+    auditorName: string;
+  }) => {
+    const { data: stateRow, error } = await supabase
+      .from("manager_audit_state")
+      .select("resident_audit_data")
+      .eq("care_home_id", params.careHomeId)
+      .eq("audit_type_id", "0")
+      .maybeSingle();
+    if (error && error.code !== "PGRST116") {
+      console.warn("Could not load manager_audit_state for schedule:", error);
+    }
+    const prevMap =
+      (stateRow?.resident_audit_data as Record<string, ResidentAuditScheduleRow>) ||
+      {};
+    const prev = prevMap[residentId] || {
+      frequency: "monthly",
+      lastAudited: "-",
+      nextAudit: "-",
+      auditor: "-",
+    };
+    const nextMap: Record<string, ResidentAuditScheduleRow> = {
+      ...prevMap,
+      [residentId]: {
+        ...prev,
+        lastAudited: params.lastAuditedYmd,
+        nextAudit: params.nextReviewYmd,
+        auditor: params.auditorName || prev.auditor,
+      },
+    };
+    const { error: upErr } = await supabase.from("manager_audit_state").upsert(
+      {
+        care_home_id: params.careHomeId,
+        organization_id: params.organizationId,
+        audit_type_id: "0",
+        resident_audit_data: nextMap,
+      },
+      { onConflict: "care_home_id,audit_type_id" }
+    );
+    if (upErr) throw upErr;
+  };
+
+  const handleCompleteAuditClick = () => {
+    if (countCareFileAuditSnapshotQuestionRows(auditSectionsRef.current) === 0) {
+      toast.error("Please add at least one row to the audit");
+      return;
+    }
+    if (notReviewedChecklistItems.length > 0) {
+      setIncompleteCompleteDialogOpen(true);
+      return;
+    }
+    void performCompleteAudit();
+  };
+
+  const performCompleteAudit = async () => {
+    if (countCareFileAuditSnapshotQuestionRows(auditSectionsRef.current) === 0) {
       toast.error("Please add at least one row to the audit");
       return;
     }
 
     const { data: userProfile } = await supabase
-      .from('users')
-      .select('active_care_home_id')
-      .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+      .from("users")
+      .select("active_care_home_id")
+      .eq("id", (await supabase.auth.getUser()).data.user?.id || "")
       .single();
 
     const chId = userProfile?.active_care_home_id;
@@ -1235,40 +1474,125 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
       toast.error("Missing context");
       return;
     }
+    if (!activeOrganizationId) {
+      toast.error("Missing organization context");
+      return;
+    }
 
-    const auditCompletionData = {
-      residentId: residentId,
-      residentName: resident ? `${resident.firstName} ${resident.lastName}` : "Unknown",
-      completedDate: new Date().toISOString(),
-      auditor: profile?.name || profile?.email || "Unknown",
-      rowQuestions: rowQuestions,
-      columnQuestions: columnQuestions,
-      answers: answers,
-      fixedColumnData: fixedColumnData,
-      status: 'completed'
-    };
+    setCompleteAuditSubmitting(true);
+    setIncompleteCompleteDialogOpen(false);
+    try {
+      const completedAt = new Date();
+      const lastAuditedYmd = format(completedAt, "yyyy-MM-dd");
+      const auditorName = profile?.name || profile?.email || "Unknown";
 
-    // Save completed audit to Supabase history
-    await supabase.from('manager_audit_history').insert({
-      care_home_id: chId,
-      organization_id: resident.organizationId,
-      audit_type_id: `resident-0-${residentId}`,
-      audit_type_name: `Care File Audit: ${auditCompletionData.residentName}`,
-      completed_date: auditCompletionData.completedDate,
-      auditor: auditCompletionData.auditor,
-      entries_count: rowQuestions.filter(q => !q.isSection).length,
-      notes: "Audit completed",
-      data: auditCompletionData
-    });
+      const { data: scheduleRow, error: schedErr } = await supabase
+        .from("manager_audit_state")
+        .select("resident_audit_data")
+        .eq("care_home_id", chId)
+        .eq("audit_type_id", "0")
+        .maybeSingle();
+      if (schedErr && schedErr.code !== "PGRST116") {
+        console.warn("Could not read schedule for next review:", schedErr);
+      }
+      type ScheduleRow = { frequency?: string };
+      const prevMap =
+        (scheduleRow?.resident_audit_data as Record<string, ScheduleRow>) || {};
+      const prev = prevMap[residentId] || {};
+      const frequency = prev.frequency || "monthly";
+      const nextYmd = calculateCareFileNextAuditFromCompletedDate(
+        lastAuditedYmd,
+        frequency
+      );
 
-    // Clear current audit data for THIS resident only in Supabase
-    await upsertState(`resident-0-${residentId}`, {
-      answers: [],
-      fixed_column_data: {}
-    });
+      const actionPlansSnapshot: CareFileActionPlanSnapshot[] = [];
+      try {
+        const dbPlans = await auditService.getManagerActionPlans("0", chId);
+        for (const raw of dbPlans || []) {
+          const rec = raw as Record<string, unknown>;
+          const rid =
+            typeof rec.resident_id === "string" ? rec.resident_id : "";
+          if (rid !== residentId) continue;
+          actionPlansSnapshot.push({
+            id: String(rec.id ?? ""),
+            description: String(rec.description ?? ""),
+            status:
+              typeof rec.status === "string" ? rec.status : null,
+            latest_comment:
+              typeof rec.latest_comment === "string"
+                ? rec.latest_comment
+                : null,
+            assigned_to_name:
+              typeof rec.assigned_to_name === "string"
+                ? rec.assigned_to_name
+                : null,
+            assigned_to_email:
+              typeof rec.assigned_to_email === "string"
+                ? rec.assigned_to_email
+                : null,
+            priority:
+              typeof rec.priority === "string" ? rec.priority : null,
+            due_date:
+              rec.due_date != null ? String(rec.due_date) : null,
+          });
+        }
+      } catch (e) {
+        console.warn("Could not snapshot action plans for history:", e);
+      }
 
-    toast.success("Audit completed!");
-    router.push('/dashboard/manager-audit/0');
+      const sectionsForHistory = auditSectionsRef.current;
+      const rowQuestionsSnapshot =
+        flattenAuditSectionsToSnapshotRows(sectionsForHistory);
+
+      const auditCompletionData = {
+        residentId: residentId,
+        residentName: resident
+          ? `${resident.firstName} ${resident.lastName}`
+          : "Unknown",
+        completedDate: completedAt.toISOString(),
+        nextReviewDate: nextYmd,
+        auditor: auditorName,
+        rowQuestions: rowQuestionsSnapshot,
+        columnQuestions: columnQuestions,
+        answers: answers,
+        fixedColumnData: fixedColumnData,
+        status: "completed" as const,
+        actionPlansSnapshot,
+      };
+
+      await supabase.from("manager_audit_history").insert({
+        care_home_id: chId,
+        organization_id: resident.organizationId,
+        audit_type_id: `resident-0-${residentId}`,
+        audit_type_name: `Care File Audit: ${auditCompletionData.residentName}`,
+        completed_date: auditCompletionData.completedDate,
+        auditor: auditCompletionData.auditor,
+        entries_count: countCareFileAuditSnapshotQuestionRows(sectionsForHistory),
+        notes: "Audit completed",
+        data: auditCompletionData,
+      });
+
+      await upsertState(`resident-0-${residentId}`, {
+        answers: [],
+        fixed_column_data: {},
+      });
+
+      await persistCareFileListScheduleAfterCompletion({
+        careHomeId: chId,
+        organizationId: activeOrganizationId,
+        lastAuditedYmd,
+        nextReviewYmd: nextYmd,
+        auditorName,
+      });
+
+      toast.success("Audit completed!");
+      router.push("/dashboard/manager-audit/0");
+    } catch (err) {
+      console.error("Error completing audit:", err);
+      toast.error("Failed to complete audit");
+    } finally {
+      setCompleteAuditSubmitting(false);
+    }
   };
 
   const openActionPlanDialog = (row?: Question) => {
@@ -1389,11 +1713,23 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
 
     rowQuestions.forEach((row) => {
       if (row.isSection) {
+        const num = row.sectionNumber?.trim() || "999";
+        const pNum = getParentSectionNumber(num);
+        let parentId: string | undefined;
+        let depth: 0 | 1 = 0;
+        if (pNum) {
+          const parentSec = sections.find((s) => s.number === pNum);
+          if (parentSec) {
+            parentId = parentSec.id;
+            depth = 1;
+          }
+        }
         current = {
           id: row.id,
-          number: String(sections.length + 1),
-          name: row.text || `Section ${sections.length + 1}`,
-          depth: 0,
+          number: num,
+          name: row.text || "Untitled section",
+          depth,
+          parentId,
           rows: [],
         };
         sections.push(current);
@@ -1407,11 +1743,19 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
       current?.rows.push(row);
     });
 
-    return sections;
+    return reorderAuditSectionHierarchy(sections);
   }, [rowQuestions]);
+
+  auditSectionsRef.current = auditSections;
 
   const [activeSectionId, setActiveSectionId] = useState("default");
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [collapsedSectionIds, setCollapsedSectionIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [mainView, setMainView] = useState<"checklist" | "actionPlans">(
+    "checklist"
+  );
 
   useEffect(() => {
     const firstSection = auditSections[0];
@@ -1449,6 +1793,25 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
   const activeRows = getSectionRows(activeSection);
   const selectedRow =
     activeRows.find((row) => row.id === selectedRowId) ?? activeRows[0];
+
+  const toggleSectionCollapsed = (sectionId: string) => {
+    setCollapsedSectionIds((current) => {
+      const next = new Set(current);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
+  };
+
+  const selectSection = (section: AuditSection) => {
+    setActiveSectionId(section.id);
+    const rows = getSectionRows(section);
+    setSelectedRowId(rows[0]?.id ?? null);
+    setMainView("checklist");
+  };
 
   const getRowSource = (row: Question | undefined) => {
     if (!row) return null;
@@ -1545,7 +1908,7 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
 
       if (status === "compliant") {
         await handleFixedColumnPatch(row.id, {
-          comment: getFixedColumnValue(row.id, "comment") || "Reviewed",
+          comment: getFixedColumnValue(row.id, "comment").trim(),
           actionRequired: "",
           rowStatus: "compliant",
         });
@@ -1562,7 +1925,7 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
       }
 
       await handleFixedColumnPatch(row.id, {
-        comment: getFixedColumnValue(row.id, "comment") || "N/A",
+        comment: getFixedColumnValue(row.id, "comment").trim(),
         actionRequired: "",
         rowStatus: "not-applicable",
       });
@@ -1590,6 +1953,19 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
       STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
     await setRowStatus(row, next);
   };
+
+  const notReviewedChecklistItems = useMemo(() => {
+    const items: { id: string; label: string }[] = [];
+    for (const section of auditSections) {
+      const secTitle = `${section.number} · ${section.name}`;
+      for (const row of section.rows) {
+        if (getRowStatus(row.id) === "not-reviewed") {
+          items.push({ id: row.id, label: `${secTitle} — ${row.text}` });
+        }
+      }
+    }
+    return items;
+  }, [auditSections, answers, fixedColumnData, columnQuestions]);
 
   const statusLabel = (status: AttioStatus) => {
     if (status === "compliant") return "Compliant";
@@ -1683,6 +2059,151 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
     return { reviewed, total: rows.length, hasFlag };
   };
 
+  const renderSectionNavButton = (
+    section: AuditSection,
+    options?: {
+      isChild?: boolean;
+      hasChildren?: boolean;
+      isCollapsed?: boolean;
+    }
+  ) => {
+    const stats = sectionStats(section);
+    const isActive = section.id === activeSectionId;
+    const ratioClass =
+      stats.total > 0 && stats.reviewed === stats.total
+        ? "text-emerald-600 dark:text-emerald-400"
+        : stats.hasFlag
+          ? "text-amber-700 dark:text-amber-400"
+          : "text-muted-foreground";
+    const ToggleIcon = options?.isCollapsed ? ChevronRight : ChevronDown;
+
+    return (
+      <div className="flex w-full items-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => selectSection(section)}
+          className={`flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2.5 text-left transition-colors ${
+            options?.isChild ? "py-[5px] text-xs" : "py-1.5 text-[13px]"
+          } ${
+            isActive
+              ? "bg-muted font-medium text-foreground"
+              : "text-muted-foreground hover:bg-muted/80"
+          }`}
+        >
+          {options?.hasChildren ? (
+            <span
+              role="button"
+              tabIndex={0}
+              className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted-foreground/10"
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleSectionCollapsed(section.id);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  toggleSectionCollapsed(section.id);
+                }
+              }}
+              aria-label={
+                options?.isCollapsed
+                  ? `Expand ${section.name}`
+                  : `Collapse ${section.name}`
+              }
+            >
+              <ToggleIcon className="size-3.5" />
+            </span>
+          ) : null}
+          <span className="min-w-0 flex-1 truncate">
+            {section.number} · {section.name}
+          </span>
+          {options?.isChild && stats.hasFlag ? (
+            <span
+              className="shrink-0 text-amber-700 dark:text-amber-400"
+              aria-hidden
+            >
+              ●
+            </span>
+          ) : null}
+          <span className={`shrink-0 text-[11px] tabular-nums ${ratioClass}`}>
+            {stats.total ? `${stats.reviewed}/${stats.total}` : "—"}
+          </span>
+        </button>
+        {section.id.startsWith("section-") ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+            aria-label={`Delete section ${section.name}`}
+            onClick={() => void handleRemoveRowQuestion(section.id)}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        ) : null}
+      </div>
+    );
+  };
+
+  type SectionNavNode = { section: AuditSection; children: SectionNavNode[] };
+
+  const sidebarSectionNavTree = useMemo((): SectionNavNode[] => {
+    const childMap = new Map<string, AuditSection[]>();
+    for (const s of auditSections) {
+      if (!s.parentId) continue;
+      if (!childMap.has(s.parentId)) childMap.set(s.parentId, []);
+      childMap.get(s.parentId)!.push(s);
+    }
+    for (const [, arr] of childMap) {
+      arr.sort(
+        (a, b) =>
+          compareAuditSectionNumbers(a.number, b.number) ||
+          a.id.localeCompare(b.id)
+      );
+    }
+    const roots = auditSections.filter((s) => !s.parentId);
+    roots.sort(
+      (a, b) =>
+        compareAuditSectionNumbers(a.number, b.number) ||
+        a.id.localeCompare(b.id)
+    );
+    const build = (s: AuditSection): SectionNavNode => ({
+      section: s,
+      children: (childMap.get(s.id) ?? []).map(build),
+    });
+    return roots.map(build);
+  }, [auditSections]);
+
+  const renderSectionNavSubtree = (
+    node: SectionNavNode,
+    depth: number
+  ): React.ReactNode => {
+    const { section, children } = node;
+    const hasChildren = children.length > 0;
+    const isCollapsed = collapsedSectionIds.has(section.id);
+    return (
+      <div key={section.id} className={depth > 0 ? "mt-0.5" : undefined}>
+        {renderSectionNavButton(section, {
+          hasChildren,
+          isCollapsed,
+          isChild: depth > 0,
+        })}
+        {hasChildren && !isCollapsed ? (
+          <div
+            className={
+              depth === 0
+                ? "mb-0.5 ml-3.5 space-y-0.5 border-l border-border/80 pl-2.5"
+                : "ml-2 space-y-0.5 border-l border-border/60 pl-2"
+            }
+          >
+            {children.map((ch) => renderSectionNavSubtree(ch, depth + 1))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   const attioProgress = useMemo(() => {
     const rows = auditSections.flatMap((section) => section.rows);
     let reviewed = 0;
@@ -1753,7 +2274,7 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
             <Button variant="outline" size="sm" onClick={handleViewHistory}>
               <History className="mr-2 h-4 w-4" /> View history
             </Button>
-            <Button size="sm" onClick={handleCompleteAudit}>
+            <Button size="sm" onClick={handleCompleteAuditClick}>
               Complete audit
             </Button>
           </div>
@@ -1815,53 +2336,43 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
               <p className="px-2 pb-2 text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
                 Sections
               </p>
+              <div className="mb-3 space-y-2 border-b border-border px-2 pb-3">
+                <div className="inline-flex w-full rounded-lg bg-muted p-[3px] text-[10px] leading-tight text-muted-foreground sm:text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setMainView("checklist")}
+                    className={`min-w-0 flex-1 rounded-md px-1 py-1 transition-colors ${
+                      mainView === "checklist"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "hover:text-foreground"
+                    }`}
+                  >
+                    Checklist
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMainView("actionPlans")}
+                    className={`min-w-0 flex-1 rounded-md px-1 py-1 transition-colors ${
+                      mainView === "actionPlans"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "hover:text-foreground"
+                    }`}
+                  >
+                    Action plans ({actionPlans.length})
+                  </button>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-full text-xs"
+                  onClick={openAddSectionDialog}
+                >
+                  <Plus className="mr-1 size-3.5" />
+                  Add section
+                </Button>
+              </div>
               <nav className="space-y-2">
-                {auditSections.map((section) => {
-                  const stats = sectionStats(section);
-                  const isActive = section.id === activeSectionId;
-                  const ratioClass =
-                    stats.total > 0 && stats.reviewed === stats.total
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : stats.hasFlag
-                        ? "text-amber-700 dark:text-amber-400"
-                        : "text-muted-foreground";
-
-                  return (
-                    <button
-                      key={section.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveSectionId(section.id);
-                        const rows = getSectionRows(section);
-                        setSelectedRowId(rows[0]?.id ?? null);
-                      }}
-                      className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 text-left transition-colors ${
-                        section.depth === 1
-                          ? "ml-3.5 border-l border-border/80 py-[5px] pl-3 text-xs"
-                          : "py-1.5 text-[13px]"
-                      } ${
-                        isActive
-                          ? "bg-muted font-medium text-foreground"
-                          : "text-muted-foreground hover:bg-muted/80"
-                      }`}
-                    >
-                      <span className="min-w-0 truncate">
-                        {section.number} · {section.name}
-                      </span>
-                      {section.depth === 1 && stats.hasFlag ? (
-                        <span
-                          className="shrink-0 text-amber-700 dark:text-amber-400"
-                          aria-hidden
-                        >
-                          ●
-                        </span>
-                      ) : null}
-                      <span className={`shrink-0 text-[11px] tabular-nums ${ratioClass}`}>
-                        {stats.total ? `${stats.reviewed}/${stats.total}` : "—"}
-                      </span>
-                    </button>
-                  );
-                })}
+                {sidebarSectionNavTree.map((node) => renderSectionNavSubtree(node, 0))}
               </nav>
             </div>
           </aside>
@@ -1894,12 +2405,14 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
               </div>
             </div>
 
-            <p className="mb-[14px] mt-1 max-w-xl text-[13px] text-muted-foreground">
-              Click any row to open it on the right. Click the status pill to
-              cycle through Compliant → Action required → Non-compliant → N/A.
-            </p>
+            {mainView === "checklist" ? (
+              <>
+                <p className="mb-[14px] mt-1 max-w-xl text-[13px] text-muted-foreground">
+                  Click any row to open it on the right. Click the status pill to
+                  cycle through Compliant → Action required → Non-compliant → N/A.
+                </p>
 
-            <div className="overflow-hidden rounded-xl border border-border bg-card">
+                <div className="overflow-hidden rounded-xl border border-border bg-card">
               <div className="grid grid-cols-[28px_minmax(0,1fr)_130px_130px] items-center gap-2 border-b border-border bg-muted px-[14px] py-2.5 text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
                 <span />
                 <span>Item</span>
@@ -1975,18 +2488,89 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
                   })}
                 </div>
               )}
-            </div>
+                </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={openAddRowDialog}>
-                <Plus className="mr-1 size-3.5" />
-                Add custom item
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleAddSection}>
-                <Plus className="mr-1 size-3.5" />
-                Add section
-              </Button>
-            </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={openAddRowDialog}>
+                    <Plus className="mr-1 size-3.5" />
+                    Add custom item
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="mb-[14px] mt-1 max-w-xl text-[13px] text-muted-foreground">
+                  Review every action plan currently assigned to this resident.
+                </p>
+
+                <div className="overflow-hidden rounded-xl border border-border bg-card">
+                  {actionPlans.length === 0 ? (
+                    <div className="p-6 text-sm text-muted-foreground">
+                      No action plans have been added for this resident.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead className="text-xs">Action</TableHead>
+                            <TableHead className="text-xs">Assignee</TableHead>
+                            <TableHead className="text-xs">Due</TableHead>
+                            <TableHead className="text-xs">Status</TableHead>
+                            <TableHead className="text-right text-xs">
+                              Remove
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {actionPlans.map((plan) => (
+                            <TableRow key={plan.id}>
+                              <TableCell className="max-w-[260px] align-top text-sm">
+                                <div className="font-medium text-foreground">
+                                  {plan.description}
+                                </div>
+                                {plan.latestComment ? (
+                                  <div className="mt-1 rounded-md bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
+                                    Comment: {plan.latestComment}
+                                  </div>
+                                ) : null}
+                              </TableCell>
+                              <TableCell className="align-top text-sm text-muted-foreground">
+                                {plan.assignedToName || "—"}
+                              </TableCell>
+                              <TableCell className="align-top text-sm text-muted-foreground">
+                                {plan.dueDate
+                                  ? format(plan.dueDate, "dd MMM yyyy")
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="align-top">
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${actionPlanStatusClass(plan.status)}`}
+                                >
+                                  {actionPlanStatusLabel(plan.status)}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right align-top">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8 text-destructive"
+                                  onClick={() => handleRemoveActionPlan(plan.id)}
+                                  aria-label="Remove action plan"
+                                >
+                                  <X className="size-3.5" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </main>
 
           <aside className="relative z-10 border-t border-border bg-background lg:border-l lg:border-t-0">
@@ -2032,6 +2616,24 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
                         );
                       })}
                     </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="mb-1.5 text-[11px] text-muted-foreground">
+                      Auditor comment
+                    </div>
+                    <Textarea
+                      value={getFixedColumnValue(selectedRow.id, "comment")}
+                      onChange={(event) =>
+                        handleFixedColumnChange(
+                          selectedRow.id,
+                          "comment",
+                          event.target.value
+                        )
+                      }
+                      placeholder="Add comment…"
+                      className="min-h-[64px] resize-y text-xs"
+                    />
                   </div>
 
                   <div className="mt-4">
@@ -2207,7 +2809,7 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
                       <div className="flex flex-col items-center justify-center space-y-2">
                         <p className="text-sm">No questions yet.</p>
                         <p className="text-xs">
-                          Use &ldquo;Add row&rdquo; and &ldquo;Add section&rdquo; below, and + to add columns.
+                          Use &ldquo;Add row&rdquo; below, and + to add columns.
                         </p>
                       </div>
                     </TableCell>
@@ -2227,12 +2829,25 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
                         >
                           <div className="flex items-center gap-2">
                             <Input
+                              aria-label="Section number"
+                              className="h-9 w-[4.5rem] shrink-0 text-center text-sm font-semibold"
+                              defaultValue={rowQ.sectionNumber ?? ""}
+                              key={`${rowQ.id}-${rowQ.sectionNumber ?? ""}`}
+                              onBlur={(e) =>
+                                void handleUpdateSectionNumber(
+                                  rowQ.id,
+                                  e.target.value
+                                )
+                              }
+                              placeholder="No."
+                            />
+                            <Input
                               value={rowQ.text}
                               onChange={(e) =>
                                 handleUpdateSectionText(rowQ.id, e.target.value)
                               }
                               placeholder="Section title…"
-                              className="h-10 border-none bg-transparent text-base font-semibold shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                              className="h-10 min-w-0 flex-1 border-none bg-transparent text-base font-semibold shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                             />
                             <Button
                               variant="ghost"
@@ -2398,15 +3013,6 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
                         <Plus className="mr-2 h-4 w-4" />
                         Add row
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleAddSection}
-                        className="h-8 flex-1 sm:flex-none"
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add section
-                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -2415,6 +3021,79 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={incompleteCompleteDialogOpen}
+        onOpenChange={setIncompleteCompleteDialogOpen}
+      >
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Some checklist items are not reviewed</AlertDialogTitle>
+            <AlertDialogDescription>
+              The following items still have status &quot;Not reviewed&quot;. You can go
+              back and complete them, or continue anyway.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="max-h-[min(50vh,240px)] list-disc space-y-1 overflow-y-auto pl-5 text-sm text-foreground">
+            {notReviewedChecklistItems.map((item) => (
+              <li key={item.id}>{item.label}</li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={completeAuditSubmitting}>
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              disabled={completeAuditSubmitting}
+              onClick={() => void performCompleteAudit()}
+            >
+              {completeAuditSubmitting ? "Saving…" : "Yes, complete audit"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={isSectionDialogOpen} onOpenChange={setIsSectionDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Add section</DialogTitle>
+            <DialogDescription>
+              Sections are ordered by number. A dotted number such as 5.1 is nested
+              under section 5 (the built-in template or a section you added). If that
+              parent does not exist, you will be asked to add it first.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="care-audit-new-section-number">Section number</Label>
+              <Input
+                id="care-audit-new-section-number"
+                value={newSectionNumber}
+                onChange={(e) => setNewSectionNumber(e.target.value)}
+                placeholder="e.g. 4 or 3.2"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="care-audit-new-section-title">Section title</Label>
+              <Input
+                id="care-audit-new-section-title"
+                value={newSectionTitle}
+                onChange={(e) => setNewSectionTitle(e.target.value)}
+                placeholder="Section name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSectionDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void handleConfirmAddSection()}>
+              Add section
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={isActionPlanDialogOpen}

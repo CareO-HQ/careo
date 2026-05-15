@@ -49,6 +49,7 @@ import {
   type NormalizedCareFileItemStatus,
   type CareFileTemplateItemShape,
 } from "@/lib/care-file-audit";
+import { careFileAuditTemplateHistoryPath } from "@/lib/care-file-audit-routes";
 
 export type CareFileAuditItem = CareFileTemplateItemShape & {
   type: "compliance" | "checkbox" | "notes";
@@ -95,6 +96,8 @@ export interface CareFileAuditWorkspaceProps {
   ) => void;
   onCycleItemStatus: (itemId: string, itemName: string) => void;
   onRemoveItem: (itemId: string) => void;
+  /** Real audit template id (not completion id); used for Report → history. */
+  templateId: string | null;
   responseId: string | null;
   completionStatus?: string;
   auditedAtLabel?: string;
@@ -235,6 +238,7 @@ export function CareFileAuditWorkspace(props: CareFileAuditWorkspaceProps) {
     onItemResponseChange,
     onCycleItemStatus,
     onRemoveItem,
+    templateId,
     responseId,
     completionStatus,
     auditedAtLabel,
@@ -320,6 +324,9 @@ export function CareFileAuditWorkspace(props: CareFileAuditWorkspaceProps) {
   }, [items, activeEntry, navEntries]);
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [mainView, setMainView] = useState<"checklist" | "actionPlans">(
+    "checklist"
+  );
 
   useEffect(() => {
     if (sectionItems.length === 0) {
@@ -398,6 +405,7 @@ export function CareFileAuditWorkspace(props: CareFileAuditWorkspaceProps) {
         type="button"
         onClick={() => {
           setActiveNavKey(entry.key);
+          setMainView("checklist");
           const ids = aggregateIdsForEntry(entry);
           const first = ids[0];
           if (first) setSelectedItemId(first);
@@ -436,9 +444,10 @@ export function CareFileAuditWorkspace(props: CareFileAuditWorkspaceProps) {
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
 
-  const reportHref = responseId
-    ? `/dashboard/careo-audit/${residentId}/carefileaudit/${responseId}/view-single`
-    : null;
+  const reportHref =
+    templateId && templateId !== "unknown"
+      ? careFileAuditTemplateHistoryPath(residentId, templateId)
+      : null;
 
   const normalizeActionPlanMatchText = (value: string): string =>
     value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -463,10 +472,6 @@ export function CareFileAuditWorkspace(props: CareFileAuditWorkspaceProps) {
     (selectedNorm === "action-required" || selectedNorm === "non-compliant")
       ? actionPlans.filter((p) => actionPlanBelongsToItem(p, selectedItem))
       : [];
-
-  const auditLevelActionPlans = actionPlans.filter(
-    (p) => !items.some((item) => actionPlanBelongsToItem(p, item))
-  );
 
   const handleMarkAllCompliant = () => {
     for (const it of sectionItems) {
@@ -618,12 +623,40 @@ export function CareFileAuditWorkspace(props: CareFileAuditWorkspaceProps) {
         {/* Workspace grid */}
         <div className="grid min-h-[480px] flex-1 grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_320px] lg:min-h-[720px]">
           {/* Sidebar — Attio-style sections + indented subsections */}
-          <aside className="border-b border-border bg-background text-[13px] lg:border-b-0 lg:border-r">
-            <div className="px-2 py-3">
-              <p className="px-2 pb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+          <aside className="border-b border-border bg-background text-[13px] lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:border-b-0 lg:border-r">
+            <div className="flex min-h-0 flex-1 flex-col px-2 py-3">
+              <p className="shrink-0 px-2 pb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
                 Sections
               </p>
-              <ScrollArea className="h-[min(40vh,280px)] lg:h-[calc(720px-1.5rem)]">
+              <div className="mb-3 shrink-0 space-y-2 border-b border-border px-2 pb-3">
+                <div className="inline-flex w-full rounded-lg bg-muted p-[3px] text-[10px] leading-tight text-muted-foreground sm:text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setMainView("checklist")}
+                    className={cn(
+                      "min-w-0 flex-1 rounded-md px-1 py-1 transition-colors",
+                      mainView === "checklist"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "hover:text-foreground"
+                    )}
+                  >
+                    Checklist
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMainView("actionPlans")}
+                    className={cn(
+                      "min-w-0 flex-1 rounded-md px-1 py-1 transition-colors",
+                      mainView === "actionPlans"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "hover:text-foreground"
+                    )}
+                  >
+                    Action plans ({actionPlans.length})
+                  </button>
+                </div>
+              </div>
+              <ScrollArea className="min-h-0 flex-1 max-lg:h-[min(40vh,280px)]">
                 <nav className="space-y-2 pb-1 pr-3">
                   {sidebarGroups.map((group) =>
                     group.kind === "single" ? (
@@ -673,199 +706,211 @@ export function CareFileAuditWorkspace(props: CareFileAuditWorkspaceProps) {
                 </span>
               </div>
             </div>
-            <p className="mb-[14px] mt-1 max-w-xl text-[13px] text-muted-foreground">
-              Click any row to open details on the right. Click the status pill to
-              cycle Not reviewed → Compliant → Action required → Non-compliant →
-              N/A.
-            </p>
+            {mainView === "checklist" ? (
+              <>
+                <p className="mb-[14px] mt-1 max-w-xl text-[13px] text-muted-foreground">
+                  Click any row to open details on the right. Click the status pill to
+                  cycle Not reviewed → Compliant → Action required → Non-compliant →
+                  N/A.
+                </p>
 
-            <div className="overflow-hidden rounded-xl border border-border bg-card">
-              {sectionItems.length === 0 ? (
-                <div className="p-6 text-sm text-muted-foreground">
-                  {activeEntry &&
-                  aggregateIdsForEntry(activeEntry).length === 0
-                    ? "Pick a subsection in the sidebar, or add checklist items to this template."
-                    : "No items in this section."}
-                </div>
-              ) : (
-                <>
-                  <div
-                    className="grid grid-cols-[28px_minmax(0,1fr)_130px_130px] items-center gap-2 border-b border-border bg-muted px-[14px] py-2.5 text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground"
-                    role="row"
-                  >
-                    <span />
-                    <span>Item</span>
-                    <span>Status</span>
-                    <span className="text-right">Source</span>
-                  </div>
-                  <div className="divide-y divide-border">
-                    {sectionItems.map((item) => {
-                      const resp = itemResponses.get(item.id);
-                      const n = normalizeCareFileItemStatus(resp?.status);
-                      const isSelected = item.id === selectedItemId;
-                      const source =
-                        item.sourceLabel ||
-                        (item.sourceHref ? "Record" : null);
-                      const href = item.sourceHref?.trim();
-                      return (
-                        <div
-                          key={item.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setSelectedItemId(item.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setSelectedItemId(item.id);
-                            }
-                          }}
-                          className={cn(
-                            "grid cursor-pointer grid-cols-[28px_minmax(0,1fr)_130px_130px] items-center gap-2 px-[14px] py-3 transition-colors hover:bg-muted",
-                            rowTintClass(n),
-                            isSelected && "bg-muted"
-                          )}
-                        >
-                          <StatusGlyph status={n} />
-                          <div className="min-w-0">
-                            <div className="text-[13px] font-medium text-foreground">
-                              {item.name}
-                            </div>
-                            {resp?.notes ? (
-                              <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                                {resp.notes}
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="flex justify-start">
-                            <button
-                              type="button"
-                              className={cn(
-                                "keep-interactive cursor-pointer rounded-full px-2 py-0.5 text-[11px] font-normal transition-opacity hover:opacity-90",
-                                pillClass(n)
-                              )}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onCycleItemStatus(item.id, item.name);
-                                setSelectedItemId(item.id);
+                <div className="overflow-hidden rounded-xl border border-border bg-card">
+                  {sectionItems.length === 0 ? (
+                    <div className="p-6 text-sm text-muted-foreground">
+                      {activeEntry &&
+                      aggregateIdsForEntry(activeEntry).length === 0
+                        ? "Pick a subsection in the sidebar, or add checklist items to this template."
+                        : "No items in this section."}
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        className="grid grid-cols-[28px_minmax(0,1fr)_130px_130px] items-center gap-2 border-b border-border bg-muted px-[14px] py-2.5 text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground"
+                        role="row"
+                      >
+                        <span />
+                        <span>Item</span>
+                        <span>Status</span>
+                        <span className="text-right">Source</span>
+                      </div>
+                      <div className="divide-y divide-border">
+                        {sectionItems.map((item) => {
+                          const resp = itemResponses.get(item.id);
+                          const n = normalizeCareFileItemStatus(resp?.status);
+                          const isSelected = item.id === selectedItemId;
+                          const source =
+                            item.sourceLabel ||
+                            (item.sourceHref ? "Record" : null);
+                          const href = item.sourceHref?.trim();
+                          return (
+                            <div
+                              key={item.id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setSelectedItemId(item.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setSelectedItemId(item.id);
+                                }
                               }}
+                              className={cn(
+                                "grid cursor-pointer grid-cols-[28px_minmax(0,1fr)_130px_130px] items-center gap-2 px-[14px] py-3 transition-colors hover:bg-muted",
+                                rowTintClass(n),
+                                isSelected && "bg-muted"
+                              )}
                             >
-                              {statusLabel(n)}
-                            </button>
-                          </div>
-                          <div className="truncate text-right text-xs">
-                            {href ? (
-                              <a
-                                href={href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center justify-end gap-0.5 font-medium text-primary hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <span className="truncate">
-                                  {source || "Open"} ↗
-                                </span>
-                              </a>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={onOpenAddItem}
-              >
-                <Plus className="mr-1 size-3.5" />
-                Add custom item
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={handleMarkAllCompliant}
-                disabled={sectionItems.length === 0}
-              >
-                Mark all as compliant
-              </Button>
-              {reportHref ? (
-                <Button variant="outline" size="sm" className="text-xs" asChild>
-                  <Link href={reportHref as Route}>
-                    Generate actions report
-                    <ExternalLink className="ml-1 size-3.5" />
-                  </Link>
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled
-                  title="Save a draft first"
-                >
-                  Generate actions report
-                  <ExternalLink className="ml-1 size-3.5" />
-                </Button>
-              )}
-            </div>
-
-            {auditLevelActionPlans.length > 0 && (
-              <div className="mt-8 rounded-xl border border-border bg-card">
-                <div className="border-b border-border px-4 py-3">
-                  <h3 className="text-sm font-medium text-foreground">
-                    Audit action plans ({auditLevelActionPlans.length})
-                  </h3>
+                              <StatusGlyph status={n} />
+                              <div className="min-w-0">
+                                <div className="text-[13px] font-medium text-foreground">
+                                  {item.name}
+                                </div>
+                                {resp?.notes ? (
+                                  <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                                    {resp.notes}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <div className="flex justify-start">
+                                <button
+                                  type="button"
+                                  className={cn(
+                                    "keep-interactive cursor-pointer rounded-full px-2 py-0.5 text-[11px] font-normal transition-opacity hover:opacity-90",
+                                    pillClass(n)
+                                  )}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCycleItemStatus(item.id, item.name);
+                                    setSelectedItemId(item.id);
+                                  }}
+                                >
+                                  {statusLabel(n)}
+                                </button>
+                              </div>
+                              <div className="truncate text-right text-xs">
+                                {href ? (
+                                  <a
+                                    href={href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-end gap-0.5 font-medium text-primary hover:underline"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <span className="truncate">
+                                      {source || "Open"} ↗
+                                    </span>
+                                  </a>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="text-xs">Action</TableHead>
-                        <TableHead className="text-xs">Assignee</TableHead>
-                        <TableHead className="text-xs">Due</TableHead>
-                        <TableHead className="text-right text-xs">
-                          Remove
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {auditLevelActionPlans.map((p) => (
-                        <TableRow key={p.id}>
-                          <TableCell className="max-w-[200px] truncate text-sm">
-                            {p.text}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {p.assignedToName}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {p.dueDate
-                              ? format(p.dueDate, "dd/MM/yyyy")
-                              : "—"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 text-destructive"
-                              onClick={() => onRemoveActionPlan(p.id)}
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={onOpenAddItem}
+                  >
+                    <Plus className="mr-1 size-3.5" />
+                    Add custom item
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={handleMarkAllCompliant}
+                    disabled={sectionItems.length === 0}
+                  >
+                    Mark all as compliant
+                  </Button>
+                  {reportHref ? (
+                    <Button variant="outline" size="sm" className="text-xs" asChild>
+                      <Link href={reportHref as Route}>
+                        Report
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      disabled
+                      title="Template not loaded yet"
+                    >
+                      Report
+                    </Button>
+                  )}
                 </div>
-              </div>
+              </>
+            ) : (
+              <>
+                <p className="mb-[14px] mt-1 max-w-xl text-[13px] text-muted-foreground">
+                  Review every action plan currently assigned to this resident.
+                </p>
+
+                <div className="overflow-hidden rounded-xl border border-border bg-card">
+                  {actionPlans.length === 0 ? (
+                    <div className="p-6 text-sm text-muted-foreground">
+                      No action plans have been added for this resident.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead className="text-xs">Action</TableHead>
+                            <TableHead className="text-xs">Assignee</TableHead>
+                            <TableHead className="text-xs">Due</TableHead>
+                            <TableHead className="text-xs">Status</TableHead>
+                            <TableHead className="text-right text-xs">
+                              Remove
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {actionPlans.map((p) => (
+                            <TableRow key={p.id}>
+                              <TableCell className="max-w-[260px] align-top text-sm">
+                                {p.text}
+                              </TableCell>
+                              <TableCell className="align-top text-sm text-muted-foreground">
+                                {p.assignedToName}
+                              </TableCell>
+                              <TableCell className="align-top text-sm text-muted-foreground">
+                                {p.dueDate
+                                  ? format(p.dueDate, "dd/MM/yyyy")
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="align-top text-sm text-muted-foreground">
+                                {p.status || "Pending"}
+                              </TableCell>
+                              <TableCell className="text-right align-top">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8 text-destructive"
+                                  onClick={() => onRemoveActionPlan(p.id)}
+                                  aria-label="Remove action plan"
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </main>
 

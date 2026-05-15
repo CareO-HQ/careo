@@ -167,6 +167,11 @@ function CareFileAuditEditorPageContent() {
 
   useEffect(() => {
     const load = async () => {
+      hasLoadedDraft.current = false;
+      isCreatingDraft.current = false;
+      lastSavedData.current = "";
+      setActionPlans([]);
+
       if (residentId) {
         const { data, error } = await supabase
           .from("residents")
@@ -179,10 +184,13 @@ function CareFileAuditEditorPageContent() {
 
       const tmpl = await auditService.getCareFileTemplateById(auditId);
       if (tmpl) {
+        setResponseId(null);
         setTemplate(tmpl);
         if (tmpl.items?.length) setItems(toAuditItems(tmpl.items as unknown[]));
         setAuditedAtLabel(format(new Date(), "dd MMM yyyy"));
         setCompletionStatus("draft");
+        setItemResponses(new Map());
+        setOverallNotes("");
       } else {
         const resp = await auditService.getCareFileResponseById(auditId);
         if (resp) {
@@ -227,12 +235,14 @@ function CareFileAuditEditorPageContent() {
           if (resp.overall_notes) setOverallNotes(resp.overall_notes);
 
           const plans = await auditService.getCareFileActionPlans(resp.id);
-          if (plans) {
+          if (plans && plans.length > 0) {
             setActionPlans(
               plans.map((p: Record<string, unknown>) =>
                 mapLoadedCareFilePlan(p)
               )
             );
+          } else {
+            setActionPlans([]);
           }
         }
       }
@@ -333,10 +343,12 @@ function CareFileAuditEditorPageContent() {
         if (draft.overall_notes) setOverallNotes(draft.overall_notes);
 
         const plans = await auditService.getCareFileActionPlans(draft.id);
-        if (plans) {
+        if (plans && plans.length > 0) {
           setActionPlans(
             plans.map((p: Record<string, unknown>) => mapLoadedCareFilePlan(p))
           );
+        } else {
+          setActionPlans([]);
         }
         hasLoadedDraft.current = true;
       } else if (
@@ -366,6 +378,7 @@ function CareFileAuditEditorPageContent() {
           setResponseId(newDraft.id);
           setCompletionStatus(newDraft.status ?? "draft");
           setAuditedAtLabel(format(new Date(), "dd MMM yyyy"));
+          setActionPlans([]);
           if (newDraft.items?.length) {
             const map = new Map<string, CareFileItemResponse>();
             newDraft.items.forEach((row: unknown) => {
@@ -654,6 +667,10 @@ function CareFileAuditEditorPageContent() {
         });
       }
 
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("sidebar-counts-refresh"));
+      }
+
       toast.success("Audit completed!");
       router.push(`/dashboard/careo-audit/${residentId}/carefileaudit`);
     } catch (e) {
@@ -749,6 +766,11 @@ function CareFileAuditEditorPageContent() {
         resident={resident}
         templateName={template?.name ?? "Care file audit"}
         templateFrequency={template?.frequency}
+        templateId={
+          template && typeof template.id === "string" && template.id !== "unknown"
+            ? template.id
+            : null
+        }
         items={items}
         itemResponses={itemResponses}
         onItemResponseChange={handleItemResponseChange}
