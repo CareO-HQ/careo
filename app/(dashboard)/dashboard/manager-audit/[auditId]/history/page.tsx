@@ -34,13 +34,13 @@ const auditNames: Record<string, string> = {
   "10": "Dining Experience",
   "11": "DOLS",
   "12": "Domestic Audit",
-  "13": "Falls Analysis",
+  "13": "Fall register analysis",
   "14": "Hand Hygiene Audit",
   "15": "Hoist and Sling Register",
   "16": "IPC Short Audit",
   "17": "Mandatory Training Stats",
   "18": "Medication Audit",
-  "19": "Modified Diet Audit",
+  "19": "Modified Diet and Fluids Audit",
   "20": "NMC NISSC Logs",
   "21": "Restrictive Practice",
   "22": "RTW Tracker",
@@ -53,6 +53,17 @@ const auditNames: Record<string, string> = {
   "29": "GDPR",
   "30": "Personnel Files",
   "31": "Resident Agreement",
+  "32": "NISCC Registration Tracker",
+  "33": "NMC Registration Tracker",
+  "34": "Accident Log for Fall Type Accidents Involving Residents",
+  "35": "Moving & Handling Audit",
+  "36": "Choking Risk Assessment Audit",
+  "37": "DNACPR Audit",
+  "38": "Care Management Reviews",
+  "39": "Pressure Damage Prevention Audit",
+  "40": "Health & Monitoring Audit",
+  "41": "Mattress and Visual Checks Audit",
+  "42": "Infection Control Audit",
 };
 
 interface HistoryRecord {
@@ -73,6 +84,9 @@ function AuditHistoryPage({ params }: AuditHistoryPageProps) {
   const resolvedParams = React.use(params);
   const auditId = resolvedParams.auditId;
   const auditName = auditNames[auditId] || "Unknown Audit";
+  const isTeamBased = ["18", "3"].includes(auditId);
+  const isStaffBased = ["2", "7", "17", "20", "22", "26", "30", "32", "33"].includes(auditId);
+  const isHomeBased = ["1", "4", "6", "9", "10", "12", "13", "14", "16", "23", "24", "29", "42"].includes(auditId);
 
   const { activeCareHomeId, activeOrganizationId } = useActiveTeam();
   const [isLoading, setIsLoading] = useState(true);
@@ -161,7 +175,7 @@ function AuditHistoryPage({ params }: AuditHistoryPageProps) {
             <TableRow>
               <TableHead className="w-[200px]">Completed Date</TableHead>
               <TableHead>Auditor</TableHead>
-              <TableHead className="w-[150px]">Residents Audited</TableHead>
+              <TableHead className="w-[150px]">{isTeamBased ? 'Teams Audited' : isStaffBased ? 'Staff Audited' : isHomeBased ? 'Questions Audited' : 'Residents Audited'}</TableHead>
               <TableHead className="w-[120px]">Status</TableHead>
               <TableHead className="w-[300px]">Notes</TableHead>
               <TableHead className="text-right w-[150px]">Actions</TableHead>

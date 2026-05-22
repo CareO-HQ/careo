@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils";
 export interface ManagerAuditQuestion {
   id: string;
   text: string;
-  type: "compliance" | "yesno" | "text" | "date";
+  type: "compliance" | "yesno" | "text" | "date" | "risk";
   isSection?: boolean;
   /** Ordering label for section headers (e.g. "4", "3.2"). */
   sectionNumber?: string;
@@ -49,6 +49,7 @@ export interface ManagerAuditResident {
   lastName: string;
   roomNumber?: string;
   imageUrl?: string;
+  teamId?: string | null;
 }
 
 export interface ManagerAuditAnswer {
@@ -59,6 +60,7 @@ export interface ManagerAuditAnswer {
 
 export interface ManagerAuditComment {
   residentId: string;
+  questionId?: string;
   text: string;
 }
 
@@ -85,14 +87,24 @@ export interface ManagerAuditWorkspaceProps {
   isStaffBased?: boolean;
   subjectless?: boolean;
   subjectlessSubjectId?: string;
+  isTeamBased?: boolean;
+  teams?: { id: string; name: string }[];
+  selectedUnitId?: string | null;
+  onUnitChange?: (unitId: string) => void;
 
   onAnswerChange: (
     residentId: string,
     questionId: string,
     value: string
   ) => void | Promise<void>;
+  onToggleMultiSelectOption?: (
+    residentId: string,
+    questionId: string,
+    option: string
+  ) => void | Promise<void>;
   onCommentChange: (
     residentId: string,
+    questionId: string,
     text: string
   ) => void | Promise<void>;
   onOpenAddQuestion: () => void;
@@ -102,6 +114,17 @@ export interface ManagerAuditWorkspaceProps {
   onRemoveResident: (residentId: string) => void | Promise<void>;
   onOpenActionPlan: (resident?: ManagerAuditResident) => void;
   onRemoveActionPlan: (planId: string) => void | Promise<void>;
+  /** Static option lists rendered as selectable pills (e.g. Fall register analysis). */
+  optionPillQuestions?: Record<string, string[]>;
+  /** Dynamic option lists keyed by question id. */
+  dynamicOptionPillQuestions?: Record<string, () => string[]>;
+  /** Question ids where multiple pills can be selected (stored as JSON array). */
+  multiSelectOptionPillQuestions?: string[];
+  /** Per-parent option pills; answer stored as JSON object keyed by parent selection. */
+  dependentOptionPillQuestions?: Record<
+    string,
+    { parentQuestionId: string; options: string[] }
+  >;
 }
 
 type NormalizedStatus =
@@ -124,6 +147,31 @@ const YESNO_CYCLE: NormalizedStatus[] = [
   "compliant",
   "non-compliant",
 ];
+
+type RiskLevel = "" | "low" | "medium" | "high";
+const RISK_CYCLE: RiskLevel[] = ["", "low", "medium", "high"];
+
+function riskPillClass(r: RiskLevel): string {
+  switch (r) {
+    case "low":
+      return "bg-emerald-100 text-emerald-900";
+    case "medium":
+      return "bg-amber-100 text-amber-950";
+    case "high":
+      return "bg-destructive/15 text-destructive";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
+function riskLabel(r: RiskLevel): string {
+  switch (r) {
+    case "low": return "Low";
+    case "medium": return "Medium";
+    case "high": return "High";
+    default: return "Not set";
+  }
+}
 
 function normalizeAnswerValue(raw: string | undefined): NormalizedStatus {
   if (!raw) return "not-reviewed";
@@ -164,6 +212,81 @@ function statusLabel(n: NormalizedStatus): string {
     default:
       return "Not reviewed";
   }
+}
+
+function optionPillClass(selected: boolean): string {
+  return selected
+    ? "bg-primary/15 text-primary border-transparent"
+    : "border-border bg-muted/50 text-muted-foreground hover:bg-muted";
+}
+
+function optionPillSummaryClass(hasValue: boolean): string {
+  return hasValue
+    ? "bg-primary/15 text-primary"
+    : "bg-muted text-muted-foreground";
+}
+
+function parseMultiSelectAnswer(value: string | undefined): string[] {
+  if (!value?.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === "string" && item.trim() !== "");
+    }
+  } catch {
+    /* legacy single value */
+  }
+  return [value.trim()];
+}
+
+function serializeMultiSelectAnswer(selected: string[]): string {
+  return selected.length > 0 ? JSON.stringify(selected) : "";
+}
+
+function parseDependentCountsAnswer(value: string | undefined): Record<string, string> {
+  if (!value?.trim()) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const result: Record<string, string> = {};
+      for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof val === "string" && val.trim() !== "") {
+          result[key] = val;
+        }
+      }
+      return result;
+    }
+  } catch {
+    /* legacy single count without mapping */
+  }
+  return {};
+}
+
+function serializeDependentCountsAnswer(counts: Record<string, string>): string {
+  const entries = Object.entries(counts).filter(([, val]) => val.trim() !== "");
+  return entries.length > 0 ? JSON.stringify(Object.fromEntries(entries)) : "";
+}
+
+function formatMultiSelectSummary(value: string | undefined): string {
+  const selected = parseMultiSelectAnswer(value);
+  if (selected.length === 0) return "—";
+  if (selected.length === 1) return selected[0];
+  return `${selected.length} selected`;
+}
+
+function formatDependentCountsSummary(
+  value: string | undefined,
+  parentValue: string | undefined
+): string {
+  const parents = parseMultiSelectAnswer(parentValue);
+  if (parents.length === 0) return "—";
+  const counts = parseDependentCountsAnswer(value);
+  const completed = parents.filter((name) => counts[name]?.trim()).length;
+  if (completed === 0) return "—";
+  if (completed < parents.length) return `${completed}/${parents.length} set`;
+  return parents
+    .map((name) => `${name}: ${counts[name]}`)
+    .join(", ");
 }
 
 function pillClass(n: NormalizedStatus): string {
@@ -246,6 +369,10 @@ function isComplianceLike(q: ManagerAuditQuestion): boolean {
   return q.type === "compliance" || q.type === "yesno";
 }
 
+function isRiskType(q: ManagerAuditQuestion): boolean {
+  return q.type === "risk";
+}
+
 /**
  * Manager Audit workspace mirroring the Care File Audit 3-column layout
  * (residents nav, question checklist, selected-item detail pane).
@@ -267,7 +394,12 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
     isStaffBased = false,
     subjectless = false,
     subjectlessSubjectId = "audit-level",
+    isTeamBased = false,
+    teams,
+    selectedUnitId,
+    onUnitChange,
     onAnswerChange,
+    onToggleMultiSelectOption,
     onCommentChange,
     onOpenAddQuestion,
     onOpenAddSection,
@@ -276,7 +408,45 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
     onRemoveResident,
     onOpenActionPlan,
     onRemoveActionPlan,
+    optionPillQuestions,
+    dynamicOptionPillQuestions,
+    multiSelectOptionPillQuestions,
+    dependentOptionPillQuestions,
   } = props;
+
+  const multiSelectQuestionIds = useMemo(
+    () => new Set(multiSelectOptionPillQuestions ?? []),
+    [multiSelectOptionPillQuestions]
+  );
+
+  const getOptionPillOptions = (questionId: string): string[] | undefined => {
+    const dynamic = dynamicOptionPillQuestions?.[questionId]?.();
+    if (dynamic && dynamic.length > 0) return dynamic;
+    return optionPillQuestions?.[questionId];
+  };
+
+  const getDependentOptionPillConfig = (
+    questionId: string
+  ): { parentQuestionId: string; options: string[] } | undefined =>
+    dependentOptionPillQuestions?.[questionId];
+
+  const isDependentOptionPillQuestion = (questionId: string): boolean =>
+    getDependentOptionPillConfig(questionId) !== undefined;
+
+  const isOptionPillQuestion = (questionId: string): boolean =>
+    getOptionPillOptions(questionId) !== undefined ||
+    isDependentOptionPillQuestion(questionId);
+
+  const isMultiSelectOptionPillQuestion = (questionId: string): boolean =>
+    multiSelectQuestionIds.has(questionId) || questionId === "falls-q-5";
+
+  const displayedResidents = useMemo(() => {
+    if (!teams || teams.length === 0 || !selectedUnitId) return selectedResidents;
+    return selectedResidents.filter((r) => {
+      if (selectedUnitId === "unassigned") return !r.teamId;
+      return r.teamId === selectedUnitId;
+    });
+  }, [selectedResidents, teams, selectedUnitId]);
 
   const checklistQuestions = useMemo(
     () => questions.filter((q) => !q.isSection),
@@ -284,23 +454,23 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
   );
 
   const [activeResidentId, setActiveResidentId] = useState<string | null>(
-    selectedResidents[0]?._id ?? null
+    displayedResidents[0]?._id ?? null
   );
 
   useEffect(() => {
-    if (selectedResidents.length === 0) {
+    if (displayedResidents.length === 0) {
       setActiveResidentId(null);
       return;
     }
     if (
       !activeResidentId ||
-      !selectedResidents.some((r) => r._id === activeResidentId)
+      !displayedResidents.some((r) => r._id === activeResidentId)
     ) {
-      setActiveResidentId(selectedResidents[0]._id);
+      setActiveResidentId(displayedResidents[0]._id);
     }
-  }, [selectedResidents, activeResidentId]);
+  }, [displayedResidents, activeResidentId]);
 
-  const activeResident = selectedResidents.find(
+  const activeResident = displayedResidents.find(
     (r) => r._id === activeResidentId
   );
   const activeSubjectId = subjectless ? subjectlessSubjectId : activeResident?._id;
@@ -330,6 +500,47 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
     }
     return map;
   }, [answers]);
+
+  const toggleMultiSelectOption = (
+    subjectId: string,
+    questionId: string,
+    option: string
+  ) => {
+    if (onToggleMultiSelectOption) {
+      void onToggleMultiSelectOption(subjectId, questionId, option);
+      return;
+    }
+
+    const current = parseMultiSelectAnswer(
+      answerLookup.get(`${subjectId}::${questionId}`)?.value ?? ""
+    );
+    const isSelected = current.includes(option);
+    const nextSelected = isSelected
+      ? current.filter((v) => v !== option)
+      : [...current, option];
+
+    void onAnswerChange(
+      subjectId,
+      questionId,
+      serializeMultiSelectAnswer(nextSelected)
+    );
+
+    const dependentEntry = Object.entries(dependentOptionPillQuestions ?? {}).find(
+      ([, cfg]) => cfg.parentQuestionId === questionId
+    );
+    if (dependentEntry && isSelected) {
+      const [dependentId] = dependentEntry;
+      const counts = parseDependentCountsAnswer(
+        answerLookup.get(`${subjectId}::${dependentId}`)?.value ?? ""
+      );
+      delete counts[option];
+      void onAnswerChange(
+        subjectId,
+        dependentId,
+        serializeDependentCountsAnswer(counts)
+      );
+    }
+  };
 
   const getNormalizedStatus = (
     residentId: string,
@@ -367,8 +578,8 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
     );
   };
 
-  const getComment = (residentId: string): string =>
-    comments.find((c) => c.residentId === residentId)?.text ?? "";
+  const getComment = (residentId: string, questionId: string): string =>
+    comments.find((c) => c.residentId === residentId && c.questionId === questionId)?.text ?? "";
 
   const residentStats = (residentId: string) => {
     let reviewed = 0;
@@ -420,28 +631,44 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
       {!subjectless ? (
       <aside className="border-b border-border bg-background text-[13px] lg:border-b-0 lg:border-r">
         <div className="px-2 py-3">
+          {/* Unit/Home Selector */}
+          {teams && teams.length > 0 && (
+            <div className="px-2 pb-3 border-b border-slate-100 mb-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Unit/Home</label>
+              <select
+                value={selectedUnitId || ""}
+                onChange={(e) => onUnitChange?.(e.target.value)}
+                className="w-full text-xs font-semibold rounded-md border border-slate-200 py-1.5 px-2 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              >
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+                <option value="unassigned">Unassigned Residents</option>
+              </select>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-2 px-2 pb-2">
             <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
-              {isStaffBased ? "Staff" : "Residents"}
+              {isTeamBased ? "Teams" : isStaffBased ? "Staff" : "Residents"}
             </p>
             <Button
               variant="ghost"
               size="icon"
               className="size-6 text-muted-foreground hover:text-foreground"
               onClick={onOpenAddResident}
-              aria-label={isStaffBased ? "Add staff" : "Add resident"}
+              aria-label={isTeamBased ? "Add team" : isStaffBased ? "Add staff" : "Add resident"}
             >
               <Plus className="size-3.5" />
             </Button>
           </div>
           <ScrollArea className="h-[min(40vh,280px)] lg:h-[calc(720px-1.5rem)]">
             <nav className="space-y-1 pb-1 pr-3">
-              {selectedResidents.length === 0 ? (
+              {displayedResidents.length === 0 ? (
                 <p className="px-2 py-2 text-xs text-muted-foreground">
-                  No {isStaffBased ? "staff" : "residents"} added yet.
+                  {selectedUnitId ? "No residents in this unit." : `No ${isTeamBased ? "teams" : isStaffBased ? "staff" : "residents"} added yet.`}
                 </p>
               ) : (
-                selectedResidents.map((r) => {
+                displayedResidents.map((r) => {
                   const stats = residentStats(r._id);
                   const isActive = r._id === activeResidentId;
                   const ratioColor =
@@ -472,9 +699,17 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
                       </Avatar>
                       <span className="min-w-0 flex-1 truncate">
                         {residentDisplayName(r)}
-                        {r.roomNumber ? (
+                        {r.roomNumber || (teams && r.teamId) ? (
                           <span className="ml-1 text-[11px] text-muted-foreground">
-                            · Rm {r.roomNumber}
+                            · {(() => {
+                              const roomText = r.roomNumber ? (isStaffBased ? r.roomNumber : `Rm ${r.roomNumber}`) : "";
+                              const team = teams?.find((t) => t.id === r.teamId);
+                              const teamName = team ? team.name : "";
+                              if (roomText && teamName) {
+                                return `(${roomText}) · ${teamName.toUpperCase()}`;
+                              }
+                              return roomText || teamName.toUpperCase();
+                            })()}
                           </span>
                         ) : null}
                       </span>
@@ -511,7 +746,7 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
         <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
           <div className="min-w-0">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {subjectless ? "Audit questions" : isStaffBased ? "Staff" : "Resident"}
+              {subjectless ? "Audit questions" : isTeamBased ? "Team" : isStaffBased ? "Staff" : "Resident"}
             </p>
             <h2 className="truncate text-lg font-medium text-foreground">
               {subjectless
@@ -528,14 +763,16 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
         </div>
         <p className="mb-[14px] mt-1 max-w-xl text-[13px] text-muted-foreground">
           {subjectless
-            ? "Click any question to open details on the right. Click the status pill to cycle Not reviewed -> Compliant -> Action required -> Non-compliant -> N/A."
+            ? optionPillQuestions
+              ? "Click any question to open details on the right. Select an option pill to record the response."
+              : "Click any question to open details on the right. Click the status pill to cycle Not reviewed -> Compliant -> Action required -> Non-compliant -> N/A."
             : "Click any row to open details on the right. Click the status pill to cycle Not reviewed -> Compliant -> Action required -> Non-compliant -> N/A."}
         </p>
 
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           {!subjectless && !activeResident ? (
             <div className="p-6 text-sm text-muted-foreground">
-              Add a {isStaffBased ? "staff member" : "resident"} on the left
+              Add a {isTeamBased ? "team" : isStaffBased ? "staff member" : "resident"} on the left
               to begin the audit.
             </div>
           ) : checklistQuestions.length === 0 ? (
@@ -583,6 +820,29 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
 
                   if (!activeSubjectId) return null;
 
+                  const dependentConfig = getDependentOptionPillConfig(q.id);
+                  const isOptionPill = isOptionPillQuestion(q.id);
+                  const isMultiSelect = isMultiSelectOptionPillQuestion(q.id);
+                  const isDependent = dependentConfig !== undefined;
+                  const optionValue =
+                    answerLookup.get(`${activeSubjectId}::${q.id}`)?.value ?? "";
+                  const parentValue = dependentConfig
+                    ? answerLookup.get(
+                        `${activeSubjectId}::${dependentConfig.parentQuestionId}`
+                      )?.value ?? ""
+                    : "";
+                  const optionSummary = isMultiSelect
+                    ? formatMultiSelectSummary(optionValue)
+                    : isDependent
+                      ? formatDependentCountsSummary(optionValue, parentValue)
+                      : optionValue.trim() || "—";
+                  const hasOptionValue = isMultiSelect
+                    ? parseMultiSelectAnswer(optionValue).length > 0
+                    : isDependent
+                      ? parseMultiSelectAnswer(parentValue).some((name) =>
+                          Boolean(parseDependentCountsAnswer(optionValue)[name]?.trim())
+                        )
+                      : optionValue.trim() !== "";
                   const n = getNormalizedStatus(activeSubjectId, q.id);
                   const isSelected = q.id === selectedQuestionId;
                   return (
@@ -599,27 +859,70 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
                       }}
                       className={cn(
                         "grid cursor-pointer grid-cols-[28px_minmax(0,1fr)_140px_60px] items-center gap-2 px-[14px] py-3 transition-colors hover:bg-muted",
-                        rowTintClass(n),
+                        !isOptionPill && rowTintClass(n),
                         isSelected && "bg-muted"
                       )}
                     >
-                      <StatusGlyph status={n} />
+                      <StatusGlyph
+                        status={
+                          isOptionPill
+                            ? hasOptionValue
+                              ? "compliant"
+                              : "not-reviewed"
+                            : n
+                        }
+                      />
                       <div className="min-w-0">
                         <div className="text-[13px] font-medium text-foreground">
                           {q.text}
                         </div>
                         <div className="mt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">
-                          {q.type === "yesno"
+                          {isOptionPill
+                            ? isMultiSelect
+                              ? "Multi choice"
+                              : isDependent
+                                ? "Per resident"
+                                : "Choice"
+                            : q.type === "yesno"
                             ? "Yes / No"
-                            : q.type === "text"
-                              ? "Text"
-                              : q.type === "date"
-                                ? "Date"
-                                : "Compliance"}
+                            : q.type === "risk"
+                              ? "Risk Level"
+                              : (q.type === "text" && q.id !== "acc-q-2")
+                                ? "Text"
+                                : (q.type === "date" || q.id === "acc-q-2")
+                                  ? "Date"
+                                  : "Compliance"}
                         </div>
                       </div>
                       <div className="flex justify-start">
-                        {isComplianceLike(q) ? (
+                        {isOptionPill ? (
+                          <span
+                            className={cn(
+                              "keep-interactive max-w-[135px] truncate rounded-full px-2 py-0.5 text-[11px] font-normal",
+                              optionPillSummaryClass(hasOptionValue)
+                            )}
+                          >
+                            {optionSummary}
+                          </span>
+                        ) : isRiskType(q) ? (
+                          <button
+                            type="button"
+                            className={cn(
+                              "keep-interactive cursor-pointer rounded-full px-2 py-0.5 text-[11px] font-normal transition-opacity hover:opacity-90",
+                              riskPillClass((answerLookup.get(`${activeSubjectId}::${q.id}`)?.value ?? "") as RiskLevel)
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const currentVal = (answerLookup.get(`${activeSubjectId}::${q.id}`)?.value ?? "") as RiskLevel;
+                              const idx = RISK_CYCLE.indexOf(currentVal);
+                              const next = RISK_CYCLE[(idx + 1) % RISK_CYCLE.length];
+                              void onAnswerChange(activeSubjectId, q.id, next);
+                              setSelectedQuestionId(q.id);
+                            }}
+                          >
+                            {riskLabel((answerLookup.get(`${activeSubjectId}::${q.id}`)?.value ?? "") as RiskLevel)}
+                          </button>
+                        ) : isComplianceLike(q) ? (
                           <button
                             type="button"
                             className={cn(
@@ -632,13 +935,26 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
                               setSelectedQuestionId(q.id);
                             }}
                           >
-                            {statusLabel(n)}
+                            {q.type === "yesno" && n === "compliant"
+                              ? "Yes"
+                              : q.type === "yesno" && n === "non-compliant"
+                                ? "No"
+                                : statusLabel(n)}
                           </button>
                         ) : (
-                          <span className="text-xs text-muted-foreground">
-                            {answerLookup.get(
-                              `${activeSubjectId}::${q.id}`
-                            )?.value || "—"}
+                          <span className="text-xs text-muted-foreground truncate max-w-[135px]">
+                            {(() => {
+                              const val = answerLookup.get(`${activeSubjectId}::${q.id}`)?.value;
+                              if (!val) return "—";
+                              if (q.type === "date" || q.id === "acc-q-2") {
+                                try {
+                                  return format(new Date(val), q.id === "acc-q-2" ? "dd MMM yyyy HH:mm" : "dd MMM yyyy");
+                                } catch {
+                                  return val;
+                                }
+                              }
+                              return val;
+                            })()}
                           </span>
                         )}
                       </div>
@@ -693,7 +1009,7 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
               onClick={() => void onRemoveResident(activeResident._id)}
             >
               <Trash2 className="mr-1 size-3.5" />
-              Remove {isStaffBased ? "staff" : "resident"}
+              Remove {isTeamBased ? "team" : isStaffBased ? "staff" : "resident"}
             </Button>
           ) : null}
         </div>
@@ -754,7 +1070,7 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
           {(!subjectless && !activeResident) || !selectedQuestion ? (
             <p className="text-xs text-muted-foreground">
               {!subjectless && !activeResident
-                ? `Select a ${isStaffBased ? "staff member" : "resident"} on the left to see their checklist.`
+                ? `Select a ${isTeamBased ? "team" : isStaffBased ? "staff member" : "resident"} on the left to see their checklist.`
                 : "Select a question to see details."}
             </p>
           ) : (
@@ -773,7 +1089,229 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
                     : ""}
               </p>
 
-              {isComplianceLike(selectedQuestion) ? (
+              {(() => {
+                const dependentConfig = getDependentOptionPillConfig(
+                  selectedQuestion.id
+                );
+                if (dependentConfig) {
+                  const parentValue =
+                    answerLookup.get(
+                      `${detailSubjectId}::${dependentConfig.parentQuestionId}`
+                    )?.value ?? "";
+                  const selectedFallers = parseMultiSelectAnswer(parentValue);
+                  const counts = parseDependentCountsAnswer(
+                    selectedAnswer?.value ?? ""
+                  );
+
+                  if (selectedFallers.length === 0) {
+                    return (
+                      <div className="relative z-20 isolate mt-4">
+                        <p className="text-xs text-muted-foreground">
+                          Select one or more frequent fallers first, then record
+                          the number of falls for each.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="relative z-20 isolate mt-4 space-y-4">
+                      {selectedFallers.map((name) => (
+                        <div key={name}>
+                          <div className="mb-1.5 text-[11px] font-medium text-foreground">
+                            {name}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {dependentConfig.options.map((option) => {
+                              const sel = counts[name] === option;
+                              return (
+                                <button
+                                  key={`${name}-${option}`}
+                                  type="button"
+                                  className={cn(
+                                    "keep-interactive rounded-full px-2.5 py-1 text-[11px] font-medium border transition-colors",
+                                    optionPillClass(sel)
+                                  )}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const next = { ...counts, [name]: option };
+                                    void onAnswerChange(
+                                      detailSubjectId,
+                                      selectedQuestion.id,
+                                      serializeDependentCountsAnswer(next)
+                                    );
+                                  }}
+                                >
+                                  {option}
+                                </button>
+                              );
+                            })}
+                            <button
+                              type="button"
+                              className={cn(
+                                "keep-interactive rounded-full px-2.5 py-1 text-[11px] font-medium border transition-colors",
+                                !counts[name]?.trim()
+                                  ? "bg-muted text-muted-foreground border-transparent"
+                                  : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
+                              )}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const next = { ...counts };
+                                delete next[name];
+                                void onAnswerChange(
+                                  detailSubjectId,
+                                  selectedQuestion.id,
+                                  serializeDependentCountsAnswer(next)
+                                );
+                              }}
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+
+                const selectedOptionPills = getOptionPillOptions(
+                  selectedQuestion.id
+                );
+                if (selectedOptionPills) {
+                  const isMultiSelect = isMultiSelectOptionPillQuestion(
+                    selectedQuestion.id
+                  );
+                  const currentVal = selectedAnswer?.value ?? "";
+                  const selectedValues = isMultiSelect
+                    ? parseMultiSelectAnswer(currentVal)
+                    : currentVal.trim()
+                      ? [currentVal.trim()]
+                      : [];
+
+                  return (
+                    <div className="relative z-20 isolate mt-4">
+                      <div className="mb-1.5 text-[11px] text-muted-foreground">
+                        {isMultiSelect ? "Select all that apply" : "Response"}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedOptionPills.map((option) => {
+                          const sel = selectedValues.includes(option);
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              className={cn(
+                                "keep-interactive rounded-full px-2.5 py-1 text-[11px] font-medium border transition-colors",
+                                optionPillClass(sel)
+                              )}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (isMultiSelect) {
+                                  toggleMultiSelectOption(
+                                    detailSubjectId,
+                                    selectedQuestion.id,
+                                    option
+                                  );
+                                } else {
+                                  void onAnswerChange(
+                                    detailSubjectId,
+                                    selectedQuestion.id,
+                                    option
+                                  );
+                                }
+                              }}
+                            >
+                              {option}
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          className={cn(
+                            "keep-interactive rounded-full px-2.5 py-1 text-[11px] font-medium border transition-colors",
+                            selectedValues.length === 0
+                              ? "bg-muted text-muted-foreground border-transparent"
+                              : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
+                          )}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void onAnswerChange(
+                              detailSubjectId,
+                              selectedQuestion.id,
+                              ""
+                            );
+                            const dependentEntry = Object.entries(
+                              dependentOptionPillQuestions ?? {}
+                            ).find(
+                              ([, cfg]) =>
+                                cfg.parentQuestionId === selectedQuestion.id
+                            );
+                            if (dependentEntry) {
+                              const [dependentId] = dependentEntry;
+                              void onAnswerChange(detailSubjectId, dependentId, "");
+                            }
+                          }}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {isRiskType(selectedQuestion) ? (
+                <div className="relative z-20 isolate mt-4">
+                  <div className="mb-1.5 text-[11px] text-muted-foreground">Risk Level</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(["low", "medium", "high"] as RiskLevel[]).map((r) => {
+                      const currentVal = (selectedAnswer?.value ?? "") as RiskLevel;
+                      const sel = currentVal === r;
+                      return (
+                        <button
+                          key={r}
+                          type="button"
+                          className={cn(
+                            "keep-interactive rounded-full px-2.5 py-1 text-[11px] font-medium border transition-colors",
+                            sel
+                              ? cn(riskPillClass(r), "border-transparent")
+                              : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
+                          )}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void onAnswerChange(detailSubjectId, selectedQuestion.id, r);
+                          }}
+                        >
+                          {riskLabel(r)}
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      className={cn(
+                        "keep-interactive rounded-full px-2.5 py-1 text-[11px] font-medium border transition-colors",
+                        !(["low","medium","high"] as string[]).includes(selectedAnswer?.value ?? "")
+                          ? "bg-muted text-muted-foreground border-transparent"
+                          : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
+                      )}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void onAnswerChange(detailSubjectId, selectedQuestion.id, "");
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              ) : isComplianceLike(selectedQuestion) &&
+                !isOptionPillQuestion(selectedQuestion.id) ? (
                 <div className="relative z-20 isolate mt-4">
                   <div className="mb-1.5 text-[11px] text-muted-foreground">
                     Status
@@ -866,42 +1404,179 @@ export function ManagerAuditWorkspace(props: ManagerAuditWorkspaceProps) {
                 </div>
               ) : null}
 
-              {selectedQuestion.type === "text" ? (
+              {selectedQuestion.type === "text" &&
+              !isOptionPillQuestion(selectedQuestion.id) ? (
                 <div className="mt-4">
                   <div className="mb-1.5 text-[11px] text-muted-foreground">
                     Text answer
                   </div>
-                  <Input
-                    value={selectedAnswer?.value ?? ""}
-                    onChange={(e) =>
-                      void onAnswerChange(
-                        detailSubjectId,
-                        selectedQuestion.id,
-                        e.target.value
-                      )
-                    }
-                    placeholder="Enter response..."
-                    className="h-9 text-sm"
-                  />
+                  {selectedQuestion.id === "acc-q-2" ? (
+                    <Input
+                      type="datetime-local"
+                      value={selectedAnswer?.value ?? ""}
+                      onChange={(e) =>
+                        void onAnswerChange(
+                          detailSubjectId,
+                          selectedQuestion.id,
+                          e.target.value
+                        )
+                      }
+                      className="h-9 text-sm block"
+                    />
+                  ) : selectedQuestion.id === "acc-q-3" ? (
+                    <>
+                      <Input
+                        list="detail-location-list"
+                        value={selectedAnswer?.value ?? ""}
+                        onChange={(e) =>
+                          void onAnswerChange(
+                            detailSubjectId,
+                            selectedQuestion.id,
+                            e.target.value
+                          )
+                        }
+                        placeholder="e.g. Bedroom, Lounge..."
+                        className="h-9 text-sm"
+                      />
+                      <datalist id="detail-location-list">
+                        <option value="Bedroom" />
+                        <option value="Lounge" />
+                        <option value="Dining Room" />
+                        <option value="Bathroom" />
+                        <option value="Hallway" />
+                        <option value="Garden" />
+                        <option value="Kitchen" />
+                      </datalist>
+                    </>
+                  ) : selectedQuestion.id === "equipment_required" ? (
+                    <>
+                      <Input
+                        list="detail-equip-list"
+                        value={selectedAnswer?.value ?? ""}
+                        onChange={(e) =>
+                          void onAnswerChange(
+                            detailSubjectId,
+                            selectedQuestion.id,
+                            e.target.value
+                          )
+                        }
+                        placeholder="e.g. Rollator, Hoist..."
+                        className="h-9 text-sm"
+                      />
+                      <datalist id="detail-equip-list">
+                        <option value="None" />
+                        <option value="WZF/Rollator" />
+                        <option value="Hoist" />
+                        <option value="Sling" />
+                        <option value="OT Chair" />
+                        <option value="Wheelchair" />
+                        <option value="Slide Sheets" />
+                        <option value="Slide Board" />
+                      </datalist>
+                    </>
+                  ) : selectedQuestion.id === "hoist_type" ? (
+                    <>
+                      <Input
+                        list="detail-hoist-list"
+                        value={selectedAnswer?.value ?? ""}
+                        onChange={(e) =>
+                          void onAnswerChange(
+                            detailSubjectId,
+                            selectedQuestion.id,
+                            e.target.value
+                          )
+                        }
+                        placeholder="e.g. Active (Standing)..."
+                        className="h-9 text-sm"
+                      />
+                      <datalist id="detail-hoist-list">
+                        <option value="N/A" />
+                        <option value="Active (Standing)" />
+                        <option value="Passive (Full)" />
+                        <option value="Standing / Full Hoist" />
+                      </datalist>
+                    </>
+                  ) : selectedQuestion.id === "emergency_transfer" ? (
+                    <>
+                      <Input
+                        list="detail-em-list"
+                        value={selectedAnswer?.value ?? ""}
+                        onChange={(e) =>
+                          void onAnswerChange(
+                            detailSubjectId,
+                            selectedQuestion.id,
+                            e.target.value
+                          )
+                        }
+                        placeholder="e.g. Wheelchair, OT Chair..."
+                        className="h-9 text-sm"
+                      />
+                      <datalist id="detail-em-list">
+                        <option value="N/A" />
+                        <option value="Wheelchair" />
+                        <option value="OT Chair" />
+                        <option value="Evac Chair" />
+                        <option value="Slide Sheets" />
+                      </datalist>
+                    </>
+                  ) : selectedQuestion.id === "assistance_level" ? (
+                    <>
+                      <Input
+                        list="detail-assist-list"
+                        value={selectedAnswer?.value ?? ""}
+                        onChange={(e) =>
+                          void onAnswerChange(
+                            detailSubjectId,
+                            selectedQuestion.id,
+                            e.target.value
+                          )
+                        }
+                        placeholder="e.g. Assist x 2..."
+                        className="h-9 text-sm"
+                      />
+                      <datalist id="detail-assist-list">
+                        <option value="Independent" />
+                        <option value="Assist x 1" />
+                        <option value="Assist x 2" />
+                        <option value="Assist x 3" />
+                        <option value="Assist x 4" />
+                        <option value="OT Chair" />
+                        <option value="Wheelchair" />
+                      </datalist>
+                    </>
+                  ) : (
+                    <Input
+                      value={selectedAnswer?.value ?? ""}
+                      onChange={(e) =>
+                        void onAnswerChange(
+                          detailSubjectId,
+                          selectedQuestion.id,
+                          e.target.value
+                        )
+                      }
+                      placeholder="Enter response..."
+                      className="h-9 text-sm"
+                    />
+                  )}
                 </div>
               ) : null}
 
               <div className="mt-4 flex-1">
                 <div className="mb-1.5 text-[11px] text-muted-foreground">
-                  {subjectless ? "Audit comment" : `${isStaffBased ? "Staff" : "Resident"} comment (audit-wide)`}
+                  {subjectless ? "Audit comment" : `${isTeamBased ? "Team" : isStaffBased ? "Staff" : "Resident"} comment`}
                 </div>
                 <Textarea
-                  value={getComment(detailSubjectId)}
+                  value={getComment(detailSubjectId, selectedQuestion.id)}
                   onChange={(e) =>
-                    void onCommentChange(detailSubjectId, e.target.value)
+                    void onCommentChange(detailSubjectId, selectedQuestion.id, e.target.value)
                   }
                   placeholder="Add comment…"
                   className="min-h-[88px] resize-y text-sm"
                 />
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {subjectless
-                    ? "Saved once for this audit and shared across all questions."
-                    : `Saved once per ${isStaffBased ? "staff member" : "resident"}; shared across all questions.`}
+                    ? "Saved once for this question."
+                    : `Saved once per ${isTeamBased ? "team" : isStaffBased ? "staff member" : "resident"} for this question.`}
                 </p>
 
                 <div className="mt-4">

@@ -317,6 +317,7 @@ export function AppSidebar() {
       'audit_governance_action_plans',
       'audit_clinical_action_plans',
       'audit_environment_action_plans',
+      'audit_manager_action_plans',
       'care_home_common_action_plans',
     ];
 

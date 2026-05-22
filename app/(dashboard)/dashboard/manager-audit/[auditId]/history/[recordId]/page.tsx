@@ -35,13 +35,13 @@ const auditNames: Record<string, string> = {
   "10": "Dining Experience",
   "11": "DOLS",
   "12": "Domestic Audit",
-  "13": "Falls Analysis",
+  "13": "Fall register analysis",
   "14": "Hand Hygiene Audit",
   "15": "Hoist and Sling Register",
   "16": "IPC Short Audit",
   "17": "Mandatory Training Stats",
   "18": "Medication Audit",
-  "19": "Modified Diet Audit",
+  "19": "Modified Diet and Fluids Audit",
   "20": "NMC NISSC Logs",
   "21": "Restrictive Practice",
   "22": "RTW Tracker",
@@ -54,6 +54,17 @@ const auditNames: Record<string, string> = {
   "29": "GDPR",
   "30": "Personnel Files",
   "31": "Resident Agreement",
+  "32": "NISCC Registration Tracker",
+  "33": "NMC Registration Tracker",
+  "34": "Accident Log for Fall Type Accidents Involving Residents",
+  "35": "Moving & Handling Audit",
+  "36": "Choking Risk Assessment Audit",
+  "37": "DNACPR Audit",
+  "38": "Care Management Reviews",
+  "39": "Pressure Damage Prevention Audit",
+  "40": "Health & Monitoring Audit",
+  "41": "Mattress and Visual Checks Audit",
+  "42": "Infection Control Audit",
 };
 
 const AUDIT_LEVEL_SUBJECT_ID = "audit-level";
@@ -68,9 +79,10 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
   const auditId = resolvedParams.auditId;
   const recordId = resolvedParams.recordId;
   const auditName = auditNames[auditId] || "Unknown Audit";
-
   const [isLoading, setIsLoading] = useState(true);
   const [recordData, setRecordData] = useState<any>(null);
+  const isStaffBased = ["2", "7", "17", "20", "22", "26", "30", "32", "33"].includes(auditId) || recordData?.data?.category === "staff";
+  const isTeamBased = ["18", "3"].includes(auditId);
 
   useEffect(() => {
     loadRecordData();
@@ -128,13 +140,39 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
     return "";
   };
 
-  const getAnswerDisplay = (value?: string) => {
+  const getAnswerDisplay = (value?: string, questionId?: string) => {
     if (!value) return "-";
     if (value === "yes") return "✓ Yes";
     if (value === "no") return "✗ No";
     if (value === "compliant") return "✓ Compliant";
     if (value === "non-compliant") return "✗ Non-Compliant";
     if (value === "not-applicable") return "— N/A";
+    if (questionId === "falls-q-5") {
+      try {
+        const parsed: unknown = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          const names = parsed.filter((item): item is string => typeof item === "string");
+          return names.length > 0 ? names.join(", ") : "-";
+        }
+      } catch {
+        return value;
+      }
+    }
+    if (questionId === "falls-q-6") {
+      try {
+        const parsed: unknown = JSON.parse(value);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const entries = Object.entries(parsed as Record<string, string>).filter(
+            ([, count]) => count.trim() !== ""
+          );
+          return entries.length > 0
+            ? entries.map(([name, count]) => `${name}: ${count}`).join("; ")
+            : "-";
+        }
+      } catch {
+        return value;
+      }
+    }
     return value;
   };
 
@@ -155,6 +193,7 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
   }
 
   const auditData = recordData.data;
+  const isPlainTemplate = auditId === "1" || auditData.gridData?.template_type === 'plain-template';
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6 h-full flex flex-col">
@@ -178,7 +217,7 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
           <h2 className="text-3xl font-bold tracking-tight">{auditName}</h2>
-          <Badge variant="outline">{recordData.residentsAudited} Residents</Badge>
+          <Badge variant="outline">{recordData.residentsAudited} {isTeamBased ? 'Teams' : isStaffBased ? 'Staff' : (auditData?.homeBasedData || auditData?.gridData) ? 'Questions' : 'Residents'}</Badge>
         </div>
         <div className="flex items-center space-x-4">
           <div className="text-sm text-muted-foreground">
@@ -224,7 +263,9 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
                     (item: any) => item.residentId === subjectId && item.questionId === question.id
                   );
                   const comment = (auditData.homeBasedData.comments || []).find(
-                    (item: any) => item.residentId === subjectId
+                    (item: any) => item.residentId === subjectId && item.questionId === question.id
+                  ) || (auditData.homeBasedData.comments || []).find(
+                    (item: any) => item.residentId === subjectId && !item.questionId
                   );
 
                   return (
@@ -243,7 +284,7 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
                       </TableCell>
                       <TableCell>
                         <span className={`text-sm ${getAnswerColor(answer?.value)}`}>
-                          {getAnswerDisplay(answer?.value)}
+                          {getAnswerDisplay(answer?.value, question.id)}
                         </span>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -266,9 +307,13 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
                     {q.text}
                   </TableHead>
                 ))}
-                <TableHead className="min-w-[200px] font-semibold border-r">Comment</TableHead>
-                <TableHead className="min-w-[200px] font-semibold border-r">Action Required</TableHead>
-                <TableHead className="min-w-[150px] font-semibold">Action Completed</TableHead>
+                {!isPlainTemplate && (
+                  <>
+                    <TableHead className="min-w-[200px] font-semibold border-r">Comment</TableHead>
+                    <TableHead className="min-w-[200px] font-semibold border-r">Action Required</TableHead>
+                    <TableHead className="min-w-[150px] font-semibold">Action Completed</TableHead>
+                  </>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -289,19 +334,23 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
                           </TableCell>
                         );
                       })}
-                      <TableCell className="text-sm text-muted-foreground border-r italic">
-                        {auditData.gridData.fixedColumnData?.[rowQ.id]?.comment || "-"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground border-r italic">
-                        {auditData.gridData.fixedColumnData?.[rowQ.id]?.actionRequired || "-"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground italic">
-                        {auditData.gridData.fixedColumnData?.[rowQ.id]?.actionCompleted || "-"}
-                      </TableCell>
+                      {!isPlainTemplate && (
+                        <>
+                          <TableCell className="text-sm text-muted-foreground border-r italic">
+                            {auditData.gridData.fixedColumnData?.[rowQ.id]?.comment || "-"}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground border-r italic">
+                            {auditData.gridData.fixedColumnData?.[rowQ.id]?.actionRequired || "-"}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground italic">
+                            {auditData.gridData.fixedColumnData?.[rowQ.id]?.actionCompleted || "-"}
+                          </TableCell>
+                        </>
+                      )}
                     </>
                   )}
                   {rowQ.isSection && (
-                    <TableCell colSpan={auditData.gridData.columnQuestions.length + 3} />
+                    <TableCell colSpan={auditData.gridData.columnQuestions.length + (isPlainTemplate ? 0 : 3)} />
                   )}
                 </TableRow>
               ))}
@@ -312,7 +361,7 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="w-[200px] font-semibold">Resident</TableHead>
+                <TableHead className="w-[200px] font-semibold">{isTeamBased ? 'Team' : isStaffBased ? 'Staff' : 'Resident'}</TableHead>
                 {(auditData.questions || []).map((q: any) => (
                   <TableHead key={q.id} className="min-w-[140px] max-w-[180px] font-semibold">
                     <div className="flex items-center justify-between px-2 gap-1">
@@ -336,7 +385,7 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
               {(!auditData.residents || auditData.residents.length === 0) ? (
                 <TableRow>
                   <TableCell colSpan={(auditData.questions?.length || 0) + 2} className="h-32 text-center text-muted-foreground">
-                    No residents in this audit
+                    No {isTeamBased ? 'teams' : isStaffBased ? 'staff members' : 'residents'} in this audit
                   </TableCell>
                 </TableRow>
               ) : (
@@ -360,9 +409,16 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
                     </TableCell>
                     {resident.answers.map((answer: any) => (
                       <TableCell key={answer.questionId} className="px-2 py-3">
-                        <span className={`text-sm ${getAnswerColor(answer.value)}`}>
-                          {getAnswerDisplay(answer.value)}
-                        </span>
+                        <div className="flex flex-col space-y-1">
+                          <span className={`text-sm ${getAnswerColor(answer.value)}`}>
+                            {getAnswerDisplay(answer.value)}
+                          </span>
+                          {answer.comment && (
+                            <span className="text-xs text-muted-foreground max-w-[150px] break-words">
+                              {answer.comment}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                     ))}
                     <TableCell className="px-3">
@@ -386,7 +442,7 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold">Resident</TableHead>
+                  <TableHead className="font-semibold">{isTeamBased ? 'Team' : isStaffBased ? 'Staff' : 'Resident'}</TableHead>
                   <TableHead className="font-semibold">Action Required</TableHead>
                   <TableHead className="font-semibold">Assigned To</TableHead>
                   <TableHead className="font-semibold">Due Date</TableHead>

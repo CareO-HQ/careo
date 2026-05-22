@@ -134,7 +134,7 @@ function resolveStaffDisplayName(
 }
 
 export default function MyActionPlansPage() {
-  const { user } = useSupabase();
+  const { supabase, user } = useSupabase();
   const { profile } = useProfile();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -326,6 +326,43 @@ export default function MyActionPlansPage() {
       markActionPlanNotificationsAsRead(user.id, activeOrganizationId, profile?.active_care_home_id);
     }
   }, [user?.id, activeOrganizationId]);
+
+  // Real-time subscription to action plan changes across all categories
+  useEffect(() => {
+    if (!activeOrganizationId) return;
+
+    const apTables = [
+      "audit_resident_action_plans",
+      "audit_care_file_action_plans",
+      "audit_governance_action_plans",
+      "audit_clinical_action_plans",
+      "audit_environment_action_plans",
+      "audit_manager_action_plans",
+      "care_home_common_action_plans",
+    ];
+
+    const apChannels = apTables.map((tableName) =>
+      supabase
+        .channel(`${tableName}-list-changes`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: tableName,
+            ...(activeOrganizationId ? { filter: `organization_id=eq.${activeOrganizationId}` } : {}),
+          },
+          () => {
+            fetchData();
+          }
+        )
+        .subscribe()
+    );
+
+    return () => {
+      apChannels.forEach((ch) => supabase.removeChannel(ch));
+    };
+  }, [activeOrganizationId, fetchData, supabase]);
 
   const scopedActionPlans = useMemo(() => {
     if (actionPlanScope === "all") return allActionPlans;

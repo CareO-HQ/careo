@@ -63,13 +63,10 @@ const HOME_BASED_AUDIT_IDS = new Set([
   "2",  // Agency Profiles and Induction Records
   "4",  // Domestic Services
   "6",  // Catering Audit
-  "9",  // Decontamination
-  "10", // Dining Experience
   "12", // Domestic Audit
-  "13", // Falls Analysis
+  // "13" Fall register analysis — subjectless workspace (not grid)
   "14", // Hand Hygiene Audit
   "16", // IPC Short Audit
-  "18", // Medication Audit
   "23", // Safeguarding Database
   "24", // Safety Alerts
   "29", // GDPR
@@ -188,7 +185,7 @@ const initialAudits: ManagerAudit[] = [
   },
   {
     id: "13",
-    name: "Falls Analysis",
+    name: "Fall register analysis",
     status: "new",
     auditor: "-",
     lastAudited: "-",
@@ -248,7 +245,7 @@ const initialAudits: ManagerAudit[] = [
   },
   {
     id: "19",
-    name: "Modified Diet Audit",
+    name: "Modified Diet and Fluids Audit",
     status: "new",
     auditor: "-",
     lastAudited: "-",
@@ -375,6 +372,116 @@ const initialAudits: ManagerAudit[] = [
     dueDate: "-",
     frequency: "yearly",
     category: "general",
+  },
+  {
+    id: "32",
+    name: "NISCC Registration Tracker",
+    status: "new",
+    auditor: "-",
+    lastAudited: "-",
+    dueDate: "-",
+    frequency: "monthly",
+    category: "staff",
+  },
+  {
+    id: "33",
+    name: "NMC Registration Tracker",
+    status: "new",
+    auditor: "-",
+    lastAudited: "-",
+    dueDate: "-",
+    frequency: "monthly",
+    category: "staff",
+  },
+  {
+    id: "34",
+    name: "Accident Log for Fall Type Accidents Involving Residents",
+    status: "new",
+    auditor: "-",
+    lastAudited: "-",
+    dueDate: "-",
+    frequency: "monthly",
+    category: "clinical",
+  },
+  {
+    id: "35",
+    name: "Moving & Handling Audit",
+    status: "new",
+    auditor: "-",
+    lastAudited: "-",
+    dueDate: "-",
+    frequency: "monthly",
+    category: "clinical",
+  },
+  {
+    id: "36",
+    name: "Choking Risk Assessment Audit",
+    status: "new",
+    auditor: "-",
+    lastAudited: "-",
+    dueDate: "-",
+    frequency: "monthly",
+    category: "clinical",
+  },
+  {
+    id: "37",
+    name: "DNACPR Audit",
+    status: "new",
+    auditor: "-",
+    lastAudited: "-",
+    dueDate: "-",
+    frequency: "monthly",
+    category: "clinical",
+  },
+  {
+    id: "38",
+    name: "Care Management Reviews",
+    status: "new",
+    auditor: "-",
+    lastAudited: "-",
+    dueDate: "-",
+    frequency: "monthly",
+    category: "clinical",
+  },
+  {
+    id: "39",
+    name: "Pressure Damage Prevention Audit",
+    status: "new",
+    auditor: "-",
+    lastAudited: "-",
+    dueDate: "-",
+    frequency: "monthly",
+    category: "clinical",
+  },
+  {
+    id: "40",
+    name: "Health & Monitoring Audit",
+    status: "new",
+    auditor: "-",
+    lastAudited: "-",
+    dueDate: "-",
+    frequency: "monthly",
+    category: "clinical",
+  },
+  {
+    id: "41",
+    name: "Mattress and Visual Checks Audit",
+    status: "new",
+    auditor: "-",
+    lastAudited: "-",
+    dueDate: "-",
+    frequency: "monthly",
+    category: "clinical",
+  },
+  {
+    id: "42",
+    name: "Infection Control Audit",
+    status: "new",
+    auditor: "-",
+    lastAudited: "-",
+    dueDate: "-",
+    frequency: "monthly",
+    category: "clinical",
   },
 ];
 
