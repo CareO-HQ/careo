@@ -29,6 +29,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { ChevronLeft, ChevronRight, Check, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
+import { IncidentTimeSelect } from "@/components/incidents/incident-time-select";
 import { cn } from "@/lib/utils";
 
 interface SEHSCTReportFormProps {
@@ -647,11 +648,12 @@ export function SEHSCTReportForm({
 
                 <div>
                   <Label htmlFor="incidentTime" className="mb-2 block">Time of Incident <span className="text-red-500">*</span></Label>
-                  <Input
+                  <IncidentTimeSelect
                     id="incidentTime"
-                    type="time"
                     value={formData.incidentTime}
-                    onChange={(e) => setFormData({ ...formData, incidentTime: e.target.value })}
+                    onChange={(incidentTime) =>
+                      setFormData({ ...formData, incidentTime })
+                    }
                     disabled={isSubmitting}
                   />
                 </div>

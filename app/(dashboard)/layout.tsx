@@ -31,9 +31,9 @@ export default function DashboardLayout({
   }
 
   return (
-    <main className="flex px-6 py-10 w-full">
+    <main className="flex w-full min-w-0 px-6 py-10">
       <AppSidebar />
-      <div className="flex-1 w-full">
+      <div className="flex min-w-0 w-full flex-1 flex-col">
         <div className="mb-4">
           <SidebarTrigger />
         </div>

@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { Check, Printer, Save, X, Download } from "lucide-react";
 import { format } from "date-fns";
+import { IncidentTimeSelect } from "@/components/incidents/incident-time-select";
+import { formatIncidentTimeDisplay } from "@/lib/incident-time-utils";
 import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
 
 interface BHSCTReportFormProps {
@@ -203,14 +205,15 @@ export function BHSCTReportForm({
 
   const InputTime = ({ value, onChange, disabled }: { value: string, onChange: (v: string) => void, disabled?: boolean }) => (
     <div className="w-full">
-      <input
-        type="time"
+      <IncidentTimeSelect
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
         disabled={disabled}
-        className="w-full outline-none bg-transparent print:hidden font-sans"
+        className="print:hidden w-full"
       />
-      <div className="hidden print:block w-full">{value}</div>
+      <div className="hidden print:block w-full">
+        {formatIncidentTimeDisplay(value) || value}
+      </div>
     </div>
   );
 

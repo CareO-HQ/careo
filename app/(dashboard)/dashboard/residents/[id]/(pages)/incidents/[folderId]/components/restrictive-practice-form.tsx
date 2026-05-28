@@ -16,6 +16,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Check, CalendarIcon, Download } from "lucide-react";
 import { format } from "date-fns";
+import { IncidentTimeSelect } from "@/components/incidents/incident-time-select";
 import { cn } from "@/lib/utils";
 import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
 
@@ -225,7 +226,12 @@ export function RestrictivePracticeForm({
               </div>
               <div>
                 <Label htmlFor="incidentTime" className="mb-2">Time <span className="text-red-500">*</span></Label>
-                <Input id="incidentTime" type="time" value={formData.incidentTime} onChange={(e) => setFormData({ ...formData, incidentTime: e.target.value })} disabled={isSubmitting} />
+                <IncidentTimeSelect
+                  id="incidentTime"
+                  value={formData.incidentTime}
+                  onChange={(incidentTime) => setFormData({ ...formData, incidentTime })}
+                  disabled={isSubmitting}
+                />
               </div>
               <div className="md:col-span-2">
                 <Label htmlFor="incidentLocation" className="mb-2">Location</Label>

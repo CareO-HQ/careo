@@ -59,40 +59,12 @@ interface ManagerAudit {
 }
 
 const HOME_BASED_AUDIT_IDS = new Set([
-  "1",  // Accidents and Incidents Analysis
-  "2",  // Agency Profiles and Induction Records
-  "4",  // Domestic Services
-  "6",  // Catering Audit
-  "12", // Domestic Audit
-  // "13" Fall register analysis — subjectless workspace (not grid)
-  "14", // Hand Hygiene Audit
-  "16", // IPC Short Audit
-  "23", // Safeguarding Database
+  // "13" Fall audit — subjectless workspace (not grid)
   "24", // Safety Alerts
   "29", // GDPR
 ]);
 
 const initialAudits: ManagerAudit[] = [
-  {
-    id: "1",
-    name: "Accidents and Incidents Analysis",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
-    category: "clinical",
-  },
-  {
-    id: "2",
-    name: "Agency Profiles and Induction Records",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "quarterly",
-    category: "staff",
-  },
   {
     id: "3",
     name: "Bedrails Audit",
@@ -102,26 +74,6 @@ const initialAudits: ManagerAudit[] = [
     dueDate: "-",
     frequency: "monthly",
     category: "clinical",
-  },
-  {
-    id: "4",
-    name: "Domestic Services",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
-    category: "operational",
-  },
-  {
-    id: "6",
-    name: "Catering Audit",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
-    category: "operational",
   },
   {
     id: "7",
@@ -164,74 +116,14 @@ const initialAudits: ManagerAudit[] = [
     category: "operational",
   },
   {
-    id: "11",
-    name: "DOLS",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
-    category: "clinical",
-  },
-  {
-    id: "12",
-    name: "Domestic Audit",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
-    category: "operational",
-  },
-  {
     id: "13",
-    name: "Fall register analysis",
+    name: "Fall audit",
     status: "new",
     auditor: "-",
     lastAudited: "-",
     dueDate: "-",
     frequency: "monthly",
     category: "clinical",
-  },
-  {
-    id: "14",
-    name: "Hand Hygiene Audit",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
-    category: "clinical",
-  },
-  {
-    id: "15",
-    name: "Hoist and Sling Register",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "quarterly",
-    category: "clinical",
-  },
-  {
-    id: "16",
-    name: "IPC Short Audit",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
-    category: "clinical",
-  },
-  {
-    id: "17",
-    name: "Mandatory Training Stats",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
-    category: "staff",
   },
   {
     id: "18",
@@ -254,16 +146,6 @@ const initialAudits: ManagerAudit[] = [
     category: "clinical",
   },
   {
-    id: "20",
-    name: "NMC NISSC Logs",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "quarterly",
-    category: "staff",
-  },
-  {
     id: "21",
     name: "Restrictive Practice",
     status: "new",
@@ -284,16 +166,6 @@ const initialAudits: ManagerAudit[] = [
     category: "staff",
   },
   {
-    id: "23",
-    name: "Safeguarding Database",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
-    category: "clinical",
-  },
-  {
     id: "24",
     name: "Safety Alerts",
     status: "new",
@@ -304,16 +176,6 @@ const initialAudits: ManagerAudit[] = [
     category: "general",
   },
   {
-    id: "25",
-    name: "Smoking Compliance",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "quarterly",
-    category: "clinical",
-  },
-  {
     id: "26",
     name: "Supervision and Appraisal Matrix",
     status: "new",
@@ -322,16 +184,6 @@ const initialAudits: ManagerAudit[] = [
     dueDate: "-",
     frequency: "quarterly",
     category: "staff",
-  },
-  {
-    id: "27",
-    name: "Weights Analysis",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "monthly",
-    category: "clinical",
   },
   {
     id: "28",
@@ -352,16 +204,6 @@ const initialAudits: ManagerAudit[] = [
     dueDate: "-",
     frequency: "yearly",
     category: "general",
-  },
-  {
-    id: "30",
-    name: "Personnel Files",
-    status: "new",
-    auditor: "-",
-    lastAudited: "-",
-    dueDate: "-",
-    frequency: "quarterly",
-    category: "staff",
   },
   {
     id: "31",
@@ -395,7 +237,7 @@ const initialAudits: ManagerAudit[] = [
   },
   {
     id: "34",
-    name: "Accident Log for Fall Type Accidents Involving Residents",
+    name: "Incident audit",
     status: "new",
     auditor: "-",
     lastAudited: "-",

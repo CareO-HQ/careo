@@ -22,6 +22,11 @@ export type Profile = {
     next_of_kin_phone: string | null;
     next_of_kin_email: string | null;
     next_of_kin_address: string | null;
+    nmc_pin_number: string | null;
+    nmc_renewal_fee_date: string | null;
+    niscc_registration_number: string | null;
+    niscc_registration_date: string | null;
+    niscc_annual_fee_date: string | null;
     // Computed/Joined fields
     organization_name?: string;
     organization_logo_url?: string | null;
@@ -85,6 +90,11 @@ export function useProfile() {
                     next_of_kin_phone: dbUser.next_of_kin_phone || null,
                     next_of_kin_email: dbUser.next_of_kin_email || null,
                     next_of_kin_address: dbUser.next_of_kin_address || null,
+                    nmc_pin_number: dbUser.nmc_pin_number || null,
+                    nmc_renewal_fee_date: dbUser.nmc_renewal_fee_date || null,
+                    niscc_registration_number: dbUser.niscc_registration_number || null,
+                    niscc_registration_date: dbUser.niscc_registration_date || null,
+                    niscc_annual_fee_date: dbUser.niscc_annual_fee_date || null,
                 };
 
                 const enrichedProfile = { ...baseProfile };
