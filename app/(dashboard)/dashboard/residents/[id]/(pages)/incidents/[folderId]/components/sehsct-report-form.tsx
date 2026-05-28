@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Save, Download } from "lucide-react";
 import { format } from "date-fns";
+import { IncidentTimeSelect } from "@/components/incidents/incident-time-select";
+import { formatIncidentTimeDisplay } from "@/lib/incident-time-utils";
 import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
 
 interface SEHSCTReportFormProps {
@@ -243,17 +245,20 @@ export function SEHSCTReportForm({
   const InputTime = ({ value, onChange, disabled }: { value: string, onChange: (v: string) => void, disabled?: boolean }) => (
     <div className="w-full h-full flex items-center">
       {!isViewMode ? (
-        <input
-          type="time"
+        <IncidentTimeSelect
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={onChange}
           disabled={disabled || isViewMode}
-          className="w-full outline-none bg-transparent print:hidden font-sans px-2"
+          className="print:hidden w-full px-2"
         />
       ) : (
-        <div className="w-full outline-none bg-transparent print:hidden font-sans px-2">{value}</div>
+        <div className="w-full outline-none bg-transparent print:hidden font-sans px-2">
+          {formatIncidentTimeDisplay(value) || value}
+        </div>
       )}
-      <div className="hidden print:block w-full px-2">{value}</div>
+      <div className="hidden print:block w-full px-2">
+        {formatIncidentTimeDisplay(value) || value}
+      </div>
     </div>
   );
 

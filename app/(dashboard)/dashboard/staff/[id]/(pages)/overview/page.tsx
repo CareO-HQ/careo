@@ -52,6 +52,19 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
+const PROFESSIONAL_REGISTRATION_ROLES = ["nurse", "care_assistant", "manager"] as const;
+
+function showsProfessionalRegistration(role: string | undefined): boolean {
+  return PROFESSIONAL_REGISTRATION_ROLES.includes(
+    role as (typeof PROFESSIONAL_REGISTRATION_ROLES)[number]
+  );
+}
+
+function formatOptionalDate(dateStr: string | undefined | null): string | null {
+  if (!dateStr) return null;
+  return format(new Date(dateStr), "MMMM dd, yyyy");
+}
+
 type StaffOverviewProps = {
   params: Promise<{ id: string }>;
 };
@@ -68,6 +81,7 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
+  const [openDatePickers, setOpenDatePickers] = React.useState<Record<string, boolean>>({});
   const [formData, setFormData] = React.useState({
     name: "",
     phone: "",
@@ -79,6 +93,11 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
     next_of_kin_phone: "",
     next_of_kin_email: "",
     next_of_kin_address: "",
+    nmc_pin_number: "",
+    nmc_renewal_fee_date: "",
+    niscc_registration_number: "",
+    niscc_registration_date: "",
+    niscc_annual_fee_date: "",
   });
 
   const fetchStaffMember = useCallback(async () => {
@@ -114,6 +133,11 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
         next_of_kin_phone: data.next_of_kin_phone || "",
         next_of_kin_email: data.next_of_kin_email || "",
         next_of_kin_address: data.next_of_kin_address || "",
+        nmc_pin_number: data.nmc_pin_number || "",
+        nmc_renewal_fee_date: data.nmc_renewal_fee_date || "",
+        niscc_registration_number: data.niscc_registration_number || "",
+        niscc_registration_date: data.niscc_registration_date || "",
+        niscc_annual_fee_date: data.niscc_annual_fee_date || "",
       });
     }
     setIsLoading(false);
@@ -151,6 +175,11 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
         .from("users")
         .update({
           ...formData,
+          nmc_pin_number: formData.nmc_pin_number || null,
+          nmc_renewal_fee_date: formData.nmc_renewal_fee_date || null,
+          niscc_registration_number: formData.niscc_registration_number || null,
+          niscc_registration_date: formData.niscc_registration_date || null,
+          niscc_annual_fee_date: formData.niscc_annual_fee_date || null,
           image_url: imageUrl,
           updated_at: new Date().toISOString()
         })
@@ -372,6 +401,226 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
                   </div>
                 </div>
 
+                {showsProfessionalRegistration(staffMember.role) && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <h3 className="font-semibold">Professional Registration</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <Label htmlFor="nmc_pin_number">NMC PIN Number</Label>
+                        <Input
+                          id="nmc_pin_number"
+                          value={formData.nmc_pin_number}
+                          onChange={(e) =>
+                            setFormData({ ...formData, nmc_pin_number: e.target.value })
+                          }
+                          placeholder="Enter NMC PIN"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="nmc_renewal_fee_date">NMC Renewal Fee Date</Label>
+                        <Popover
+                          open={openDatePickers.nmc_renewal_fee_date ?? false}
+                          onOpenChange={(open) =>
+                            setOpenDatePickers((prev) => ({
+                              ...prev,
+                              nmc_renewal_fee_date: open,
+                            }))
+                          }
+                          modal
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              type="button"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !formData.nmc_renewal_fee_date && "text-muted-foreground"
+                              )}
+                            >
+                              <Calendar className="mr-2 h-4 w-4" />
+                              {formData.nmc_renewal_fee_date ? (
+                                format(new Date(formData.nmc_renewal_fee_date), "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={
+                                formData.nmc_renewal_fee_date
+                                  ? new Date(formData.nmc_renewal_fee_date)
+                                  : undefined
+                              }
+                              onSelect={(date) => {
+                                if (date) {
+                                  setFormData({
+                                    ...formData,
+                                    nmc_renewal_fee_date: format(date, "yyyy-MM-dd"),
+                                  });
+                                  setOpenDatePickers((prev) => ({
+                                    ...prev,
+                                    nmc_renewal_fee_date: false,
+                                  }));
+                                }
+                              }}
+                              captionLayout="dropdown"
+                              defaultMonth={
+                                formData.nmc_renewal_fee_date
+                                  ? new Date(formData.nmc_renewal_fee_date)
+                                  : new Date()
+                              }
+                              startMonth={new Date(new Date().getFullYear() - 50, 0)}
+                              endMonth={new Date(new Date().getFullYear() + 10, 11)}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div>
+                        <Label htmlFor="niscc_registration_number">
+                          NISCC Registration Number
+                        </Label>
+                        <Input
+                          id="niscc_registration_number"
+                          value={formData.niscc_registration_number}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              niscc_registration_number: e.target.value,
+                            })
+                          }
+                          placeholder="Enter NISCC registration number"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="niscc_registration_date">
+                          NISCC Registration Date
+                        </Label>
+                        <Popover
+                          open={openDatePickers.niscc_registration_date ?? false}
+                          onOpenChange={(open) =>
+                            setOpenDatePickers((prev) => ({
+                              ...prev,
+                              niscc_registration_date: open,
+                            }))
+                          }
+                          modal
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              type="button"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !formData.niscc_registration_date && "text-muted-foreground"
+                              )}
+                            >
+                              <Calendar className="mr-2 h-4 w-4" />
+                              {formData.niscc_registration_date ? (
+                                format(new Date(formData.niscc_registration_date), "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={
+                                formData.niscc_registration_date
+                                  ? new Date(formData.niscc_registration_date)
+                                  : undefined
+                              }
+                              onSelect={(date) => {
+                                if (date) {
+                                  setFormData({
+                                    ...formData,
+                                    niscc_registration_date: format(date, "yyyy-MM-dd"),
+                                  });
+                                  setOpenDatePickers((prev) => ({
+                                    ...prev,
+                                    niscc_registration_date: false,
+                                  }));
+                                }
+                              }}
+                              captionLayout="dropdown"
+                              defaultMonth={
+                                formData.niscc_registration_date
+                                  ? new Date(formData.niscc_registration_date)
+                                  : new Date()
+                              }
+                              startMonth={new Date(new Date().getFullYear() - 50, 0)}
+                              endMonth={new Date(new Date().getFullYear() + 10, 11)}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="niscc_annual_fee_date">Annual Fee Date</Label>
+                        <Popover
+                          open={openDatePickers.niscc_annual_fee_date ?? false}
+                          onOpenChange={(open) =>
+                            setOpenDatePickers((prev) => ({
+                              ...prev,
+                              niscc_annual_fee_date: open,
+                            }))
+                          }
+                          modal
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              type="button"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !formData.niscc_annual_fee_date && "text-muted-foreground"
+                              )}
+                            >
+                              <Calendar className="mr-2 h-4 w-4" />
+                              {formData.niscc_annual_fee_date ? (
+                                format(new Date(formData.niscc_annual_fee_date), "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={
+                                formData.niscc_annual_fee_date
+                                  ? new Date(formData.niscc_annual_fee_date)
+                                  : undefined
+                              }
+                              onSelect={(date) => {
+                                if (date) {
+                                  setFormData({
+                                    ...formData,
+                                    niscc_annual_fee_date: format(date, "yyyy-MM-dd"),
+                                  });
+                                  setOpenDatePickers((prev) => ({
+                                    ...prev,
+                                    niscc_annual_fee_date: false,
+                                  }));
+                                }
+                              }}
+                              captionLayout="dropdown"
+                              defaultMonth={
+                                formData.niscc_annual_fee_date
+                                  ? new Date(formData.niscc_annual_fee_date)
+                                  : new Date()
+                              }
+                              startMonth={new Date(new Date().getFullYear() - 50, 0)}
+                              endMonth={new Date(new Date().getFullYear() + 10, 11)}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Next of Kin Information */}
                 <div className="space-y-4 pt-4 border-t">
                   <h3 className="font-semibold">Next of Kin Information</h3>
@@ -560,6 +809,54 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
               </div>
             </div>
           </div>
+
+          {showsProfessionalRegistration(staffMember.role) && (
+            <div className="space-y-4 pt-4 border-t">
+              <h3 className="font-semibold text-lg">Professional Registration</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">NMC PIN Number</p>
+                  <p className="font-medium">
+                    {formData.nmc_pin_number || (
+                      <span className="text-muted-foreground">Not set</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">NMC Renewal Fee Date</p>
+                  <p className="font-medium">
+                    {formatOptionalDate(formData.nmc_renewal_fee_date) || (
+                      <span className="text-muted-foreground">Not set</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">NISCC Registration Number</p>
+                  <p className="font-medium">
+                    {formData.niscc_registration_number || (
+                      <span className="text-muted-foreground">Not set</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">NISCC Registration Date</p>
+                  <p className="font-medium">
+                    {formatOptionalDate(formData.niscc_registration_date) || (
+                      <span className="text-muted-foreground">Not set</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Annual Fee Date</p>
+                  <p className="font-medium">
+                    {formatOptionalDate(formData.niscc_annual_fee_date) || (
+                      <span className="text-muted-foreground">Not set</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Next of Kin Information */}
           <div className="space-y-4 pt-4 border-t">

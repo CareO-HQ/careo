@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Save, Download, Printer, AlertTriangle, Check, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { IncidentTimeSelect } from "@/components/incidents/incident-time-select";
+import { formatIncidentTimeDisplay } from "@/lib/incident-time-utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useProfile } from "@/hooks/use-profile";
@@ -490,13 +492,16 @@ export function PostFallAssessmentForm({
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="text-xs uppercase tracking-wider text-slate-500 font-bold">Time of fall</Label>
-                                        <Input
-                                            type={isReadOnly ? "text" : "time"}
-                                            value={formData.timeOfFall}
-                                            onChange={(e) => handleChange('timeOfFall', e.target.value)}
-                                            disabled={isReadOnly}
-                                            className={isReadOnly ? "border-none bg-transparent shadow-none px-0 disabled:opacity-100" : ""}
-                                        />
+                                        {isReadOnly ? (
+                                            <p className="text-sm">
+                                                {formatIncidentTimeDisplay(formData.timeOfFall) || "—"}
+                                            </p>
+                                        ) : (
+                                            <IncidentTimeSelect
+                                                value={formData.timeOfFall}
+                                                onChange={(value) => handleChange("timeOfFall", value)}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                                 <div className="space-y-2">
@@ -809,13 +814,18 @@ export function PostFallAssessmentForm({
                                                             <div className="grid grid-cols-2 gap-4">
                                                                 <div className="space-y-2">
                                                                     <Label className="text-xs font-bold text-slate-500">Time NIAS Called</Label>
-                                                                    <Input
-                                                                        type={isReadOnly ? "text" : "time"}
-                                                                        value={formData.niasTime}
-                                                                        onChange={(e) => handleChange('niasTime', e.target.value)}
-                                                                        disabled={isReadOnly}
-                                                                        className={isReadOnly ? "border-none bg-transparent shadow-none px-0 disabled:opacity-100 h-auto" : "h-9"}
-                                                                    />
+                                                                    {isReadOnly ? (
+                                                                        <p className="text-sm">
+                                                                            {formatIncidentTimeDisplay(formData.niasTime) || "—"}
+                                                                        </p>
+                                                                    ) : (
+                                                                        <IncidentTimeSelect
+                                                                            value={formData.niasTime}
+                                                                            onChange={(value) =>
+                                                                                handleChange("niasTime", value)
+                                                                            }
+                                                                        />
+                                                                    )}
                                                                 </div>
                                                                 <div className="space-y-2">
                                                                     <Label className="text-xs font-bold text-slate-500">Outcome</Label>

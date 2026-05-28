@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { withRoleGuard } from "@/lib/route-guards";
 import { format } from "date-fns";
 import { useActiveTeam } from "@/hooks/use-active-team";
+import { generateManagerAuditPDF } from "@/lib/manager-audit-pdf-utils";
 
 const auditNames: Record<string, string> = {
   "0": "Care File Audit",
@@ -34,7 +35,7 @@ const auditNames: Record<string, string> = {
   "10": "Dining Experience",
   "11": "DOLS",
   "12": "Domestic Audit",
-  "13": "Fall register analysis",
+  "13": "Fall audit",
   "14": "Hand Hygiene Audit",
   "15": "Hoist and Sling Register",
   "16": "IPC Short Audit",
@@ -55,7 +56,7 @@ const auditNames: Record<string, string> = {
   "31": "Resident Agreement",
   "32": "NISCC Registration Tracker",
   "33": "NMC Registration Tracker",
-  "34": "Accident Log for Fall Type Accidents Involving Residents",
+  "34": "Incident audit",
   "35": "Moving & Handling Audit",
   "36": "Choking Risk Assessment Audit",
   "37": "DNACPR Audit",
@@ -85,12 +86,13 @@ function AuditHistoryPage({ params }: AuditHistoryPageProps) {
   const auditId = resolvedParams.auditId;
   const auditName = auditNames[auditId] || "Unknown Audit";
   const isTeamBased = ["18", "3"].includes(auditId);
-  const isStaffBased = ["2", "7", "17", "20", "22", "26", "30", "32", "33"].includes(auditId);
-  const isHomeBased = ["1", "4", "6", "9", "10", "12", "13", "14", "16", "23", "24", "29", "42"].includes(auditId);
+  const isStaffBased = ["7", "22", "26", "32", "33"].includes(auditId);
+  const isHomeBased = ["1", "9", "10", "13", "14", "16", "23", "24", "29", "42"].includes(auditId);
 
   const { activeCareHomeId, activeOrganizationId } = useActiveTeam();
   const [isLoading, setIsLoading] = useState(true);
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
+  const [downloadingRecordId, setDownloadingRecordId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -141,8 +143,18 @@ function AuditHistoryPage({ params }: AuditHistoryPageProps) {
     router.push(`/dashboard/manager-audit/${auditId}/history/${recordId}`);
   };
 
-  const handleDownloadReport = (recordId: string) => {
-    toast.success("Downloading report...");
+  const handleDownloadReport = async (recordId: string) => {
+    try {
+      setDownloadingRecordId(recordId);
+      const downloadToast = toast.loading("Generating PDF report...");
+      await generateManagerAuditPDF({ recordId });
+      toast.success("PDF report downloaded", { id: downloadToast });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF report");
+    } finally {
+      setDownloadingRecordId(null);
+    }
   };
 
   if (isLoading) {
@@ -213,6 +225,7 @@ function AuditHistoryPage({ params }: AuditHistoryPageProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleViewReport(record.id)}
+                        disabled={!!downloadingRecordId}
                       >
                         <Eye className="h-4 w-4 mr-1" /> View
                       </Button>
@@ -220,8 +233,9 @@ function AuditHistoryPage({ params }: AuditHistoryPageProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDownloadReport(record.id)}
+                        disabled={!!downloadingRecordId}
                       >
-                        <Download className="h-4 w-4 mr-1" /> Download
+                        <Download className="h-4 w-4 mr-1" /> {downloadingRecordId === record.id ? "Downloading..." : "Download"}
                       </Button>
                     </div>
                   </TableCell>

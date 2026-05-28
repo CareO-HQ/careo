@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, X, CalendarIcon, Trash2, ArrowUpRight, Building, Search, AlertCircle } from "lucide-react";
+import { ArrowLeft, Plus, X, CalendarIcon, Trash2, ArrowUpRight, Building, Search, AlertCircle, History } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar } from "@/components/ui/calendar";
@@ -58,29 +58,53 @@ import {
   ManagerAuditWorkspace,
   type ManagerAuditActionPlanRow,
 } from "@/components/manager-audit/manager-audit-workspace";
+import { FallRegisterTable } from "@/components/manager-audit/fall-register-table";
+import { IncidentAuditTable } from "@/components/manager-audit/incident-audit-table";
+import { WoundsAnalysisTable } from "@/components/manager-audit/wounds-analysis-table";
+import { RegistrationTrackerTable } from "@/components/manager-audit/registration-tracker-table";
+import {
+  DEFAULT_FALLS_COLUMN_QUESTIONS,
+  formatAuditMonthLabel,
+  syncFallRegisterState,
+  type FallRegisterRow,
+} from "@/lib/falls-register-utils";
+import {
+  DEFAULT_NISCC_TRACKER_QUESTIONS,
+  DEFAULT_NMC_TRACKER_QUESTIONS,
+  getRegistrationTrackerType,
+  isRegistrationTrackerAudit,
+  syncRegistrationTrackerState,
+  type RegistrationTrackerRow,
+} from "@/lib/registration-tracker-utils";
+import {
+  isIncidentAudit,
+  syncIncidentAuditState,
+  type IncidentAuditRow,
+} from "@/lib/incident-audit-utils";
+import {
+  DEFAULT_WOUNDS_QUESTIONS,
+  filterWoundsColumnQuestions,
+  isWoundsAnalysisAudit,
+  syncWoundsAnalysisState,
+  type WoundsAnalysisRow,
+} from "@/lib/wounds-analysis-utils";
 
 const auditNames: Record<string, string> = {
   "0": "Care File Audit",
   "1": "Accidents and Incidents Analysis",
-  "2": "Agency Profiles and Induction Records",
   "3": "Bedrails Audit",
-  "4": "Domestic Services",
   "5": "CARE Documentation (10% to be checked)",
-  "6": "Catering Audit",
   "7": "Competency Assessment Review",
   "8": "Complaints Analysis",
   "9": "Decontamination",
   "10": "Dining Experience",
   "11": "DOLS",
-  "12": "Domestic Audit",
-  "13": "Fall register analysis",
+  "13": "Fall audit",
   "14": "Hand Hygiene Audit",
   "15": "Hoist and Sling Register",
   "16": "IPC Short Audit",
-  "17": "Mandatory Training Stats",
   "18": "Medication Audit",
   "19": "Modified Diet and Fluids Audit",
-  "20": "NMC NISSC Logs",
   "21": "Restrictive Practice",
   "22": "RTW Tracker",
   "23": "Safeguarding Database",
@@ -90,11 +114,10 @@ const auditNames: Record<string, string> = {
   "27": "Weights Analysis",
   "28": "Wounds Analysis",
   "29": "GDPR",
-  "30": "Personnel Files",
   "31": "Resident Agreement",
   "32": "NISCC Registration Tracker",
   "33": "NMC Registration Tracker",
-  "34": "Accident Log for Fall Type Accidents Involving Residents",
+  "34": "Incident audit",
   "35": "Moving & Handling Audit",
   "36": "Choking Risk Assessment Audit",
   "37": "DNACPR Audit",
@@ -1038,149 +1061,14 @@ const DEFAULT_INFECTION_CONTROL_QUESTIONS: Question[] = [
   },
 ];
 
-const DEFAULT_FALLS_QUESTIONS: Question[] = [
-  {
-    id: "falls-sec-1",
-    text: "General Details",
-    type: "text",
-    isSection: true,
-    sectionNumber: "1",
-  },
-  {
-    id: "falls-q-1",
-    text: "Time of Fall",
-    type: "text",
-  },
-  {
-    id: "falls-q-2",
-    text: "Location of Fall",
-    type: "text",
-  },
-  {
-    id: "falls-q-3",
-    text: "Injuries Sustained",
-    type: "text",
-  },
-  {
-    id: "falls-q-4",
-    text: "Referrals",
-    type: "text",
-  },
-  {
-    id: "falls-sec-2",
-    text: "Identification of Frequent Fallers",
-    type: "text",
-    isSection: true,
-    sectionNumber: "2",
-  },
-  {
-    id: "falls-q-5",
-    text: "Frequent Faller Names",
-    type: "text",
-  },
-  {
-    id: "falls-q-6",
-    text: "Number of Falls (per resident)",
-    type: "text",
-  },
-  {
-    id: "falls-q-7",
-    text: "Action Taken",
-    type: "text",
-  },
-];
+const DEFAULT_FALLS_QUESTIONS: Question[] = DEFAULT_FALLS_COLUMN_QUESTIONS.map(
+  (question) => ({
+    ...question,
+    type: "text" as const,
+  })
+);
 
-const FALLS_REGISTER_OPTIONS: Record<string, string[]> = {
-  "falls-q-1": [
-    "08.00-13.00",
-    "13.00-17.00",
-    "17.00-21.00",
-    "21.00-00.00",
-    "00.00-08.00",
-    "N/A",
-  ],
-  "falls-q-2": [
-    "Bedroom",
-    "Toilet / bathroom",
-    "Lounges",
-    "Corridors",
-    "Dining Room",
-    "Outside Home",
-    "Other",
-  ],
-  "falls-q-3": [
-    "None",
-    "Bruises",
-    "Cuts & Laceration",
-    "Fractured Hip",
-    "Fractured Vertebrae",
-    "Fractured Wrist",
-    "Other head injury",
-    "Total number of fractures",
-  ],
-  "falls-q-4": ["None", "GP", "Ambulance A&E"],
-  "falls-q-7": [
-    "Physio Referral",
-    "GP Review",
-    "Medication Review",
-    "Sensor Mat Installed",
-    "Increased Supervision",
-    "Other",
-  ],
-};
-
-const FALLS_COUNT_OPTIONS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10+"];
-
-const ACCIDENT_LOG_OPTIONS: Record<string, string[]> = {
-  "acc-q-4": ["None", "Minor", "Major (medical advice / A&E)"],
-};
-
-const WOUNDS_ANALYSIS_OPTIONS: Record<string, string[]> = {
-  "wound-curr-acquired": ["Home", "Hospital acquired"],
-};
-
-function parseFallsMultiSelectAnswer(value: string | undefined): string[] {
-  if (!value?.trim()) return [];
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (Array.isArray(parsed)) {
-      return parsed.filter(
-        (item): item is string => typeof item === "string" && item.trim() !== ""
-      );
-    }
-  } catch {
-    /* legacy single value */
-  }
-  return [value.trim()];
-}
-
-function serializeFallsMultiSelectAnswer(selected: string[]): string {
-  return selected.length > 0 ? JSON.stringify(selected) : "";
-}
-
-function parseFallsDependentCounts(value: string | undefined): Record<string, string> {
-  if (!value?.trim()) return {};
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      const result: Record<string, string> = {};
-      for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
-        if (typeof val === "string" && val.trim() !== "") {
-          result[key] = val;
-        }
-      }
-      return result;
-    }
-  } catch {
-    /* legacy */
-  }
-  return {};
-}
-
-function serializeFallsDependentCounts(counts: Record<string, string>): string {
-  const entries = Object.entries(counts).filter(([, val]) => val.trim() !== "");
-  return entries.length > 0 ? JSON.stringify(Object.fromEntries(entries)) : "";
-}
+const FALL_REGISTER_AUDIT_ID = "13";
 
 function upsertAnswerInList(
   prev: Answer[],
@@ -1485,113 +1373,6 @@ const DEFAULT_MATTRESS_VISUAL_CHECKS_QUESTIONS: Question[] = [
     id: "repo-q-9",
     text: "Resident Visual Check 8pm",
     type: "yesno",
-  },
-];
-
-const DEFAULT_WOUNDS_QUESTIONS: Question[] = [
-  {
-    id: "wound-sec-1",
-    text: "Review Last Month Audit - healed wounds / discharged / deceased",
-    type: "text",
-    isSection: true,
-    sectionNumber: "1",
-  },
-  {
-    id: "wound-last-type",
-    text: "Type of wound, grade, and location (Last Month)",
-    type: "text",
-  },
-  {
-    id: "wound-last-healed",
-    text: "Date wound healed",
-    type: "date",
-  },
-  {
-    id: "wound-last-comments",
-    text: "Comments / Discharged / Deceased details",
-    type: "text",
-  },
-  {
-    id: "wound-sec-2",
-    text: "Current Active Wounds",
-    type: "text",
-    isSection: true,
-    sectionNumber: "2",
-  },
-  {
-    id: "wound-curr-type",
-    text: "Type of wound, grade, and location",
-    type: "text",
-  },
-  {
-    id: "wound-curr-acquired",
-    text: "Is wound home or hospital acquired?",
-    type: "text",
-  },
-  {
-    id: "wound-curr-initial-date",
-    text: "Date of initial wound assessment (when wound was identified)",
-    type: "date",
-  },
-  {
-    id: "wound-curr-photo-date",
-    text: "Date of wound photo",
-    type: "date",
-  },
-  {
-    id: "wound-curr-bodymap-date",
-    text: "Date of body map",
-    type: "date",
-  },
-  {
-    id: "wound-curr-referral",
-    text: "Has a referral to TVN / podiatry been made? If yes, note the Date",
-    type: "text",
-  },
-  {
-    id: "wound-curr-careplan",
-    text: "Is Care plan in place? Does it reflect guidance from TVN/Podiatry?",
-    type: "yesno",
-  },
-  {
-    id: "wound-curr-clean",
-    text: "Does care plan state how to clean & creams to apply?",
-    type: "yesno",
-  },
-  {
-    id: "wound-curr-regime",
-    text: "Does Care Plan state dressing regime?",
-    type: "yesno",
-  },
-  {
-    id: "wound-curr-updated",
-    text: "Is care plan updated at each dressing change?",
-    type: "yesno",
-  },
-  {
-    id: "wound-curr-antiseptics",
-    text: "Are antiseptics / creams required, prescribed and available?",
-    type: "yesno",
-  },
-  {
-    id: "wound-curr-assessment",
-    text: "Is ongoing wound assessment updated at each dressing change?",
-    type: "yesno",
-  },
-  {
-    id: "wound-curr-equipment",
-    text: "Pressure relieving equipment in place and Zero pressure Maintained to affected area?",
-    type: "yesno",
-  },
-  {
-    id: "wound-curr-charts",
-    text: "Are position change charts Completed in full?",
-    type: "yesno",
-  },
-  {
-    id: "wound-curr-status",
-    text: "Comment on current status of the wound?",
-    type: "text",
   },
 ];
 
@@ -2239,82 +2020,6 @@ const DEFAULT_DINING_COLUMNS: Question[] = [
   { id: "dining-col-3", text: "Dining Area 3", type: "compliance" },
 ];
 
-const DEFAULT_NISCC_TRACKER_QUESTIONS: Question[] = [
-  {
-    id: "niscc-q2",
-    text: "Employment Start Date",
-    type: "date",
-  },
-  {
-    id: "niscc-q3",
-    text: "NISCC Registration Number",
-    type: "text",
-  },
-  {
-    id: "niscc-q4",
-    text: "NISCC Registration Date",
-    type: "date",
-  },
-  {
-    id: "niscc-q5",
-    text: "Annual Fee Date",
-    type: "date",
-  },
-  {
-    id: "niscc-q6",
-    text: "Renewal Date",
-    type: "date",
-  },
-  {
-    id: "niscc-q7",
-    text: "Registration Checked and Confirmed",
-    type: "date",
-  },
-  {
-    id: "niscc-q8",
-    text: "Notes - including any restrictions to practice",
-    type: "text",
-  },
-];
-
-const DEFAULT_NMC_TRACKER_QUESTIONS: Question[] = [
-  {
-    id: "nmc-q1",
-    text: "Employment Start Date",
-    type: "date",
-  },
-  {
-    id: "nmc-q2",
-    text: "NMC PIN Number",
-    type: "text",
-  },
-  {
-    id: "nmc-q3",
-    text: "Date of Birth",
-    type: "date",
-  },
-  {
-    id: "nmc-q4",
-    text: "NMC Renewal Fee Date",
-    type: "date",
-  },
-  {
-    id: "nmc-q5",
-    text: "Revalidation Date",
-    type: "date",
-  },
-  {
-    id: "nmc-q6",
-    text: "Registration Checked and Confirmed",
-    type: "date",
-  },
-  {
-    id: "nmc-q7",
-    text: "Notes - including any restrictions to practice",
-    type: "text",
-  },
-];
-
 const DEFAULT_ACCIDENT_LOG_QUESTIONS: Question[] = [
   {
     id: "acc-q-2",
@@ -2374,20 +2079,12 @@ interface AuditDetailPageProps {
 
 // Helper set of audit IDs that are home-based (grid layout)
 const HOME_BASED_AUDIT_IDS = new Set([
-  "1",  // Accidents and Incidents Analysis
-  "2",  // Agency Profiles and Induction Records
-  "4",  // Domestic Services
-  "6",  // Catering Audit
-  "12", // Domestic Audit
-  "14", // Hand Hygiene Audit
-  "16", // IPC Short Audit
-  "23", // Safeguarding Database
   "24", // Safety Alerts
   "29", // GDPR
 ]);
 
 /** Subjectless home audits using ManagerAuditWorkspace (not grid). */
-const SUBJECTLESS_HOME_AUDIT_IDS = new Set(["9", "10", "13", "42"]);
+const SUBJECTLESS_HOME_AUDIT_IDS = new Set(["9", "10", "42"]);
 
 const AUDIT_LEVEL_SUBJECT_ID = "audit-level";
 
@@ -2399,23 +2096,26 @@ function migrateFallsAuditState(
   const rowQuestions = stateData.row_questions as Question[] | undefined;
   const hasLegacyGrid = Array.isArray(rowQuestions) && rowQuestions.length > 0;
 
-  let questions =
-    storedQuestions.length > 0 ? storedQuestions : DEFAULT_FALLS_QUESTIONS;
-  let answers = storedAnswers;
+  const questions = DEFAULT_FALLS_QUESTIONS;
+  const answers = storedAnswers.filter(
+    (answer) =>
+      answer.residentId.startsWith("fall-") &&
+      answer.questionId !== "falls-q-5"
+  );
   let shouldPersist = false;
 
   const needsQuestionReset =
-    questions.length !== DEFAULT_FALLS_QUESTIONS.length ||
-    questions[1]?.text !== "Time of Fall" ||
-    questions.some((q) => q.type === "compliance") ||
-    questions.some(
-      (q) =>
-        (q.id === "falls-q-5" && q.text === "Frequent Faller Name") ||
-        (q.id === "falls-q-6" && q.text === "Number of Falls")
-    );
+    storedQuestions.length !== DEFAULT_FALLS_QUESTIONS.length ||
+    storedQuestions.some((q) => q.isSection || q.id === "falls-q-5");
 
   if (needsQuestionReset) {
-    questions = DEFAULT_FALLS_QUESTIONS;
+    shouldPersist = true;
+  }
+
+  const legacySubjectlessAnswers = storedAnswers.filter(
+    (answer) => answer.residentId === AUDIT_LEVEL_SUBJECT_ID
+  );
+  if (legacySubjectlessAnswers.length > 0) {
     shouldPersist = true;
   }
 
@@ -2424,72 +2124,12 @@ function migrateFallsAuditState(
       a.questionId === "falls-col-1" && a.residentId.startsWith("falls-q-")
   );
   if (gridAnswers.length > 0) {
-    const nonGridAnswers = storedAnswers.filter(
-      (a) =>
-        !(a.questionId === "falls-col-1" && a.residentId.startsWith("falls-q-"))
-    );
-    answers = [
-      ...nonGridAnswers,
-      ...gridAnswers.map((a) => ({
-        residentId: AUDIT_LEVEL_SUBJECT_ID,
-        questionId: a.residentId,
-        value: a.value,
-        ...(a.notes !== undefined ? { notes: a.notes } : {}),
-        ...(a.date !== undefined ? { date: a.date } : {}),
-      })),
-    ];
     shouldPersist = true;
   }
 
   if (hasLegacyGrid) {
     shouldPersist = true;
   }
-
-  answers = answers.map((answer) => {
-    if (answer.questionId === "falls-q-5" && answer.value.trim()) {
-      try {
-        JSON.parse(answer.value);
-        return answer;
-      } catch {
-        shouldPersist = true;
-        return {
-          ...answer,
-          value: JSON.stringify([answer.value.trim()]),
-        };
-      }
-    }
-    if (answer.questionId === "falls-q-6" && answer.value.trim()) {
-      try {
-        const parsed: unknown = JSON.parse(answer.value);
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          return answer;
-        }
-      } catch {
-        /* migrate below */
-      }
-      const fallerAnswer = answers.find((a) => a.questionId === "falls-q-5");
-      const fallerNames = (() => {
-        if (!fallerAnswer?.value.trim()) return [];
-        try {
-          const parsed: unknown = JSON.parse(fallerAnswer.value);
-          if (Array.isArray(parsed)) {
-            return parsed.filter((item): item is string => typeof item === "string");
-          }
-        } catch {
-          return [fallerAnswer.value.trim()];
-        }
-        return [fallerAnswer.value.trim()];
-      })();
-      if (fallerNames.length === 1) {
-        shouldPersist = true;
-        return {
-          ...answer,
-          value: JSON.stringify({ [fallerNames[0]]: answer.value.trim() }),
-        };
-      }
-    }
-    return answer;
-  });
 
   return { questions, answers, shouldPersist };
 }
@@ -2540,7 +2180,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   );
   const auditName = editableAuditName;
 
-  const isStaffBased = savedCategory === 'staff' || templateType === 'staff-based' || ["2", "7", "17", "20", "22", "26", "30", "32", "33"].includes(auditId);
+  const isStaffBased = savedCategory === 'staff' || templateType === 'staff-based' || ["7", "22", "26", "32", "33"].includes(auditId);
   const isTeamBased = auditId === "18" || auditId === "3";
 
   const { profile, isLoading: isContextLoading } = useProfile();
@@ -2627,8 +2267,111 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [pendingActionPlanCountByResident, setPendingActionPlanCountByResident] =
     useState<Record<string, number>>({});
+  const [fallRegisterRows, setFallRegisterRows] = useState<FallRegisterRow[]>([]);
+  const [fallRegisterAuditMonth, setFallRegisterAuditMonth] = useState("");
+  const [isSyncingFallRegister, setIsSyncingFallRegister] = useState(false);
+  const [registrationTrackerRows, setRegistrationTrackerRows] = useState<
+    RegistrationTrackerRow[]
+  >([]);
+  const [isRefreshingRegistrationTracker, setIsRefreshingRegistrationTracker] =
+    useState(false);
+  const [incidentAuditRows, setIncidentAuditRows] = useState<IncidentAuditRow[]>(
+    []
+  );
+  const [incidentAuditMonth, setIncidentAuditMonth] = useState("");
+  const [isSyncingIncidentAudit, setIsSyncingIncidentAudit] = useState(false);
+  const [woundsAnalysisRows, setWoundsAnalysisRows] = useState<WoundsAnalysisRow[]>(
+    []
+  );
+  const [woundsAnalysisMonth, setWoundsAnalysisMonth] = useState("");
+  const [isSyncingWoundsAnalysis, setIsSyncingWoundsAnalysis] = useState(false);
 
   // Load data
+  const applyFallRegisterSync = useCallback(
+    async (
+      chId: string,
+      orgId: string,
+      baseAnswers: Answer[],
+      overwriteEmptyOnly = true
+    ) => {
+      const synced = await syncFallRegisterState(
+        chId,
+        orgId,
+        baseAnswers,
+        overwriteEmptyOnly
+      );
+      setFallRegisterRows(synced.rows);
+      setFallRegisterAuditMonth(synced.auditMonth);
+      setAnswers(synced.answers);
+      return synced;
+    },
+    []
+  );
+
+  const applyRegistrationTrackerSync = useCallback(
+    async (
+      chId: string,
+      orgId: string,
+      trackerAuditId: "32" | "33",
+      baseAnswers: Answer[],
+      overwriteEmptyOnly = true
+    ) => {
+      const synced = await syncRegistrationTrackerState(
+        chId,
+        orgId,
+        trackerAuditId,
+        baseAnswers,
+        overwriteEmptyOnly
+      );
+      setRegistrationTrackerRows(synced.rows);
+      setAnswers(synced.answers);
+      return synced;
+    },
+    []
+  );
+
+  const applyIncidentAuditSync = useCallback(
+    async (
+      chId: string,
+      orgId: string,
+      baseAnswers: Answer[],
+      overwriteEmptyOnly = true
+    ) => {
+      const synced = await syncIncidentAuditState(
+        chId,
+        orgId,
+        baseAnswers,
+        overwriteEmptyOnly
+      );
+      setIncidentAuditRows(synced.rows);
+      setIncidentAuditMonth(synced.auditMonth);
+      setAnswers(synced.answers);
+      return synced;
+    },
+    []
+  );
+
+  const applyWoundsAnalysisSync = useCallback(
+    async (
+      chId: string,
+      orgId: string,
+      baseAnswers: Answer[],
+      overwriteEmptyOnly = true
+    ) => {
+      const synced = await syncWoundsAnalysisState(
+        chId,
+        orgId,
+        baseAnswers,
+        overwriteEmptyOnly
+      );
+      setWoundsAnalysisRows(synced.rows);
+      setWoundsAnalysisMonth(synced.auditMonth);
+      setAnswers(synced.answers);
+      return synced;
+    },
+    []
+  );
+
   const loadData = useCallback(async () => {
     if (!activeCareHomeId || !activeOrganizationId) return;
 
@@ -2666,7 +2409,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       const isStaffBased = 
         savedCategoryVal === 'staff' || 
         templateTypeVal === 'staff-based' || 
-        ["2", "7", "17", "20", "22", "26", "30", "32", "33"].includes(auditId);
+        ["7", "22", "26", "32", "33"].includes(auditId);
 
       // 2. Load residents scoped to the active care home (or teams if Medication Audit or users if Staff based)
       let allResidentsData: any[] = [];
@@ -2690,14 +2433,28 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           allResidentsData = mapped;
         }
       } else if (isStaffBased) {
-        const { data: userData } = await supabase
+        let staffQuery = supabase
           .from('users')
           .select('*')
           .eq('active_organization_id', activeOrganizationId)
           .eq('active_care_home_id', activeCareHomeId)
           .eq('is_onboarding_complete', true);
+
+        if (auditId === "33") {
+          staffQuery = staffQuery.eq('role', 'nurse');
+        }
+
+        const { data: userData } = await staffQuery;
         if (userData) {
-          const mapped = userData.map((u: any) => {
+          const filteredUsers =
+            auditId === "32"
+              ? userData.filter(
+                  (u: { role?: string | null; is_saas_admin?: boolean | null }) =>
+                    u.role?.toLowerCase().trim() !== "owner" &&
+                    u.is_saas_admin !== true
+                )
+              : userData;
+          const mapped = filteredUsers.map((u: any) => {
             const nameParts = (u.name || "").trim().split(/\s+/);
             const first = nameParts[0] || u.email || "Staff";
             const last = nameParts.slice(1).join(" ");
@@ -2895,10 +2652,11 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
             questions: DEFAULT_DINING_QUESTIONS,
           });
-        } else if (auditId === "13") {
+        } else if (auditId === FALL_REGISTER_AUDIT_ID) {
           setQuestions(DEFAULT_FALLS_QUESTIONS);
           await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
             questions: DEFAULT_FALLS_QUESTIONS,
+            template_type: "general",
           });
         } else if (auditId === "35") {
           setQuestions(DEFAULT_MOVING_HANDLING_QUESTIONS);
@@ -2931,9 +2689,9 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
             questions: DEFAULT_PRESSURE_DAMAGE_QUESTIONS,
           });
         } else if (auditId === "28") {
-          setQuestions(DEFAULT_WOUNDS_QUESTIONS);
+          setQuestions(DEFAULT_WOUNDS_QUESTIONS as Question[]);
           await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
-            questions: DEFAULT_WOUNDS_QUESTIONS,
+            questions: DEFAULT_WOUNDS_QUESTIONS as Question[],
           });
         } else if (auditId === "19") {
           setQuestions(DEFAULT_MODIFIED_DIET_FLUIDS_QUESTIONS);
@@ -2956,7 +2714,9 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         const loadedRowQuestions = stateData.row_questions as Question[];
         const loadedColQuestions = stateData.column_questions as Question[];
 
-        if (auditId === "13") {
+        let fallRegisterBaseAnswers: Answer[] = (stateData.answers as Answer[]) || [];
+
+        if (auditId === FALL_REGISTER_AUDIT_ID) {
           const storedQuestions = (stateData.questions as Question[]) || [];
           const storedAnswers = (stateData.answers as Answer[]) || [];
           const migrated = migrateFallsAuditState(
@@ -2966,11 +2726,12 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           );
           setQuestions(migrated.questions);
           setAnswers(migrated.answers);
+          fallRegisterBaseAnswers = migrated.answers;
           if (migrated.shouldPersist) {
             await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
               questions: migrated.questions,
               answers: migrated.answers,
-              template_type: "home-based",
+              template_type: "general",
               row_questions: [],
               column_questions: [],
               fixed_column_data: {},
@@ -2985,6 +2746,13 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         if (stateData.resident_audit_data) setResidentAuditData(stateData.resident_audit_data as any);
         if (stateData.custom_name) setEditableAuditName(stateData.custom_name);
         if (auditId === "3" || auditId === "18" || auditId === "21" || auditId === "32" || auditId === "33" || auditId === "34" || auditId === "35" || auditId === "37" || auditId === "36" || auditId === "38" || auditId === "39" || auditId === "28" || auditId === "19" || auditId === "40" || auditId === "41") {
+          setTemplateType("general");
+          if (stateData.template_type !== "general") {
+            await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
+              template_type: "general",
+            });
+          }
+        } else if (auditId === FALL_REGISTER_AUDIT_ID) {
           setTemplateType("general");
           if (stateData.template_type !== "general") {
             await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
@@ -3051,11 +2819,78 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           setSelectedResidents(savedResidents);
         } else {
           // If state exists but selected residents is empty, handle defaults
-          const isGridBasedAudit = (HOME_BASED_AUDIT_IDS.has(auditId) || stateData.template_type === 'home-based') && !SUBJECTLESS_HOME_AUDIT_IDS.has(auditId) && auditId !== "18" && auditId !== "3" && auditId !== "34" && auditId !== "39" && auditId !== "28" && auditId !== "19" && auditId !== "40" && auditId !== "41";
+          const isGridBasedAudit = (HOME_BASED_AUDIT_IDS.has(auditId) || stateData.template_type === 'home-based') && !SUBJECTLESS_HOME_AUDIT_IDS.has(auditId) && auditId !== FALL_REGISTER_AUDIT_ID && auditId !== "18" && auditId !== "3" && auditId !== "34" && auditId !== "39" && auditId !== "28" && auditId !== "19" && auditId !== "40" && auditId !== "41";
           if (!isGridBasedAudit && !SUBJECTLESS_HOME_AUDIT_IDS.has(auditId) && templateType !== 'staff-based' && allResidentsData.length > 0) {
             setSelectedResidents(allResidentsData);
             await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, { selected_residents: allResidentsData });
           }
+        }
+
+        if (auditId === FALL_REGISTER_AUDIT_ID) {
+          const synced = await applyFallRegisterSync(
+            activeCareHomeId,
+            activeOrganizationId,
+            fallRegisterBaseAnswers,
+            true
+          );
+          if (synced.hasChanges) {
+            await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
+              answers: synced.answers,
+            });
+          }
+        }
+
+        if (isIncidentAudit(auditId)) {
+          const synced = await applyIncidentAuditSync(
+            activeCareHomeId,
+            activeOrganizationId,
+            (stateData.answers as Answer[]) || [],
+            true
+          );
+          await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
+            answers: synced.answers,
+            selected_residents: [],
+          });
+        }
+
+        if (isWoundsAnalysisAudit(auditId)) {
+          const synced = await applyWoundsAnalysisSync(
+            activeCareHomeId,
+            activeOrganizationId,
+            (stateData.answers as Answer[]) || [],
+            true
+          );
+          await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
+            answers: synced.answers,
+            selected_residents: [],
+          });
+        }
+
+        if (isRegistrationTrackerAudit(auditId)) {
+          const trackerBaseAnswers = (stateData.answers as Answer[]) || [];
+          const synced = await applyRegistrationTrackerSync(
+            activeCareHomeId,
+            activeOrganizationId,
+            auditId,
+            trackerBaseAnswers,
+            true
+          );
+          const trackerResidents = allResidentsData.filter((resident) =>
+            synced.rows.some((row) => row.staffId === resident._id)
+          );
+          setSelectedResidents(trackerResidents);
+          const stateUpdates: Record<string, unknown> = {
+            selected_residents: trackerResidents,
+          };
+          if (synced.hasChanges) {
+            stateUpdates.answers = synced.answers;
+          }
+          await upsertAuditState(
+            activeCareHomeId,
+            activeOrganizationId,
+            auditId,
+            stateUpdates
+          );
         }
       } else {
         // 5. Initial setup if no state exists in Supabase
@@ -3091,8 +2926,9 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           ...(auditId === "10" ? {
             questions: DEFAULT_DINING_QUESTIONS,
           } : {}),
-          ...(auditId === "13" ? {
+          ...(auditId === FALL_REGISTER_AUDIT_ID ? {
             questions: DEFAULT_FALLS_QUESTIONS,
+            template_type: "general",
           } : {}),
           ...(auditId === "18" ? {
             questions: DEFAULT_MEDICATION_QUESTIONS,
@@ -3161,9 +2997,80 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           setQuestions(DEFAULT_INFECTION_CONTROL_QUESTIONS);
         } else if (auditId === "10") {
           setQuestions(DEFAULT_DINING_QUESTIONS);
-        } else if (auditId === "13") {
+        } else if (auditId === FALL_REGISTER_AUDIT_ID) {
           setQuestions(DEFAULT_FALLS_QUESTIONS);
         }
+      }
+
+      if (auditId === FALL_REGISTER_AUDIT_ID && activeCareHomeId && activeOrganizationId) {
+        const synced = await applyFallRegisterSync(
+          activeCareHomeId,
+          activeOrganizationId,
+          [],
+          false
+        );
+        if (synced.hasChanges) {
+          await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
+            answers: synced.answers,
+          });
+        }
+      }
+
+      if (isIncidentAudit(auditId) && activeCareHomeId && activeOrganizationId) {
+        const synced = await applyIncidentAuditSync(
+          activeCareHomeId,
+          activeOrganizationId,
+          [],
+          false
+        );
+        await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
+          answers: synced.answers,
+          selected_residents: [],
+        });
+      }
+
+      if (isWoundsAnalysisAudit(auditId) && activeCareHomeId && activeOrganizationId) {
+        const synced = await applyWoundsAnalysisSync(
+          activeCareHomeId,
+          activeOrganizationId,
+          [],
+          false
+        );
+        await upsertAuditState(activeCareHomeId, activeOrganizationId, auditId, {
+          answers: synced.answers,
+          selected_residents: [],
+        });
+      }
+
+      if (
+        isRegistrationTrackerAudit(auditId) &&
+        !stateData &&
+        activeCareHomeId &&
+        activeOrganizationId
+      ) {
+        const synced = await applyRegistrationTrackerSync(
+          activeCareHomeId,
+          activeOrganizationId,
+          auditId,
+          [],
+          false
+        );
+        const trackerResidents = allResidentsData.filter((resident) =>
+          synced.rows.some((row) => row.staffId === resident._id)
+        );
+        setSelectedResidents(trackerResidents);
+        const stateUpdates: Record<string, unknown> = {
+          selected_residents: trackerResidents,
+        };
+        if (synced.hasChanges) {
+          stateUpdates.answers = synced.answers;
+        }
+        await upsertAuditState(
+          activeCareHomeId,
+          activeOrganizationId,
+          auditId,
+          stateUpdates
+        );
       }
 
     } catch (err) {
@@ -3175,7 +3082,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [auditId, activeOrganizationId, activeCareHomeId, isCustomAudit]);
+  }, [auditId, activeOrganizationId, activeCareHomeId, isCustomAudit, applyFallRegisterSync, applyIncidentAuditSync, applyWoundsAnalysisSync, applyRegistrationTrackerSync]);
 
   // Helper: upsert audit state to Supabase
   const upsertAuditState = async (chId: string, orgId: string, typeId: string, updates: Record<string, any>) => {
@@ -3395,56 +3302,144 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     });
   };
 
-  const handleToggleMultiSelectAnswer = (
-    residentId: string,
-    questionId: string,
-    option: string
-  ) => {
-    setAnswers((prev) => {
-      const current = parseFallsMultiSelectAnswer(
-        prev.find(
-          (a) => a.residentId === residentId && a.questionId === questionId
-        )?.value
-      );
-      const isSelected = current.includes(option);
-      const nextSelected = isSelected
-        ? current.filter((v) => v !== option)
-        : [...current, option];
-
-      let updatedAnswers = upsertAnswerInList(
-        prev,
-        residentId,
-        questionId,
-        serializeFallsMultiSelectAnswer(nextSelected)
-      );
-
-      if (questionId === "falls-q-5" && isSelected) {
-        const counts = parseFallsDependentCounts(
-          prev.find(
-            (a) =>
-              a.residentId === residentId && a.questionId === "falls-q-6"
-          )?.value
-        );
-        delete counts[option];
-        updatedAnswers = upsertAnswerInList(
-          updatedAnswers,
-          residentId,
-          "falls-q-6",
-          serializeFallsDependentCounts(counts)
-        );
-      }
-
-      if (careHomeId && activeOrganizationId) {
-        void upsertAuditState(careHomeId, activeOrganizationId, auditId, {
-          answers: updatedAnswers,
-        });
-      }
-      return updatedAnswers;
-    });
+  const getAnswer = (residentId: string, questionId: string) => {
+    return answers.find(
+      (answer) =>
+        answer.residentId === residentId && answer.questionId === questionId
+    );
   };
 
-  const getAnswer = (residentId: string, questionId: string) => {
-    return answers.find(a => a.residentId === residentId && a.questionId === questionId);
+  const handleSyncIncidentAudit = async () => {
+    if (!careHomeId || !activeOrganizationId || !isIncidentAudit(auditId)) {
+      return;
+    }
+
+    try {
+      setIsSyncingIncidentAudit(true);
+      const synced = await applyIncidentAuditSync(
+        careHomeId,
+        activeOrganizationId,
+        answers,
+        true
+      );
+      await upsertAuditState(careHomeId, activeOrganizationId, auditId, {
+        answers: synced.answers,
+        selected_residents: [],
+      });
+      if (synced.hasChanges) {
+        toast.success(
+          `Incident audit synced — ${synced.rows.length} incident-folder report${synced.rows.length !== 1 ? "s" : ""} this month`
+        );
+      } else {
+        toast.message(
+          synced.rows.length > 0
+            ? "Incident audit is already up to date"
+            : "No completed incident-folder reports found for this month"
+        );
+      }
+    } catch (error) {
+      console.error("Error syncing incident audit:", error);
+      toast.error("Failed to sync incident audit from incidents");
+    } finally {
+      setIsSyncingIncidentAudit(false);
+    }
+  };
+
+  const handleSyncWoundsAnalysis = async () => {
+    if (!careHomeId || !activeOrganizationId || !isWoundsAnalysisAudit(auditId)) {
+      return;
+    }
+
+    try {
+      setIsSyncingWoundsAnalysis(true);
+      const synced = await applyWoundsAnalysisSync(
+        careHomeId,
+        activeOrganizationId,
+        answers,
+        true
+      );
+      await upsertAuditState(careHomeId, activeOrganizationId, auditId, {
+        answers: synced.answers,
+        selected_residents: [],
+      });
+      if (synced.hasChanges) {
+        toast.success(
+          `Wounds analysis synced — ${synced.rows.length} wound folder${synced.rows.length !== 1 ? "s" : ""} created this month`
+        );
+      } else {
+        toast.message(
+          synced.rows.length > 0
+            ? "Wounds analysis is already up to date"
+            : "No wound folders created this month found"
+        );
+      }
+    } catch (error) {
+      console.error("Error syncing wounds analysis:", error);
+      toast.error("Failed to sync wounds analysis from wound records");
+    } finally {
+      setIsSyncingWoundsAnalysis(false);
+    }
+  };
+
+  const handleSyncFallRegister = async () => {
+    if (!careHomeId || !activeOrganizationId) return;
+
+    try {
+      setIsSyncingFallRegister(true);
+      const synced = await applyFallRegisterSync(
+        careHomeId,
+        activeOrganizationId,
+        answers,
+        true
+      );
+      if (synced.hasChanges) {
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, {
+          answers: synced.answers,
+        });
+        toast.success("Fall register synced from incident reports");
+      } else {
+        toast.message("Fall register is already up to date");
+      }
+    } catch (error) {
+      console.error("Error syncing fall register:", error);
+      toast.error("Failed to sync fall register from incidents");
+    } finally {
+      setIsSyncingFallRegister(false);
+    }
+  };
+
+  const handleRefreshRegistrationTracker = async () => {
+    if (
+      !careHomeId ||
+      !activeOrganizationId ||
+      !isRegistrationTrackerAudit(auditId)
+    ) {
+      return;
+    }
+
+    try {
+      setIsRefreshingRegistrationTracker(true);
+      const synced = await applyRegistrationTrackerSync(
+        careHomeId,
+        activeOrganizationId,
+        auditId,
+        answers,
+        true
+      );
+      if (synced.hasChanges) {
+        await upsertAuditState(careHomeId, activeOrganizationId, auditId, {
+          answers: synced.answers,
+        });
+        toast.success("Registration tracker refreshed from staff profiles");
+      } else {
+        toast.message("Registration tracker is already up to date");
+      }
+    } catch (error) {
+      console.error("Error refreshing registration tracker:", error);
+      toast.error("Failed to refresh from staff profiles");
+    } finally {
+      setIsRefreshingRegistrationTracker(false);
+    }
   };
 
   const handleCommentChange = async (residentId: string, questionId: string, text: string) => {
@@ -3465,8 +3460,12 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
 
   // Completion
   const handleCompleteAudit = async () => {
+    const isFallRegisterAudit = auditId === FALL_REGISTER_AUDIT_ID;
+    const isRegistrationTrackerAuditActive = isRegistrationTrackerAudit(auditId);
+    const isIncidentAuditActive = isIncidentAudit(auditId);
+    const isWoundsAnalysisAuditActive = isWoundsAnalysisAudit(auditId);
     // Determine if this is a grid-based audit
-    const isGridAudit = (HOME_BASED_AUDIT_IDS.has(auditId) || templateType === 'home-based') && !SUBJECTLESS_HOME_AUDIT_IDS.has(auditId) && auditId !== "18" && auditId !== "3" && auditId !== "34" && auditId !== "39" && auditId !== "28" && auditId !== "19" && auditId !== "40" && auditId !== "41";
+    const isGridAudit = (HOME_BASED_AUDIT_IDS.has(auditId) || templateType === 'home-based') && !SUBJECTLESS_HOME_AUDIT_IDS.has(auditId) && auditId !== FALL_REGISTER_AUDIT_ID && auditId !== "18" && auditId !== "3" && auditId !== "34" && auditId !== "39" && auditId !== "28" && auditId !== "19" && auditId !== "40" && auditId !== "41";
 
     // Validation for grid-based audits
     if (isGridAudit) {
@@ -3476,7 +3475,12 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         });
         return;
       }
-    } else {
+    } else if (
+      !isFallRegisterAudit &&
+      !isRegistrationTrackerAuditActive &&
+      !isIncidentAuditActive &&
+      !isWoundsAnalysisAuditActive
+    ) {
       // Validation for standard audits
       if (!SUBJECTLESS_HOME_AUDIT_IDS.has(auditId) && selectedResidents.length === 0) {
         toast.error(`Please add at least one ${isTeamBased ? 'team' : isStaffBased ? 'staff member' : 'resident'} to the audit`, {
@@ -3497,23 +3501,26 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         auditName: auditName,
         completedDate: new Date().toISOString(),
         auditor: profile?.name || profile?.email || "Unknown",
-        residents: selectedResidents.map(resident => ({
-          id: resident._id,
-          firstName: resident.firstName,
-          lastName: resident.lastName,
-          roomNumber: resident.roomNumber,
-          answers: questions.map(q => {
-            const answer = getAnswer(resident._id, q.id);
-            return {
-              questionId: q.id,
-              questionText: q.text,
-              questionType: q.type,
-              value: answer?.value || null,
-              comment: getComment(resident._id, q.id)
-            };
-          }),
-          comment: ""
-        })),
+        residents: isIncidentAuditActive || isWoundsAnalysisAuditActive
+          ? []
+          : selectedResidents.map(resident => ({
+              id: resident._id,
+              firstName: resident.firstName,
+              lastName: resident.lastName,
+              roomNumber: resident.roomNumber,
+              teamId: resident.teamId,
+              answers: questions.map(q => {
+                const answer = getAnswer(resident._id, q.id);
+                return {
+                  questionId: q.id,
+                  questionText: q.text,
+                  questionType: q.type,
+                  value: answer?.value || null,
+                  comment: getComment(resident._id, q.id)
+                };
+              }),
+              comment: ""
+            })),
         questions: questions,
         homeBasedData: (isGridAudit || SUBJECTLESS_HOME_AUDIT_IDS.has(auditId)) ? {
           subjectId: AUDIT_LEVEL_SUBJECT_ID,
@@ -3521,6 +3528,38 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           answers,
           comments,
         } : undefined,
+        fallRegisterData: isFallRegisterAudit ? {
+          auditMonth: fallRegisterAuditMonth,
+          totalFalls: fallRegisterRows.length,
+          rows: fallRegisterRows,
+          columnQuestions: DEFAULT_FALLS_QUESTIONS,
+          answers,
+        } : undefined,
+        registrationTrackerData: isRegistrationTrackerAuditActive ? {
+          trackerType: getRegistrationTrackerType(auditId),
+          rows: registrationTrackerRows,
+          columnQuestions: questions,
+          answers,
+          totalStaff: registrationTrackerRows.length,
+        } : undefined,
+        incidentAuditData: isIncidentAuditActive
+          ? {
+              auditMonth: incidentAuditMonth,
+              rows: incidentAuditRows,
+              columnQuestions: questions.filter((q) => !q.isSection),
+              answers,
+              totalIncidents: incidentAuditRows.length,
+            }
+          : undefined,
+        woundsAnalysisData: isWoundsAnalysisAuditActive
+          ? {
+              auditMonth: woundsAnalysisMonth,
+              rows: woundsAnalysisRows,
+              columnQuestions: filterWoundsColumnQuestions(questions),
+              answers,
+              totalWounds: woundsAnalysisRows.length,
+            }
+          : undefined,
         // Include grid data if applicable
         gridData: isGridAudit ? {
           rowQuestions,
@@ -3545,7 +3584,17 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         audit_type_name: auditName,
         completed_date: auditCompletionData.completedDate,
         auditor: auditCompletionData.auditor,
-        entries_count: (isGridAudit || SUBJECTLESS_HOME_AUDIT_IDS.has(auditId)) ? (isGridAudit ? rowQuestions : questions).filter((q) => !q.isSection).length : selectedResidents.length,
+        entries_count: isFallRegisterAudit
+          ? fallRegisterRows.length
+          : isRegistrationTrackerAuditActive
+            ? registrationTrackerRows.length
+            : isIncidentAuditActive
+              ? incidentAuditRows.length
+              : isWoundsAnalysisAuditActive
+                ? woundsAnalysisRows.length
+          : (isGridAudit || SUBJECTLESS_HOME_AUDIT_IDS.has(auditId))
+            ? (isGridAudit ? rowQuestions : questions).filter((q) => !q.isSection).length
+            : selectedResidents.length,
         notes: `${actionPlans.length} action plan(s) created`,
         data: auditCompletionData
       });
@@ -3773,8 +3822,240 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     );
   }
 
+  if (auditId === FALL_REGISTER_AUDIT_ID) {
+    const fallRegisterMonthLabel = fallRegisterAuditMonth
+      ? formatAuditMonthLabel(fallRegisterAuditMonth)
+      : formatAuditMonthLabel(new Date().toISOString().slice(0, 7));
+
+    return (
+      <ManagerAuditShell
+        breadcrumbs={[
+          { label: "Audits", href: "/dashboard/manager-audit" as Route },
+          { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
+          { label: auditName },
+        ]}
+        onBack={handleBack}
+        topActions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
+            >
+              <History className="mr-2 h-4 w-4" /> History
+            </Button>
+            <Button size="sm" onClick={handleCompleteAudit}>
+              Complete Audit
+            </Button>
+          </div>
+        }
+        summary={
+          <ManagerAuditSummary
+            title={auditName}
+            subtitle="Review fall folders created this month. Values are prefilled from incident reports."
+            chips={[
+              { label: "Auditor", value: profile?.name || profile?.email || "—" },
+              { label: "Period", value: fallRegisterMonthLabel },
+              { label: "Total falls", value: fallRegisterRows.length },
+              { label: "Action plans", value: actionPlans.length },
+            ]}
+          />
+        }
+        flushBody
+      >
+        <FallRegisterTable
+          auditMonth={fallRegisterAuditMonth || new Date().toISOString().slice(0, 7)}
+          rows={fallRegisterRows}
+          answers={answers}
+          isSyncing={isSyncingFallRegister}
+          onAnswerChange={handleAnswerChange}
+          onSyncFromIncidents={handleSyncFallRegister}
+        />
+      </ManagerAuditShell>
+    );
+  }
+
+  if (isIncidentAudit(auditId)) {
+    const incidentMonthLabel = incidentAuditMonth
+      ? formatAuditMonthLabel(incidentAuditMonth)
+      : formatAuditMonthLabel(new Date().toISOString().slice(0, 7));
+    const uniqueResidentCount = new Set(
+      incidentAuditRows.map((row) => row.residentId)
+    ).size;
+
+    return (
+      <ManagerAuditShell
+        breadcrumbs={[
+          { label: "Audits", href: "/dashboard/manager-audit" as Route },
+          { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
+          { label: auditName },
+        ]}
+        onBack={handleBack}
+        topActions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
+            >
+              <History className="mr-2 h-4 w-4" /> History
+            </Button>
+            <Button size="sm" onClick={handleCompleteAudit}>
+              Complete Audit
+            </Button>
+          </div>
+        }
+        summary={
+          <ManagerAuditSummary
+            title={auditName}
+            subtitle="One row per incident-folder report this month. Fall folders are not included."
+            chips={[
+              { label: "Auditor", value: profile?.name || profile?.email || "—" },
+              { label: "Period", value: incidentMonthLabel },
+              { label: "Incidents", value: incidentAuditRows.length },
+              { label: "Residents", value: uniqueResidentCount },
+              { label: "Action plans", value: actionPlans.length },
+            ]}
+          />
+        }
+        flushBody
+      >
+        <IncidentAuditTable
+          rows={incidentAuditRows}
+          questions={questions}
+          answers={answers}
+          auditMonthLabel={incidentMonthLabel}
+          teams={teams}
+          selectedUnitId={selectedUnitId}
+          onUnitChange={setSelectedUnitId}
+          isSyncing={isSyncingIncidentAudit}
+          onAnswerChange={handleAnswerChange}
+          onSyncFromIncidents={handleSyncIncidentAudit}
+        />
+      </ManagerAuditShell>
+    );
+  }
+
+  if (isWoundsAnalysisAudit(auditId)) {
+    const woundsMonthLabel = woundsAnalysisMonth
+      ? formatAuditMonthLabel(woundsAnalysisMonth)
+      : formatAuditMonthLabel(new Date().toISOString().slice(0, 7));
+    const uniqueResidentCount = new Set(
+      woundsAnalysisRows.map((row) => row.residentId)
+    ).size;
+
+    return (
+      <ManagerAuditShell
+        breadcrumbs={[
+          { label: "Audits", href: "/dashboard/manager-audit" as Route },
+          { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
+          { label: auditName },
+        ]}
+        onBack={handleBack}
+        topActions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
+            >
+              <History className="mr-2 h-4 w-4" /> History
+            </Button>
+            <Button size="sm" onClick={handleCompleteAudit}>
+              Complete Audit
+            </Button>
+          </div>
+        }
+        summary={
+          <ManagerAuditSummary
+            title={auditName}
+            subtitle="One row per wound folder created this month. Values are prefilled from wound records where available."
+            chips={[
+              { label: "Auditor", value: profile?.name || profile?.email || "—" },
+              { label: "Period", value: woundsMonthLabel },
+              { label: "Wounds", value: woundsAnalysisRows.length },
+              { label: "Residents", value: uniqueResidentCount },
+              { label: "Action plans", value: actionPlans.length },
+            ]}
+          />
+        }
+        flushBody
+      >
+        <WoundsAnalysisTable
+          rows={woundsAnalysisRows}
+          questions={questions}
+          answers={answers}
+          auditMonthLabel={woundsMonthLabel}
+          teams={teams}
+          selectedUnitId={selectedUnitId}
+          onUnitChange={setSelectedUnitId}
+          isSyncing={isSyncingWoundsAnalysis}
+          onAnswerChange={handleAnswerChange}
+          onSyncFromWounds={handleSyncWoundsAnalysis}
+        />
+      </ManagerAuditShell>
+    );
+  }
+
+  if (isRegistrationTrackerAudit(auditId)) {
+    const trackerType = getRegistrationTrackerType(auditId);
+    const trackerSubtitle =
+      trackerType === "nmc"
+        ? "Track NMC registration details for nurses. Profile fields are prefilled where available."
+        : "Track NISCC registration details for staff. Profile fields are prefilled where available.";
+    const staffCountLabel = trackerType === "nmc" ? "Nurses" : "Staff";
+
+    return (
+      <ManagerAuditShell
+        breadcrumbs={[
+          { label: "Audits", href: "/dashboard/manager-audit" as Route },
+          { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
+          { label: auditName },
+        ]}
+        onBack={handleBack}
+        topActions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
+            >
+              <History className="mr-2 h-4 w-4" /> History
+            </Button>
+            <Button size="sm" onClick={handleCompleteAudit}>
+              Complete Audit
+            </Button>
+          </div>
+        }
+        summary={
+          <ManagerAuditSummary
+            title={auditName}
+            subtitle={trackerSubtitle}
+            chips={[
+              { label: "Auditor", value: profile?.name || profile?.email || "—" },
+              { label: staffCountLabel, value: registrationTrackerRows.length },
+              { label: "Questions", value: questions.length },
+              { label: "Action plans", value: actionPlans.length },
+            ]}
+          />
+        }
+        flushBody
+      >
+        <RegistrationTrackerTable
+          trackerType={trackerType}
+          rows={registrationTrackerRows}
+          questions={questions}
+          answers={answers}
+          isRefreshing={isRefreshingRegistrationTracker}
+          onAnswerChange={handleAnswerChange}
+          onRefreshFromProfiles={handleRefreshRegistrationTracker}
+        />
+      </ManagerAuditShell>
+    );
+  }
+
   // Grid-based Audits (ID: 1, 2, 9, or home-based custom audits)
-  const isGridAudit = (HOME_BASED_AUDIT_IDS.has(auditId) || templateType === 'home-based') && !SUBJECTLESS_HOME_AUDIT_IDS.has(auditId) && auditId !== "18" && auditId !== "3" && auditId !== "34" && auditId !== "39" && auditId !== "28" && auditId !== "19" && auditId !== "40" && auditId !== "41";
+  const isGridAudit = (HOME_BASED_AUDIT_IDS.has(auditId) || templateType === 'home-based') && !SUBJECTLESS_HOME_AUDIT_IDS.has(auditId) && auditId !== FALL_REGISTER_AUDIT_ID && auditId !== "18" && auditId !== "3" && auditId !== "34" && auditId !== "39" && auditId !== "28" && auditId !== "19" && auditId !== "40" && auditId !== "41";
   const isPlainTemplate = auditId === "1" || templateType === 'plain-template'; // Plain template has no fixed columns
 
   if (false && isGridAudit) {
@@ -3920,6 +4201,13 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         onBack={handleBack}
         topActions={
           <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
+            >
+              <History className="mr-2 h-4 w-4" /> History
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -4478,7 +4766,16 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         ]}
         onBack={handleBack}
         topActions={
-          <Button size="sm" onClick={handleCompleteAudit}>Complete Audit</Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
+            >
+              <History className="mr-2 h-4 w-4" /> History
+            </Button>
+            <Button size="sm" onClick={handleCompleteAudit}>Complete Audit</Button>
+          </div>
         }
         summary={
           isCustomAudit && isEditingName ? (
@@ -4940,6 +5237,13 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       onBack={handleBack}
       topActions={
         <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
+          >
+            <History className="mr-2 h-4 w-4" /> History
+          </Button>
           {!SUBJECTLESS_HOME_AUDIT_IDS.has(auditId) && (
             <Button
               variant="outline"
@@ -4993,9 +5297,7 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
                 {isCustomAudit
                   ? "Click the title to rename this custom audit."
                   : SUBJECTLESS_HOME_AUDIT_IDS.has(auditId)
-                    ? auditId === "13"
-                      ? "Select an option pill for each question to record a response."
-                      : "Tap the status pill on each question to record a response."
+                    ? "Tap the status pill on each question to record a response."
                     : `Pick a ${isTeamBased ? "team" : isStaffBased ? "staff member" : "resident"} on the left and tap the status pill on each question to record a response.`}
               </span>
             }
@@ -5070,45 +5372,12 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         actionPlans={workspaceActionPlans}
         isStaffBased={isStaffBased}
         isTeamBased={isTeamBased}
-        teams={["35", "34", "37", "36", "39", "28"].includes(auditId) ? teams : undefined}
-        selectedUnitId={["35", "34", "37", "36", "39", "28"].includes(auditId) ? selectedUnitId : undefined}
+        teams={["35", "34", "37", "36", "39"].includes(auditId) ? teams : undefined}
+        selectedUnitId={["35", "34", "37", "36", "39"].includes(auditId) ? selectedUnitId : undefined}
         onUnitChange={setSelectedUnitId}
         subjectless={SUBJECTLESS_HOME_AUDIT_IDS.has(auditId)}
         subjectlessSubjectId={AUDIT_LEVEL_SUBJECT_ID}
-        optionPillQuestions={
-          auditId === "13"
-            ? FALLS_REGISTER_OPTIONS
-            : auditId === "34"
-              ? ACCIDENT_LOG_OPTIONS
-              : auditId === "28"
-                ? WOUNDS_ANALYSIS_OPTIONS
-                : undefined
-        }
-        dynamicOptionPillQuestions={
-          auditId === "13"
-            ? {
-                "falls-q-5": () =>
-                  allResidents.map((res) =>
-                    `${res.firstName || ""} ${res.lastName || ""}`.trim()
-                  ).filter(Boolean),
-              }
-            : undefined
-        }
-        multiSelectOptionPillQuestions={auditId === "13" ? ["falls-q-5"] : undefined}
-        dependentOptionPillQuestions={
-          auditId === "13"
-            ? {
-                "falls-q-6": {
-                  parentQuestionId: "falls-q-5",
-                  options: FALLS_COUNT_OPTIONS,
-                },
-              }
-            : undefined
-        }
         onAnswerChange={handleAnswerChange}
-        onToggleMultiSelectOption={
-          auditId === "13" ? handleToggleMultiSelectAnswer : undefined
-        }
         onCommentChange={handleCommentChange}
         onOpenAddQuestion={() => {
           setQuestionDialogMode("standard");

@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Check, Printer, Save, Download } from "lucide-react";
 import { format } from "date-fns";
+import { IncidentTimeSelect } from "@/components/incidents/incident-time-select";
+import { formatIncidentTimeDisplay } from "@/lib/incident-time-utils";
 
 interface BHSCTReportFormProps {
   folderId: string;
@@ -199,17 +201,20 @@ export function BHSCTReportForm({
   const InputTime = ({ value, onChange, disabled }: { value: string, onChange: (v: string) => void, disabled?: boolean }) => (
     <div className="w-full">
       {!isViewMode ? (
-        <input
-          type="time"
+        <IncidentTimeSelect
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={onChange}
           disabled={disabled || isViewMode}
-          className="w-full outline-none bg-transparent print:hidden font-sans"
+          className="print:hidden w-full"
         />
       ) : (
-        <div className="w-full outline-none bg-transparent print:hidden font-sans py-1 px-2">{value}</div>
+        <div className="w-full outline-none bg-transparent print:hidden font-sans py-1 px-2">
+          {formatIncidentTimeDisplay(value) || value}
+        </div>
       )}
-      <div className="hidden print:block w-full px-2">{value}</div>
+      <div className="hidden print:block w-full px-2">
+        {formatIncidentTimeDisplay(value) || value}
+      </div>
     </div>
   );
 

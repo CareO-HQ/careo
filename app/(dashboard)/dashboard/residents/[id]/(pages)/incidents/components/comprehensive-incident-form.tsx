@@ -42,7 +42,6 @@ import {
 } from "@/components/ui/popover";
 import {
   CalendarIcon,
-  Clock,
   User,
   AlertCircle,
   Home,
@@ -55,18 +54,10 @@ import {
   ChevronDownIcon
 } from "lucide-react";
 import { format } from "date-fns";
+import { IncidentTimeSelect } from "@/components/incidents/incident-time-select";
+import { getDefaultIncidentTimeValue } from "@/lib/incident-time-utils";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const TIME_OPTIONS_15MIN: string[] = (() => {
-  const options: string[] = [];
-  for (let i = 0; i < 24; i++) {
-    for (let j = 0; j < 60; j += 15) {
-      options.push(`${i.toString().padStart(2, "0")}:${j.toString().padStart(2, "0")}`);
-    }
-  }
-  return options;
-})();
 
 const ComprehensiveIncidentSchema = z.object({
   // Section 1: Incident Details
@@ -246,7 +237,7 @@ export function ComprehensiveIncidentForm({
     if (existingIncident) {
       return {
         date: existingIncident.date ? new Date(existingIncident.date) : new Date(),
-        time: existingIncident.time || format(new Date(), "HH:mm"),
+        time: existingIncident.time || getDefaultIncidentTimeValue(),
         homeName: existingIncident.home_name || "",
         unit: existingIncident.unit || "",
         injuredPersonFirstName: existingIncident.injured_person_first_name || "",
@@ -297,7 +288,7 @@ export function ComprehensiveIncidentForm({
     // For new incidents, populate with resident and team data
     return {
       date: new Date(),
-      time: format(new Date(), "HH:mm"),
+      time: getDefaultIncidentTimeValue(),
       homeName: careHomeData?.name || "",
       unit: teamData?.name || "",
       injuredPersonFirstName: resident?.first_name || "",
@@ -350,7 +341,7 @@ export function ComprehensiveIncidentForm({
     resolver: zodResolver(ComprehensiveIncidentSchema),
     defaultValues: {
       date: new Date(),
-      time: format(new Date(), "HH:mm"),
+      time: getDefaultIncidentTimeValue(),
       homeName: "",
       unit: "",
       injuredPersonFirstName: "",
@@ -812,21 +803,12 @@ export function ComprehensiveIncidentForm({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel required>Time of Incident</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="pl-10 relative">
-                                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                <SelectValue placeholder="Select time" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="max-h-[200px]">
-                              {TIME_OPTIONS_15MIN.map((time) => (
-                                <SelectItem key={time} value={time}>
-                                  {time}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <IncidentTimeSelect
+                              value={field.value}
+                              onChange={field.onChange}
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}

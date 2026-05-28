@@ -114,7 +114,7 @@ export interface ManagerAuditWorkspaceProps {
   onRemoveResident: (residentId: string) => void | Promise<void>;
   onOpenActionPlan: (resident?: ManagerAuditResident) => void;
   onRemoveActionPlan: (planId: string) => void | Promise<void>;
-  /** Static option lists rendered as selectable pills (e.g. Fall register analysis). */
+  /** Static option lists rendered as selectable pills (e.g. Fall audit). */
   optionPillQuestions?: Record<string, string[]>;
   /** Dynamic option lists keyed by question id. */
   dynamicOptionPillQuestions?: Record<string, () => string[]>;

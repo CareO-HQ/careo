@@ -39,19 +39,11 @@ import {
   PopoverContent,
   PopoverTrigger
 } from "@/components/ui/popover";
-import { CalendarIcon, Clock, MapPin, User, AlertCircle } from "lucide-react";
+import { CalendarIcon, MapPin, User, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
+import { IncidentTimeSelect } from "@/components/incidents/incident-time-select";
+import { getDefaultIncidentTimeValue } from "@/lib/incident-time-utils";
 import { cn } from "@/lib/utils";
-
-const TIME_OPTIONS_15MIN: string[] = (() => {
-  const options: string[] = [];
-  for (let i = 0; i < 24; i++) {
-    for (let j = 0; j < 60; j += 15) {
-      options.push(`${i.toString().padStart(2, "0")}:${j.toString().padStart(2, "0")}`);
-    }
-  }
-  return options;
-})();
 
 const IncidentSchema = z.object({
   type: z.enum([
@@ -108,7 +100,7 @@ export function ReportIncidentForm({
       type: "fall",
       severity: "low",
       date: new Date(),
-      time: format(new Date(), "HH:mm"),
+      time: getDefaultIncidentTimeValue(),
       location: "",
       witnesses: "",
       description: "",
@@ -325,21 +317,12 @@ export function ReportIncidentForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Time of Incident</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="pl-10 relative">
-                          <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                          <SelectValue placeholder="Select time" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="max-h-[200px]">
-                        {TIME_OPTIONS_15MIN.map((time) => (
-                          <SelectItem key={time} value={time}>
-                            {time}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <IncidentTimeSelect
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
