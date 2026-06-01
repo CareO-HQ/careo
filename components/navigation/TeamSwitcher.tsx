@@ -54,8 +54,9 @@ export function TeamSwitcher({
   const activeTeamId = profile?.active_team_id;
   const userRole = profile?.role;
   const isOwner = userRole === "owner";
-  const isNurseOrCareAssistant = userRole === "nurse" || userRole === "care_assistant";
-  const canViewProfileAndOrg = userRole !== "nurse" && userRole !== "care_assistant";
+  const isAgencyWorker = userRole === "agency_nurse" || userRole === "agency_care_assistant";
+  const isNurseOrCareAssistant = userRole === "nurse" || userRole === "care_assistant" || isAgencyWorker;
+  const canViewProfileAndOrg = userRole !== "nurse" && userRole !== "care_assistant" && !isAgencyWorker;
 
   // Fetch Care Homes
   const fetchCareHomes = useCallback(async () => {
@@ -178,6 +179,39 @@ export function TeamSwitcher({
       }
     });
   };
+
+  if (isAgencyWorker) {
+    return (
+      <SidebarMenu className="p-2">
+        <SidebarMenuItem>
+          <SidebarMenuButton className="w-full px-1.5 py-0.5 h-fit cursor-default hover:bg-transparent">
+            <div className="flex flex-row justify-between items-center w-full">
+              <div className="flex flex-row items-center gap-2">
+                <Avatar className="rounded-md">
+                  <AvatarImage
+                    src={logoUrl ?? ""}
+                    alt="Organization logo"
+                  />
+                  <AvatarFallback className="text-xs rounded bg-primary text-secondary">
+                    {orgName?.charAt(0) || "C"}
+                  </AvatarFallback>
+                </Avatar>
+
+                <div>
+                  <span className="truncate font-medium">{orgName}</span>
+                  {profile?.active_team_name && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {profile.active_team_name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
 
   return (
     <SidebarMenu className="p-2">

@@ -69,6 +69,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge as BadgeComponent } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { getUKTodayDate, formatTimestampToUKTime } from "@/lib/date-utils";
+import { TimePicker } from "@/components/ui/date-time-picker";
 import {
   CHECKS_INTERVAL_OVERDUE_ALERT_TYPE,
   formatCheckTypeLabel,
@@ -1432,23 +1433,13 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
                   <FormField control={form.control} name="checkTime" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Time</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        value={field.value || ""}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select time" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="max-h-[300px]">
-                          {TIME_OPTIONS.map((time) => (
-                            <SelectItem key={time} value={time}>
-                              {formatTimeForDisplay(time)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <TimePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                          className="h-9"
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />

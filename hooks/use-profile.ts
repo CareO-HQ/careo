@@ -70,6 +70,21 @@ export function useProfile() {
                     throw dbError;
                 }
 
+                // Check if the user is an agency worker and has been offboarded
+                const userRole = dbUser.role || user?.app_metadata?.role;
+                const isAgencyWorker = userRole === "agency_nurse" || userRole === "agency_care_assistant";
+                if (isAgencyWorker && !dbUser.active_organization_id) {
+                    const isOnboardingPage = typeof window !== "undefined" && window.location.pathname.startsWith("/onboarding");
+                    if (!isOnboardingPage) {
+                        console.log("[useProfile] Offboarded agency worker detected. Logging out...");
+                        await supabase.auth.signOut();
+                        if (typeof window !== "undefined") {
+                            window.location.href = "/login";
+                        }
+                        return;
+                    }
+                }
+
                 const baseProfile: Profile = {
                     id: dbUser.id,
                     email: dbUser.email,
@@ -81,7 +96,7 @@ export function useProfile() {
                     active_team_id: dbUser.active_team_id || null,
                     is_saas_admin: !!dbUser.is_saas_admin,
                     is_onboarding_complete: !!dbUser.is_onboarding_complete,
-                    role: user?.app_metadata?.role || (dbUser.is_saas_admin ? "saas_admin" : "member"),
+                    role: dbUser.role || user?.app_metadata?.role || (dbUser.is_saas_admin ? "saas_admin" : "member"),
                     address: dbUser.address || null,
                     date_of_join: dbUser.date_of_join || null,
                     right_to_work_status: dbUser.right_to_work_status || null,

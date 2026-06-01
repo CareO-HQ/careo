@@ -76,6 +76,7 @@ import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { PersonalInterestsDialog } from "@/components/residents/PersonalInterestsDialog";
 import { format } from "date-fns";
+import { TimePicker } from "@/components/ui/date-time-picker";
 
 type LifestyleSocialPageProps = {
   params: Promise<{ id: string }>;
@@ -909,20 +910,13 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Activity Time</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select time..." />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent className="max-h-[300px]">
-                                {timeOptions.map((time) => (
-                                  <SelectItem key={time} value={time}>
-                                    {time}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <FormControl>
+                              <TimePicker
+                                value={field.value}
+                                onChange={field.onChange}
+                                className="h-9"
+                              />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
