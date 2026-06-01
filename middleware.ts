@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 const isProduction = process.env.NODE_ENV === "production";
 const protectedPathPrefixes = ["/dashboard", "/onboarding", "/admin"] as const;
+// Paths under protected prefixes that should remain publicly accessible
+const publicExceptions = ["/onboarding/agency"] as const;
 
 function getOrigin(url: string | undefined): string | null {
   if (!url) {
@@ -83,6 +85,10 @@ function applyCspHeaders(
 }
 
 function isProtectedPath(pathname: string): boolean {
+  // Allow publicly accessible exceptions even if they start with a protected prefix
+  if (publicExceptions.some((exception) => pathname.startsWith(exception))) {
+    return false;
+  }
   return protectedPathPrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 

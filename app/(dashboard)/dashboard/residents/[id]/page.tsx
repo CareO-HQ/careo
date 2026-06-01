@@ -215,7 +215,7 @@ function shouldShowAlertForRole(alert: { type?: string }, role?: string) {
     return role === "nurse";
   }
   if (NURSE_AND_CARE_ASSISTANT_ALERT_TYPES.has(alert.type || "")) {
-    return role === "nurse" || role === "care_assistant";
+    return role === "nurse" || role === "care_assistant" || role === "agency_care_assistant";
   }
   if (!NURSE_ONLY_ALERT_TYPES.has(alert.type || "")) {
     return true;
@@ -699,7 +699,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </Card>
           )}
           {/* Weight Monitoring Card (CA ONLY) */}
-          {userRole === "care_assistant" && (
+          {(userRole === "care_assistant" || userRole === "agency_care_assistant") && (
             <Card
               className="cursor-pointer shadow-none"
               onClick={() => handleCardClick("weight-monitoring")}
@@ -723,7 +723,7 @@ export default function ResidentPage({ params }: ResidentPageProps) {
             </Card>
           )}
           {/* Topical Medication Card (CA ONLY) */}
-          {userRole === "care_assistant" && (
+          {(userRole === "care_assistant" || userRole === "agency_care_assistant") && (
             <Card
               className="cursor-pointer shadow-none"
               onClick={() => handleCardClick("topical-medication")}
@@ -1086,14 +1086,14 @@ export default function ResidentPage({ params }: ResidentPageProps) {
               alerts.map((alert) => {
                 const isFoodFluidNavAlert =
                   alert.type === FOOD_FLUID_NOT_RECORDED_6H_ALERT_TYPE &&
-                  (userRole === "nurse" || userRole === "care_assistant");
+                  (userRole === "nurse" || userRole === "care_assistant" || userRole === "agency_care_assistant");
                 const isUrineNavAlert =
                   alert.type === URINE_NOT_RECORDED_6H_ALERT_TYPE &&
-                  (userRole === "nurse" || userRole === "care_assistant");
+                  (userRole === "nurse" || userRole === "care_assistant" || userRole === "agency_care_assistant");
                 const isPrnProtocolNavAlert =
-                  alert.type === PRN_PROTOCOL_PENDING_12H_ALERT_TYPE && userRole === "nurse";
+                  alert.type === PRN_PROTOCOL_PENDING_12H_ALERT_TYPE && (userRole === "nurse" || userRole === "agency_nurse");
                 const carePlanEvalCareFileHref =
-                  FEATURES.SHOW_CARE_FILE_V2 && userRole === "nurse"
+                  FEATURES.SHOW_CARE_FILE_V2 && (userRole === "nurse" || userRole === "agency_nurse")
                     ? carePlanEvaluationAlertCareFileHref(id, alert.metadata)
                     : null;
                 const isCarePlanEvalNavAlert =
@@ -1101,9 +1101,9 @@ export default function ResidentPage({ params }: ResidentPageProps) {
                     alert.type === CARE_PLAN_EVALUATION_OVERDUE_ALERT_TYPE) &&
                   carePlanEvalCareFileHref !== null;
                 const isMedicationNavAlert =
-                  alert.type === "medication" && userRole === "nurse";
+                  alert.type === "medication" && (userRole === "nurse" || userRole === "agency_nurse");
                 const formReviewCareFileHref =
-                  FEATURES.SHOW_CARE_FILE_V2 && userRole === "nurse"
+                  FEATURES.SHOW_CARE_FILE_V2 && (userRole === "nurse" || userRole === "agency_nurse")
                     ? formReviewAlertCareFileHref(id, alert.metadata)
                     : null;
                 const isFormReviewNavAlert =

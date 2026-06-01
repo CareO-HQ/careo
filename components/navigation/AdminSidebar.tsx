@@ -17,7 +17,8 @@ import {
   Building2,
   UserCheck,
   BarChart3,
-  Shield
+  Shield,
+  Briefcase
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -67,6 +68,19 @@ export function AdminSidebar() {
                 <Link href="/admin/care-homes">
                   <Building2 />
                   <span>Organizations</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Agencies */}
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton
+                asChild
+                isActive={pathname?.startsWith("/admin/agencies")}
+              >
+                <Link href="/admin/agencies">
+                  <Briefcase />
+                  <span>Agencies</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

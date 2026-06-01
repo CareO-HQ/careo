@@ -42,6 +42,42 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
         };
     }, [router]);
 
+    useEffect(() => {
+        if (!user) return;
+
+        // Listen for updates on the user's own profile row in the public.users table
+        const channel = supabase
+            .channel(`user-profile-watch-${user.id}`)
+            .on(
+                "postgres_changes",
+                {
+                    event: "UPDATE",
+                    schema: "public",
+                    table: "users",
+                    filter: `id=eq.${user.id}`,
+                },
+                async (payload) => {
+                    const newRole = payload.new?.role;
+                    const newActiveOrgId = payload.new?.active_organization_id;
+                    const isAgency = newRole === "agency_nurse" || newRole === "agency_care_assistant";
+                    
+                    const isOnboardingPage = typeof window !== "undefined" && window.location.pathname.startsWith("/onboarding");
+
+                    if (isAgency && !newActiveOrgId && !isOnboardingPage) {
+                        console.log("[SupabaseProvider] Real-time offboarding detected. Logging out...");
+                        await supabase.auth.signOut();
+                        router.push("/login");
+                        router.refresh();
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user, router]);
+
     return (
         <Context.Provider value={{ supabase, user, session, isLoading }}>
             {children}

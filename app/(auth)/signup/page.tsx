@@ -31,6 +31,16 @@ function SignupContent() {
         return;
       }
 
+      if (redirect === "onboarding-agency" && token) {
+        const params = new URLSearchParams();
+        params.set("token", token);
+        if (email) {
+          params.set("email", email);
+        }
+        router.push(`/onboarding/agency?${params.toString()}` as any);
+        return;
+      }
+
       router.push("/onboarding");
     }
   }, [session, isLoading, router, searchParams]);

@@ -52,6 +52,7 @@ import {
   canViewSidebarNotification,
   canViewSidebarResidents,
   canViewSidebarStaff,
+  canViewSidebarAgency,
   canViewSidebarHome,
   canCreateResident,
   canViewClinical,
@@ -406,6 +407,18 @@ export function AppSidebar() {
                   <Link href="/dashboard/staff">
                     <UsersIcon />
                     <span>Staff</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+
+            {/* Agency */}
+            {canViewSidebarAgency(effectiveRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href={"/dashboard/agency" as any}>
+                    <Heart className="w-4 h-4 text-sky-500" />
+                    <span>Agency Coordination</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -29,6 +29,7 @@ export default function LoginForm() {
   const [isLoading, startTransition] = useTransition();
   const [redirect] = useQueryState("redirect");
   const [token] = useQueryState("token");
+  const [email] = useQueryState("email");
   const router = useRouter();
 
   const form = useForm<z.infer<typeof LoginFormSchema>>({
@@ -57,9 +58,21 @@ export default function LoginForm() {
         const isOnboardingComplete = !!appMetadata.is_onboarding_complete;
         const activeOrgId = appMetadata.active_organization_id;
 
-        // Check for active organization (non-admin)
-        if (!isSaasAdmin && !activeOrgId) {
+        // Agency staff activating for the first time have no active org yet — allow through
+        const isAgencyOnboarding = redirect === "onboarding-agency" && !!token;
+
+        // Check for active organization (non-admin, non-agency-onboarding)
+        if (!isSaasAdmin && !activeOrgId && !isAgencyOnboarding) {
           toast.error("Your account has no active organizations. Please contact support.");
+          return;
+        }
+
+        if (isAgencyOnboarding) {
+          // Build the redirect URL preserving token and email
+          const params = new URLSearchParams();
+          params.set("token", token!);
+          if (email) params.set("email", email);
+          router.push(`/onboarding/agency?${params.toString()}` as Route);
           return;
         }
 

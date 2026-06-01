@@ -37,77 +37,86 @@ export function TimePicker({
   placeholder = "Select time",
   className,
 }: TimePickerProps) {
-  // Generate all time options in 5-minute intervals (00:00 to 23:55)
-  const timeOptions = React.useMemo(() => {
-    const options: Array<{ value: string; label: string }> = []
-    for (let hour = 0; hour < 24; hour++) {
-      for (let minute = 0; minute < 60; minute += 5) {
-        const hourStr = hour.toString().padStart(2, "0")
-        const minuteStr = minute.toString().padStart(2, "0")
-        const timeValue = `${hourStr}:${minuteStr}`
+  // Parse hour, minute, period from 24h "HH:mm" format value
+  const [hours24, mins] = (value || "00:00").split(":")
+  const h24 = parseInt(hours24 || "0", 10)
+  const period = h24 >= 12 ? "PM" : "AM"
+  const h12 = h24 % 12 || 12
+  const h12Str = h12.toString()
+  const minsStr = mins || "00"
 
-        // Format for display: "HH:MM AM/PM"
-        const period = hour >= 12 ? "PM" : "AM"
-        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-        const label = `${displayHour.toString().padStart(2, "0")}:${minuteStr} ${period}`
+  // Constants
+  const HOURS = React.useMemo(() => Array.from({ length: 12 }, (_, i) => (i + 1).toString()), [])
+  const MINUTES = React.useMemo(() => Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, "0")), [])
+  const PERIODS = React.useMemo(() => ["AM", "PM"], [])
 
-        options.push({ value: timeValue, label })
-      }
-    }
-    return options
-  }, [])
+  const handleTimeChange = (type: "h" | "m" | "p", val: string) => {
+    let newH12 = h12Str
+    let newM = minsStr
+    let newP = period
 
-  // Find the current value in options, or round to nearest 5-minute interval
-  const selectedValue = React.useMemo(() => {
-    if (!value) return undefined
+    if (type === "h") newH12 = val
+    if (type === "m") newM = val
+    if (type === "p") newP = val
 
-    const parts = value.split(":")
-    const hour = parseInt(parts[0] || "9", 10)
-    const minute = parseInt(parts[1] || "0", 10)
+    let h = parseInt(newH12, 10)
+    if (newP === "PM" && h < 12) h += 12
+    if (newP === "AM" && h === 12) h = 0
 
-    // Round minute to nearest 5-minute interval
-    const roundedMinute = Math.round(minute / 5) * 5
-    const hourStr = hour.toString().padStart(2, "0")
-    const minuteStr = roundedMinute.toString().padStart(2, "0")
-
-    return `${hourStr}:${minuteStr}`
-  }, [value])
-
-  // Format display value
-  const displayValue = React.useMemo(() => {
-    if (!value) return ""
-    const option = timeOptions.find(opt => opt.value === selectedValue)
-    return option?.label || value
-  }, [value, selectedValue, timeOptions])
+    const formattedTime = `${h.toString().padStart(2, "0")}:${newM}`
+    onChange?.(formattedTime)
+  }
 
   return (
-    <Select
-      value={selectedValue}
-      onValueChange={(timeValue) => {
-        onChange?.(timeValue)
-      }}
-      disabled={disabled}
-    >
-      <SelectTrigger
-        className={cn(
-          "w-full justify-start font-normal",
-          !value && "text-muted-foreground",
-          className
-        )}
+    <div className={cn("flex gap-2", className)}>
+      {/* Hour */}
+      <Select 
+        value={h12Str} 
+        onValueChange={(val) => handleTimeChange("h", val)}
+        disabled={disabled}
       >
-        <ClockIcon className="mr-2 h-4 w-4" />
-        <SelectValue placeholder={placeholder}>
-          {displayValue || placeholder}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent className="max-h-[300px]">
-        {timeOptions.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+        <SelectTrigger className="w-[70px] h-9">
+          <SelectValue placeholder="Hr" />
+        </SelectTrigger>
+        <SelectContent className="max-h-[200px]">
+          {HOURS.map((h) => (
+            <SelectItem key={h} value={h}>{h}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Minute */}
+      <Select 
+        value={minsStr} 
+        onValueChange={(val) => handleTimeChange("m", val)}
+        disabled={disabled}
+      >
+        <SelectTrigger className="w-[70px] h-9">
+          <SelectValue placeholder="Min" />
+        </SelectTrigger>
+        <SelectContent className="max-h-[200px]">
+          {MINUTES.map((m) => (
+            <SelectItem key={m} value={m}>{m}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* AM/PM */}
+      <Select 
+        value={period} 
+        onValueChange={(val) => handleTimeChange("p", val)}
+        disabled={disabled}
+      >
+        <SelectTrigger className="w-[85px] h-9">
+          <SelectValue placeholder="AM/PM" />
+        </SelectTrigger>
+        <SelectContent>
+          {PERIODS.map((p) => (
+            <SelectItem key={p} value={p}>{p}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   )
 }
 
