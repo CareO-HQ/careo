@@ -45,7 +45,30 @@ export async function getAgencyRequestByToken(token: string) {
   }
 }
 
-// 1. Approve Agency Request
+// 1. Accept Agency Request (simple status change, no verification questions)
+
+export async function acceptAgencyRequest(requestId: string) {
+  try {
+    const supabase = getSupabaseClient();
+
+    const { error: updateError } = await supabase
+      .from("agency_requests")
+      .update({
+        status: "accepted",
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", requestId);
+
+    if (updateError) throw updateError;
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error accepting agency request:", error);
+    return { success: false, error: error.message || "Failed to accept request" };
+  }
+}
+
+// 2. Approve Agency Request (with verification details, then sends invite)
 
 export async function approveAgencyRequest(
   requestId: string,
