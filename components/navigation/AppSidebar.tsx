@@ -31,7 +31,8 @@ import {
   ChevronDown,
   Scale,
   Droplet,
-  Droplets
+  Droplets,
+  Briefcase
 } from "lucide-react";
 import {
   Collapsible,
@@ -417,8 +418,8 @@ export function AppSidebar() {
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href={"/dashboard/agency" as any}>
-                    <Heart className="w-4 h-4 text-sky-500" />
-                    <span>Agency Coordination</span>
+                    <Briefcase className="w-4 h-4 text-black" />
+                    <span>Agency</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

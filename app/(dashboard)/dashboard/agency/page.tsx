@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { approveAgencyRequest, inviteAgencyStaff, offboardAgencyStaff, regenerateAgencyLinkCode } from "@/app/actions/agency-onboarding";
+import { acceptAgencyRequest, approveAgencyRequest, inviteAgencyStaff, offboardAgencyStaff, regenerateAgencyLinkCode } from "@/app/actions/agency-onboarding";
 import { ShieldCheck, UserCheck, History, Clock, FileText, Send, UserX, CheckCircle, MailCheck, AlertCircle, Building } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
@@ -42,7 +42,7 @@ export default function AgencyPage() {
   const [linkCode, setLinkCode] = useState<string | null>(null);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
-  // Approval dialog states
+  // Approval dialog states (now shown at the "Approve" step, after accepting)
   const [selectedRequestForApprove, setSelectedRequestForApprove] = useState<any | null>(null);
   const [profileVerified, setProfileVerified] = useState(false);
   const [inductionGiven, setInductionGiven] = useState(false);
@@ -119,26 +119,15 @@ export default function AgencyPage() {
     }
   };
 
-  const handleApprove = async (
-    requestId: string,
-    profileVerifiedVal: boolean,
-    inductionGivenVal: boolean,
-    inductionGivenByVal: string | null
-  ) => {
+  const handleAccept = async (requestId: string) => {
     setSubmittingId(requestId);
     try {
-      const res = await approveAgencyRequest(
-        requestId,
-        profileVerifiedVal,
-        currentUserName,
-        inductionGivenVal,
-        inductionGivenByVal
-      );
+      const res = await acceptAgencyRequest(requestId);
       if (res.success) {
-        toast.success("Request approved! You can now invite the worker when they arrive.");
+        toast.success("Request accepted!");
         await fetchAgencyRequests();
       } else {
-        toast.error(res.error || "Failed to approve request.");
+        toast.error(res.error || "Failed to accept request.");
       }
     } catch (err: any) {
       toast.error("An unexpected error occurred.");
@@ -147,10 +136,29 @@ export default function AgencyPage() {
     }
   };
 
-  const handleInvite = async (request: any) => {
+  const handleApproveAndInvite = async (
+    request: any,
+    profileVerifiedVal: boolean,
+    inductionGivenVal: boolean,
+    inductionGivenByVal: string | null
+  ) => {
     setSubmittingId(request.id);
     try {
-      const res = await inviteAgencyStaff({
+      // Save verification details
+      const approveRes = await approveAgencyRequest(
+        request.id,
+        profileVerifiedVal,
+        currentUserName,
+        inductionGivenVal,
+        inductionGivenByVal
+      );
+      if (!approveRes.success) {
+        toast.error(approveRes.error || "Failed to approve request.");
+        return;
+      }
+
+      // Send invite email
+      const inviteRes = await inviteAgencyStaff({
         requestId: request.id,
         email: request.agency_staff.email,
         role: request.agency_staff.role,
@@ -158,22 +166,21 @@ export default function AgencyPage() {
         inviterName: currentUserName
       });
 
-      if (res.success) {
-        toast.success(`Invitation email sent to ${request.agency_staff.email}!`);
-        // If developer testing, show link
-        if (res.inviteLink) {
-          console.log("DEBUG: Onboarding link ->", res.inviteLink);
+      if (inviteRes.success) {
+        toast.success(`Approved! Invitation email sent to ${request.agency_staff.email}!`);
+        if (inviteRes.inviteLink) {
+          console.log("DEBUG: Onboarding link ->", inviteRes.inviteLink);
         }
-        await fetchAgencyRequests();
       } else {
-        // Fallback for missing api key or config
-        if (res.inviteLink) {
-          toast.warning(`Resend error: ${res.error || 'Check Resend key'}. Showing activation link in console.`);
-          console.log("DEBUG Onboarding Link:", res.inviteLink);
+        if (inviteRes.inviteLink) {
+          toast.warning(`Approved, but email failed: ${inviteRes.error || 'Check Resend key'}. Link in console.`);
+          console.log("DEBUG Onboarding Link:", inviteRes.inviteLink);
         } else {
-          toast.error(res.error || "Failed to send invitation.");
+          toast.error(inviteRes.error || "Approved, but failed to send invitation email.");
         }
       }
+
+      await fetchAgencyRequests();
     } catch (err: any) {
       toast.error("An unexpected error occurred.");
     } finally {
@@ -272,7 +279,7 @@ export default function AgencyPage() {
     return groups;
   };
 
-  const pendingRequests = requests.filter(r => r.status === "pending" || r.status === "approved");
+  const pendingRequests = requests.filter(r => r.status === "pending" || r.status === "accepted" || r.status === "approved");
   const activeStaff = requests.filter(r => r.status === "active");
   const historyStaff = requests.filter(r => r.status === "offboarded" || r.status === "declined");
 
@@ -445,6 +452,10 @@ export default function AgencyPage() {
                             <Badge className="bg-sky-50 text-sky-700 border-sky-100 font-medium">
                               {req.activation_sent ? "Invite Sent" : "Approved"}
                             </Badge>
+                          ) : req.status === "accepted" ? (
+                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 font-medium">
+                              Accepted
+                            </Badge>
                           ) : (
                             <Badge className="bg-amber-50 text-amber-700 border-amber-100 font-medium">
                               Pending
@@ -457,16 +468,11 @@ export default function AgencyPage() {
                               <>
                                 <Button
                                   size="sm"
-                                  onClick={() => {
-                                    setSelectedRequestForApprove(req);
-                                    setProfileVerified(false);
-                                    setInductionGiven(false);
-                                    setInductionGivenBy("");
-                                  }}
+                                  onClick={() => handleAccept(req.id)}
                                   disabled={submittingId === req.id}
                                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
                                 >
-                                  Approve
+                                  Accept
                                 </Button>
                                 <Button
                                   size="sm"
@@ -480,16 +486,28 @@ export default function AgencyPage() {
                               </>
                             )}
 
-                            {req.status === "approved" && !req.activation_sent && (
+                            {req.status === "accepted" && (
                               <Button
                                 size="sm"
-                                onClick={() => handleInvite(req)}
+                                onClick={() => {
+                                  setSelectedRequestForApprove(req);
+                                  setProfileVerified(false);
+                                  setInductionGiven(false);
+                                  setInductionGivenBy("");
+                                }}
                                 disabled={submittingId === req.id}
                                 className="bg-teal-600 hover:bg-teal-700 text-white font-medium flex gap-1.5"
                               >
-                                <Send className="w-3.5 h-3.5" />
-                                Invite Staff
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                Approve
                               </Button>
+                            )}
+
+                            {req.status === "approved" && !req.activation_sent && (
+                              <div className="flex items-center gap-1.5 text-xs text-slate-500 pr-2">
+                                <MailCheck className="w-4 h-4 text-teal-600" />
+                                Onboarding Link Emailed
+                              </div>
                             )}
 
                             {req.status === "approved" && req.activation_sent && (
@@ -704,9 +722,9 @@ export default function AgencyPage() {
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Approve Agency Request</DialogTitle>
+            <DialogTitle>Approve & Send Onboarding Invite</DialogTitle>
             <DialogDescription>
-              Confirm verification and induction details for {selectedRequestForApprove?.agency_staff?.name} before approval.
+              Confirm verification and induction details for {selectedRequestForApprove?.agency_staff?.name} before sending the onboarding invite.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -768,8 +786,8 @@ export default function AgencyPage() {
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
               onClick={async () => {
                 if (selectedRequestForApprove) {
-                  await handleApprove(
-                    selectedRequestForApprove.id,
+                  await handleApproveAndInvite(
+                    selectedRequestForApprove,
                     profileVerified,
                     inductionGiven,
                     inductionGiven ? inductionGivenBy : null
@@ -787,7 +805,7 @@ export default function AgencyPage() {
                 inductionGivenBy.trim() === ""
               }
             >
-              Confirm & Approve
+              Approve & Send Invite
             </Button>
           </DialogFooter>
         </DialogContent>
