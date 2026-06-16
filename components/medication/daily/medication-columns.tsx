@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { ControlledDrugBadge } from "@/components/medication/ControlledDrugBadge";
 import {
   Dialog,
   DialogContent,
@@ -79,14 +80,10 @@ export const createMedicationColumns = (
 
         return (
           <div className="flex flex-col">
-            <p className="font-medium">
-              {medication.name}
-              {medication.is_controlled_drug && (
-                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-200 text-red-800 border border-red-300">
-                  Controlled
-                </span>
-              )}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium">{medication.name}</p>
+              <ControlledDrugBadge isControlled={medication.is_controlled_drug} />
+            </div>
             <p className="text-xs text-muted-foreground">
               {medication.strength} {medication.strength_unit} -{" "}
               {medication.dosage_form}

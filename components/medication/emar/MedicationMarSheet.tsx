@@ -2,6 +2,7 @@
 
 import React from "react";
 import { format } from "date-fns";
+import { ControlledDrugBadge } from "@/components/medication/ControlledDrugBadge";
 import { resolveStorageObjectUrl } from "@/lib/storage";
 
 interface MedicationMarSheetProps {
@@ -293,11 +294,7 @@ export function MedicationMarSheet({
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-sm">{medication.name}</p>
-                          {medication.is_controlled_drug && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-red-100 text-red-800 border border-red-400 rounded">
-                              CD
-                            </span>
-                          )}
+                          <ControlledDrugBadge isControlled={medication.is_controlled_drug} className="text-[9px] px-1.5 py-0" />
                         </div>
                         <div className="text-xs text-gray-700">
                           <span className="font-semibold">Dose:</span> {medication.strength} {medication.strength_unit}

@@ -57,7 +57,6 @@ export function DataTable<TData, TValue>({
           {table.getRowModel().rows?.length ? (
             table.getRowModel().rows.map((row) => {
               const isDivider = (row.original as any)?.isDivider;
-              const isControlled = (row.original as any).is_controlled_drug || (row.original as any).medication?.is_controlled_drug;
               
               const getDividerStyles = (label: string) => {
                 const lowerLabel = label.toLowerCase();
@@ -95,10 +94,7 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={cn(
-                    isDivider ? styles.bg : "",
-                    isControlled ? "bg-red-100 hover:bg-red-200" : ""
-                  )}
+                  className={cn(isDivider ? styles.bg : "")}
                 >
                   {isDivider ? (
                     <TableCell colSpan={columns.length} className="p-0">

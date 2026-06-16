@@ -329,10 +329,10 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
               {scheduled.map((med, idx) => {
                 const qty = (time: string) => med.time_quantities?.[time] ?? 1;
                 return (
-                  <tr key={med.id} className={med.is_controlled_drug ? "bg-red-100" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50")}>
+                  <tr key={med.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                     <td className="border border-black px-1 py-0.5 align-top">
                       <p className="font-bold leading-tight">{med.name}</p>
-                      {med.is_controlled_drug && <p className="text-red-700 font-bold">⚠️ CD</p>}
+                      {med.is_controlled_drug && <span className="border px-1 font-bold">CD</span>}
                       <KardexStaffVerificationLines med={med} />
                     </td>
                     <td className="border border-black px-1 py-0.5 align-top text-gray-600">
@@ -534,12 +534,12 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
             </thead>
             <tbody>
               {prn.map((med, idx) => (
-                <tr key={med.id} className={med.is_controlled_drug ? "bg-red-100" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50")}>
+                <tr key={med.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                   <td className="border border-black px-1 py-0.5 align-top">
                     <p className="font-bold leading-tight">{med.name}</p>
                     <p className="text-gray-600">{med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""} {med.dosage_form}</p>
                     {med.route && <p className="text-gray-500">Route: {med.route}</p>}
-                    {med.is_controlled_drug && <p className="text-red-700 font-bold">⚠️ CD</p>}
+                    {med.is_controlled_drug && <span className="border px-1 font-bold">CD</span>}
                     <KardexStaffVerificationLines med={med} />
                   </td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "-"}</td>
@@ -585,11 +585,12 @@ function KardexPrintView({ medications, resident }: KardexModalProps) {
             </thead>
             <tbody>
               {topical.map((med, idx) => (
-                <tr key={med.id} className={med.is_controlled_drug ? "bg-red-100" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50")}>
+                <tr key={med.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                   <td className="border border-black px-1 py-0.5 align-top">
                     <p className="font-bold leading-tight">{med.name}</p>
                     <p className="text-gray-600">{med.strength}{med.strength_unit ? ` ${med.strength_unit}` : ""} {med.dosage_form}</p>
                     {med.route && <p className="text-gray-500">Route: {med.route}</p>}
+                    {med.is_controlled_drug && <span className="border px-1 font-bold">CD</span>}
                     <KardexStaffVerificationLines med={med} />
                   </td>
                   <td className="border border-black px-1 py-0.5 align-top text-gray-600">{med.instructions || "-"}</td>

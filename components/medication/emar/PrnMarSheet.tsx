@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ControlledDrugBadge } from "@/components/medication/ControlledDrugBadge";
 import { format } from "date-fns";
 import { PrnAdministrationModal } from "./PrnAdministrationModal";
 import { resolveStorageObjectUrl } from "@/lib/storage";
@@ -204,11 +205,7 @@ export function PrnMarSheet({
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-sm">{medication.name}</p>
-                      {medication.is_controlled_drug && (
-                        <span className="px-1.5 py-0.5 text-[9px] font-bold bg-red-100 text-red-800 border border-red-400 rounded">
-                          CD
-                        </span>
-                      )}
+                      <ControlledDrugBadge isControlled={medication.is_controlled_drug} className="text-[9px] px-1.5 py-0" />
                     </div>
                     {medication.strength && (
                       <div className="text-xs text-gray-700">
