@@ -10,7 +10,10 @@ export function ControlledDrugBadge({ isControlled, className }: ControlledDrugB
   if (!isControlled) return null;
 
   return (
-    <Badge variant="outline" className={cn("text-xs", className)}>
+    <Badge
+      variant="outline"
+      className={cn("text-xs bg-red-50 text-red-700 border-red-200", className)}
+    >
       CD
     </Badge>
   );
