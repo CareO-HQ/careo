@@ -63,21 +63,62 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const residentId = searchParams.get("residentId");
+    const limit = searchParams.get("limit") ? parseInt(searchParams.get("limit")!) : null;
+    const offset = searchParams.get("offset") ? parseInt(searchParams.get("offset")!) : null;
+    const year = searchParams.get("year") ? parseInt(searchParams.get("year")!) : null;
+    const month = searchParams.get("month") ? parseInt(searchParams.get("month")!) : null;
+    const type = searchParams.get("type") || "all";
+    const searchQuery = searchParams.get("searchQuery") || "";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
 
     if (!residentId) {
       return NextResponse.json({ error: "residentId is required" }, { status: 400 });
     }
 
-    // Get all notes for the resident
-    const { data: notes, error } = await supabase
+    // Query builder
+    let query = supabase
       .from("progress_notes")
-      .select("*")
-      .eq("resident_id", residentId)
-      .order("date", { ascending: false })
-      .order("time", { ascending: false });
+      .select("*", { count: "exact" })
+      .eq("resident_id", residentId);
+
+    // Apply type filter
+    if (type && type !== "all") {
+      query = query.eq("type", type);
+    }
+
+    // Apply search filter
+    if (searchQuery) {
+      query = query.or(`note.ilike.%${searchQuery}%,author_name.ilike.%${searchQuery}%,type.ilike.%${searchQuery}%`);
+    }
+
+    // Apply year and month filters
+    if (year) {
+      if (month) {
+        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        query = query.gte("date", startDate).lte("date", endDate);
+      } else {
+        const startDate = `${year}-01-01`;
+        const endDate = `${year}-12-31`;
+        query = query.gte("date", startDate).lte("date", endDate);
+      }
+    }
+
+    // Order
+    query = query
+      .order("date", { ascending: sortOrder.toLowerCase() === "asc" })
+      .order("time", { ascending: sortOrder.toLowerCase() === "asc" });
+
+    // Pagination
+    if (limit !== null && offset !== null) {
+      query = query.range(offset, offset + limit - 1);
+    }
+
+    const { data: notes, error, count } = await query;
 
     if (error) {
-      console.error("Error fetching all progress notes:", error);
+      console.error("Error fetching progress notes:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -96,7 +137,11 @@ export async function GET(request: NextRequest) {
       updatedAt: note.updated_at,
     }));
 
-    const jsonResponse = NextResponse.json(transformedNotes);
+    const result = limit !== null && offset !== null
+      ? { notes: transformedNotes, totalCount: count || 0 }
+      : transformedNotes;
+
+    const jsonResponse = NextResponse.json(result);
     
     // Copy cookies from response if any were set
     try {

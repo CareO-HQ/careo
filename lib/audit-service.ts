@@ -179,926 +179,312 @@ export type ManagerActionPlanInput = {
     source_item_id?: string | null;
 };
 
+function getTableNames(category: AuditCategory) {
+    const suffix = category === 'carefile' ? 'care_file' : category;
+    return {
+        templates: `audit_${suffix}_templates` as const,
+        completions: `audit_${suffix}_completions` as const,
+        actionPlans: `audit_${suffix}_action_plans` as const
+    };
+}
+
+async function getTemplates(category: AuditCategory, organizationId: string) {
+    const tables = getTableNames(category);
+    let query = supabase
+        .from(tables.templates)
+        .select('*')
+        .eq('organization_id', organizationId);
+    
+    if (category === 'resident') {
+        query = query.eq('category', 'resident');
+    }
+    
+    const { data, error } = await query.eq('is_active', true);
+    if (error) throw error;
+    return data as AuditTemplate[];
+}
+
+async function getTemplateById(category: AuditCategory, id: string) {
+    const tables = getTableNames(category);
+    const { data, error } = await supabase
+        .from(tables.templates)
+        .select('*')
+        .eq('id', id)
+        .single();
+    if (error) return null;
+    return data as AuditTemplate;
+}
+
+async function updateTemplate(category: AuditCategory, id: string, updates: Partial<AuditTemplate>) {
+    const tables = getTableNames(category);
+    const { data, error } = await supabase
+        .from(tables.templates)
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as AuditTemplate;
+}
+
+async function createTemplate(category: AuditCategory, template: Partial<AuditTemplate>) {
+    const tables = getTableNames(category);
+    const { data, error } = await supabase
+        .from(tables.templates)
+        .insert(template)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as AuditTemplate;
+}
+
+async function deleteTemplate(category: AuditCategory, id: string) {
+    const tables = getTableNames(category);
+    const { error } = await supabase
+        .from(tables.templates)
+        .delete()
+        .eq('id', id);
+    if (error) throw error;
+}
+
+async function getLatestCompletions(category: AuditCategory, filterId: string) {
+    const tables = getTableNames(category);
+    const field = (category === 'resident' || category === 'carefile') ? 'team_id' : 'organization_id';
+    const { data, error } = await supabase
+        .from(tables.completions)
+        .select('*')
+        .eq(field, filterId);
+    if (error) throw error;
+    return data as AuditCompletion[];
+}
+
+async function getCompletionsByResident(residentId: string) {
+    const { data, error } = await supabase
+        .from('audit_care_file_completions')
+        .select('*')
+        .eq('resident_id', residentId);
+    if (error) throw error;
+    return data as AuditCompletion[];
+}
+
+async function getResponseById(category: AuditCategory, id: string) {
+    const tables = getTableNames(category);
+    const { data, error } = await supabase
+        .from(tables.completions)
+        .select('*')
+        .eq('id', id)
+        .single();
+    if (error) return null;
+    return data as AuditCompletion;
+}
+
+async function getDraftResponses(category: AuditCategory, templateId: string, scopeId: string) {
+    const tables = getTableNames(category);
+    let field = 'organization_id';
+    if (category === 'resident') {
+        field = 'team_id';
+    } else if (category === 'carefile') {
+        field = 'resident_id';
+    }
+    
+    const { data, error } = await supabase
+        .from(tables.completions)
+        .select('*')
+        .eq('template_id', templateId)
+        .eq(field, scopeId)
+        .in('status', ['draft', 'in-progress'])
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as AuditCompletion[];
+}
+
+async function createResponse(category: AuditCategory, completion: Partial<AuditCompletion>) {
+    const tables = getTableNames(category);
+    const { data, error } = await supabase
+        .from(tables.completions)
+        .insert({ ...completion, status: completion.status || 'draft' })
+        .select()
+        .single();
+    if (error) throw error;
+    return data as AuditCompletion;
+}
+
+async function updateResponse(category: AuditCategory, id: string, updates: Partial<AuditCompletion>) {
+    const tables = getTableNames(category);
+    const { data, error } = await supabase
+        .from(tables.completions)
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as AuditCompletion;
+}
+
+async function completeResponse(category: AuditCategory, id: string, updates: Partial<AuditCompletion>) {
+    const tables = getTableNames(category);
+    const completedAt = new Date().toISOString();
+    let frequency = updates.frequency;
+
+    if (!frequency) {
+        const { data: existing } = await supabase
+            .from(tables.completions)
+            .select('frequency')
+            .eq('id', id)
+            .single();
+        frequency = existing?.frequency;
+    }
+
+    const nextAuditDue = calculateNextDueDate(completedAt, frequency);
+
+    const { data, error } = await supabase
+        .from(tables.completions)
+        .update({
+            ...updates,
+            status: 'completed',
+            completed_at: completedAt,
+            next_audit_due: nextAuditDue
+        })
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as AuditCompletion;
+}
+
+async function getActionPlans(category: AuditCategory, auditResponseId: string) {
+    const tables = getTableNames(category);
+    const { data, error } = await supabase
+        .from(tables.actionPlans)
+        .select('*')
+        .eq('audit_response_id', auditResponseId);
+    if (error) throw error;
+    return data;
+}
+
+async function createActionPlan(category: AuditCategory, plan: any) {
+    const tables = getTableNames(category);
+    const { creatorId, careHomeId, ...dbPlan } = plan;
+    const { data, error } = await supabase
+        .from(tables.actionPlans)
+        .insert({ 
+            ...dbPlan, 
+            status: dbPlan.status || 'pending',
+            care_home_id: careHomeId ?? null 
+        })
+        .select()
+        .single();
+    if (error) throw error;
+
+    // Create notification for assignee
+    if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
+        supabase.from("notifications").insert({
+            organization_id: data.organization_id,
+            care_home_id: careHomeId || null,
+            user_id: data.assigned_to,
+            type: "action_plan",
+            title: "New Action Plan Assigned",
+            message: `You have been assigned a new action plan: ${data.description}`,
+            link: `/dashboard/action-plans`,
+            sender_id: dbPlan.created_by || creatorId || data.created_by || null,
+            sender_name: data.created_by_name || "Manager",
+            metadata: { actionPlanId: data.id, auditCategory: category }
+        }).then(({ error }) => { if (error) console.error("Notification error:", error); });
+    }
+
+    return data;
+}
+
+async function deleteActionPlan(category: AuditCategory, id: string) {
+    const tables = getTableNames(category);
+    const { error } = await supabase
+        .from(tables.actionPlans)
+        .delete()
+        .eq('id', id);
+    if (error) throw error;
+}
+
 export const auditService = {
     // --- Resident Audits ---
-
-    async getResidentTemplates(organizationId: string) {
-        const { data, error } = await supabase
-            .from('audit_resident_templates')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .eq('category', 'resident')
-            .eq('is_active', true);
-        if (error) throw error;
-        return data as AuditTemplate[];
-    },
-
-    async getResidentTemplateById(id: string) {
-        const { data, error } = await supabase
-            .from('audit_resident_templates')
-            .select('*')
-            .eq('id', id)
-            .single();
-        if (error) return null;
-        return data as AuditTemplate;
-    },
-
-    async updateResidentTemplate(id: string, updates: Partial<AuditTemplate>) {
-        const { data, error } = await supabase
-            .from('audit_resident_templates')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditTemplate;
-    },
-
-    async createResidentTemplate(template: Partial<AuditTemplate>) {
-        const { data, error } = await supabase
-            .from('audit_resident_templates')
-            .insert(template)
-            .select()
-            .single();
-        if (error) throw error;
-        return data;
-    },
-
-    async deleteResidentTemplate(id: string) {
-        const { error } = await supabase
-            .from('audit_resident_templates')
-            .delete()
-            .eq('id', id);
-        if (error) throw error;
-    },
-
-    async getLatestResidentCompletions(teamId: string) {
-        const { data, error } = await supabase
-            .from('audit_resident_completions')
-            .select('*')
-            .eq('team_id', teamId);
-        if (error) throw error;
-        return data as AuditCompletion[];
-    },
-
-    async getResidentResponseById(id: string) {
-        const { data, error } = await supabase
-            .from('audit_resident_completions')
-            .select('*')
-            .eq('id', id)
-            .single();
-        if (error) return null;
-        return data as AuditCompletion;
-    },
-
-    async getDraftResidentResponses(templateId: string, teamId: string) {
-        const { data, error } = await supabase
-            .from('audit_resident_completions')
-            .select('*')
-            .eq('template_id', templateId)
-            .eq('team_id', teamId)
-            .in('status', ['draft', 'in-progress'])
-            .order('created_at', { ascending: false });
-        if (error) throw error;
-        return data as AuditCompletion[];
-    },
-
-    async createResidentResponse(completion: Partial<AuditCompletion>) {
-        const { data, error } = await supabase
-            .from('audit_resident_completions')
-            .insert({ ...completion, status: completion.status || 'draft' })
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async updateResidentResponse(id: string, updates: Partial<AuditCompletion>) {
-        const { data, error } = await supabase
-            .from('audit_resident_completions')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async completeResidentResponse(id: string, updates: Partial<AuditCompletion>) {
-        const completedAt = new Date().toISOString();
-        let frequency = updates.frequency;
-
-        if (!frequency) {
-            const { data: existing } = await supabase
-                .from('audit_resident_completions')
-                .select('frequency')
-                .eq('id', id)
-                .single();
-            frequency = existing?.frequency;
-        }
-
-        const nextAuditDue = calculateNextDueDate(completedAt, frequency);
-
-        const { data, error } = await supabase
-            .from('audit_resident_completions')
-            .update({
-                ...updates,
-                status: 'completed',
-                completed_at: completedAt,
-                next_audit_due: nextAuditDue
-            })
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async getResidentActionPlans(auditResponseId: string) {
-        const { data, error } = await supabase
-            .from('audit_resident_action_plans')
-            .select('*')
-            .eq('audit_response_id', auditResponseId);
-        if (error) throw error;
-        return data;
-    },
-
-    async createResidentActionPlan(plan: any) {
-        const { creatorId, careHomeId, ...dbPlan } = plan;
-        const { data, error } = await supabase
-            .from('audit_resident_action_plans')
-            .insert({ 
-                ...dbPlan, 
-                status: dbPlan.status || 'pending',
-                care_home_id: careHomeId 
-            })
-            .select()
-            .single();
-        if (error) throw error;
-
-        // Create notification for assignee
-        if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
-            supabase.from("notifications").insert({
-                organization_id: data.organization_id,
-                care_home_id: careHomeId || null,
-                user_id: data.assigned_to,
-                type: "action_plan",
-                title: "New Action Plan Assigned",
-                message: `You have been assigned a new action plan: ${data.description}`,
-                link: `/dashboard/action-plans`,
-                sender_id: creatorId || null,
-                sender_name: data.created_by_name || "Manager",
-                metadata: { actionPlanId: data.id, auditCategory: 'resident' }
-            }).then(({ error }) => { if (error) console.error("Notification error:", error); });
-        }
-
-        return data;
-    },
-
-    async deleteResidentActionPlan(id: string) {
-        const { error } = await supabase
-            .from('audit_resident_action_plans')
-            .delete()
-            .eq('id', id);
-        if (error) throw error;
-    },
+    getResidentTemplates: (organizationId: string) => getTemplates('resident', organizationId),
+    getResidentTemplateById: (id: string) => getTemplateById('resident', id),
+    updateResidentTemplate: (id: string, updates: Partial<AuditTemplate>) => updateTemplate('resident', id, updates),
+    createResidentTemplate: (template: Partial<AuditTemplate>) => createTemplate('resident', template),
+    deleteResidentTemplate: (id: string) => deleteTemplate('resident', id),
+    getLatestResidentCompletions: (teamId: string) => getLatestCompletions('resident', teamId),
+    getResidentResponseById: (id: string) => getResponseById('resident', id),
+    getDraftResidentResponses: (templateId: string, teamId: string) => getDraftResponses('resident', templateId, teamId),
+    createResidentResponse: (completion: Partial<AuditCompletion>) => createResponse('resident', completion),
+    updateResidentResponse: (id: string, updates: Partial<AuditCompletion>) => updateResponse('resident', id, updates),
+    completeResidentResponse: (id: string, updates: Partial<AuditCompletion>) => completeResponse('resident', id, updates),
+    getResidentActionPlans: (auditResponseId: string) => getActionPlans('resident', auditResponseId),
+    createResidentActionPlan: (plan: any) => createActionPlan('resident', plan),
+    deleteResidentActionPlan: (id: string) => deleteActionPlan('resident', id),
 
     // --- Care File Audits ---
-
-    async getCareFileTemplates(organizationId: string) {
-        const { data, error } = await supabase
-            .from('audit_care_file_templates')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .eq('is_active', true);
-        if (error) throw error;
-        return data as AuditTemplate[];
-    },
-
-    async getCareFileTemplateById(id: string) {
-        const { data, error } = await supabase
-            .from('audit_care_file_templates')
-            .select('*')
-            .eq('id', id)
-            .single();
-        if (error) return null;
-        return data as AuditTemplate;
-    },
-
-    async createCareFileTemplate(template: Partial<AuditTemplate>) {
-        const { data, error } = await supabase
-            .from('audit_care_file_templates')
-            .insert(template)
-            .select()
-            .single();
-        if (error) throw error;
-        return data;
-    },
-
-    async updateCareFileTemplate(id: string, updates: Partial<AuditTemplate>) {
-        const { data, error } = await supabase
-            .from('audit_care_file_templates')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditTemplate;
-    },
-
-    async deleteCareFileTemplate(id: string) {
-        const { error } = await supabase
-            .from('audit_care_file_templates')
-            .delete()
-            .eq('id', id);
-        if (error) throw error;
-    },
-
-    async getLatestCareFileCompletions(teamId: string) {
-        const { data, error } = await supabase
-            .from('audit_care_file_completions')
-            .select('*')
-            .eq('team_id', teamId);
-        if (error) throw error;
-        return data as AuditCompletion[];
-    },
-
-    async getCareFileCompletionsByResident(residentId: string) {
-        const { data, error } = await supabase
-            .from('audit_care_file_completions')
-            .select('*')
-            .eq('resident_id', residentId);
-        if (error) throw error;
-        return data as AuditCompletion[];
-    },
-
-    async getCareFileResponseById(id: string) {
-        const { data, error } = await supabase
-            .from('audit_care_file_completions')
-            .select('*')
-            .eq('id', id)
-            .single();
-        if (error) return null;
-        return data as AuditCompletion;
-    },
-
-    async getDraftCareFileResponses(templateId: string, residentId: string) {
-        const { data, error } = await supabase
-            .from('audit_care_file_completions')
-            .select('*')
-            .eq('template_id', templateId)
-            .eq('resident_id', residentId)
-            .in('status', ['draft', 'in-progress'])
-            .order('created_at', { ascending: false });
-        if (error) throw error;
-        return data as AuditCompletion[];
-    },
-
-    async createCareFileResponse(completion: Partial<AuditCompletion>) {
-        const { data, error } = await supabase
-            .from('audit_care_file_completions')
-            .insert({ ...completion, status: completion.status || 'draft' })
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async updateCareFileResponse(id: string, updates: Partial<AuditCompletion>) {
-        const { data, error } = await supabase
-            .from('audit_care_file_completions')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async completeCareFileResponse(id: string, updates: Partial<AuditCompletion>) {
-        const completedAt = new Date().toISOString();
-        let frequency = updates.frequency;
-
-        if (!frequency) {
-            const { data: existing } = await supabase
-                .from('audit_care_file_completions')
-                .select('frequency')
-                .eq('id', id)
-                .single();
-            frequency = existing?.frequency;
-        }
-
-        const nextAuditDue = calculateNextDueDate(completedAt, frequency);
-
-        const { data, error } = await supabase
-            .from('audit_care_file_completions')
-            .update({
-                ...updates,
-                status: 'completed',
-                completed_at: completedAt,
-                next_audit_due: nextAuditDue
-            })
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async getCareFileActionPlans(auditResponseId: string) {
-        const { data, error } = await supabase
-            .from('audit_care_file_action_plans')
-            .select('*')
-            .eq('audit_response_id', auditResponseId);
-        if (error) throw error;
-        return data;
-    },
-
-    async createCareFileActionPlan(plan: CareFileActionPlanInput) {
-        const { creatorId, careHomeId, ...dbPlan } = plan;
-        const { data, error } = await supabase
-            .from('audit_care_file_action_plans')
-            .insert({ 
-                ...dbPlan, 
-                status: dbPlan.status || 'pending',
-                care_home_id: careHomeId ?? null
-            })
-            .select()
-            .single();
-        if (error) throw error;
-
-        // Create notification for assignee
-        if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
-            supabase.from("notifications").insert({
-                organization_id: data.organization_id,
-                care_home_id: careHomeId || null,
-                user_id: data.assigned_to,
-                type: "action_plan",
-                title: "New Action Plan Assigned",
-                message: `You have been assigned a new action plan: ${data.description}`,
-                link: `/dashboard/action-plans`,
-                sender_id: creatorId || null,
-                sender_name: data.created_by_name || "Manager",
-                metadata: { actionPlanId: data.id, auditCategory: 'carefile' }
-            }).then(({ error }) => { if (error) console.error("Notification error:", error); });
-        }
-
-        return data;
-    },
-
-    async deleteCareFileActionPlan(id: string) {
-        const { error } = await supabase
-            .from('audit_care_file_action_plans')
-            .delete()
-            .eq('id', id);
-        if (error) throw error;
-    },
+    getCareFileTemplates: (organizationId: string) => getTemplates('carefile', organizationId),
+    getCareFileTemplateById: (id: string) => getTemplateById('carefile', id),
+    createCareFileTemplate: (template: Partial<AuditTemplate>) => createTemplate('carefile', template),
+    updateCareFileTemplate: (id: string, updates: Partial<AuditTemplate>) => updateTemplate('carefile', id, updates),
+    deleteCareFileTemplate: (id: string) => deleteTemplate('carefile', id),
+    getLatestCareFileCompletions: (teamId: string) => getLatestCompletions('carefile', teamId),
+    getCareFileCompletionsByResident: (residentId: string) => getCompletionsByResident(residentId),
+    getCareFileResponseById: (id: string) => getResponseById('carefile', id),
+    getDraftCareFileResponses: (templateId: string, residentId: string) => getDraftResponses('carefile', templateId, residentId),
+    createCareFileResponse: (completion: Partial<AuditCompletion>) => createResponse('carefile', completion),
+    updateCareFileResponse: (id: string, updates: Partial<AuditCompletion>) => updateResponse('carefile', id, updates),
+    completeCareFileResponse: (id: string, updates: Partial<AuditCompletion>) => completeResponse('carefile', id, updates),
+    getCareFileActionPlans: (auditResponseId: string) => getActionPlans('carefile', auditResponseId),
+    createCareFileActionPlan: (plan: CareFileActionPlanInput) => createActionPlan('carefile', plan),
+    deleteCareFileActionPlan: (id: string) => deleteActionPlan('carefile', id),
 
     // --- Governance Audits ---
-
-    async getGovernanceTemplates(organizationId: string) {
-        const { data, error } = await supabase
-            .from('audit_governance_templates')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .eq('is_active', true);
-        if (error) throw error;
-        return data as AuditTemplate[];
-    },
-
-    async getGovernanceTemplateById(id: string) {
-        const { data, error } = await supabase
-            .from('audit_governance_templates')
-            .select('*')
-            .eq('id', id)
-            .single();
-        if (error) return null;
-        return data as AuditTemplate;
-    },
-
-    async updateGovernanceTemplate(id: string, updates: Partial<AuditTemplate>) {
-        const { data, error } = await supabase
-            .from('audit_governance_templates')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditTemplate;
-    },
-
-    async createGovernanceTemplate(template: Partial<AuditTemplate>) {
-        const { data, error } = await supabase
-            .from('audit_governance_templates')
-            .insert(template)
-            .select()
-            .single();
-        if (error) throw error;
-        return data;
-    },
-
-    async deleteGovernanceTemplate(id: string) {
-        const { error } = await supabase
-            .from('audit_governance_templates')
-            .delete()
-            .eq('id', id);
-        if (error) throw error;
-    },
-
-    async getLatestGovernanceCompletions(organizationId: string) {
-        const { data, error } = await supabase
-            .from('audit_governance_completions')
-            .select('*')
-            .eq('organization_id', organizationId);
-        if (error) throw error;
-        return data as AuditCompletion[];
-    },
-
-    async getGovernanceResponseById(id: string) {
-        const { data, error } = await supabase
-            .from('audit_governance_completions')
-            .select('*')
-            .eq('id', id)
-            .single();
-        if (error) return null;
-        return data as AuditCompletion;
-    },
-
-    async getDraftGovernanceResponses(templateId: string, organizationId: string) {
-        const { data, error } = await supabase
-            .from('audit_governance_completions')
-            .select('*')
-            .eq('template_id', templateId)
-            .eq('organization_id', organizationId)
-            .in('status', ['draft', 'in-progress'])
-            .order('created_at', { ascending: false });
-        if (error) throw error;
-        return data as AuditCompletion[];
-    },
-
-    async createGovernanceResponse(completion: Partial<AuditCompletion>) {
-        const { data, error } = await supabase
-            .from('audit_governance_completions')
-            .insert({ ...completion, status: completion.status || 'draft' })
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async updateGovernanceResponse(id: string, updates: Partial<AuditCompletion>) {
-        const { data, error } = await supabase
-            .from('audit_governance_completions')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async completeGovernanceResponse(id: string, updates: Partial<AuditCompletion>) {
-        const completedAt = new Date().toISOString();
-        let frequency = updates.frequency;
-
-        if (!frequency) {
-            const { data: existing } = await supabase
-                .from('audit_governance_completions')
-                .select('frequency')
-                .eq('id', id)
-                .single();
-            frequency = existing?.frequency;
-        }
-
-        const nextAuditDue = calculateNextDueDate(completedAt, frequency);
-
-        const { data, error } = await supabase
-            .from('audit_governance_completions')
-            .update({
-                ...updates,
-                status: 'completed',
-                completed_at: completedAt,
-                next_audit_due: nextAuditDue
-            })
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async getGovernanceActionPlans(auditResponseId: string) {
-        const { data, error } = await supabase
-            .from('audit_governance_action_plans')
-            .select('*')
-            .eq('audit_response_id', auditResponseId);
-        if (error) throw error;
-        return data;
-    },
-
-    async createGovernanceActionPlan(plan: any) {
-        const { creatorId, careHomeId, ...dbPlan } = plan;
-        const { data, error } = await supabase
-            .from('audit_governance_action_plans')
-            .insert({ 
-                ...dbPlan, 
-                status: dbPlan.status || 'pending',
-                care_home_id: careHomeId 
-            })
-            .select()
-            .single();
-        if (error) throw error;
-
-        // Create notification for assignee
-        if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
-            supabase.from("notifications").insert({
-                organization_id: data.organization_id,
-                care_home_id: careHomeId || null,
-                user_id: data.assigned_to,
-                type: "action_plan",
-                title: "New Action Plan Assigned",
-                message: `You have been assigned a new action plan: ${data.description}`,
-                link: `/dashboard/action-plans`,
-                sender_id: creatorId || null,
-                sender_name: data.created_by_name || "Manager",
-                metadata: { actionPlanId: data.id, auditCategory: 'governance' }
-            }).then(({ error }) => { if (error) console.error("Notification error:", error); });
-        }
-
-        return data;
-    },
-
-    async deleteGovernanceActionPlan(id: string) {
-        const { error } = await supabase
-            .from('audit_governance_action_plans')
-            .delete()
-            .eq('id', id);
-        if (error) throw error;
-    },
+    getGovernanceTemplates: (organizationId: string) => getTemplates('governance', organizationId),
+    getGovernanceTemplateById: (id: string) => getTemplateById('governance', id),
+    updateGovernanceTemplate: (id: string, updates: Partial<AuditTemplate>) => updateTemplate('governance', id, updates),
+    createGovernanceTemplate: (template: Partial<AuditTemplate>) => createTemplate('governance', template),
+    deleteGovernanceTemplate: (id: string) => deleteTemplate('governance', id),
+    getLatestGovernanceCompletions: (organizationId: string) => getLatestCompletions('governance', organizationId),
+    getGovernanceResponseById: (id: string) => getResponseById('governance', id),
+    getDraftGovernanceResponses: (templateId: string, organizationId: string) => getDraftResponses('governance', templateId, organizationId),
+    createGovernanceResponse: (completion: Partial<AuditCompletion>) => createResponse('governance', completion),
+    updateGovernanceResponse: (id: string, updates: Partial<AuditCompletion>) => updateResponse('governance', id, updates),
+    completeGovernanceResponse: (id: string, updates: Partial<AuditCompletion>) => completeResponse('governance', id, updates),
+    getGovernanceActionPlans: (auditResponseId: string) => getActionPlans('governance', auditResponseId),
+    createGovernanceActionPlan: (plan: any) => createActionPlan('governance', plan),
+    deleteGovernanceActionPlan: (id: string) => deleteActionPlan('governance', id),
 
     // --- Clinical Audits ---
-
-    async getClinicalTemplates(organizationId: string) {
-        const { data, error } = await supabase
-            .from('audit_clinical_templates')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .eq('is_active', true);
-        if (error) throw error;
-        return data as AuditTemplate[];
-    },
-
-    async getClinicalTemplateById(id: string) {
-        const { data, error } = await supabase
-            .from('audit_clinical_templates')
-            .select('*')
-            .eq('id', id)
-            .single();
-        if (error) return null;
-        return data as AuditTemplate;
-    },
-
-    async updateClinicalTemplate(id: string, updates: Partial<AuditTemplate>) {
-        const { data, error } = await supabase
-            .from('audit_clinical_templates')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditTemplate;
-    },
-
-    async createClinicalTemplate(template: Partial<AuditTemplate>) {
-        const { data, error } = await supabase
-            .from('audit_clinical_templates')
-            .insert(template)
-            .select()
-            .single();
-        if (error) throw error;
-        return data;
-    },
-
-    async deleteClinicalTemplate(id: string) {
-        const { error } = await supabase
-            .from('audit_clinical_templates')
-            .delete()
-            .eq('id', id);
-        if (error) throw error;
-    },
-
-    async getLatestClinicalCompletions(organizationId: string) {
-        const { data, error } = await supabase
-            .from('audit_clinical_completions')
-            .select('*')
-            .eq('organization_id', organizationId);
-        if (error) throw error;
-        return data as AuditCompletion[];
-    },
-
-    async getClinicalResponseById(id: string) {
-        const { data, error } = await supabase
-            .from('audit_clinical_completions')
-            .select('*')
-            .eq('id', id)
-            .single();
-        if (error) return null;
-        return data as AuditCompletion;
-    },
-
-    async getDraftClinicalResponses(templateId: string, organizationId: string) {
-        const { data, error } = await supabase
-            .from('audit_clinical_completions')
-            .select('*')
-            .eq('template_id', templateId)
-            .eq('organization_id', organizationId)
-            .in('status', ['draft', 'in-progress'])
-            .order('created_at', { ascending: false });
-        if (error) throw error;
-        return data as AuditCompletion[];
-    },
-
-    async createClinicalResponse(completion: Partial<AuditCompletion>) {
-        const { data, error } = await supabase
-            .from('audit_clinical_completions')
-            .insert({ ...completion, status: completion.status || 'draft' })
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async updateClinicalResponse(id: string, updates: Partial<AuditCompletion>) {
-        const { data, error } = await supabase
-            .from('audit_clinical_completions')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async completeClinicalResponse(id: string, updates: Partial<AuditCompletion>) {
-        const completedAt = new Date().toISOString();
-        let frequency = updates.frequency;
-
-        if (!frequency) {
-            const { data: existing } = await supabase
-                .from('audit_clinical_completions')
-                .select('frequency')
-                .eq('id', id)
-                .single();
-            frequency = existing?.frequency;
-        }
-
-        const nextAuditDue = calculateNextDueDate(completedAt, frequency);
-
-        const { data, error } = await supabase
-            .from('audit_clinical_completions')
-            .update({
-                ...updates,
-                status: 'completed',
-                completed_at: completedAt,
-                next_audit_due: nextAuditDue
-            })
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async getClinicalActionPlans(auditResponseId: string) {
-        const { data, error } = await supabase
-            .from('audit_clinical_action_plans')
-            .select('*')
-            .eq('audit_response_id', auditResponseId);
-        if (error) throw error;
-        return data;
-    },
-
-    async createClinicalActionPlan(plan: any) {
-        const { creatorId, careHomeId, ...dbPlan } = plan;
-        const { data, error } = await supabase
-            .from('audit_clinical_action_plans')
-            .insert({ 
-                ...dbPlan, 
-                status: dbPlan.status || 'pending',
-                care_home_id: careHomeId 
-            })
-            .select()
-            .single();
-        if (error) throw error;
-
-        // Create notification for assignee
-        if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
-            supabase.from("notifications").insert({
-                organization_id: data.organization_id,
-                care_home_id: careHomeId || null,
-                user_id: data.assigned_to,
-                type: "action_plan",
-                title: "New Action Plan Assigned",
-                message: `You have been assigned a new action plan: ${data.description}`,
-                link: `/dashboard/action-plans`,
-                sender_id: data.created_by,
-                sender_name: data.created_by_name || "Manager",
-                metadata: { actionPlanId: data.id, auditCategory: 'clinical' }
-            }).then(({ error }) => { if (error) console.error("Notification error:", error); });
-        }
-
-        return data;
-    },
-
-    async deleteClinicalActionPlan(id: string) {
-        const { error } = await supabase
-            .from('audit_clinical_action_plans')
-            .delete()
-            .eq('id', id);
-        if (error) throw error;
-    },
+    getClinicalTemplates: (organizationId: string) => getTemplates('clinical', organizationId),
+    getClinicalTemplateById: (id: string) => getTemplateById('clinical', id),
+    updateClinicalTemplate: (id: string, updates: Partial<AuditTemplate>) => updateTemplate('clinical', id, updates),
+    createClinicalTemplate: (template: Partial<AuditTemplate>) => createTemplate('clinical', template),
+    deleteClinicalTemplate: (id: string) => deleteTemplate('clinical', id),
+    getLatestClinicalCompletions: (organizationId: string) => getLatestCompletions('clinical', organizationId),
+    getClinicalResponseById: (id: string) => getResponseById('clinical', id),
+    getDraftClinicalResponses: (templateId: string, organizationId: string) => getDraftResponses('clinical', templateId, organizationId),
+    createClinicalResponse: (completion: Partial<AuditCompletion>) => createResponse('clinical', completion),
+    updateClinicalResponse: (id: string, updates: Partial<AuditCompletion>) => updateResponse('clinical', id, updates),
+    completeClinicalResponse: (id: string, updates: Partial<AuditCompletion>) => completeResponse('clinical', id, updates),
+    getClinicalActionPlans: (auditResponseId: string) => getActionPlans('clinical', auditResponseId),
+    createClinicalActionPlan: (plan: any) => createActionPlan('clinical', plan),
+    deleteClinicalActionPlan: (id: string) => deleteActionPlan('clinical', id),
 
     // --- Environment Audits ---
-
-    async getEnvironmentTemplates(organizationId: string) {
-        const { data, error } = await supabase
-            .from('audit_environment_templates')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .eq('is_active', true);
-        if (error) throw error;
-        return data as AuditTemplate[];
-    },
-
-    async getEnvironmentTemplateById(id: string) {
-        const { data, error } = await supabase
-            .from('audit_environment_templates')
-            .select('*')
-            .eq('id', id)
-            .single();
-        if (error) return null;
-        return data as AuditTemplate;
-    },
-
-    async updateEnvironmentTemplate(id: string, updates: Partial<AuditTemplate>) {
-        const { data, error } = await supabase
-            .from('audit_environment_templates')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditTemplate;
-    },
-
-    async createEnvironmentTemplate(template: Partial<AuditTemplate>) {
-        const { data, error } = await supabase
-            .from('audit_environment_templates')
-            .insert(template)
-            .select()
-            .single();
-        if (error) throw error;
-        return data;
-    },
-
-    async deleteEnvironmentTemplate(id: string) {
-        const { error } = await supabase
-            .from('audit_environment_templates')
-            .delete()
-            .eq('id', id);
-        if (error) throw error;
-    },
-
-    async getLatestEnvironmentCompletions(organizationId: string) {
-        const { data, error } = await supabase
-            .from('audit_environment_completions')
-            .select('*')
-            .eq('organization_id', organizationId);
-        if (error) throw error;
-        return data as AuditCompletion[];
-    },
-
-    async getEnvironmentResponseById(id: string) {
-        const { data, error } = await supabase
-            .from('audit_environment_completions')
-            .select('*')
-            .eq('id', id)
-            .single();
-        if (error) return null;
-        return data as AuditCompletion;
-    },
-
-    async getDraftEnvironmentResponses(templateId: string, organizationId: string) {
-        const { data, error } = await supabase
-            .from('audit_environment_completions')
-            .select('*')
-            .eq('template_id', templateId)
-            .eq('organization_id', organizationId)
-            .in('status', ['draft', 'in-progress'])
-            .order('created_at', { ascending: false });
-        if (error) throw error;
-        return data as AuditCompletion[];
-    },
-
-    async createEnvironmentResponse(completion: Partial<AuditCompletion>) {
-        const { data, error } = await supabase
-            .from('audit_environment_completions')
-            .insert({ ...completion, status: completion.status || 'draft' })
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async updateEnvironmentResponse(id: string, updates: Partial<AuditCompletion>) {
-        const { data, error } = await supabase
-            .from('audit_environment_completions')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async completeEnvironmentResponse(id: string, updates: Partial<AuditCompletion>) {
-        const completedAt = new Date().toISOString();
-        let frequency = updates.frequency;
-
-        if (!frequency) {
-            const { data: existing } = await supabase
-                .from('audit_environment_completions')
-                .select('frequency')
-                .eq('id', id)
-                .single();
-            frequency = existing?.frequency;
-        }
-
-        const nextAuditDue = calculateNextDueDate(completedAt, frequency);
-
-        const { data, error } = await supabase
-            .from('audit_environment_completions')
-            .update({
-                ...updates,
-                status: 'completed',
-                completed_at: completedAt,
-                next_audit_due: nextAuditDue
-            })
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data as AuditCompletion;
-    },
-
-    async getEnvironmentActionPlans(auditResponseId: string) {
-        const { data, error } = await supabase
-            .from('audit_environment_action_plans')
-            .select('*')
-            .eq('audit_response_id', auditResponseId);
-        if (error) throw error;
-        return data;
-    },
-
-    async createEnvironmentActionPlan(plan: any) {
-        const { creatorId, careHomeId, ...dbPlan } = plan;
-        const { data, error } = await supabase
-            .from('audit_environment_action_plans')
-            .insert({ 
-                ...dbPlan, 
-                status: dbPlan.status || 'pending',
-                care_home_id: careHomeId 
-            })
-            .select()
-            .single();
-        if (error) throw error;
-
-        // Create notification for assignee
-        if (data && data.assigned_to && isValidUUID(data.assigned_to)) {
-            supabase.from("notifications").insert({
-                organization_id: data.organization_id,
-                care_home_id: careHomeId || null,
-                user_id: data.assigned_to,
-                type: "action_plan",
-                title: "New Action Plan Assigned",
-                message: `You have been assigned a new action plan: ${data.description}`,
-                link: `/dashboard/action-plans`,
-                sender_id: data.created_by,
-                sender_name: data.created_by_name || "Manager",
-                metadata: { actionPlanId: data.id, auditCategory: 'environment' }
-            }).then(({ error }) => { if (error) console.error("Notification error:", error); });
-        }
-
-        return data;
-    },
-
-    async deleteEnvironmentActionPlan(id: string) {
-        const { error } = await supabase
-            .from('audit_environment_action_plans')
-            .delete()
-            .eq('id', id);
-        if (error) throw error;
-    },
+    getEnvironmentTemplates: (organizationId: string) => getTemplates('environment', organizationId),
+    getEnvironmentTemplateById: (id: string) => getTemplateById('environment', id),
+    updateEnvironmentTemplate: (id: string, updates: Partial<AuditTemplate>) => updateTemplate('environment', id, updates),
+    createEnvironmentTemplate: (template: Partial<AuditTemplate>) => createTemplate('environment', template),
+    deleteEnvironmentTemplate: (id: string) => deleteTemplate('environment', id),
+    getLatestEnvironmentCompletions: (organizationId: string) => getLatestCompletions('environment', organizationId),
+    getEnvironmentResponseById: (id: string) => getResponseById('environment', id),
+    getDraftEnvironmentResponses: (templateId: string, organizationId: string) => getDraftResponses('environment', templateId, organizationId),
+    createEnvironmentResponse: (completion: Partial<AuditCompletion>) => createResponse('environment', completion),
+    updateEnvironmentResponse: (id: string, updates: Partial<AuditCompletion>) => updateResponse('environment', id, updates),
+    completeEnvironmentResponse: (id: string, updates: Partial<AuditCompletion>) => completeResponse('environment', id, updates),
+    getEnvironmentActionPlans: (auditResponseId: string) => getActionPlans('environment', auditResponseId),
+    createEnvironmentActionPlan: (plan: any) => createActionPlan('environment', plan),
+    deleteEnvironmentActionPlan: (id: string) => deleteActionPlan('environment', id),
 
     // --- Manager Audits ---
 

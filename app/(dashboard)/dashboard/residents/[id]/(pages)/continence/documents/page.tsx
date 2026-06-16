@@ -70,6 +70,12 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 30;
+  const prefetchCache = React.useRef<Record<string, any>>({});
+
+  // Clear prefetch cache when filters change to avoid stale data
+  useEffect(() => {
+    prefetchCache.current = {};
+  }, [selectedYear, selectedMonth, sortOrder]);
 
   // Dialog state
   const [selectedReport, setSelectedReport] = useState<any>(null);
@@ -117,77 +123,77 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
   const fetchPaginatedDates = useCallback(async () => {
     setIsLoading(true);
     try {
-      let query = supabase
-        .from("continence_entries")
-        .select("date, entry_type, created_at", { count: "exact" })
-        .eq("resident_id", id);
+      const cacheKey = `${selectedYear}-${selectedMonth}-${sortOrder}-${currentPage}`;
+      let pageData = prefetchCache.current[cacheKey];
 
-      // Apply date filters
-      if (selectedYear !== "all") {
-        const year = parseInt(selectedYear);
-        if (selectedMonth !== "all") {
-          const month = parseInt(selectedMonth);
-          const startDate = new Date(year, month - 1, 1);
-          const endDate = new Date(year, month, 0, 23, 59, 59);
-          query = query
-            .gte("created_at", startDate.toISOString())
-            .lte("created_at", endDate.toISOString());
-        } else {
-          const startDate = new Date(year, 0, 1);
-          const endDate = new Date(year, 11, 31, 23, 59, 59);
-          query = query
-            .gte("created_at", startDate.toISOString())
-            .lte("created_at", endDate.toISOString());
+      if (!pageData) {
+        const { data, error } = await supabase.rpc("get_paginated_continence_dates", {
+          p_resident_id: id,
+          p_limit: itemsPerPage,
+          p_offset: (currentPage - 1) * itemsPerPage,
+          p_year: selectedYear !== "all" ? parseInt(selectedYear) : null,
+          p_month: selectedMonth !== "all" ? parseInt(selectedMonth) : null,
+          p_sort_order: sortOrder.toUpperCase(),
+        });
+
+        if (error) {
+          console.error("Error fetching paginated dates:", error);
+          toast.error("Failed to load continence records");
+          return;
         }
+
+        const totalCount = data && data.length > 0 ? data[0].total_dates_count : 0;
+        const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+        const datesArray = (data || []).map((row: any) => ({
+          date: row.log_date,
+          hasReport: true,
+          bowelCount: row.bowel_count,
+          urineCount: row.urine_count
+        }));
+
+        pageData = {
+          dates: datesArray,
+          totalCount,
+          totalPages
+        };
+
+        prefetchCache.current[cacheKey] = pageData;
       }
 
-      const { data: entries, error, count } = await query;
+      setPaginatedData(pageData);
 
-      if (error) {
-        console.error("Error fetching entries:", error);
-        toast.error("Failed to load continence entries");
-        return;
+      // Prefetch next page in the background
+      const totalPages = pageData.totalPages;
+      if (currentPage < totalPages) {
+        const nextCacheKey = `${selectedYear}-${selectedMonth}-${sortOrder}-${currentPage + 1}`;
+        if (!prefetchCache.current[nextCacheKey]) {
+          supabase.rpc("get_paginated_continence_dates", {
+            p_resident_id: id,
+            p_limit: itemsPerPage,
+            p_offset: currentPage * itemsPerPage,
+            p_year: selectedYear !== "all" ? parseInt(selectedYear) : null,
+            p_month: selectedMonth !== "all" ? parseInt(selectedMonth) : null,
+            p_sort_order: sortOrder.toUpperCase(),
+          }).then(({ data, error }) => {
+            if (!error && data) {
+              const nextTotalCount = data.length > 0 ? data[0].total_dates_count : 0;
+              const nextTotalPages = Math.ceil(nextTotalCount / itemsPerPage);
+              const nextDatesArray = data.map((row: any) => ({
+                date: row.log_date,
+                hasReport: true,
+                bowelCount: row.bowel_count,
+                urineCount: row.urine_count
+              }));
+              prefetchCache.current[nextCacheKey] = {
+                dates: nextDatesArray,
+                totalCount: nextTotalCount,
+                totalPages: nextTotalPages
+              };
+            }
+          });
+        }
       }
-
-      // Get unique dates and per-type counts
-      const dateCounts: Record<string, { bowelCount: number; urineCount: number }> = {};
-      entries?.forEach((entry: any) => {
-        if (!dateCounts[entry.date]) {
-          dateCounts[entry.date] = { bowelCount: 0, urineCount: 0 };
-        }
-        if (entry.entry_type === "bowel") {
-          dateCounts[entry.date].bowelCount += 1;
-        } else if (entry.entry_type === "urine") {
-          dateCounts[entry.date].urineCount += 1;
-        }
-      });
-
-      const datesArray = Object.entries(dateCounts).map(([date, counts]) => ({
-        date,
-        hasReport: true,
-        bowelCount: counts.bowelCount,
-        urineCount: counts.urineCount,
-      }));
-
-      // Sort dates
-      datesArray.sort((a, b) => {
-        const dateA = new Date(a.date);
-        const dateB = new Date(b.date);
-        return sortOrder === "desc" ? dateB.getTime() - dateA.getTime() : dateA.getTime() - dateB.getTime();
-      });
-
-      // Paginate
-      const totalCount = datesArray.length;
-      const totalPages = Math.ceil(totalCount / itemsPerPage);
-      const startIndex = (currentPage - 1) * itemsPerPage;
-      const endIndex = startIndex + itemsPerPage;
-      const paginatedDates = datesArray.slice(startIndex, endIndex);
-
-      setPaginatedData({
-        dates: paginatedDates,
-        totalCount,
-        totalPages
-      });
     } catch (error) {
       console.error("Error in fetchPaginatedDates:", error);
       toast.error("Failed to load dates");
@@ -196,9 +202,26 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
     }
   }, [id, selectedYear, selectedMonth, sortOrder, currentPage, itemsPerPage]);
 
-  // Fetch paginated dates when filters change
+  // Fetch paginated dates when filters change or page focus occurs
   useEffect(() => {
     fetchPaginatedDates();
+  }, [fetchPaginatedDates]);
+
+  // Refresh data when page comes into focus (user navigates back)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPaginatedDates();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
   }, [fetchPaginatedDates]);
 
   // Fetch daily report data

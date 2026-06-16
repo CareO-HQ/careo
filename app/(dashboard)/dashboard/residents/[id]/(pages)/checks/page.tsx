@@ -240,131 +240,106 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
     if (!id || !profile?.active_organization_id) return;
     setIsLoading(true);
     try {
-      // 1. Fetch Resident
-      const { data: rData, error: rError } = await supabase
-        .from('residents')
-        .select('*')
-        .eq('id', id)
-        .single();
-      if (rError) throw rError;
-      setResident(rData);
-
-      // 2. Fetch Configs
-      const { data: cData, error: cError } = await supabase
-        .from('night_check_configurations')
-        .select('*')
-        .eq('resident_id', id)
-        .eq('is_active', true);
-      if (cError) throw cError;
-      setNightCheckConfigs(cData || []);
-
-      const { data: alertRows, error: alertError } = await supabase
-        .from("alerts")
-        .select("id, type, title, message, severity, metadata")
-        .eq("resident_id", id)
-        .eq("type", CHECKS_INTERVAL_OVERDUE_ALERT_TYPE)
-        .eq("is_resolved", false)
-        .order("created_at", { ascending: false });
-      if (alertError) throw alertError;
-
-      const alertList = (alertRows as ChecksAlertRow[] | null) ?? [];
-      if (!profile?.id || alertList.length === 0) {
-        setCheckAlerts(alertList);
-      } else {
-        const { data: dismissalsData, error: dismissalsError } = await supabase
-          .from("alert_dismissals")
-          .select("alert_id")
-          .eq("user_id", profile.id)
-          .in("alert_id", alertList.map((alert) => alert.id));
-        if (dismissalsError) throw dismissalsError;
-
-        const dismissedSet = new Set(
-          (dismissalsData ?? []).map((item: { alert_id: string }) => item.alert_id)
-        );
-        setCheckAlerts(alertList.filter((alert) => !dismissedSet.has(alert.id)));
-      }
-
-      // 3. Fetch Today's Recordings (using UK timezone)
+      // Use UK timezone for today's date
       const today = getUKTodayDate(); // Returns YYYY-MM-DD format
-      console.log("Fetching recordings for date:", today, "resident_id:", id, "Type:", typeof id);
-      
-      // Query using record_date (DATE type in Supabase)
-      // Use date range query to handle PostgreSQL DATE type comparison more reliably
-      // Calculate next day for range query - use UTC to avoid timezone issues
       const [year, month, day] = today.split('-').map(Number);
       const todayDate = new Date(Date.UTC(year, month - 1, day));
       const nextDayDate = new Date(todayDate);
       nextDayDate.setUTCDate(nextDayDate.getUTCDate() + 1);
       const nextDayStr = `${nextDayDate.getUTCFullYear()}-${String(nextDayDate.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDayDate.getUTCDate()).padStart(2, '0')}`;
+
+      // Parallelize all checks dashboard queries to eliminate waterfall delays
+      const [
+        residentResult,
+        configsResult,
+        alertsResult,
+        dismissalsResult,
+        recordingsEqResult,
+        recordingsRangeResult,
+        recentRecordingsResult,
+        anyRecordsResult
+      ] = await Promise.all([
+        supabase
+          .from('residents')
+          .select('*')
+          .eq('id', id)
+          .single(),
+        supabase
+          .from('night_check_configurations')
+          .select('*')
+          .eq('resident_id', id)
+          .eq('is_active', true),
+        supabase
+          .from("alerts")
+          .select("id, type, title, message, severity, metadata")
+          .eq("resident_id", id)
+          .eq("type", CHECKS_INTERVAL_OVERDUE_ALERT_TYPE)
+          .eq("is_resolved", false)
+          .order("created_at", { ascending: false }),
+        profile?.id
+          ? supabase
+              .from("alert_dismissals")
+              .select("alert_id")
+              .eq("user_id", profile.id)
+          : Promise.resolve({ data: null, error: null }),
+        supabase
+          .from('night_check_recordings')
+          .select('*')
+          .eq('resident_id', id)
+          .eq('record_date', today)
+          .order('record_date_time', { ascending: false }),
+        supabase
+          .from('night_check_recordings')
+          .select('*')
+          .eq('resident_id', id)
+          .gte('record_date', today)
+          .lt('record_date', nextDayStr)
+          .order('record_date_time', { ascending: false }),
+        supabase
+          .from('night_check_recordings')
+          .select('id, check_type, record_date, record_time, created_at, resident_id')
+          .eq('resident_id', id)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('night_check_recordings')
+          .select('id, resident_id, record_date, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5)
+      ]);
+
+      // 1. Handle Resident
+      if (residentResult.error) throw residentResult.error;
+      setResident(residentResult.data);
+
+      // 2. Handle Configs
+      if (configsResult.error) throw configsResult.error;
+      setNightCheckConfigs(configsResult.data || []);
+
+      // 3. Handle Alerts and Dismissals
+      if (alertsResult.error) throw alertsResult.error;
+      const alertList = (alertsResult.data as ChecksAlertRow[] | null) ?? [];
       
-      console.log("Query date range: from", today, "to", nextDayStr);
-      console.log("Today date object:", todayDate.toISOString());
-      console.log("Next day date object:", nextDayDate.toISOString());
-      
-      // First, check if ANY records exist for this resident (no date filter)
-      const { data: allResidentRecords, error: allResidentError } = await supabase
-        .from('night_check_recordings')
-        .select('id, check_type, record_date, record_time, created_at')
-        .eq('resident_id', id)
-        .order('created_at', { ascending: false })
-        .limit(5);
-      
-      console.log("All resident records (no date filter):", allResidentRecords?.length || 0, "records");
-      if (allResidentRecords && allResidentRecords.length > 0) {
-        console.log("Sample resident records:", allResidentRecords.map(r => ({
-          id: r.id,
-          check_type: r.check_type,
-          record_date: r.record_date,
-          record_date_type: typeof r.record_date,
-          created_at: r.created_at
-        })));
+      if (!profile?.id || alertList.length === 0) {
+        setCheckAlerts(alertList);
+      } else {
+        if (dismissalsResult.error) throw dismissalsResult.error;
+        const dismissedSet = new Set(
+          (dismissalsResult.data ?? []).map((item: { alert_id: string }) => item.alert_id)
+        );
+        setCheckAlerts(alertList.filter((alert) => !dismissedSet.has(alert.id)));
       }
-      
-      // Try a simple equality query first
-      const { data: recDataEq, error: recErrorEq } = await supabase
-        .from('night_check_recordings')
-        .select('*')
-        .eq('resident_id', id)
-        .eq('record_date', today)
-        .order('record_date_time', { ascending: false });
-      
-      console.log("Equality query result:", recDataEq?.length || 0, "records, error:", recErrorEq);
-      if (recDataEq && recDataEq.length > 0) {
-        console.log("Equality query found records with dates:", recDataEq.map(r => r.record_date));
-      }
-      
-      // Also try range query as fallback
-      const { data: recData, error: recError } = await supabase
-        .from('night_check_recordings')
-        .select('*')
-        .eq('resident_id', id)
-        .gte('record_date', today)
-        .lt('record_date', nextDayStr)
-        .order('record_date_time', { ascending: false });
-      
-      console.log("Range query result:", recData?.length || 0, "records, error:", recError);
-      if (recData && recData.length > 0) {
-        console.log("Range query found records with dates:", recData.map(r => r.record_date));
-      }
-      
-      // Use whichever query returned data (prefer equality, fallback to range)
-      const finalRecData = (recDataEq && recDataEq.length > 0) ? recDataEq : recData;
-      const finalRecError = recErrorEq || recError;
-      
+
+      // 4. Handle Recordings
+      const finalRecError = recordingsEqResult.error || recordingsRangeResult.error;
       if (finalRecError) {
         console.error("Error fetching recordings:", finalRecError);
         throw finalRecError;
       }
-      
-      console.log("Fetched recordings:", finalRecData?.length || 0, "records for", today);
-      console.log("Raw recordings data:", finalRecData?.map(r => ({
-        id: r.id,
-        check_type: r.check_type,
-        record_date: r.record_date,
-        record_date_type: typeof r.record_date,
-        record_time: r.record_time,
-        check_data: r.check_data
-      })));
+
+      const finalRecData = (recordingsEqResult.data && recordingsEqResult.data.length > 0)
+        ? recordingsEqResult.data
+        : recordingsRangeResult.data;
 
       // Transform recordings to match component expectations
       const formattedRecordings = (finalRecData || []).map(r => {
@@ -390,33 +365,14 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
           recordDateTime: r.record_date_time,
         };
       });
-      
-      console.log("Formatted recordings:", formattedRecordings.length, "items");
-      console.log("Check types found:", formattedRecordings.map(r => r.checkType));
-      
-      // Debug: Also fetch all recent recordings to see what dates are actually stored
-      const { data: allRecentData, error: allRecentError } = await supabase
-        .from('night_check_recordings')
-        .select('id, check_type, record_date, record_time, created_at, resident_id')
-        .eq('resident_id', id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      
+
+      // Debug: Logs for recent recordings
+      const allRecentData = recentRecordingsResult.data || [];
+      const allRecentError = recentRecordingsResult.error;
       console.log("All recent recordings query - Error:", allRecentError);
-      console.log("All recent recordings query - Count:", allRecentData?.length || 0);
-      console.log("Last 10 recordings (all dates):", allRecentData?.map(r => ({
-        id: r.id,
-        check_type: r.check_type,
-        record_date: r.record_date,
-        record_date_type: typeof r.record_date,
-        record_time: r.record_time,
-        resident_id: r.resident_id,
-        resident_id_type: typeof r.resident_id,
-        created_at: r.created_at
-      })));
+      console.log("All recent recordings query - Count:", allRecentData.length);
       
-      // Enhanced debug: Compare query date with stored dates
-      if (allRecentData && allRecentData.length > 0) {
+      if (allRecentData.length > 0) {
         const storedDates = allRecentData.map(r => {
           const date = typeof r.record_date === 'string' ? r.record_date.split('T')[0] : r.record_date;
           return date;
@@ -426,19 +382,7 @@ export default function NightCheckPage({ params }: NightCheckPageProps) {
         console.log("Date match check:", storedDates.includes(today));
         console.log("Resident ID match check - Query ID:", id, "Stored IDs:", [...new Set(allRecentData.map(r => r.resident_id))]);
       } else {
-        // Try querying without resident_id filter to see if ANY records exist
-        const { data: anyRecords } = await supabase
-          .from('night_check_recordings')
-          .select('id, resident_id, record_date, created_at')
-          .order('created_at', { ascending: false })
-          .limit(5);
-        console.log("Any records in table (no filter):", anyRecords?.length || 0);
-        console.log("Sample records:", anyRecords?.map(r => ({
-          id: r.id,
-          resident_id: r.resident_id,
-          record_date: r.record_date,
-          created_at: r.created_at
-        })));
+        console.log("Any records in table (no filter):", anyRecordsResult.data?.length || 0);
       }
       
       setTodayRecordings(formattedRecordings);
