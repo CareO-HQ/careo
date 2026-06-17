@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { getAppointmentsByResident } from "@/lib/appointments";
 import { useRouter } from "next/navigation";
@@ -150,31 +150,156 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   }, [id, supabase]);
 
   // Get all appointments for this resident (archived appointments)
-  const [allAppointments, setAllAppointments] = useState<AppointmentRecord[] | undefined>(undefined);
+  const [paginatedData, setPaginatedData] = useState<{
+    appointments: AppointmentRecord[];
+    totalCount: number;
+    totalPages: number;
+  } | null>(null);
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
+  const prefetchCache = React.useRef<Record<string, any>>({});
 
+  // Clear cache on filter change
   useEffect(() => {
-    async function fetchAppointments() {
-      try {
-        setAppointmentsLoading(true);
-        const result = await getAppointmentsByResident(id, { includeAll: true });
-        // Transform appointments to include startTime for compatibility
-        const transformedAppointments = result.appointments?.map((apt: AppointmentRecord) => ({
+    prefetchCache.current = {};
+  }, [searchQuery, selectedMonth, selectedYear, sortOrder]);
+
+  const fetchPaginatedAppointments = useCallback(async () => {
+    if (!id || !supabase) return;
+    setAppointmentsLoading(true);
+    try {
+      const cacheKey = `${searchQuery}-${selectedMonth}-${selectedYear}-${sortOrder}-${currentPage}`;
+      let pageData = prefetchCache.current[cacheKey];
+
+      if (!pageData) {
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+
+        let query = supabase
+          .from("appointments")
+          .select("*", { count: "exact" })
+          .eq("resident_id", id)
+          .lte("start_time", today.toISOString());
+
+        // Apply search filter
+        if (searchQuery) {
+          query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,location.ilike.%${searchQuery}%,staff_id.ilike.%${searchQuery}%`);
+        }
+
+        // Apply month and year filters
+        if (selectedYear !== "all") {
+          const year = parseInt(selectedYear);
+          if (selectedMonth !== "all") {
+            const month = parseInt(selectedMonth);
+            const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+            const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+            query = query
+              .gte("start_time", startDate.toISOString())
+              .lte("start_time", endDate.toISOString());
+          } else {
+            const startDate = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+            const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+            query = query
+              .gte("start_time", startDate.toISOString())
+              .lte("start_time", endDate.toISOString());
+          }
+        }
+
+        const { data, error, count } = await query
+          .order("start_time", { ascending: sortOrder === "asc" })
+          .range((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage - 1);
+
+        if (error) throw error;
+
+        const transformedAppointments = (data || []).map((apt: AppointmentRecord) => ({
           ...apt,
           startTime: apt.start_time,
           endTime: apt.end_time,
           staffId: apt.staff_id,
-        })) || [];
-        setAllAppointments(transformedAppointments);
-      } catch (error) {
-        console.error("Error fetching appointments:", error);
-        setAllAppointments([]);
-      } finally {
-        setAppointmentsLoading(false);
+        }));
+
+        const totalCount = count || 0;
+        const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+        pageData = {
+          appointments: transformedAppointments,
+          totalCount,
+          totalPages
+        };
+
+        prefetchCache.current[cacheKey] = pageData;
       }
+
+      setPaginatedData(pageData);
+
+      // Prefetch next page in the background
+      const totalPages = pageData.totalPages;
+      if (currentPage < totalPages) {
+        const nextCacheKey = `${searchQuery}-${selectedMonth}-${selectedYear}-${sortOrder}-${currentPage + 1}`;
+        if (!prefetchCache.current[nextCacheKey]) {
+          const today = new Date();
+          today.setHours(23, 59, 59, 999);
+
+          let query = supabase
+            .from("appointments")
+            .select("*", { count: "exact" })
+            .eq("resident_id", id)
+            .lte("start_time", today.toISOString());
+
+          if (searchQuery) {
+            query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,location.ilike.%${searchQuery}%,staff_id.ilike.%${searchQuery}%`);
+          }
+
+          if (selectedYear !== "all") {
+            const year = parseInt(selectedYear);
+            if (selectedMonth !== "all") {
+              const month = parseInt(selectedMonth);
+              const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+              const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+              query = query
+                .gte("start_time", startDate.toISOString())
+                .lte("start_time", endDate.toISOString());
+            } else {
+              const startDate = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+              const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+              query = query
+                .gte("start_time", startDate.toISOString())
+                .lte("start_time", endDate.toISOString());
+            }
+          }
+
+          query
+            .order("start_time", { ascending: sortOrder === "asc" })
+            .range(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage - 1)
+            .then(({ data: nextData, error: nextError, count: nextCount }) => {
+              if (!nextError && nextData) {
+                const nextTransformed = nextData.map((apt: AppointmentRecord) => ({
+                  ...apt,
+                  startTime: apt.start_time,
+                  endTime: apt.end_time,
+                  staffId: apt.staff_id,
+                }));
+                const nextTotalCount = nextCount || 0;
+                const nextTotalPages = Math.ceil(nextTotalCount / itemsPerPage);
+                prefetchCache.current[nextCacheKey] = {
+                  appointments: nextTransformed,
+                  totalCount: nextTotalCount,
+                  totalPages: nextTotalPages
+                };
+              }
+            });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching appointments:", error);
+      toast.error("Failed to load appointments");
+    } finally {
+      setAppointmentsLoading(false);
     }
-    fetchAppointments();
-  }, [id]);
+  }, [id, supabase, currentPage, searchQuery, selectedMonth, selectedYear, sortOrder]);
+
+  useEffect(() => {
+    fetchPaginatedAppointments();
+  }, [fetchPaginatedAppointments]);
 
   // Calculate resident details
   const fullName = useMemo(() => {
@@ -182,78 +307,26 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
     return `${resident.firstName} ${resident.lastName}`;
   }, [resident]);
 
-  // Get unique years from appointments for filter
+  // Get unique years from earliest date for filter
   const availableYears = useMemo(() => {
-    if (!allAppointments || allAppointments.length === 0) return [];
-    const years = [
-      ...new Set(
-        allAppointments
-          .map((appointment) => getValidDate(appointment.startTime)?.getFullYear())
-          .filter((year): year is number => year !== undefined),
-      ),
-    ];
-    return years.sort((a, b) => b - a);
-  }, [allAppointments]);
-
-  // Filter and sort appointments
-  const filteredAppointments = useMemo(() => {
-    if (!allAppointments) return [];
-
-    // Only show appointments up to today (exclude future appointments)
-    const today = new Date();
-    today.setHours(23, 59, 59, 999); // End of today
-
-    let filtered = [...allAppointments].filter((appointment) => {
-      const appointmentDate = getValidDate(appointment.startTime);
-      if (!appointmentDate) return false;
-      return appointmentDate <= today; // Only include today and past appointments
-    });
-
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter(appointment =>
-        appointment.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        appointment.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        appointment.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        appointment.staffId?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+    if (!resident?.created_at) {
+      const currentYear = new Date().getFullYear();
+      return [currentYear, currentYear - 1];
     }
-
-    // Apply month filter
-    if (selectedMonth !== "all") {
-      filtered = filtered.filter((appointment) => {
-        const appointmentDate = getValidDate(appointment.startTime);
-        if (!appointmentDate) return false;
-        const appointmentMonth = appointmentDate.getMonth() + 1;
-        return appointmentMonth === parseInt(selectedMonth);
-      });
+    const earliestYear = new Date(resident.created_at as string).getFullYear();
+    const currentYear = new Date().getFullYear();
+    const years: number[] = [];
+    for (let year = currentYear; year >= earliestYear; year--) {
+      years.push(year);
     }
+    return years;
+  }, [resident?.created_at]);
 
-    // Apply year filter
-    if (selectedYear !== "all") {
-      filtered = filtered.filter((appointment) => {
-        const appointmentDate = getValidDate(appointment.startTime);
-        if (!appointmentDate) return false;
-        const appointmentYear = appointmentDate.getFullYear();
-        return appointmentYear === parseInt(selectedYear);
-      });
-    }
-
-    // Sort by date and time
-    filtered.sort((a, b) => {
-      const dateA = getValidDate(a.startTime)?.getTime() ?? 0;
-      const dateB = getValidDate(b.startTime)?.getTime() ?? 0;
-      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
-    });
-
-    return filtered;
-  }, [allAppointments, searchQuery, selectedMonth, selectedYear, sortOrder]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage);
+  const totalPages = paginatedData?.totalPages || 0;
+  const totalCount = paginatedData?.totalCount || 0;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedAppointments = filteredAppointments.slice(startIndex, endIndex);
+  const paginatedAppointments = paginatedData?.appointments || [];
 
   // Group appointments by date
   const groupedAppointments = useMemo(() => {
@@ -276,40 +349,81 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
     setIsViewDialogOpen(true);
   };
 
-  const handleExport = () => {
-    if (!filteredAppointments || filteredAppointments.length === 0) return;
+  const handleExport = async () => {
+    if (!id || !supabase) return;
+    try {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
 
-    // Create CSV content
-    const headers = ["Date", "Time", "Title", "Description", "Location", "Staff", "Status"];
-    const rows = filteredAppointments.map((appointment) => [
-      safeFormatDate(appointment.startTime, "yyyy-MM-dd"),
-      `${safeFormatDate(appointment.startTime, "HH:mm")} - ${safeFormatDate(appointment.endTime, "HH:mm")}`,
-      appointment.title,
-      appointment.description || "",
-      appointment.location || "",
-      appointment.staffId || "",
-      appointment.status
-    ]);
+      let query = supabase
+        .from("appointments")
+        .select("*")
+        .eq("resident_id", id)
+        .lte("start_time", today.toISOString());
 
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
+      if (searchQuery) {
+        query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,location.ilike.%${searchQuery}%,staff_id.ilike.%${searchQuery}%`);
+      }
 
-    // Download CSV
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `appointments-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+      if (selectedYear !== "all") {
+        const year = parseInt(selectedYear);
+        if (selectedMonth !== "all") {
+          const month = parseInt(selectedMonth);
+          const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+          const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+          query = query
+            .gte("start_time", startDate.toISOString())
+            .lte("start_time", endDate.toISOString());
+        } else {
+          const startDate = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+          const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+          query = query
+            .gte("start_time", startDate.toISOString())
+            .lte("start_time", endDate.toISOString());
+        }
+      }
+
+      const { data, error } = await query.order("start_time", { ascending: sortOrder === "asc" });
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        toast.info("No records to export");
+        return;
+      }
+
+      const headers = ["Date", "Time", "Title", "Description", "Location", "Staff", "Status"];
+      const rows = data.map((appointment) => [
+        safeFormatDate(appointment.start_time, "yyyy-MM-dd"),
+        `${safeFormatDate(appointment.start_time, "HH:mm")} - ${safeFormatDate(appointment.end_time, "HH:mm")}`,
+        appointment.title,
+        appointment.description || "",
+        appointment.location || "",
+        appointment.staff_id || "",
+        appointment.status
+      ]);
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `appointments-${fullName.replace(/\s+/g, "-")}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Error exporting appointments:", e);
+      toast.error("Failed to export CSV");
+    }
   };
 
   // Loading state
-  if (!resident || residentLoading || appointmentsLoading || allAppointments === undefined) {
+  if (!resident || residentLoading || appointmentsLoading || !paginatedData) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -320,23 +434,29 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
     );
   }
 
+  const filteredAppointments = paginatedAppointments;
+
   // Calculate stats
   const appointmentStats = {
-    total: allAppointments.length,
-    thisMonth: allAppointments.filter((appointment) => {
+    total: totalCount,
+    thisMonth: paginatedAppointments.filter((appointment) => {
       const appointmentDate = getValidDate(appointment.startTime);
       if (!appointmentDate) return false;
       const now = new Date();
       return appointmentDate.getMonth() === now.getMonth() && appointmentDate.getFullYear() === now.getFullYear();
     }).length,
-    thisWeek: allAppointments.filter((appointment) => {
+    thisWeek: paginatedAppointments.filter((appointment) => {
       const appointmentDate = getValidDate(appointment.startTime);
       if (!appointmentDate) return false;
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       return appointmentDate >= weekAgo;
     }).length,
-    uniqueLocations: new Set(allAppointments.filter(a => a.location).map(appointment => appointment.location)).size,
+    uniqueLocations: new Set(
+      paginatedAppointments
+        .filter((a) => typeof a.location === "string")
+        .map((appointment) => appointment.location as string)
+    ).size,
   };
 
   return (
@@ -457,7 +577,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
               variant="outline"
               size="sm"
               onClick={handleExport}
-              disabled={filteredAppointments.length === 0}
+              disabled={totalCount === 0}
             >
               <Download className="w-4 h-4 mr-2" />
               Export CSV
@@ -543,11 +663,11 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
       <Card className="border-0">
         <CardHeader>
           <CardTitle>
-            Appointment Records ({filteredAppointments.length})
+            Appointment Records ({totalCount})
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredAppointments.length === 0 ? (
+          {totalCount === 0 ? (
             <div className="text-center py-12">
               <CalendarCheck className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 font-medium">No appointments found</p>
@@ -662,7 +782,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t">
                   <div className="text-sm text-gray-500">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredAppointments.length)} of {filteredAppointments.length} appointments
+                    Showing {startIndex + 1}-{Math.min(endIndex, totalCount)} of {totalCount} appointments
                   </div>
                   <div className="flex items-center space-x-2">
                     <Button

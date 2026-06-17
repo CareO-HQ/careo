@@ -103,6 +103,12 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
   const [toMonth, setToMonth] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "M"));
   const [toYear, setToYear] = useState(formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy"));
   const [isGeneratingBulk, setIsGeneratingBulk] = useState(false);
+  const prefetchCache = React.useRef<Record<string, any>>({});
+
+  // Clear prefetch cache when filters change to avoid stale data
+  useEffect(() => {
+    prefetchCache.current = {};
+  }, [selectedYear, selectedMonth, sortOrder]);
 
   // Fetch resident data
   useEffect(() => {
@@ -123,83 +129,80 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
     fetchResident();
   }, [id]);
 
-  // Fetch paginated dates
+  // Fetch paginated dates utilizing database RPC for grouping and pagination
   const fetchPaginatedDates = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Build query for food_fluid_logs
-      let query = supabase
-        .from("food_fluid_logs")
-        .select("date, timestamp, fluid_consumed_ml, type_of_food_drink", { count: "exact" })
-        .eq("resident_id", id);
+      const cacheKey = `${selectedYear}-${selectedMonth}-${sortOrder}-${currentPage}`;
+      let pageData = prefetchCache.current[cacheKey];
 
-      // Apply date filters
-      if (selectedYear !== "all") {
-        const year = parseInt(selectedYear);
-        if (selectedMonth !== "all") {
-          const month = parseInt(selectedMonth);
-          const startDate = new Date(year, month - 1, 1);
-          const endDate = new Date(year, month, 0, 23, 59, 59);
-          query = query
-            .gte("timestamp", startDate.toISOString())
-            .lte("timestamp", endDate.toISOString());
-        } else {
-          const startDate = new Date(year, 0, 1);
-          const endDate = new Date(year, 11, 31, 23, 59, 59);
-          query = query
-            .gte("timestamp", startDate.toISOString())
-            .lte("timestamp", endDate.toISOString());
+      if (!pageData) {
+        const { data, error } = await supabase.rpc("get_paginated_food_fluid_dates", {
+          p_resident_id: id,
+          p_limit: itemsPerPage,
+          p_offset: (currentPage - 1) * itemsPerPage,
+          p_year: selectedYear !== "all" ? parseInt(selectedYear) : null,
+          p_month: selectedMonth !== "all" ? parseInt(selectedMonth) : null,
+          p_sort_order: sortOrder.toUpperCase()
+        });
+
+        if (error) {
+          console.error("Error fetching paginated dates:", error);
+          toast.error("Failed to load food & fluid logs");
+          return;
         }
+
+        const totalCount = data && data.length > 0 ? data[0].total_dates_count : 0;
+        const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+        const datesArray = (data || []).map((row: any) => ({
+          date: row.log_date,
+          hasReport: true,
+          foodCount: row.food_count,
+          fluidCount: row.fluid_count,
+        }));
+
+        pageData = {
+          dates: datesArray,
+          totalCount,
+          totalPages
+        };
+        
+        prefetchCache.current[cacheKey] = pageData;
       }
 
-      const { data: logs, error, count } = await query;
+      setPaginatedData(pageData);
 
-      if (error) {
-        console.error("Error fetching logs:", error);
-        toast.error("Failed to load food & fluid logs");
-        return;
+      // Proactive background prefetching of the next page to achieve instant loading
+      if (currentPage < pageData.totalPages) {
+        const nextCacheKey = `${selectedYear}-${selectedMonth}-${sortOrder}-${currentPage + 1}`;
+        if (!prefetchCache.current[nextCacheKey]) {
+          supabase.rpc("get_paginated_food_fluid_dates", {
+            p_resident_id: id,
+            p_limit: itemsPerPage,
+            p_offset: currentPage * itemsPerPage,
+            p_year: selectedYear !== "all" ? parseInt(selectedYear) : null,
+            p_month: selectedMonth !== "all" ? parseInt(selectedMonth) : null,
+            p_sort_order: sortOrder.toUpperCase()
+          }).then(({ data, error }) => {
+            if (!error && data) {
+              const nextTotalCount = data.length > 0 ? data[0].total_dates_count : 0;
+              const nextTotalPages = Math.ceil(nextTotalCount / itemsPerPage);
+              const nextDatesArray = data.map((row: any) => ({
+                date: row.log_date,
+                hasReport: true,
+                foodCount: row.food_count,
+                fluidCount: row.fluid_count,
+              }));
+              prefetchCache.current[nextCacheKey] = {
+                dates: nextDatesArray,
+                totalCount: nextTotalCount,
+                totalPages: nextTotalPages
+              };
+            }
+          });
+        }
       }
-
-      // Get unique dates and subtype counts
-      const dateCounts: Record<string, { foodCount: number; fluidCount: number }> = {};
-      logs?.forEach((log: any) => {
-        const ukDate = formatInTimeZone(new Date(log.timestamp), UK_TIMEZONE, "yyyy-MM-dd");
-        if (!dateCounts[ukDate]) {
-          dateCounts[ukDate] = { foodCount: 0, fluidCount: 0 };
-        }
-        if (isFluidLogEntry(log)) {
-          dateCounts[ukDate].fluidCount += 1;
-        } else {
-          dateCounts[ukDate].foodCount += 1;
-        }
-      });
-
-      const datesArray = Object.entries(dateCounts).map(([date, counts]) => ({
-        date,
-        hasReport: true,
-        foodCount: counts.foodCount,
-        fluidCount: counts.fluidCount,
-      }));
-
-      // Sort dates
-      datesArray.sort((a, b) => {
-        const dateA = new Date(a.date);
-        const dateB = new Date(b.date);
-        return sortOrder === "desc" ? dateB.getTime() - dateA.getTime() : dateA.getTime() - dateB.getTime();
-      });
-
-      // Paginate
-      const totalCount = datesArray.length;
-      const totalPages = Math.ceil(totalCount / itemsPerPage);
-      const startIndex = (currentPage - 1) * itemsPerPage;
-      const endIndex = startIndex + itemsPerPage;
-      const paginatedDates = datesArray.slice(startIndex, endIndex);
-
-      setPaginatedData({
-        dates: paginatedDates,
-        totalCount,
-        totalPages
-      });
     } catch (error) {
       console.error("Error in fetchPaginatedDates:", error);
       toast.error("Failed to load dates");

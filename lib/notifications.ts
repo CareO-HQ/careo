@@ -1,10 +1,5 @@
-import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from "./supabase";
 
 export function isNotificationPowerUserRole(role: string | null | undefined): boolean {
     return role === "manager" || role === "owner" || role === "saas_admin";

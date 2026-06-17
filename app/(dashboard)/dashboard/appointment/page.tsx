@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Calendar, ArrowLeft, Filter, Check, Bell } from "lucide-react";
+import { Calendar, ArrowLeft, Filter, Check, Bell, X } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useProfile } from "@/hooks/use-profile";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
@@ -90,6 +90,21 @@ export default function AppointmentPage() {
     if (!user || !activeOrganizationId) return;
 
     try {
+      // 1. Fetch dismissed notification IDs for the user
+      const { data: dismissals, error: dismissalsError } = await supabase
+        .from("notification_dismissals")
+        .select("notification_id")
+        .eq("user_id", user.id);
+
+      if (dismissalsError) {
+        console.error("Error fetching notification dismissals:", dismissalsError);
+      }
+
+      const dismissedSet = new Set<string>(
+        (dismissals || []).map((d) => d.notification_id)
+      );
+
+      // 2. Fetch the reminders
       let reminderQuery = supabase
         .from("notifications")
         .select("id, title, message, created_at, metadata")
@@ -97,7 +112,7 @@ export default function AppointmentPage() {
         .eq("type", "appointment_tomorrow_reminder")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(40);
 
       if (profile?.active_care_home_id) {
         reminderQuery = reminderQuery.eq("care_home_id", profile.active_care_home_id);
@@ -126,7 +141,29 @@ export default function AppointmentPage() {
             : null,
       }));
 
-      setTomorrowReminders(reminders);
+      // 3. Filter out dismissed and past reminders
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const activeReminders = reminders.filter((r) => {
+        // Exclude if dismissed
+        if (dismissedSet.has(r.id)) {
+          return false;
+        }
+
+        // Exclude if appointment start time is in the past (before today)
+        if (r.metadata?.startTime) {
+          const appointmentTime = new Date(r.metadata.startTime);
+          return appointmentTime >= startOfToday;
+        }
+
+        // Fallback for notifications without startTime in metadata: exclude if created more than 48 hours ago
+        const createdAt = new Date(r.created_at);
+        const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+        return createdAt >= fortyEightHoursAgo;
+      });
+
+      setTomorrowReminders(activeReminders.slice(0, 20));
     } catch (error) {
       console.error("Error in reminder fetch:", error);
       setTomorrowReminders([]);
@@ -323,6 +360,32 @@ export default function AppointmentPage() {
     }
   };
 
+  const handleDismissReminder = async (reminderId: string) => {
+    if (!user) return;
+    try {
+      // Optimistically remove from state
+      setTomorrowReminders((prev) => prev.filter((r) => r.id !== reminderId));
+
+      const { error } = await supabase.from("notification_dismissals").insert({
+        notification_id: reminderId,
+        user_id: user.id,
+        dismissed_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error("Error dismissing reminder:", error);
+        toast.error("Failed to dismiss reminder");
+        fetchTomorrowReminders();
+      } else {
+        toast.success("Reminder dismissed");
+      }
+    } catch (error) {
+      console.error("Error in handleDismissReminder:", error);
+      toast.error("Failed to dismiss reminder");
+      fetchTomorrowReminders();
+    }
+  };
+
   // Loading state
   if (isLoading) {
     return (
@@ -433,7 +496,7 @@ export default function AppointmentPage() {
               {tomorrowReminders.map((reminder) => (
                 <div
                   key={reminder.id}
-                  className="px-4 py-3 border-b last:border-b-0 border-amber-100"
+                  className="relative px-4 py-3 border-b last:border-b-0 border-amber-100 pr-10"
                 >
                   <p className="text-sm font-medium text-amber-900">{reminder.title}</p>
                   <p className="text-sm text-amber-800 mt-1">{reminder.message}</p>
@@ -442,6 +505,18 @@ export default function AppointmentPage() {
                       ? `Appointment time: ${format(new Date(reminder.metadata.startTime), "PPP 'at' p")}`
                       : `Created: ${format(new Date(reminder.created_at), "PPP 'at' p")}`}
                   </p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-2 top-2 h-6 w-6 text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded-full"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDismissReminder(reminder.id);
+                    }}
+                    title="Dismiss reminder"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
               ))}
             </div>

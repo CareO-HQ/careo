@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
 import {
   getNotifications,
   markNotificationAsRead,
@@ -69,11 +68,7 @@ export default function NotificationPage() {
   const userEmail = session?.user?.email || "";
   const activeCareHomeId = profile?.active_care_home_id;
 
-  // Supabase client
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+
 
   // State
   const [filter, setFilter] = useState<"all" | "unread">("all");

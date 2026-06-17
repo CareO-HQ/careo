@@ -149,6 +149,12 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
   const [currentPage, setCurrentPage] = useState(1);
   const [dateRangeFilter, setDateRangeFilter] = useState<"last_7" | "last_30" | "last_90" | "all">("all");
   const itemsPerPage = 30;
+  const prefetchCache = React.useRef<Record<string, any>>({});
+
+  // Clear prefetch cache when filters change to avoid stale data
+  useEffect(() => {
+    prefetchCache.current = {};
+  }, [selectedYear, selectedMonth, dateRangeFilter, sortOrder]);
 
   // Dialog state
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
@@ -193,122 +199,123 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
     if (!id || !profile?.active_organization_id) return;
     setIsLoading(true);
     try {
-      // Get all recordings for this resident
-      const { data: allRecordings, error } = await supabase
-        .from('night_check_recordings')
-        .select('record_date')
-        .eq('resident_id', id)
-        .order('record_date', { ascending: false });
+      const cacheKey = `${selectedYear}-${selectedMonth}-${dateRangeFilter}-${sortOrder}-${currentPage}`;
+      let pageData = prefetchCache.current[cacheKey];
 
-      if (error) {
-        console.error("Error fetching recordings:", error);
-        throw error;
-      }
+      if (!pageData) {
+        // Calculate optional start/end date range strings if requested
+        let startDateStr: string | null = null;
+        let endDateStr: string | null = null;
 
-      // Get unique dates - ensure they're in YYYY-MM-DD format
-      const datesWithData = [...new Set((allRecordings || []).map(r => {
-        // Ensure date is in YYYY-MM-DD format
-        let dateStr: string;
-        if (typeof r.record_date === 'string') {
-          dateStr = r.record_date.split('T')[0]; // Remove time part if present
-        } else {
-          // Handle Date object or other formats
-          dateStr = typeof r.record_date === 'object' && r.record_date instanceof Date
-            ? r.record_date.toISOString().split('T')[0]
-            : String(r.record_date);
+        if (dateRangeFilter !== "all") {
+          const today = getUKTodayDate();
+          const todayDate = new Date(today + 'T00:00:00');
+          let calculatedStartDate: Date;
+          if (dateRangeFilter === "last_7") {
+            calculatedStartDate = new Date(todayDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+          } else if (dateRangeFilter === "last_30") {
+            calculatedStartDate = new Date(todayDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+          } else { // last_90
+            calculatedStartDate = new Date(todayDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+          }
+          startDateStr = calculatedStartDate.toISOString().split('T')[0];
+          endDateStr = today;
         }
-        return dateStr;
-      }))];
-      
-      console.log("Dates with data:", datesWithData.length, datesWithData);
-      console.log("Sample record_date types:", (allRecordings || []).slice(0, 3).map(r => ({
-        record_date: r.record_date,
-        type: typeof r.record_date
-      })));
 
-      if (datesWithData.length === 0) {
-        setPaginatedData({
-          dates: [],
-          totalCount: 0,
-          hasMore: false,
-          earliestDate: null
+        const { data, error } = await supabase.rpc("get_paginated_night_check_dates", {
+          p_resident_id: id,
+          p_limit: itemsPerPage,
+          p_offset: (currentPage - 1) * itemsPerPage,
+          p_year: selectedYear !== "all" ? parseInt(selectedYear) : null,
+          p_month: selectedMonth !== "all" ? parseInt(selectedMonth) : null,
+          p_sort_order: sortOrder.toUpperCase(),
+          p_start_date: startDateStr,
+          p_end_date: endDateStr
         });
-        setIsLoading(false);
-        return;
-      }
 
-      // UK TIMEZONE: Get current date in UK timezone
-      const today = getUKTodayDate();
-      const todayDate = new Date(today + 'T00:00:00');
-      todayDate.setHours(0, 0, 0, 0);
-
-      const earliestDataDate = new Date(Math.min(...datesWithData.map(d => new Date(d + 'T00:00:00').getTime())));
-      earliestDataDate.setHours(0, 0, 0, 0);
-
-      let startDate = earliestDataDate;
-      if (dateRangeFilter === "last_7") {
-        startDate = new Date(todayDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-      } else if (dateRangeFilter === "last_30") {
-        startDate = new Date(todayDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-      } else if (dateRangeFilter === "last_90") {
-        startDate = new Date(todayDate.getTime() - 90 * 24 * 60 * 60 * 1000);
-      }
-
-      // Generate all dates in range
-      const allDates: Array<{ date: string; hasData: boolean }> = [];
-      const currentDate = new Date(Math.max(startDate.getTime(), earliestDataDate.getTime()));
-      currentDate.setHours(0, 0, 0, 0);
-
-      while (currentDate <= todayDate) {
-        const year = currentDate.getFullYear();
-        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-        const day = String(currentDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
-
-        // Apply month/year filters
-        let includeDate = true;
-        if (selectedMonth !== "all") {
-          includeDate = currentDate.getMonth() + 1 === parseInt(selectedMonth);
-        }
-        if (selectedYear !== "all" && includeDate) {
-          includeDate = currentDate.getFullYear() === parseInt(selectedYear);
+        if (error) {
+          console.error("Error fetching paginated dates:", error);
+          toast.error("Failed to load night checks logs");
+          return;
         }
 
-        if (includeDate) {
-          allDates.push({
-            date: dateStr,
-            hasData: datesWithData.includes(dateStr)
+        const totalCount = data && data.length > 0 ? data[0].total_dates_count : 0;
+        const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+        const datesArray = (data || []).map((row: any) => ({
+          date: row.log_date,
+          hasData: true
+        }));
+
+        pageData = {
+          dates: datesArray,
+          totalCount,
+          hasMore: currentPage < totalPages,
+          totalPages
+        };
+
+        prefetchCache.current[cacheKey] = pageData;
+      }
+
+      setPaginatedData(pageData);
+
+      // Prefetch next page in the background
+      const totalPages = pageData.totalPages;
+      if (currentPage < totalPages) {
+        const nextCacheKey = `${selectedYear}-${selectedMonth}-${dateRangeFilter}-${sortOrder}-${currentPage + 1}`;
+        if (!prefetchCache.current[nextCacheKey]) {
+          let startDateStr: string | null = null;
+          let endDateStr: string | null = null;
+
+          if (dateRangeFilter !== "all") {
+            const today = getUKTodayDate();
+            const todayDate = new Date(today + 'T00:00:00');
+            let calculatedStartDate: Date;
+            if (dateRangeFilter === "last_7") {
+              calculatedStartDate = new Date(todayDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+            } else if (dateRangeFilter === "last_30") {
+              calculatedStartDate = new Date(todayDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+            } else { // last_90
+              calculatedStartDate = new Date(todayDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+            }
+            startDateStr = calculatedStartDate.toISOString().split('T')[0];
+            endDateStr = today;
+          }
+
+          supabase.rpc("get_paginated_night_check_dates", {
+            p_resident_id: id,
+            p_limit: itemsPerPage,
+            p_offset: currentPage * itemsPerPage,
+            p_year: selectedYear !== "all" ? parseInt(selectedYear) : null,
+            p_month: selectedMonth !== "all" ? parseInt(selectedMonth) : null,
+            p_sort_order: sortOrder.toUpperCase(),
+            p_start_date: startDateStr,
+            p_end_date: endDateStr
+          }).then(({ data, error }) => {
+            if (!error && data) {
+              const nextTotalCount = data.length > 0 ? data[0].total_dates_count : 0;
+              const nextTotalPages = Math.ceil(nextTotalCount / itemsPerPage);
+              const nextDatesArray = data.map((row: any) => ({
+                date: row.log_date,
+                hasData: true
+              }));
+              prefetchCache.current[nextCacheKey] = {
+                dates: nextDatesArray,
+                totalCount: nextTotalCount,
+                hasMore: (currentPage + 1) < nextTotalPages,
+                totalPages: nextTotalPages
+              };
+            }
           });
         }
-
-        currentDate.setDate(currentDate.getDate() + 1);
       }
 
-      // Sort newest first
-      allDates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-      // Paginate
-      const startIndex = (currentPage - 1) * itemsPerPage;
-      const endIndex = startIndex + itemsPerPage;
-      const paginatedDates = allDates.slice(startIndex, endIndex);
-
-      setPaginatedData({
-        dates: paginatedDates,
-        totalCount: allDates.length,
-        hasMore: endIndex < allDates.length,
-        earliestDate: (() => {
-          const year = earliestDataDate.getFullYear();
-          const month = String(earliestDataDate.getMonth() + 1).padStart(2, '0');
-          const day = String(earliestDataDate.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        })()
-      });
     } catch (e) {
       console.error("Error fetching paginated data:", e);
     } finally {
       setIsLoading(false);
     }
-  }, [id, profile?.active_organization_id, currentPage, dateRangeFilter, selectedMonth, selectedYear]);
+  }, [id, profile?.active_organization_id, currentPage, dateRangeFilter, selectedMonth, selectedYear, sortOrder, itemsPerPage]);
 
   useEffect(() => {
     fetchPaginatedData();
@@ -382,8 +389,8 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
         recordTime: r.record_time,
         recordDate: String(normalizedDate),
         checkData: r.check_data,
-        notes: r.notes,
-        recordedByName: r.recorded_by_name,
+        notes: r.notes || null,
+        recordedByName: r.recorded_by_name || 'Unknown',
         recordedBy: r.recorded_by,
       };
     });
@@ -421,15 +428,18 @@ export default function NightCheckDocumentsPage({ params }: NightCheckDocumentsP
 
   // Get unique years from earliest date for filter
   const availableYears = useMemo(() => {
-    if (!paginatedData?.earliestDate) return [];
-    const earliestYear = new Date(paginatedData.earliestDate + 'T00:00:00').getFullYear();
+    if (!resident?.created_at) {
+      const currentYear = new Date().getFullYear();
+      return [currentYear, currentYear - 1];
+    }
+    const earliestYear = new Date(resident.created_at).getFullYear();
     const currentYear = new Date().getFullYear();
     const years: number[] = [];
     for (let year = currentYear; year >= earliestYear; year--) {
       years.push(year);
     }
     return years;
-  }, [paginatedData?.earliestDate]);
+  }, [resident?.created_at]);
 
   // Client-side search filtering (apply to current page only)
   const filteredReports = useMemo(() => {

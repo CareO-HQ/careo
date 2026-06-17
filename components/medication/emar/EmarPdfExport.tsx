@@ -186,7 +186,7 @@ export function EmarPdfExport({
                     {timeIndex === 0 && (
                       <td rowSpan={times.length} className="border" style={{ padding: "3px 5px" }}>
                         <p className="font-bold" style={{ fontSize: "8px" }}>{med.name}</p>
-                        {med.is_controlled_drug && <p className="text-red-700 font-bold">⚠ CD</p>}
+                        {med.is_controlled_drug && <span className="border font-bold" style={{ padding: "0 3px", backgroundColor: "#fee2e2", color: "#b91c1c" }}>CD</span>}
                       </td>
                     )}
                     {timeIndex === 0 && (
@@ -254,7 +254,7 @@ export function EmarPdfExport({
                     <p style={{ fontSize: "7px", color: "#4b5563" }}>
                       {med.strength} {med.strength_unit} — {med.dosage_form}
                     </p>
-                    {med.is_controlled_drug && <p className="text-red-700 font-bold">⚠ CD</p>}
+                    {med.is_controlled_drug && <span className="border font-bold" style={{ padding: "0 3px", backgroundColor: "#fee2e2", color: "#b91c1c" }}>CD</span>}
                   </td>
                   <td className="border" style={{ padding: "3px 5px", fontSize: "7px", color: "#4b5563" }}>
                     {med.instructions || "—"}

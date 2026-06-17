@@ -11,6 +11,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
+import { ControlledDrugBadge } from "@/components/medication/ControlledDrugBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,7 +22,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -223,11 +223,7 @@ export function ActiveMedicationsTable({
               <div className="text-xs text-muted-foreground">
                 {med.strength} {med.strength_unit} - {med.dosage_form}
               </div>
-              {med.is_controlled_drug && (
-                <Badge variant="outline" className="w-fit text-xs bg-red-200 text-red-800 border-red-300">
-                  Controlled Medication
-                </Badge>
-              )}
+              <ControlledDrugBadge isControlled={med.is_controlled_drug} />
             </div>
           );
         },
@@ -438,10 +434,7 @@ export function ActiveMedicationsTable({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow 
-                  key={row.id}
-                  className={cn(row.original.is_controlled_drug ? "bg-red-100 hover:bg-red-200" : "")}
-                >
+                <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

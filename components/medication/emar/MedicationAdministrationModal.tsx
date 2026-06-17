@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { ControlledDrugBadge } from "@/components/medication/ControlledDrugBadge";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
@@ -161,9 +161,7 @@ export function MedicationAdministrationModal({
           <div className="p-4 bg-gray-50 rounded-lg space-y-2">
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-lg">{medication.name}</h3>
-              {medication.is_controlled_drug && (
-                <Badge variant="destructive" className="text-xs">⚠ CD</Badge>
-              )}
+              <ControlledDrugBadge isControlled={medication.is_controlled_drug} />
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>

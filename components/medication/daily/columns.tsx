@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
+import { ControlledDrugBadge } from "@/components/medication/ControlledDrugBadge";
 import { formatInTimeZone } from "date-fns-tz";
 import { toast } from "sonner";
 import {
@@ -244,7 +245,10 @@ export const createColumns = (
 
         return (
           <div className={`flex flex-col ${isRoundCompleted ? 'opacity-60' : ''}`}>
-            <p className="font-medium">{medication.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium">{medication.name}</p>
+              <ControlledDrugBadge isControlled={medication.is_controlled_drug} />
+            </div>
             <p className="text-xs text-muted-foreground">
               {strength} {strengthUnit} - {dosageForm}
             </p>

@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { ControlledDrugBadge } from "@/components/medication/ControlledDrugBadge";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
@@ -224,9 +225,7 @@ export function PrnAdministrationModal({
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-lg">{medication.name}</h3>
               <Badge variant="outline" className="text-xs">PRN</Badge>
-              {medication.is_controlled_drug && (
-                <Badge variant="destructive" className="text-xs">⚠ CD</Badge>
-              )}
+              <ControlledDrugBadge isControlled={medication.is_controlled_drug} />
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>

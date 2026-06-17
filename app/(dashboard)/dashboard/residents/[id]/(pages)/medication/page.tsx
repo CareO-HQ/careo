@@ -1187,14 +1187,6 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     []
   );
 
-  // Topical medications filtered by selected time
-  const filteredTopicalMedications = useMemo(() => {
-    if (!selectedTime) return [];
-    return topicalMedications.filter((med) =>
-      med.times && med.times.includes(selectedTime)
-    );
-  }, [topicalMedications, selectedTime]);
-
   useEffect(() => {
     if (selectedTime && selectedDateIntakes) {
       const filtered = selectedDateIntakes.filter((intake) => {
@@ -1227,18 +1219,10 @@ export default function MedicationPage({ params }: MedicationPageProps) {
   }, [selectedTime, selectedDateIntakes, medicationRoundStatus]);
 
   const allMedicationsAddressed = useMemo(() => {
-    const regularPending = filteredIntakes.some(i => i.status === 'scheduled' || i.status === 'pending');
-
-    const topicalPending = filteredTopicalMedications.some(med => {
-      const admin = topicalAdministrations.find(a =>
-        a.medication_id === med.id &&
-        (normalizeTimeToHHmm(a.scheduled_time) === selectedTime)
-      );
-      return !admin || admin.status === 'scheduled' || admin.status === 'pending';
-    });
-
-    return !regularPending && !topicalPending;
-  }, [filteredIntakes, filteredTopicalMedications, topicalAdministrations, selectedTime]);
+    // Topical meds are rendered as rows in the same intake table, so the
+    // intake statuses are the single source of truth for round completion.
+    return !filteredIntakes.some(i => i.status === 'scheduled' || i.status === 'pending');
+  }, [filteredIntakes]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><p>Loading...</p></div>;
@@ -1334,15 +1318,21 @@ export default function MedicationPage({ params }: MedicationPageProps) {
             {/* Bulk Action Buttons */}
             <div className="flex items-center gap-2">
               {(() => {
-                // Get all scheduled medications (including supplements)
-                const allScheduledMeds = filteredIntakes.filter((intake) => intake.status === 'scheduled');
+                // Get all scheduled medications (including supplements, excluding topical medications)
+                const allScheduledMeds = filteredIntakes.filter((intake) => {
+                  const isTopical = intake.medication?.schedule_type === 'Topical' ||
+                                   intake.medication?.route === 'Topical';
+                  return !isTopical && intake.status === 'scheduled';
+                });
 
-                // Get only regular medications (excluding supplements) for Prepare All
+                // Get only regular medications (excluding supplements and topical medications) for Prepare All
                 const regularMeds = filteredIntakes.filter((intake) => {
                   const isSupplement = intake.medication?.schedule_type === 'Supplement' ||
                                       intake.medication?.type === 'Supplement' ||
                                       intake.medication?.category === 'Supplement';
-                  return !isSupplement && intake.status === 'scheduled';
+                  const isTopical = intake.medication?.schedule_type === 'Topical' ||
+                                   intake.medication?.route === 'Topical';
+                  return !isSupplement && !isTopical && intake.status === 'scheduled';
                 });
 
                 const unpreparedMeds = regularMeds.filter(intake => !intake.popped_out_at);

@@ -51,12 +51,46 @@ export function useProfile() {
             return;
         }
 
+        let isMounted = true;
+        let timeoutId: NodeJS.Timeout | null = null;
+
         async function fetchProfileData(retries = 3) {
             try {
-                // 1. Fetch user data from public.users table
+                // Fetch user data with all required relations in a single query
                 const { data: dbUser, error: dbError } = await supabase
                     .from("users")
-                    .select("*")
+                    .select(`
+                        *,
+                        active_team:teams!active_team_id(
+                            name,
+                            organization_id,
+                            care_home_id,
+                            organization:organizations!organization_id(
+                                name,
+                                logo_url
+                            ),
+                            care_home:care_homes!care_home_id(
+                                name,
+                                organization_id,
+                                organization:organizations!organization_id(
+                                    name,
+                                    logo_url
+                                )
+                            )
+                        ),
+                        active_care_home:care_homes!active_care_home_id(
+                            name,
+                            organization_id,
+                            organization:organizations!organization_id(
+                                name,
+                                logo_url
+                            )
+                        ),
+                        active_organization:organizations!active_organization_id(
+                            name,
+                            logo_url
+                        )
+                    `)
                     .eq("id", user!.id)
                     .single();
 
@@ -64,11 +98,15 @@ export function useProfile() {
                     // Check if it's a "no rows" error and we have retries left
                     if (dbError.code === "PGRST116" && retries > 0) {
                         console.log(`[DEBUG use-profile] User not found in public.users yet. Retrying in 1.5s... (${retries} left)`);
-                        setTimeout(() => fetchProfileData(retries - 1), 1500);
+                        if (isMounted) {
+                            timeoutId = setTimeout(() => fetchProfileData(retries - 1), 1500);
+                        }
                         return;
                     }
                     throw dbError;
                 }
+
+                if (!isMounted) return;
 
                 // Check if the user is an agency worker and has been offboarded
                 const userRole = dbUser.role || user?.app_metadata?.role;
@@ -85,14 +123,53 @@ export function useProfile() {
                     }
                 }
 
+                // Resolve nested relationships with fallback cascading logic
+                const activeTeam = dbUser.active_team as any;
+                const activeCareHome = dbUser.active_care_home as any;
+
+                // 1. Resolve active team name
+                const activeTeamName = activeTeam?.name || undefined;
+
+                // 2. Resolve active care home ID and name
+                const activeCareHomeId = dbUser.active_care_home_id || activeTeam?.care_home_id || null;
+                const careHomeName = activeCareHome?.name || activeTeam?.care_home?.name || undefined;
+
+                // 3. Resolve active organization ID with cascading fallback
+                let activeOrgId = dbUser.active_organization_id || null;
+                if (activeTeam) {
+                    activeOrgId = activeTeam.organization_id;
+                } else if (!activeOrgId) {
+                    activeOrgId = activeCareHome?.organization_id || activeTeam?.care_home?.organization_id || null;
+                }
+
+                // 4. Resolve organization name and logo with cascading fallback
+                let orgName: string | undefined;
+                let orgLogoUrl: string | null = null;
+
+                if (activeOrgId) {
+                    if (activeOrgId === dbUser.active_organization_id && dbUser.active_organization) {
+                        orgName = (dbUser.active_organization as any).name;
+                        orgLogoUrl = (dbUser.active_organization as any).logo_url;
+                    } else if (activeTeam && activeOrgId === activeTeam.organization_id && activeTeam.organization) {
+                        orgName = activeTeam.organization.name;
+                        orgLogoUrl = activeTeam.organization.logo_url;
+                    } else if (activeCareHome && activeOrgId === activeCareHome.organization_id && activeCareHome.organization) {
+                        orgName = activeCareHome.organization.name;
+                        orgLogoUrl = activeCareHome.organization.logo_url;
+                    } else if (activeTeam?.care_home && activeOrgId === activeTeam.care_home.organization_id && activeTeam.care_home.organization) {
+                        orgName = activeTeam.care_home.organization.name;
+                        orgLogoUrl = activeTeam.care_home.organization.logo_url;
+                    }
+                }
+
                 const baseProfile: Profile = {
                     id: dbUser.id,
                     email: dbUser.email,
                     name: dbUser.name,
                     image_url: dbUser.image_url || user?.user_metadata?.avatar_url || null,
                     phone: dbUser.phone || null,
-                    active_organization_id: dbUser.active_organization_id || null, // Get from users table directly
-                    active_care_home_id: dbUser.active_care_home_id || null,
+                    active_organization_id: activeOrgId,
+                    active_care_home_id: activeCareHomeId,
                     active_team_id: dbUser.active_team_id || null,
                     is_saas_admin: !!dbUser.is_saas_admin,
                     is_onboarding_complete: !!dbUser.is_onboarding_complete,
@@ -110,66 +187,36 @@ export function useProfile() {
                     niscc_registration_number: dbUser.niscc_registration_number || null,
                     niscc_registration_date: dbUser.niscc_registration_date || null,
                     niscc_annual_fee_date: dbUser.niscc_annual_fee_date || null,
+                    
+                    // Enriched fields
+                    active_team_name: activeTeamName,
+                    care_home_name: careHomeName,
+                    organization_name: orgName,
+                    organization_logo_url: orgLogoUrl,
                 };
 
-                const enrichedProfile = { ...baseProfile };
-
-                // 2. Fetch context names and resolve organization_id
-                if (dbUser.active_team_id) {
-                    const { data: team } = await supabase
-                        .from("teams")
-                        .select("name, organization_id, care_home_id")
-                        .eq("id", dbUser.active_team_id)
-                        .single();
-                    if (team) {
-                        enrichedProfile.active_team_name = team.name;
-                        enrichedProfile.active_organization_id = team.organization_id;
-                        // If we don't have a care home ID yet, take it from the team
-                        if (!enrichedProfile.active_care_home_id && team.care_home_id) {
-                            enrichedProfile.active_care_home_id = team.care_home_id;
-                        }
-                    }
-                }
-
-                // Resolving care home name if we have an ID
-                if (enrichedProfile.active_care_home_id) {
-                    const { data: home } = await supabase
-                        .from("care_homes")
-                        .select("name, organization_id")
-                        .eq("id", enrichedProfile.active_care_home_id)
-                        .single();
-                    if (home) {
-                        enrichedProfile.care_home_name = home.name;
-                        // Ensure organization ID is set
-                        if (!enrichedProfile.active_organization_id) {
-                            enrichedProfile.active_organization_id = home.organization_id;
-                        }
-                    }
-                }
-
-                if (enrichedProfile.active_organization_id) {
-                    const { data: org } = await supabase
-                        .from("organizations")
-                        .select("name, logo_url")
-                        .eq("id", enrichedProfile.active_organization_id)
-                        .single();
-                    if (org) {
-                        enrichedProfile.organization_name = org.name;
-                        enrichedProfile.organization_logo_url = org.logo_url;
-                    }
-                }
-
-                setProfile(enrichedProfile);
+                setProfile(baseProfile);
                 setError(null);
             } catch (err: any) {
-                console.error("Error building profile from public.users:", err);
-                setError(err);
+                if (isMounted) {
+                    console.error("Error building profile from public.users:", err);
+                    setError(err);
+                }
             } finally {
-                setIsLoading(false);
+                if (isMounted) {
+                    setIsLoading(false);
+                }
             }
         }
 
         fetchProfileData();
+
+        return () => {
+            isMounted = false;
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+        };
     }, [user, isAuthLoading, supabase, refreshTick]);
 
     return {

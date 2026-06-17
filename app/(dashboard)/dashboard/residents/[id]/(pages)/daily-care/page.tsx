@@ -98,40 +98,65 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Fetch Resident
-        const { data: resData } = await supabase
-          .from("residents")
-          .select("*")
-          .eq("id", id)
-          .single();
-        setResident(resData);
+        // Parallelize all daily care queries to eliminate sequential delay
+        const [residentResult, careResult, notesResult, usersResult] = await Promise.all([
+          supabase
+            .from("residents")
+            .select("*")
+            .eq("id", id)
+            .single(),
+          supabase
+            .from("personal_care_daily")
+            .select(`
+              *,
+              tasks:personal_care_task_events (*)
+            `)
+            .eq("resident_id", id)
+            .eq("date", today)
+            .maybeSingle(),
+          supabase
+            .from("quick_care_notes")
+            .select("*")
+            .eq("resident_id", id)
+            .eq("is_active", true),
+          profile?.active_organization_id
+            ? supabase
+                .from("users")
+                .select("*")
+                .eq("active_organization_id", profile.active_organization_id)
+            : Promise.resolve({ data: null, error: null })
+        ]);
 
-        // Fetch Today's Care Data
-        const { data: careData } = await supabase
-          .from("personal_care_daily")
-          .select(`
-            *,
-            tasks:personal_care_task_events (*)
-          `)
-          .eq("resident_id", id)
-          .eq("date", today)
-          .single();
-        setTodaysCareData(careData);
+        // 1. Handle Resident
+        if (residentResult.error) {
+          console.error("Error fetching resident:", residentResult.error);
+        } else {
+          setResident(residentResult.data);
+        }
 
-        // Fetch Quick Care Notes
-        const { data: notesData } = await supabase
-          .from("quick_care_notes")
-          .select("*")
-          .eq("resident_id", id)
-          .eq("is_active", true);
-        setQuickCareNotes(notesData || []);
+        // 2. Handle Care Data
+        if (careResult.error) {
+          console.error("Error fetching today's care data:", careResult.error);
+          setTodaysCareData(null);
+        } else {
+          setTodaysCareData(careResult.data);
+        }
 
-        // Fetch All Users (for staff selection)
-        const { data: usersData } = await supabase
-          .from("users")
-          .select("*")
-          .eq("active_organization_id", profile?.active_organization_id);
-        setAllUsers(usersData || []);
+        // 3. Handle Notes
+        if (notesResult.error) {
+          console.error("Error fetching quick care notes:", notesResult.error);
+          setQuickCareNotes([]);
+        } else {
+          setQuickCareNotes(notesResult.data || []);
+        }
+
+        // 4. Handle Users
+        if (usersResult.error) {
+          console.error("Error fetching users:", usersResult.error);
+          setAllUsers([]);
+        } else {
+          setAllUsers(usersResult.data || []);
+        }
 
       } catch (error) {
         console.error("Error fetching daily care data:", error);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
@@ -117,31 +117,37 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
   const [selectedActivityYear, setSelectedActivityYear] = useState<string>("");
   const [isDownloadingActivity, setIsDownloadingActivity] = useState(false);
 
+  const prefetchCache = React.useRef<Record<string, any>>({});
+
+  // Clear prefetch cache when filters change to avoid stale data
+  useEffect(() => {
+    prefetchCache.current = {};
+  }, [selectedYear, selectedMonth, dateRangeFilter, sortOrder]);
+
   // Data state
   const [resident, setResident] = useState<any>(null);
   const [activeOrganization, setActiveOrganization] = useState<any>(null);
   const [allTasks, setAllTasks] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [paginatedData, setPaginatedData] = useState<{
+    dates: Array<{ date: string; hasData: boolean; personalCareCount: number; activityRecordCount: number }>;
+    totalCount: number;
+    totalPages: number;
+  } | null>(null);
 
-  // Fetch resident and all tasks
+  // Fetch resident and users
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchMetadata = async () => {
       if (!id || !profile?.active_organization_id) return;
-
-      setIsLoading(true);
       try {
-        // Fetch resident
-        const { data: residentData, error: residentError } = await supabase
+        const { data: residentData } = await supabase
           .from("residents")
           .select("*")
           .eq("id", id)
           .single();
+        if (residentData) setResident(residentData);
 
-        if (residentError) throw residentError;
-        setResident(residentData);
-
-        // Fetch organization for logo
         if (profile?.active_organization_id) {
           const { data: orgData } = await supabase
             .from("organizations")
@@ -151,46 +157,193 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
           if (orgData) setActiveOrganization(orgData);
         }
 
-        // Fetch all personal care daily records
-        const { data: dailyRecords, error: dailyError } = await supabase
-          .from("personal_care_daily")
-          .select("*")
-          .eq("resident_id", id)
-          .order("date", { ascending: false });
-
-        if (dailyError) throw dailyError;
-
-        // Fetch all task events
-        const { data: taskEvents, error: tasksError } = await supabase
-          .from("personal_care_task_events")
-          .select("*")
-          .eq("resident_id", id)
-          .order("created_at", { ascending: false });
-
-        if (tasksError) throw tasksError;
-
-        // Fetch all users for name mapping
-        const { data: usersData, error: usersError } = await supabase
+        const { data: usersData } = await supabase
           .from("users")
           .select("*")
           .eq("active_organization_id", profile?.active_organization_id);
-
-        if (usersError) {
-          console.error("Error fetching users:", usersError);
-        }
-
-        setAllTasks(taskEvents || []);
-        setUsers(usersData || []);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        toast.error("Failed to load daily care records");
-      } finally {
-        setIsLoading(false);
+        if (usersData) setUsers(usersData);
+      } catch (e) {
+        console.error("Error fetching metadata:", e);
       }
     };
-
-    fetchData();
+    fetchMetadata();
   }, [id, profile?.active_organization_id]);
+
+  // Fetch paginated dates and their corresponding task events
+  const fetchPaginatedData = useCallback(async () => {
+    if (!id || !profile?.active_organization_id) return;
+    setIsLoading(true);
+    try {
+      const cacheKey = `${selectedYear}-${selectedMonth}-${dateRangeFilter}-${sortOrder}-${currentPage}`;
+      let pageData = prefetchCache.current[cacheKey];
+
+      if (!pageData) {
+        let startDateStr: string | null = null;
+        let endDateStr: string | null = null;
+
+        if (dateRangeFilter !== "all") {
+          const today = formatInTimeZone(new Date(), UK_TIMEZONE, 'yyyy-MM-dd');
+          const todayDate = new Date(today + 'T00:00:00');
+          let calculatedStartDate: Date;
+          if (dateRangeFilter === "last_7") {
+            calculatedStartDate = new Date(todayDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+          } else if (dateRangeFilter === "last_30") {
+            calculatedStartDate = new Date(todayDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+          } else { // last_90
+            calculatedStartDate = new Date(todayDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+          }
+          startDateStr = calculatedStartDate.toISOString().split('T')[0];
+          endDateStr = today;
+        }
+
+        const { data, error } = await supabase.rpc("get_paginated_daily_care_dates", {
+          p_resident_id: id,
+          p_limit: itemsPerPage,
+          p_offset: (currentPage - 1) * itemsPerPage,
+          p_year: selectedYear !== "all" ? parseInt(selectedYear) : null,
+          p_month: selectedMonth !== "all" ? parseInt(selectedMonth) : null,
+          p_sort_order: sortOrder.toUpperCase(),
+          p_start_date: startDateStr,
+          p_end_date: endDateStr
+        });
+
+        if (error) {
+          console.error("Error fetching paginated dates:", error);
+          toast.error("Failed to load daily care records");
+          return;
+        }
+
+        const totalCount = data && data.length > 0 ? data[0].total_dates_count : 0;
+        const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+        const datesArray = (data || []).map((row: any) => ({
+          date: row.log_date,
+          hasData: true,
+          personalCareCount: row.personal_care_count,
+          activityRecordCount: row.activity_record_count
+        }));
+
+        pageData = {
+          dates: datesArray,
+          totalCount,
+          totalPages
+        };
+
+        prefetchCache.current[cacheKey] = pageData;
+      }
+
+      setPaginatedData(pageData);
+
+      // Fetch details (task events) for the current page dates
+      const pageDates = pageData.dates.map((d: any) => d.date);
+      if (pageDates.length > 0) {
+        const sortedPageDates = [...pageDates].sort();
+        const minDate = sortedPageDates[0];
+        const maxDate = sortedPageDates[sortedPageDates.length - 1];
+
+        const startRange = new Date(`${minDate}T00:00:00`);
+        startRange.setDate(startRange.getDate() - 1);
+        const endRange = new Date(`${maxDate}T23:59:59`);
+        endRange.setDate(endRange.getDate() + 2);
+
+        const { data: events, error: eventsError } = await supabase
+          .from("personal_care_task_events")
+          .select("*")
+          .eq("resident_id", id)
+          .gte("created_at", startRange.toISOString())
+          .lte("created_at", endRange.toISOString());
+
+        if (!eventsError && events) {
+          const pageDatesSet = new Set(pageDates);
+          const filteredEvents = events.filter(event => {
+            if (!event.created_at) return false;
+            const dayKey = getDayKey(event.created_at);
+            return pageDatesSet.has(dayKey);
+          });
+          setAllTasks(filteredEvents);
+        }
+      } else {
+        setAllTasks([]);
+      }
+
+      // Prefetch next page in the background
+      const totalPages = pageData.totalPages;
+      if (currentPage < totalPages) {
+        const nextCacheKey = `${selectedYear}-${selectedMonth}-${dateRangeFilter}-${sortOrder}-${currentPage + 1}`;
+        if (!prefetchCache.current[nextCacheKey]) {
+          let startDateStr: string | null = null;
+          let endDateStr: string | null = null;
+
+          if (dateRangeFilter !== "all") {
+            const today = formatInTimeZone(new Date(), UK_TIMEZONE, 'yyyy-MM-dd');
+            const todayDate = new Date(today + 'T00:00:00');
+            let calculatedStartDate: Date;
+            if (dateRangeFilter === "last_7") {
+              calculatedStartDate = new Date(todayDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+            } else if (dateRangeFilter === "last_30") {
+              calculatedStartDate = new Date(todayDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+            } else { // last_90
+              calculatedStartDate = new Date(todayDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+            }
+            startDateStr = calculatedStartDate.toISOString().split('T')[0];
+            endDateStr = today;
+          }
+
+          supabase.rpc("get_paginated_daily_care_dates", {
+            p_resident_id: id,
+            p_limit: itemsPerPage,
+            p_offset: currentPage * itemsPerPage,
+            p_year: selectedYear !== "all" ? parseInt(selectedYear) : null,
+            p_month: selectedMonth !== "all" ? parseInt(selectedMonth) : null,
+            p_sort_order: sortOrder.toUpperCase(),
+            p_start_date: startDateStr,
+            p_end_date: endDateStr
+          }).then(({ data, error }) => {
+            if (!error && data) {
+              const nextTotalCount = data.length > 0 ? data[0].total_dates_count : 0;
+              const nextTotalPages = Math.ceil(nextTotalCount / itemsPerPage);
+              const nextDatesArray = data.map((row: any) => ({
+                date: row.log_date,
+                hasData: true,
+                personalCareCount: row.personal_care_count,
+                activityRecordCount: row.activity_record_count
+              }));
+              prefetchCache.current[nextCacheKey] = {
+                dates: nextDatesArray,
+                totalCount: nextTotalCount,
+                totalPages: nextTotalPages
+              };
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching paginated data:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id, profile?.active_organization_id, currentPage, dateRangeFilter, selectedMonth, selectedYear, sortOrder, itemsPerPage]);
+
+  useEffect(() => {
+    fetchPaginatedData();
+  }, [fetchPaginatedData]);
+
+  // Refresh data when page comes into focus (user navigates back)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPaginatedData();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [fetchPaginatedData]);
 
   // Group tasks by day (8am-8am boundary)
   const tasksByDay = useMemo(() => {
@@ -227,75 +380,31 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
 
   // Get unique days and create separate report objects for each document type
   const reportObjects = useMemo(() => {
-    const days = Object.keys(tasksByDay).sort((a, b) => {
-      return sortOrder === "desc" ? b.localeCompare(a) : a.localeCompare(b);
-    });
+    if (!paginatedData?.dates) return [];
+    return paginatedData.dates.map(dateObj => ({
+      date: dateObj.date,
+      formattedDate: format(parseISO(dateObj.date), "PPP"),
+      _id: dateObj.date,
+      hasData: true,
+      personalCareCount: dateObj.personalCareCount,
+      activityRecordCount: dateObj.activityRecordCount,
+    }));
+  }, [paginatedData]);
 
-    // Apply date range filter
-    let filteredDays = days;
-    if (dateRangeFilter !== "all") {
-      const now = new Date();
-      const cutoffDate = new Date(now);
-      if (dateRangeFilter === "last_7") {
-        cutoffDate.setDate(cutoffDate.getDate() - 7);
-      } else if (dateRangeFilter === "last_30") {
-        cutoffDate.setDate(cutoffDate.getDate() - 30);
-      } else if (dateRangeFilter === "last_90") {
-        cutoffDate.setDate(cutoffDate.getDate() - 90);
-      }
-      filteredDays = days.filter(day => new Date(day) >= cutoffDate);
-    }
-
-    // Apply month filter
-    if (selectedMonth !== "all") {
-      const month = parseInt(selectedMonth);
-      filteredDays = filteredDays.filter(day => {
-        const date = parseISO(day);
-        return date.getMonth() + 1 === month;
-      });
-    }
-
-    // Apply year filter
-    if (selectedYear !== "all") {
-      const year = parseInt(selectedYear);
-      filteredDays = filteredDays.filter(day => {
-        const date = parseISO(day);
-        return date.getFullYear() === year;
-      });
-    }
-
-    // Create a single document for each day, aggregating both types
-    const reports: any[] = [];
-    filteredDays.forEach(day => {
-      const personalCareCount = personalCareByDay[day]?.length || 0;
-      const activityRecordCount = dailyActivityByDay[day]?.length || 0;
-
-      if (personalCareCount > 0 || activityRecordCount > 0) {
-        reports.push({
-          date: day,
-          formattedDate: format(parseISO(day), "PPP"),
-          _id: day,
-          hasData: true,
-          personalCareCount,
-          activityRecordCount,
-        });
-      }
-    });
-
-    return reports;
-  }, [tasksByDay, personalCareByDay, dailyActivityByDay, sortOrder, dateRangeFilter, selectedMonth, selectedYear]);
-
-  // Get unique years from data
+  // Get unique years from earliest date for filter
   const availableYears = useMemo(() => {
-    const days = Object.keys(tasksByDay);
-    if (days.length === 0) return [];
-    const years = new Set<number>();
-    days.forEach(day => {
-      const date = parseISO(day);
-      years.add(date.getFullYear());
-    });
-    return Array.from(years).sort((a, b) => b - a);
-  }, [tasksByDay]);
+    if (!resident?.created_at) {
+      const currentYear = new Date().getFullYear();
+      return [currentYear, currentYear - 1];
+    }
+    const earliestYear = new Date(resident.created_at).getFullYear();
+    const currentYear = new Date().getFullYear();
+    const years: number[] = [];
+    for (let year = currentYear; year >= earliestYear; year--) {
+      years.push(year);
+    }
+    return years;
+  }, [resident?.created_at]);
 
   // Client-side search filtering
   const filteredReports = useMemo(() => {
@@ -307,10 +416,11 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
   }, [reportObjects, searchQuery]);
 
   // Pagination
-  const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
+  const totalPages = paginatedData?.totalPages || 0;
+  const totalCount = paginatedData?.totalCount || 0;
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedReports = filteredReports.slice(startIndex, endIndex);
+  const endIndex = Math.min(startIndex + itemsPerPage, totalCount);
+  const paginatedReports = filteredReports;
 
   // Helper to get user display name
   const getUserDisplayName = (identifier: string | undefined): string => {
@@ -393,8 +503,22 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       monthEnd.setMonth(monthEnd.getMonth() + 1);
       monthEnd.setDate(0); // Last day of the month
 
-      // Get all tasks for the selected month
-      const monthTasks = allTasks.filter((task) => {
+      // Fetch tasks for the selected month from database
+      const startRange = new Date(monthStart);
+      startRange.setDate(startRange.getDate() - 1);
+      const endRange = new Date(monthEnd);
+      endRange.setDate(endRange.getDate() + 2);
+
+      const { data: monthTasksData, error: fetchError } = await supabase
+        .from("personal_care_task_events")
+        .select("*")
+        .eq("resident_id", id)
+        .gte("created_at", startRange.toISOString())
+        .lte("created_at", endRange.toISOString());
+
+      if (fetchError) throw fetchError;
+
+      const monthTasks = (monthTasksData || []).filter((task) => {
         if (!task.created_at || task.task_type === 'daily_activity_record') return false;
         const taskDay = getDayKey(task.created_at);
         return taskDay >= format(monthStart, 'yyyy-MM-dd') && taskDay <= format(monthEnd, 'yyyy-MM-dd');
@@ -445,8 +569,22 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
       monthEnd.setMonth(monthEnd.getMonth() + 1);
       monthEnd.setDate(0); // Last day of the month
 
-      // Get all activity records for the selected month
-      const activityRecords = allTasks.filter((task) => {
+      // Fetch tasks for the selected month from database
+      const startRange = new Date(monthStart);
+      startRange.setDate(startRange.getDate() - 1);
+      const endRange = new Date(monthEnd);
+      endRange.setDate(endRange.getDate() + 2);
+
+      const { data: monthTasksData, error: fetchError } = await supabase
+        .from("personal_care_task_events")
+        .select("*")
+        .eq("resident_id", id)
+        .gte("created_at", startRange.toISOString())
+        .lte("created_at", endRange.toISOString());
+
+      if (fetchError) throw fetchError;
+
+      const activityRecords = (monthTasksData || []).filter((task) => {
         if (!task.created_at || task.task_type !== 'daily_activity_record') return false;
         const taskDay = getDayKey(task.created_at);
         return taskDay >= format(monthStart, 'yyyy-MM-dd') && taskDay <= format(monthEnd, 'yyyy-MM-dd');
@@ -1076,7 +1214,7 @@ export default function DailyCareDocumentsPage({ params }: DailyCareDocumentsPag
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t">
                   <div className="text-sm text-gray-500">
-                    Page {currentPage} of {totalPages} ({filteredReports.length} total records)
+                    Showing {startIndex + 1}-{endIndex} of {totalCount} dates
                   </div>
                   <div className="flex items-center space-x-2">
                     <Button

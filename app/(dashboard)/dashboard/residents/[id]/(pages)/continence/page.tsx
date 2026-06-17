@@ -119,24 +119,16 @@ export default function ContinencePage({ params }: ContinencePageProps) {
       setIsLoading(true);
 
       try {
-        // Fetch resident data
-        const { data, error } = await supabase
-          .from("residents")
-          .select("*")
-          .eq("id", id)
-          .single();
+        const today = getUKTodayDate();
 
-        if (error) {
-          console.error("Error fetching resident:", error);
-          setResident(null);
-        } else {
-          setResident(data);
-        }
-
-        // Try to fetch entries (don't block if table doesn't exist)
-        try {
-          const today = getUKTodayDate();
-          const { data: entriesData, error: entriesError } = await supabase
+        // Parallelize resident and today's continence entries fetch
+        const [residentResult, entriesResult] = await Promise.all([
+          supabase
+            .from("residents")
+            .select("*")
+            .eq("id", id)
+            .single(),
+          supabase
             .from("continence_entries")
             .select(`
               *,
@@ -148,20 +140,26 @@ export default function ContinencePage({ params }: ContinencePageProps) {
             `)
             .eq("resident_id", id)
             .eq("date", today)
-            .order("created_at", { ascending: false });
+            .order("created_at", { ascending: false })
+        ]);
 
-          if (entriesError) {
-            console.warn("⚠️ Could not fetch continence entries:", entriesError.message);
-            console.warn("The continence_entries table may not exist. Run the SQL migration in Supabase.");
-            setEntries([]);
-          } else {
-            console.log("✅ Fetched entries:", entriesData);
-            setEntries(entriesData || []);
-          }
-        } catch (entriesErr) {
-          console.warn("Exception fetching entries:", entriesErr);
-          setEntries([]);
+        // 1. Handle Resident
+        if (residentResult.error) {
+          console.error("Error fetching resident:", residentResult.error);
+          setResident(null);
+        } else {
+          setResident(residentResult.data);
         }
+
+        // 2. Handle Entries
+        if (entriesResult.error) {
+          console.warn("⚠️ Could not fetch continence entries:", entriesResult.error.message);
+          setEntries([]);
+        } else {
+          console.log("✅ Fetched entries:", entriesResult.data);
+          setEntries(entriesResult.data || []);
+        }
+
       } catch (err) {
         console.error("Error in fetchData:", err);
       } finally {

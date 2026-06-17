@@ -29,6 +29,13 @@ export const CreateResidentSchema = z.object({
       })
     )
     .optional(),
+  allergies: z
+    .array(
+      z.object({
+        allergy: z.string().min(1, { message: "Allergy name is required" })
+      })
+    )
+    .optional(),
   dependencies: z.object({
     mobility: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent", "Prompt Needed"], { message: "Mobility level is required" }),
     eating: z.enum(["Independent", "Supervision Needed", "Assistance Needed", "Fully Dependent", "Prompt Needed"], { message: "Eating level is required" }),

@@ -77,7 +77,7 @@ const DietFormSchema = z.object({
   otherDietType: z.string().optional(),
   culturalRestrictions: z.string().optional(),
   allergies: z.array(z.object({
-    allergy: z.string().min(1, "Allergy name is required")
+    allergy: z.string()
   })).optional(),
   chokingRisk: z.enum(["low", "medium", "high"]).optional(),
   foodConsistency: z.enum(["level7", "level6", "level5", "level4", "level3"]).optional(),
@@ -139,6 +139,17 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const [existingDiet, setExistingDiet] = useState<any>(null);
   const [foodLogs, setFoodLogs] = useState<any[]>([]);
   const [fluidLogs, setFluidLogs] = useState<any[]>([]);
+  
+  // Memoize sorted logs to prevent redundant sorting computations on every render
+  const sortedFoodLogs = useMemo(() => {
+    if (!foodLogs) return [];
+    return [...foodLogs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [foodLogs]);
+
+  const sortedFluidLogs = useMemo(() => {
+    if (!fluidLogs) return [];
+    return [...fluidLogs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [fluidLogs]);
   const [logSummary, setLogSummary] = useState<any>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [menuItems, setMenuItems] = useState<any[]>([]);
@@ -170,29 +181,60 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const fetchData = useCallback(async () => {
     setIsInitialLoading(true);
     try {
-      // Fetch resident
-      const { data: residentData } = await supabase
-        .from("residents")
-        .select("*")
-        .eq("id", id)
-        .single();
+      // Use UK timezone for today's date
+      const today = getUKTodayDate();
 
-      if (residentData) {
-        setResident(residentData as Resident);
-        // Load existing fluid target if available
-        if (residentData.fluid_target) {
-          setFluidTarget(residentData.fluid_target.toString());
+      // Parallelize all Supabase queries to eliminate waterfall delays
+      const [residentResult, dietResult, foodDataResult, fluidDataResult, menuDataResult] = await Promise.all([
+        supabase
+          .from("residents")
+          .select("*")
+          .eq("id", id)
+          .single(),
+        supabase
+          .from("diet_lifestyle")
+          .select("*")
+          .eq("resident_id", id)
+          .maybeSingle(),
+        supabase
+          .from("food_fluid_logs")
+          .select("*")
+          .eq("resident_id", id)
+          .eq("date", today)
+          .is("fluid_consumed_ml", null)
+          .order("timestamp", { ascending: false }),
+        supabase
+          .from("food_fluid_logs")
+          .select("*")
+          .eq("resident_id", id)
+          .eq("date", today)
+          .not("fluid_consumed_ml", "is", null)
+          .order("timestamp", { ascending: false }),
+        profile?.active_organization_id
+          ? supabase
+              .from("menu_items")
+              .select("*")
+              .eq("organization_id", profile.active_organization_id)
+              .order("name", { ascending: true })
+          : Promise.resolve({ data: null, error: null })
+      ]);
+
+      // Handle resident result
+      if (residentResult.error) {
+        console.error("Error fetching resident:", residentResult.error);
+        toast.error("Failed to load resident data");
+      } else if (residentResult.data) {
+        setResident(residentResult.data as Resident);
+        if (residentResult.data.fluid_target) {
+          setFluidTarget(residentResult.data.fluid_target.toString());
         }
       }
 
-      // Fetch diet
-      const { data: dietData } = await supabase
-        .from("diet_lifestyle")
-        .select("*")
-        .eq("resident_id", id)
-        .single();
-
-      if (dietData) {
+      // Handle diet result
+      if (dietResult.error) {
+        console.error("Error fetching diet:", dietResult.error);
+      } else if (dietResult.data) {
+        const dietData = dietResult.data;
         setExistingDiet({
           id: dietData.id,
           residentId: dietData.resident_id,
@@ -208,52 +250,30 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           chefNotified: dietData.chef_notified,
           chefName: dietData.chef_name,
         });
+      } else {
+        setExistingDiet(null);
       }
 
-      // Use UK timezone for today's date
-      const today = getUKTodayDate();
+      // Handle food logs
+      let finalFoodLogs = foodDataResult.data || [];
+      finalFoodLogs = finalFoodLogs.filter(log => log.fluid_consumed_ml === null);
+      setFoodLogs(finalFoodLogs);
 
-      // Fetch food logs for today
-      const { data: foodData } = await supabase
-        .from("food_fluid_logs")
-        .select("*")
-        .eq("resident_id", id)
-        .eq("date", today)
-        .is("fluid_consumed_ml", null) // Corrected: Use is null check if possible, or filter in JS
-        .order("timestamp", { ascending: false });
+      // Handle fluid logs
+      const finalFluidLogs = fluidDataResult.data || [];
+      setFluidLogs(finalFluidLogs);
 
-      // Filter out fluid entries safely
-      if (foodData) setFoodLogs(foodData.filter(log => log.fluid_consumed_ml === null));
+      // Set log summary
+      const totalFluid = finalFluidLogs.reduce((acc: number, log: any) => acc + (log.fluid_consumed_ml || 0), 0);
+      setLogSummary({
+        foodEntries: finalFoodLogs.length,
+        totalFluidIntakeMl: totalFluid,
+        lastRecorded: (finalFoodLogs[0]?.timestamp || finalFluidLogs[0]?.timestamp) || null
+      });
 
-      // Fetch fluid logs for today
-      const { data: fluidData } = await supabase
-        .from("food_fluid_logs")
-        .select("*")
-        .eq("resident_id", id)
-        .eq("date", today)
-        .not("fluid_consumed_ml", "is", null)
-        .order("timestamp", { ascending: false });
-
-      if (fluidData) setFluidLogs(fluidData);
-
-      if (foodData || fluidData) {
-        const totalFluid = (fluidData || []).reduce((acc: number, log: any) => acc + (log.fluid_consumed_ml || 0), 0);
-        setLogSummary({
-          foodEntries: foodData?.length || 0,
-          totalFluidIntakeMl: totalFluid,
-          lastRecorded: (foodData?.[0]?.timestamp || fluidData?.[0]?.timestamp)
-        });
-      }
-
-      // Fetch menu items only if organization ID is available
-      if (profile?.active_organization_id) {
-        const { data: menuData } = await supabase
-          .from("menu_items")
-          .select("*")
-          .eq("organization_id", profile.active_organization_id)
-          .order("name", { ascending: true });
-
-        if (menuData) setMenuItems(menuData);
+      // Handle menu items
+      if (menuDataResult.data) {
+        setMenuItems(menuDataResult.data);
       }
 
     } catch (error) {
@@ -438,6 +458,10 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         return;
       }
 
+      const cleanedAllergies = (values.allergies || [])
+        .map((a) => ({ allergy: a.allergy.trim() }))
+        .filter((a) => a.allergy.length > 0);
+
       const { error } = await supabase
         .from("diet_lifestyle")
         .upsert({
@@ -446,7 +470,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           diet_types: values.dietTypes,
           other_diet_type: values.otherDietType,
           cultural_restrictions: values.culturalRestrictions,
-          allergies: values.allergies,
+          allergies: cleanedAllergies,
           choking_risk: values.chokingRisk,
           food_consistency: values.foodConsistency,
           fluid_consistency: values.fluidConsistency,
@@ -673,8 +697,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         </div>
 
         {/* Diet Information Section */}
-        {existingDiet && (
-          <Card className="border-0">
+        <Card className="border-0">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center space-x-2">
@@ -689,69 +712,71 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                     className="text-xs"
                   >
                     <Plus className="w-3 h-3 mr-1" />
-                    Edit Diet
+                    {existingDiet ? "Edit Diet" : "Add Diet"}
                   </Button>
                 )}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {/* Diet Types */}
-                {(existingDiet.dietTypes && existingDiet.dietTypes.length > 0 ||
-                  existingDiet.otherDietType ||
-                  existingDiet.culturalRestrictions) && (
+                {(existingDiet?.dietTypes && existingDiet?.dietTypes.length > 0 ||
+                  existingDiet?.otherDietType ||
+                  existingDiet?.culturalRestrictions) && (
                     <div>
                       <p className="text-[11px] font-medium text-gray-500 mb-1">
                         Diet Types
                       </p>
                       <div className="flex flex-wrap gap-1.5">
-                        {existingDiet.dietTypes?.map((diet, i) => (
+                        {existingDiet?.dietTypes?.map((diet, i) => (
                           <Badge key={i} className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
                             {diet}
                           </Badge>
                         ))}
-                        {existingDiet.otherDietType && (
+                        {existingDiet?.otherDietType && (
                           <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
-                            {existingDiet.otherDietType}
+                            {existingDiet?.otherDietType}
                           </Badge>
                         )}
-                        {existingDiet.culturalRestrictions && (
+                        {existingDiet?.culturalRestrictions && (
                           <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
-                            {existingDiet.culturalRestrictions}
+                            {existingDiet?.culturalRestrictions}
                           </Badge>
                         )}
                       </div>
                     </div>
                   )}
 
-                {/* Allergies */}
-                {existingDiet.allergies && existingDiet.allergies.length > 0 && (
-                  <div>
-                    <p className="text-[11px] font-medium text-gray-500 mb-1">
-                      Allergies
-                    </p>
+                {/* Allergies - always visible as a key safety cue */}
+                <div>
+                  <p className="text-[11px] font-medium text-gray-500 mb-1">
+                    Allergies
+                  </p>
+                  {existingDiet?.allergies && existingDiet.allergies.length > 0 ? (
                     <div className="flex flex-wrap gap-1.5">
-                      {existingDiet.allergies?.map((a, i) => (
+                      {existingDiet.allergies.map((a, i) => (
                         <Badge key={i} className="bg-red-100 text-red-800 border-red-300 text-xs">
                           {a.allergy}
                         </Badge>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <span className="text-xs text-muted-foreground">No allergies recorded</span>
+                  )}
+                </div>
 
                 {/* Assistance */}
-                {existingDiet.assistanceRequired && (
+                {existingDiet?.assistanceRequired && (
                   <div>
                     <p className="text-[11px] font-medium text-gray-500 mb-1">
                       Assistance
                     </p>
                     <Badge
-                      className={`text-xs ${existingDiet.assistanceRequired === "yes"
+                      className={`text-xs ${existingDiet?.assistanceRequired === "yes"
                         ? "bg-indigo-100 text-indigo-800 border-indigo-300"
                         : "bg-green-100 text-green-800 border-green-300"
                         }`}
                     >
-                      {existingDiet.assistanceRequired === "yes"
+                      {existingDiet?.assistanceRequired === "yes"
                         ? "Assistance Required"
                         : "Independent"}
                     </Badge>
@@ -759,22 +784,22 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 )}
 
                 {/* Choking Risk */}
-                {existingDiet.chokingRisk && (
+                {existingDiet?.chokingRisk && (
                   <div>
                     <p className="text-[11px] font-medium text-gray-500 mb-1">
                       Choking Risk
                     </p>
                     <Badge
-                      className={`text-xs ${existingDiet.chokingRisk === "high"
+                      className={`text-xs ${existingDiet?.chokingRisk === "high"
                         ? "bg-red-100 text-red-800 border-red-300"
-                        : existingDiet.chokingRisk === "medium"
+                        : existingDiet?.chokingRisk === "medium"
                           ? "bg-orange-100 text-orange-800 border-orange-300"
                           : "bg-green-100 text-green-800 border-green-300"
                         }`}
                     >
-                      {existingDiet.chokingRisk === "high"
+                      {existingDiet?.chokingRisk === "high"
                         ? "High Risk"
-                        : existingDiet.chokingRisk === "medium"
+                        : existingDiet?.chokingRisk === "medium"
                           ? "Medium Risk"
                           : "Low Risk"}
                     </Badge>
@@ -782,51 +807,51 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 )}
 
                 {/* Food Consistency */}
-                {existingDiet.foodConsistency && (
+                {existingDiet?.foodConsistency && (
                   <div>
                     <p className="text-[11px] font-medium text-gray-500 mb-1">
                       Food Consistency
                     </p>
                     <Badge className="bg-teal-50 text-teal-700 border-teal-200 text-xs">
-                      {existingDiet.foodConsistency === "level7" && "Level 7 - Easy Chew"}
-                      {existingDiet.foodConsistency === "level6" && "Level 6 - Soft & Bite-sized"}
-                      {existingDiet.foodConsistency === "level5" && "Level 5 - Minced & Moist"}
-                      {existingDiet.foodConsistency === "level4" && "Level 4 - Pureed"}
-                      {existingDiet.foodConsistency === "level3" && "Level 3 - Liquidised"}
+                      {existingDiet?.foodConsistency === "level7" && "Level 7 - Easy Chew"}
+                      {existingDiet?.foodConsistency === "level6" && "Level 6 - Soft & Bite-sized"}
+                      {existingDiet?.foodConsistency === "level5" && "Level 5 - Minced & Moist"}
+                      {existingDiet?.foodConsistency === "level4" && "Level 4 - Pureed"}
+                      {existingDiet?.foodConsistency === "level3" && "Level 3 - Liquidised"}
                     </Badge>
                   </div>
                 )}
 
                 {/* Fluid Consistency */}
-                {existingDiet.fluidConsistency && (
+                {existingDiet?.fluidConsistency && (
                   <div>
                     <p className="text-[11px] font-medium text-gray-500 mb-1">
                       Fluid Consistency
                     </p>
                     <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200 text-xs">
-                      {existingDiet.fluidConsistency === "level0" && "Level 0 - Thin"}
-                      {existingDiet.fluidConsistency === "level1" && "Level 1 - Slightly Thick"}
-                      {existingDiet.fluidConsistency === "level2" && "Level 2 - Mildly Thick"}
-                      {existingDiet.fluidConsistency === "level3" && "Level 3 - Moderately Thick"}
-                      {existingDiet.fluidConsistency === "level4" && "Level 4 - Extremely Thick"}
+                      {existingDiet?.fluidConsistency === "level0" && "Level 0 - Thin"}
+                      {existingDiet?.fluidConsistency === "level1" && "Level 1 - Slightly Thick"}
+                      {existingDiet?.fluidConsistency === "level2" && "Level 2 - Mildly Thick"}
+                      {existingDiet?.fluidConsistency === "level3" && "Level 3 - Moderately Thick"}
+                      {existingDiet?.fluidConsistency === "level4" && "Level 4 - Extremely Thick"}
                     </Badge>
                   </div>
                 )}
 
                 {/* Chef Notification */}
-                {existingDiet.chefNotified && (
+                {existingDiet?.chefNotified && (
                   <div>
                     <p className="text-[11px] font-medium text-gray-500 mb-1">
                       Chef Notified
                     </p>
                     <Badge
-                      className={`text-xs ${existingDiet.chefNotified === "yes"
+                      className={`text-xs ${existingDiet?.chefNotified === "yes"
                         ? "bg-amber-100 text-amber-800 border-amber-300"
                         : "bg-gray-100 text-gray-800 border-gray-300"
                         }`}
                     >
-                      {existingDiet.chefNotified === "yes"
-                        ? `Notified: ${existingDiet.chefName || "Yes"}`
+                      {existingDiet?.chefNotified === "yes"
+                        ? `Notified: ${existingDiet?.chefName || "Yes"}`
                         : "Not Notified"}
                     </Badge>
                   </div>
@@ -834,7 +859,6 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
               </div>
             </CardContent>
           </Card>
-        )}
 
         {/* Food & Fluid Entry Buttons */}
         {canLogEntries && (
@@ -970,80 +994,68 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
 
               {/* Food Tab */}
               <TabsContent value="food" className="mt-4">
-                {(() => {
-                  const sortedFoodLogs = foodLogs
-                    ? [...foodLogs].sort((a, b) => b.timestamp - a.timestamp)
-                    : [];
-
-                  return sortedFoodLogs.length > 0 ? (
-                    <div className="space-y-2">
-                      {sortedFoodLogs.map((log) => (
-                        <div key={log.id} className="text-sm border-b pb-2 last:border-b-0">
-                          <span className="font-medium">
-                            {formatTimestampToUKTime(new Date(log.timestamp))}
-                          </span>
-                          {" - "}
-                          <span className="text-muted-foreground">{log.type_of_food_drink}</span>
-                          <span className="text-muted-foreground"> - Portion: {log.portion_served}</span>
-                          <span className="text-muted-foreground"> - Amount: {log.amount_eaten}</span>
-                          <span className="text-xs text-muted-foreground ml-2 italic">sign by {log.signature}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <div className="flex justify-center mb-4">
-                        <div className="p-3 bg-orange-100 rounded-full">
-                          <Utensils className="w-8 h-8 text-orange-400" />
-                        </div>
+                {sortedFoodLogs.length > 0 ? (
+                  <div className="space-y-2">
+                    {sortedFoodLogs.map((log) => (
+                      <div key={log.id} className="text-sm border-b pb-2 last:border-b-0">
+                        <span className="font-medium">
+                          {formatTimestampToUKTime(new Date(log.timestamp))}
+                        </span>
+                        {" - "}
+                        <span className="text-muted-foreground">{log.type_of_food_drink}</span>
+                        <span className="text-muted-foreground"> - Portion: {log.portion_served}</span>
+                        <span className="text-muted-foreground"> - Amount: {log.amount_eaten}</span>
+                        <span className="text-xs text-muted-foreground ml-2 italic">sign by {log.signature}</span>
                       </div>
-                      <p className="text-gray-600 font-medium mb-2">No food entries logged today</p>
-                      <p className="text-sm text-gray-500">
-                        Start tracking {fullName}&apos;s food intake using the food entry button above
-                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="flex justify-center mb-4">
+                      <div className="p-3 bg-orange-100 rounded-full">
+                        <Utensils className="w-8 h-8 text-orange-400" />
+                      </div>
                     </div>
-                  );
-                })()}
+                    <p className="text-gray-600 font-medium mb-2">No food entries logged today</p>
+                    <p className="text-sm text-gray-500">
+                      Start tracking {fullName}&apos;s food intake using the food entry button above
+                    </p>
+                  </div>
+                )}
               </TabsContent>
 
               {/* Fluid Tab */}
               <TabsContent value="fluid" className="mt-4">
-                {(() => {
-                  const sortedFluidLogs = fluidLogs
-                    ? [...fluidLogs].sort((a, b) => b.timestamp - a.timestamp)
-                    : [];
-
-                  return sortedFluidLogs.length > 0 ? (
-                    <div className="space-y-2">
-                      {sortedFluidLogs.map((log) => (
-                        <div key={log.id} className="text-sm border-b pb-2 last:border-b-0">
-                          <span className="font-medium">
-                            {formatTimestampToUKTime(new Date(log.timestamp))}
-                          </span>
-                          {" - "}
-                          <span className="text-muted-foreground">{log.type_of_food_drink}</span>
-                          <span className="text-muted-foreground">
-                            {log.fluid_consumed_ml ? ` - Volume: ${log.fluid_consumed_ml}ml` : ` - Portion: ${log.portion_served}`}
-                          </span>
-                          <span className="text-muted-foreground"> - Amount: {log.amount_eaten}</span>
-                          <span className="text-xs text-muted-foreground ml-2 italic">sign by {log.signature}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <div className="flex justify-center mb-4">
-                        <div className="p-3 bg-blue-100 rounded-full">
-                          <Droplets className="w-8 h-8 text-blue-400" />
-                        </div>
+                {sortedFluidLogs.length > 0 ? (
+                  <div className="space-y-2">
+                    {sortedFluidLogs.map((log) => (
+                      <div key={log.id} className="text-sm border-b pb-2 last:border-b-0">
+                        <span className="font-medium">
+                          {formatTimestampToUKTime(new Date(log.timestamp))}
+                        </span>
+                        {" - "}
+                        <span className="text-muted-foreground">{log.type_of_food_drink}</span>
+                        <span className="text-muted-foreground">
+                          {log.fluid_consumed_ml ? ` - Volume: ${log.fluid_consumed_ml}ml` : ` - Portion: ${log.portion_served}`}
+                        </span>
+                        <span className="text-muted-foreground"> - Amount: {log.amount_eaten}</span>
+                        <span className="text-xs text-muted-foreground ml-2 italic">sign by {log.signature}</span>
                       </div>
-                      <p className="text-gray-600 font-medium mb-2">No fluid entries logged today</p>
-                      <p className="text-sm text-gray-500">
-                        Start tracking {fullName}&apos;s fluid intake using the fluid entry button above
-                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="flex justify-center mb-4">
+                      <div className="p-3 bg-blue-100 rounded-full">
+                        <Droplets className="w-8 h-8 text-blue-400" />
+                      </div>
                     </div>
-                  );
-                })()}
+                    <p className="text-gray-600 font-medium mb-2">No fluid entries logged today</p>
+                    <p className="text-sm text-gray-500">
+                      Start tracking {fullName}&apos;s fluid intake using the fluid entry button above
+                    </p>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>
@@ -1437,6 +1449,14 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                               {formValues.dietTypes?.length && formValues.dietTypes.length > 0 && (
                                 <p>Diet Types: {formValues.dietTypes.join(', ')}</p>
                               )}
+                              {(() => {
+                                const namedAllergies = (formValues.allergies || [])
+                                  .map((a) => a.allergy?.trim())
+                                  .filter((a): a is string => Boolean(a));
+                                return namedAllergies.length > 0 ? (
+                                  <p>Allergies: {namedAllergies.join(', ')}</p>
+                                ) : null;
+                              })()}
                               {formValues.chokingRisk && (
                                 <p>Choking Risk: {formValues.chokingRisk}</p>
                               )}

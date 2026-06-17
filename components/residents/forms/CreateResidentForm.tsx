@@ -86,6 +86,9 @@ export function CreateResidentForm({
         risks: Array.isArray(residentData.risks)
           ? residentData.risks.map((r: any) => typeof r === 'string' ? { risk: r, level: "low" } : r)
           : [],
+        allergies: Array.isArray(residentData.allergies)
+          ? residentData.allergies.map((a: any) => ({ allergy: typeof a === 'string' ? a : a.allergy }))
+          : [],
         dependencies: residentData.dependencies || {
           mobility: undefined,
           eating: undefined,
@@ -126,6 +129,7 @@ export function CreateResidentForm({
       nhsHealthNumber: "",
       healthConditions: [],
       risks: [],
+      allergies: [],
       dependencies: {
         mobility: undefined,
         eating: undefined,
@@ -171,6 +175,15 @@ export function CreateResidentForm({
     name: "risks",
   });
 
+  const {
+    fields: allergiesFields,
+    append: appendAllergy,
+    remove: removeAllergy,
+  } = useFieldArray({
+    control: form.control,
+    name: "allergies",
+  });
+
   const getTeams = useCallback(async () => {
     if (!profile?.active_organization_id || !supabase) return;
 
@@ -198,6 +211,7 @@ export function CreateResidentForm({
 
   const MAX_CONDITIONS = 10;
   const MAX_RISKS = 10;
+  const MAX_ALLERGIES = 10;
   const MAX_CONTACT = 5;
 
   useEffect(() => {
@@ -215,6 +229,34 @@ export function CreateResidentForm({
       }
     }
   }, [editMode, residentData, form, getDefaultValues]);
+
+  // Load existing allergies from diet_lifestyle when editing
+  useEffect(() => {
+    if (!editMode || !residentData?.id || !supabase) return;
+
+    let isActive = true;
+    const loadAllergies = async () => {
+      const { data } = await supabase
+        .from("diet_lifestyle")
+        .select("allergies")
+        .eq("resident_id", residentData.id)
+        .maybeSingle();
+
+      if (isActive && Array.isArray(data?.allergies)) {
+        form.setValue(
+          "allergies",
+          data.allergies.map((a: any) => ({
+            allergy: typeof a === "string" ? a : a.allergy,
+          }))
+        );
+      }
+    };
+
+    loadAllergies();
+    return () => {
+      isActive = false;
+    };
+  }, [editMode, residentData?.id, supabase, form]);
 
   async function onSubmit(values: FormType) {
     setIsSubmitting(true);
@@ -338,6 +380,39 @@ export function CreateResidentForm({
         }
 
         toast.success("Resident created successfully");
+      }
+
+      // Persist allergies to diet_lifestyle (shared with Food & Fluid and residents list)
+      if (residentId) {
+        const cleanedAllergies = (values.allergies || [])
+          .map((a) => ({ allergy: a.allergy.trim() }))
+          .filter((a) => a.allergy.length > 0);
+
+        const { data: existingDiet } = await supabase
+          .from("diet_lifestyle")
+          .select("id")
+          .eq("resident_id", residentId)
+          .maybeSingle();
+
+        if (existingDiet) {
+          const { error: dietError } = await supabase
+            .from("diet_lifestyle")
+            .update({ allergies: cleanedAllergies, updated_at: new Date().toISOString() })
+            .eq("resident_id", residentId);
+
+          if (dietError) throw dietError;
+        } else if (cleanedAllergies.length > 0) {
+          const { error: dietError } = await supabase
+            .from("diet_lifestyle")
+            .insert({
+              resident_id: residentId,
+              organization_id: profile.active_organization_id,
+              allergies: cleanedAllergies,
+              created_by: user.id,
+            });
+
+          if (dietError) throw dietError;
+        }
       }
 
       if (didUploadNewPhoto && residentId) {
@@ -752,6 +827,70 @@ export function CreateResidentForm({
               {risksFields.length === 0 && (
                 <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
                   No risks added yet. Click &quot;Add Risk&quot; to get started.
+                </div>
+              )}
+            </div>
+
+            {/* Allergies Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium">Allergies</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Add any known allergies
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => appendAllergy({ allergy: "" })}
+                  disabled={isLoading || allergiesFields.length === MAX_ALLERGIES}
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  Add Allergy
+                </Button>
+              </div>
+
+              {allergiesFields.length > 0 && (
+                <div
+                  className={`space-y-3 ${allergiesFields.length > 3 ? "max-h-50 overflow-y-auto" : ""}`}
+                >
+                  {allergiesFields.map((field, index) => (
+                    <div key={field.id} className="flex items-center gap-3">
+                      <FormField
+                        control={form.control}
+                        name={`allergies.${index}.allergy`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormControl>
+                              <Input
+                                placeholder="Penicillin"
+                                disabled={isLoading}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeAllergy(index)}
+                        disabled={isLoading}
+                      >
+                        <Trash2Icon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {allergiesFields.length === 0 && (
+                <div className="p-2 bg-zinc-50 rounded text-xs text-pretty text-muted-foreground">
+                  No allergies added yet. Click &quot;Add Allergy&quot; to get started.
                 </div>
               )}
             </div>

@@ -18,6 +18,7 @@ import { Search, AlertTriangle, Activity, Calendar, Loader2, Clock, RefreshCw, A
 import { format, parseISO, isValid } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 type BowelCheckData = {
   residentId: string;
@@ -35,6 +36,7 @@ type BowelCheckData = {
 type SortKey = 'name' | 'roomNumber' | 'daysSinceLastBowel' | 'bowelCountLast7Days';
 
 export default function BowelCheckPage() {
+  const router = useRouter();
   const { profile, isLoading: isProfileLoading } = useProfile();
   const [bowelData, setBowelData] = useState<BowelCheckData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -199,7 +201,7 @@ export default function BowelCheckPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="container mx-auto py-6 px-4 max-w-7xl space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -424,10 +426,11 @@ export default function BowelCheckPage() {
                     <TableRow
                       key={resident.residentId}
                       className={cn(
-                        'hover:bg-gray-50',
+                        'hover:bg-gray-50 cursor-pointer',
                         resident.status === 'critical' && 'bg-red-50/50',
                         resident.status === 'alert' && 'bg-orange-50/50'
                       )}
+                      onClick={() => router.push(`/dashboard/residents/${resident.residentId}/continence`)}
                     >
                       <TableCell className="font-medium">{resident.name}</TableCell>
                       <TableCell>{resident.roomNumber || '—'}</TableCell>
