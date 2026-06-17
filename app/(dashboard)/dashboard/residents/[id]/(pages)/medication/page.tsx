@@ -1318,15 +1318,21 @@ export default function MedicationPage({ params }: MedicationPageProps) {
             {/* Bulk Action Buttons */}
             <div className="flex items-center gap-2">
               {(() => {
-                // Get all scheduled medications (including supplements)
-                const allScheduledMeds = filteredIntakes.filter((intake) => intake.status === 'scheduled');
+                // Get all scheduled medications (including supplements, excluding topical medications)
+                const allScheduledMeds = filteredIntakes.filter((intake) => {
+                  const isTopical = intake.medication?.schedule_type === 'Topical' ||
+                                   intake.medication?.route === 'Topical';
+                  return !isTopical && intake.status === 'scheduled';
+                });
 
-                // Get only regular medications (excluding supplements) for Prepare All
+                // Get only regular medications (excluding supplements and topical medications) for Prepare All
                 const regularMeds = filteredIntakes.filter((intake) => {
                   const isSupplement = intake.medication?.schedule_type === 'Supplement' ||
                                       intake.medication?.type === 'Supplement' ||
                                       intake.medication?.category === 'Supplement';
-                  return !isSupplement && intake.status === 'scheduled';
+                  const isTopical = intake.medication?.schedule_type === 'Topical' ||
+                                   intake.medication?.route === 'Topical';
+                  return !isSupplement && !isTopical && intake.status === 'scheduled';
                 });
 
                 const unpreparedMeds = regularMeds.filter(intake => !intake.popped_out_at);
