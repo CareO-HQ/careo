@@ -32,6 +32,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Plus, X, CalendarIcon, Trash2, ArrowUpRight, Building, Search, AlertCircle, History } from "lucide-react";
@@ -2231,6 +2240,10 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
 
+  // Dialog state for incomplete audit warning
+  const [incompleteWarningOpen, setIncompleteWarningOpen] = useState(false);
+  const [incompleteItems, setIncompleteItems] = useState<{ id: string; label: string }[]>([]);
+
   // State for grid-based audit (ID: 1)
   const [rowQuestions, setRowQuestions] = useState<Question[]>([]);
   const [columnQuestions, setColumnQuestions] = useState<Question[]>([]);
@@ -3458,6 +3471,164 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
 
   const getComment = (residentId: string, questionId: string) => comments.find(c => c.residentId === residentId && c.questionId === questionId)?.text || "";
 
+  const getIncompleteItems = () => {
+    const incomplete: { id: string; label: string }[] = [];
+
+    const isFallRegisterAudit = auditId === FALL_REGISTER_AUDIT_ID;
+    const isRegistrationTrackerAuditActive = isRegistrationTrackerAudit(auditId);
+    const isIncidentAuditActive = isIncidentAudit(auditId);
+    const isWoundsAnalysisAuditActive = isWoundsAnalysisAudit(auditId);
+    const isGridAudit = (HOME_BASED_AUDIT_IDS.has(auditId) || templateType === 'home-based') && !SUBJECTLESS_HOME_AUDIT_IDS.has(auditId) && auditId !== FALL_REGISTER_AUDIT_ID && auditId !== "18" && auditId !== "3" && auditId !== "34" && auditId !== "39" && auditId !== "28" && auditId !== "19" && auditId !== "40" && auditId !== "41";
+
+    if (isGridAudit) {
+      const dataRows = rowQuestions.filter((q) => !q.isSection);
+      dataRows.forEach((row) => {
+        columnQuestions.forEach((col) => {
+          const a = answers.find(
+            (x) => x.residentId === row.id && x.questionId === col.id
+          );
+          if (!a || a.value === undefined || a.value === null || String(a.value).trim() === "") {
+            incomplete.push({
+              id: `${row.id}-${col.id}`,
+              label: `${row.text} - ${col.text}`,
+            });
+          }
+        });
+      });
+    } else if (isFallRegisterAudit) {
+      fallRegisterRows.forEach((row) => {
+        DEFAULT_FALLS_COLUMN_QUESTIONS.forEach((q) => {
+          const a = answers.find(
+            (x) => x.residentId === row.rowId && x.questionId === q.id
+          );
+          if (!a || a.value === undefined || a.value === null || String(a.value).trim() === "") {
+            incomplete.push({
+              id: `${row.rowId}-${q.id}`,
+              label: `${row.residentName} (${row.fallDate}) - ${q.text}`,
+            });
+          }
+        });
+      });
+    } else if (isRegistrationTrackerAuditActive) {
+      registrationTrackerRows.forEach((row) => {
+        const activeQuestions = questions.filter((q) => !q.isSection);
+        activeQuestions.forEach((q) => {
+          const a = answers.find(
+            (x) => x.residentId === row.staffId && x.questionId === q.id
+          );
+          if (!a || a.value === undefined || a.value === null || String(a.value).trim() === "") {
+            incomplete.push({
+              id: `${row.staffId}-${q.id}`,
+              label: `${row.staffName} - ${q.text}`,
+            });
+          }
+        });
+      });
+    } else if (isIncidentAuditActive) {
+      incidentAuditRows.forEach((row) => {
+        const activeQuestions = questions.filter((q) => !q.isSection);
+        activeQuestions.forEach((q) => {
+          const a = answers.find(
+            (x) => x.residentId === row.rowId && x.questionId === q.id
+          );
+          if (!a || a.value === undefined || a.value === null || String(a.value).trim() === "") {
+            incomplete.push({
+              id: `${row.rowId}-${q.id}`,
+              label: `${row.residentName} (${row.incidentDate}) - ${q.text}`,
+            });
+          }
+        });
+      });
+    } else if (isWoundsAnalysisAuditActive) {
+      woundsAnalysisRows.forEach((row) => {
+        const activeQuestions = questions.filter((q) => !q.isSection);
+        activeQuestions.forEach((q) => {
+          const isHealed = row.isHealedReview;
+          const isLastQ = q.id.startsWith("wound-last-");
+          const isCurrQ = q.id.startsWith("wound-curr-");
+          
+          if ((isHealed && isLastQ) || (!isHealed && isCurrQ)) {
+            const a = answers.find(
+              (x) => x.residentId === row.rowId && x.questionId === q.id
+            );
+            if (!a || a.value === undefined || a.value === null || String(a.value).trim() === "") {
+              incomplete.push({
+                id: `${row.rowId}-${q.id}`,
+                label: `${row.residentName} (Wound: ${row.woundType || "Unknown"}) - ${q.text}`,
+              });
+            }
+          }
+        });
+      });
+    } else if (SUBJECTLESS_HOME_AUDIT_IDS.has(auditId)) {
+      const activeQuestions = questions.filter((q) => !q.isSection);
+      activeQuestions.forEach((q) => {
+        const a = answers.find(
+          (x) => x.residentId === AUDIT_LEVEL_SUBJECT_ID && x.questionId === q.id
+        );
+        if (!a || a.value === undefined || a.value === null || String(a.value).trim() === "") {
+          incomplete.push({
+            id: `${AUDIT_LEVEL_SUBJECT_ID}-${q.id}`,
+            label: q.text,
+          });
+        }
+      });
+    } else {
+      const activeQuestions = questions.filter((q) => !q.isSection);
+      selectedResidents.forEach((res) => {
+        activeQuestions.forEach((q) => {
+          const a = answers.find(
+            (x) => x.residentId === res._id && x.questionId === q.id
+          );
+          if (!a || a.value === undefined || a.value === null || String(a.value).trim() === "") {
+            const displayName = `${res.firstName} ${res.lastName}`.trim();
+            incomplete.push({
+              id: `${res._id}-${q.id}`,
+              label: `${displayName} - ${q.text}`,
+            });
+          }
+        });
+      });
+    }
+
+    return incomplete;
+  };
+
+  const renderAlertDialog = () => (
+    <AlertDialog
+      open={incompleteWarningOpen}
+      onOpenChange={setIncompleteWarningOpen}
+    >
+      <AlertDialogContent className="max-w-lg">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Some checklist items are not filled</AlertDialogTitle>
+          <AlertDialogDescription>
+            The following items still need to be answered. You can go back and complete them, or continue anyway.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <ul className="max-h-[min(50vh,240px)] list-disc space-y-1 overflow-y-auto pl-5 text-sm text-foreground">
+          {incompleteItems.map((item) => (
+            <li key={item.id}>{item.label}</li>
+          ))}
+        </ul>
+        <AlertDialogFooter>
+          <AlertDialogCancel>
+            Go Back
+          </AlertDialogCancel>
+          <Button
+            type="button"
+            onClick={() => {
+              setIncompleteWarningOpen(false);
+              void performCompleteAudit();
+            }}
+          >
+            Yes, complete audit
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   // Completion
   const handleCompleteAudit = async () => {
     const isFallRegisterAudit = auditId === FALL_REGISTER_AUDIT_ID;
@@ -3489,6 +3660,23 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
         return;
       }
     }
+
+    const incomplete = getIncompleteItems();
+    if (incomplete.length > 0) {
+      setIncompleteItems(incomplete);
+      setIncompleteWarningOpen(true);
+      return;
+    }
+
+    await performCompleteAudit();
+  };
+
+  const performCompleteAudit = async () => {
+    const isFallRegisterAudit = auditId === FALL_REGISTER_AUDIT_ID;
+    const isRegistrationTrackerAuditActive = isRegistrationTrackerAudit(auditId);
+    const isIncidentAuditActive = isIncidentAudit(auditId);
+    const isWoundsAnalysisAuditActive = isWoundsAnalysisAudit(auditId);
+    const isGridAudit = (HOME_BASED_AUDIT_IDS.has(auditId) || templateType === 'home-based') && !SUBJECTLESS_HOME_AUDIT_IDS.has(auditId) && auditId !== FALL_REGISTER_AUDIT_ID && auditId !== "18" && auditId !== "3" && auditId !== "34" && auditId !== "39" && auditId !== "28" && auditId !== "19" && auditId !== "40" && auditId !== "41";
 
     try {
       if (!careHomeId || !activeOrganizationId) {
@@ -3828,50 +4016,53 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       : formatAuditMonthLabel(new Date().toISOString().slice(0, 7));
 
     return (
-      <ManagerAuditShell
-        breadcrumbs={[
-          { label: "Audits", href: "/dashboard/manager-audit" as Route },
-          { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
-          { label: auditName },
-        ]}
-        onBack={handleBack}
-        topActions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
-            >
-              <History className="mr-2 h-4 w-4" /> History
-            </Button>
-            <Button size="sm" onClick={handleCompleteAudit}>
-              Complete Audit
-            </Button>
-          </div>
-        }
-        summary={
-          <ManagerAuditSummary
-            title={auditName}
-            subtitle="Review fall folders created this month. Values are prefilled from incident reports."
-            chips={[
-              { label: "Auditor", value: profile?.name || profile?.email || "—" },
-              { label: "Period", value: fallRegisterMonthLabel },
-              { label: "Total falls", value: fallRegisterRows.length },
-              { label: "Action plans", value: actionPlans.length },
-            ]}
+      <>
+        <ManagerAuditShell
+          breadcrumbs={[
+            { label: "Audits", href: "/dashboard/manager-audit" as Route },
+            { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
+            { label: auditName },
+          ]}
+          onBack={handleBack}
+          topActions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
+              >
+                <History className="mr-2 h-4 w-4" /> History
+              </Button>
+              <Button size="sm" onClick={handleCompleteAudit}>
+                Complete Audit
+              </Button>
+            </div>
+          }
+          summary={
+            <ManagerAuditSummary
+              title={auditName}
+              subtitle="Review fall folders created this month. Values are prefilled from incident reports."
+              chips={[
+                { label: "Auditor", value: profile?.name || profile?.email || "—" },
+                { label: "Period", value: fallRegisterMonthLabel },
+                { label: "Total falls", value: fallRegisterRows.length },
+                { label: "Action plans", value: actionPlans.length },
+              ]}
+            />
+          }
+          flushBody
+        >
+          <FallRegisterTable
+            auditMonth={fallRegisterAuditMonth || new Date().toISOString().slice(0, 7)}
+            rows={fallRegisterRows}
+            answers={answers}
+            isSyncing={isSyncingFallRegister}
+            onAnswerChange={handleAnswerChange}
+            onSyncFromIncidents={handleSyncFallRegister}
           />
-        }
-        flushBody
-      >
-        <FallRegisterTable
-          auditMonth={fallRegisterAuditMonth || new Date().toISOString().slice(0, 7)}
-          rows={fallRegisterRows}
-          answers={answers}
-          isSyncing={isSyncingFallRegister}
-          onAnswerChange={handleAnswerChange}
-          onSyncFromIncidents={handleSyncFallRegister}
-        />
-      </ManagerAuditShell>
+        </ManagerAuditShell>
+        {renderAlertDialog()}
+      </>
     );
   }
 
@@ -3884,55 +4075,58 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     ).size;
 
     return (
-      <ManagerAuditShell
-        breadcrumbs={[
-          { label: "Audits", href: "/dashboard/manager-audit" as Route },
-          { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
-          { label: auditName },
-        ]}
-        onBack={handleBack}
-        topActions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
-            >
-              <History className="mr-2 h-4 w-4" /> History
-            </Button>
-            <Button size="sm" onClick={handleCompleteAudit}>
-              Complete Audit
-            </Button>
-          </div>
-        }
-        summary={
-          <ManagerAuditSummary
-            title={auditName}
-            subtitle="One row per incident-folder report this month. Fall folders are not included."
-            chips={[
-              { label: "Auditor", value: profile?.name || profile?.email || "—" },
-              { label: "Period", value: incidentMonthLabel },
-              { label: "Incidents", value: incidentAuditRows.length },
-              { label: "Residents", value: uniqueResidentCount },
-              { label: "Action plans", value: actionPlans.length },
-            ]}
+      <>
+        <ManagerAuditShell
+          breadcrumbs={[
+            { label: "Audits", href: "/dashboard/manager-audit" as Route },
+            { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
+            { label: auditName },
+          ]}
+          onBack={handleBack}
+          topActions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
+              >
+                <History className="mr-2 h-4 w-4" /> History
+              </Button>
+              <Button size="sm" onClick={handleCompleteAudit}>
+                Complete Audit
+              </Button>
+            </div>
+          }
+          summary={
+            <ManagerAuditSummary
+              title={auditName}
+              subtitle="One row per incident-folder report this month. Fall folders are not included."
+              chips={[
+                { label: "Auditor", value: profile?.name || profile?.email || "—" },
+                { label: "Period", value: incidentMonthLabel },
+                { label: "Incidents", value: incidentAuditRows.length },
+                { label: "Residents", value: uniqueResidentCount },
+                { label: "Action plans", value: actionPlans.length },
+              ]}
+            />
+          }
+          flushBody
+        >
+          <IncidentAuditTable
+            rows={incidentAuditRows}
+            questions={questions}
+            answers={answers}
+            auditMonthLabel={incidentMonthLabel}
+            teams={teams}
+            selectedUnitId={selectedUnitId}
+            onUnitChange={setSelectedUnitId}
+            isSyncing={isSyncingIncidentAudit}
+            onAnswerChange={handleAnswerChange}
+            onSyncFromIncidents={handleSyncIncidentAudit}
           />
-        }
-        flushBody
-      >
-        <IncidentAuditTable
-          rows={incidentAuditRows}
-          questions={questions}
-          answers={answers}
-          auditMonthLabel={incidentMonthLabel}
-          teams={teams}
-          selectedUnitId={selectedUnitId}
-          onUnitChange={setSelectedUnitId}
-          isSyncing={isSyncingIncidentAudit}
-          onAnswerChange={handleAnswerChange}
-          onSyncFromIncidents={handleSyncIncidentAudit}
-        />
-      </ManagerAuditShell>
+        </ManagerAuditShell>
+        {renderAlertDialog()}
+      </>
     );
   }
 
@@ -3945,55 +4139,58 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     ).size;
 
     return (
-      <ManagerAuditShell
-        breadcrumbs={[
-          { label: "Audits", href: "/dashboard/manager-audit" as Route },
-          { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
-          { label: auditName },
-        ]}
-        onBack={handleBack}
-        topActions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
-            >
-              <History className="mr-2 h-4 w-4" /> History
-            </Button>
-            <Button size="sm" onClick={handleCompleteAudit}>
-              Complete Audit
-            </Button>
-          </div>
-        }
-        summary={
-          <ManagerAuditSummary
-            title={auditName}
-            subtitle="One row per wound folder created this month. Values are prefilled from wound records where available."
-            chips={[
-              { label: "Auditor", value: profile?.name || profile?.email || "—" },
-              { label: "Period", value: woundsMonthLabel },
-              { label: "Wounds", value: woundsAnalysisRows.length },
-              { label: "Residents", value: uniqueResidentCount },
-              { label: "Action plans", value: actionPlans.length },
-            ]}
+      <>
+        <ManagerAuditShell
+          breadcrumbs={[
+            { label: "Audits", href: "/dashboard/manager-audit" as Route },
+            { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
+            { label: auditName },
+          ]}
+          onBack={handleBack}
+          topActions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
+              >
+                <History className="mr-2 h-4 w-4" /> History
+              </Button>
+              <Button size="sm" onClick={handleCompleteAudit}>
+                Complete Audit
+              </Button>
+            </div>
+          }
+          summary={
+            <ManagerAuditSummary
+              title={auditName}
+              subtitle="One row per wound folder created this month. Values are prefilled from wound records where available."
+              chips={[
+                { label: "Auditor", value: profile?.name || profile?.email || "—" },
+                { label: "Period", value: woundsMonthLabel },
+                { label: "Wounds", value: woundsAnalysisRows.length },
+                { label: "Residents", value: uniqueResidentCount },
+                { label: "Action plans", value: actionPlans.length },
+              ]}
+            />
+          }
+          flushBody
+        >
+          <WoundsAnalysisTable
+            rows={woundsAnalysisRows}
+            questions={questions}
+            answers={answers}
+            auditMonthLabel={woundsMonthLabel}
+            teams={teams}
+            selectedUnitId={selectedUnitId}
+            onUnitChange={setSelectedUnitId}
+            isSyncing={isSyncingWoundsAnalysis}
+            onAnswerChange={handleAnswerChange}
+            onSyncFromWounds={handleSyncWoundsAnalysis}
           />
-        }
-        flushBody
-      >
-        <WoundsAnalysisTable
-          rows={woundsAnalysisRows}
-          questions={questions}
-          answers={answers}
-          auditMonthLabel={woundsMonthLabel}
-          teams={teams}
-          selectedUnitId={selectedUnitId}
-          onUnitChange={setSelectedUnitId}
-          isSyncing={isSyncingWoundsAnalysis}
-          onAnswerChange={handleAnswerChange}
-          onSyncFromWounds={handleSyncWoundsAnalysis}
-        />
-      </ManagerAuditShell>
+        </ManagerAuditShell>
+        {renderAlertDialog()}
+      </>
     );
   }
 
@@ -4006,51 +4203,54 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     const staffCountLabel = trackerType === "nmc" ? "Nurses" : "Staff";
 
     return (
-      <ManagerAuditShell
-        breadcrumbs={[
-          { label: "Audits", href: "/dashboard/manager-audit" as Route },
-          { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
-          { label: auditName },
-        ]}
-        onBack={handleBack}
-        topActions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
-            >
-              <History className="mr-2 h-4 w-4" /> History
-            </Button>
-            <Button size="sm" onClick={handleCompleteAudit}>
-              Complete Audit
-            </Button>
-          </div>
-        }
-        summary={
-          <ManagerAuditSummary
-            title={auditName}
-            subtitle={trackerSubtitle}
-            chips={[
-              { label: "Auditor", value: profile?.name || profile?.email || "—" },
-              { label: staffCountLabel, value: registrationTrackerRows.length },
-              { label: "Questions", value: questions.length },
-              { label: "Action plans", value: actionPlans.length },
-            ]}
+      <>
+        <ManagerAuditShell
+          breadcrumbs={[
+            { label: "Audits", href: "/dashboard/manager-audit" as Route },
+            { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
+            { label: auditName },
+          ]}
+          onBack={handleBack}
+          topActions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/dashboard/manager-audit/${auditId}/history`)}
+              >
+                <History className="mr-2 h-4 w-4" /> History
+              </Button>
+              <Button size="sm" onClick={handleCompleteAudit}>
+                Complete Audit
+              </Button>
+            </div>
+          }
+          summary={
+            <ManagerAuditSummary
+              title={auditName}
+              subtitle={trackerSubtitle}
+              chips={[
+                { label: "Auditor", value: profile?.name || profile?.email || "—" },
+                { label: staffCountLabel, value: registrationTrackerRows.length },
+                { label: "Questions", value: questions.length },
+                { label: "Action plans", value: actionPlans.length },
+              ]}
+            />
+          }
+          flushBody
+        >
+          <RegistrationTrackerTable
+            trackerType={trackerType}
+            rows={registrationTrackerRows}
+            questions={questions}
+            answers={answers}
+            isRefreshing={isRefreshingRegistrationTracker}
+            onAnswerChange={handleAnswerChange}
+            onRefreshFromProfiles={handleRefreshRegistrationTracker}
           />
-        }
-        flushBody
-      >
-        <RegistrationTrackerTable
-          trackerType={trackerType}
-          rows={registrationTrackerRows}
-          questions={questions}
-          answers={answers}
-          isRefreshing={isRefreshingRegistrationTracker}
-          onAnswerChange={handleAnswerChange}
-          onRefreshFromProfiles={handleRefreshRegistrationTracker}
-        />
-      </ManagerAuditShell>
+        </ManagerAuditShell>
+        {renderAlertDialog()}
+      </>
     );
   }
 
@@ -4192,7 +4392,8 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     );
 
     return (
-      <ManagerAuditShell
+      <>
+        <ManagerAuditShell
         breadcrumbs={[
           { label: "Audits", href: "/dashboard/manager-audit" as Route },
           { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
@@ -4475,6 +4676,8 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           </DialogContent>
         </Dialog>
       </ManagerAuditShell>
+      {renderAlertDialog()}
+    </>
     );
   }
 
@@ -4758,7 +4961,8 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
     );
 
     return (
-      <ManagerAuditShell
+      <>
+        <ManagerAuditShell
         breadcrumbs={[
           { label: "Audits", href: "/dashboard/manager-audit" as Route },
           { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
@@ -5183,7 +5387,9 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </ManagerAuditShell>
+        </ManagerAuditShell>
+        {renderAlertDialog()}
+      </>
     );
   }
 
@@ -5228,7 +5434,8 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   );
 
   return (
-    <ManagerAuditShell
+    <>
+      <ManagerAuditShell
       breadcrumbs={[
         { label: "Audits", href: "/dashboard/manager-audit" as Route },
         { label: "Manager Audit", href: "/dashboard/manager-audit" as Route },
@@ -5643,6 +5850,8 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
       )}
 
     </ManagerAuditShell>
+    {renderAlertDialog()}
+  </>
   );
 }
 
