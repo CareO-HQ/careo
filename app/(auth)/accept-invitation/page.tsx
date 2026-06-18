@@ -79,6 +79,7 @@ function AcceptInvitationContent() {
         .from("users")
         .update({
           role: invitation.role,
+          is_saas_admin: false,
           active_organization_id: invitation.organization_id,
           active_care_home_id: invitation.care_home_id,
           active_team_id: invitation.team_id,

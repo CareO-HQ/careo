@@ -114,6 +114,7 @@ function AgencyOnboardingContent() {
           email: targetEmail,
           name: requestData.agency_staff?.name,
           role: careoRole,
+          is_saas_admin: false,
           active_organization_id: requestData.organization_id,
           active_care_home_id: requestData.care_home_id,
           active_team_id: requestData.team_id,
