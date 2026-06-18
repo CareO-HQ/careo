@@ -21,8 +21,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn, formatRoleName } from "@/lib/utils";
-import { canViewStaffList, UserRole } from "@/lib/permissions";
+import { canViewStaffList, UserRole, canToggleApprovedNurseRole } from "@/lib/permissions";
 import { buildStorageObjectUrl } from "@/lib/storage";
+import { updateStaffWorkforceAction } from "@/app/actions/rota";
+import { Switch } from "@/components/ui/switch";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Select,
@@ -809,6 +811,28 @@ export default function StaffOverviewPage({ params }: StaffOverviewProps) {
               </div>
             </div>
           </div>
+
+          {canToggleApprovedNurseRole(currentProfile.role) && staffMember.role === "nurse" && (
+            <div className="flex items-center justify-between p-4 bg-yellow-50/50 border border-yellow-200 rounded-lg pt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="approved-nurse-role" className="font-semibold text-sm">Manager-Approved Nurse</Label>
+                <p className="text-xs text-muted-foreground">Elevate this nurse to have full unit-level rota control permissions.</p>
+              </div>
+              <Switch
+                id="approved-nurse-role"
+                checked={staffMember.is_manager_approved_nurse || false}
+                onCheckedChange={async (checked) => {
+                  try {
+                    await updateStaffWorkforceAction(currentProfile.id, staffMember.id, { is_manager_approved_nurse: checked });
+                    toast.success(checked ? "Elevated to Manager-Approved Nurse" : "Authorization revoked");
+                    fetchStaffMember();
+                  } catch (err: any) {
+                    toast.error(err.message || "Failed to update authorization");
+                  }
+                }}
+              />
+            </div>
+          )}
 
           {showsProfessionalRegistration(staffMember.role) && (
             <div className="space-y-4 pt-4 border-t">

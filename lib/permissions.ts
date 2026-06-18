@@ -400,3 +400,28 @@ export function getAllowedRolesToInvite(role: UserRole): UserRole[] {
   }
   return [];
 }
+
+export function canViewSidebarRota(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "saas_admin"
+  );
+}
+
+export function canManageRotaTemplatesAndRules(role?: string, isApprovedNurse?: boolean): boolean {
+  if (role === "saas_admin" || role === "owner" || role === "manager") return true;
+  if (role === "nurse" && isApprovedNurse) return true;
+  return false;
+}
+
+export function canToggleApprovedNurseRole(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "saas_admin";
+}
+
+export function canManageContractedHours(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "saas_admin";
+}
+

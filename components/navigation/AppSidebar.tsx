@@ -57,7 +57,8 @@ import {
   canViewSidebarHome,
   canCreateResident,
   canViewClinical,
-  canViewMedication
+  canViewMedication,
+  canViewSidebarRota
 } from "@/lib/permissions";
 
 import CreateResidentDialog from "../residents/CreateResidentDialog";
@@ -431,6 +432,18 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Operations</SidebarGroupLabel>
           <SidebarGroupContent>
+            {/* Rota */}
+            {canViewSidebarRota(effectiveRole) && (
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild>
+                  <Link href={"/dashboard/rota" as any}>
+                    <CalendarIcon />
+                    <span>Staff Rota</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+
             {/* Handover */}
             {canViewSidebarHandover(effectiveRole) && (
               <SidebarMenuItem className="list-none">

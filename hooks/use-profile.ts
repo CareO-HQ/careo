@@ -33,6 +33,7 @@ export type Profile = {
     care_home_name?: string;
     active_team_name?: string;
     role?: string;
+    is_manager_approved_nurse?: boolean;
 };
 
 export function useProfile() {
@@ -174,6 +175,7 @@ export function useProfile() {
                     is_saas_admin: !!dbUser.is_saas_admin,
                     is_onboarding_complete: !!dbUser.is_onboarding_complete,
                     role: dbUser.role || user?.app_metadata?.role || (dbUser.is_saas_admin ? "saas_admin" : "member"),
+                    is_manager_approved_nurse: !!dbUser.is_manager_approved_nurse,
                     address: dbUser.address || null,
                     date_of_join: dbUser.date_of_join || null,
                     right_to_work_status: dbUser.right_to_work_status || null,
