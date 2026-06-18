@@ -669,7 +669,8 @@ function DailyCarePage({ params }: DailyCarePageProps) {
     return {
       key: u.id,
       label,
-      email: u.email
+      email: u.email,
+      id: u.id
     };
   }) || [];
 
@@ -1904,7 +1905,7 @@ function DailyCarePage({ params }: DailyCarePageProps) {
                           <SelectItem value="none">No staff assigned</SelectItem>
                           {otherStaffOptions.length > 0 ? (
                             otherStaffOptions.map((staff) => (
-                              <SelectItem key={staff.key} value={staff.email}>
+                              <SelectItem key={staff.key} value={staff.id}>
                                 {staff.label}
                               </SelectItem>
                             ))
