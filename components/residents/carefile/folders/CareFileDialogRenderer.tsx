@@ -474,7 +474,7 @@ export function CareFileDialogRenderer({
   };
 
   return (
-    <div className={cn(viewOnly && "form-view-mode")}>
+    <div className={cn((viewOnly && formKey !== "v2-weight-chart") && "form-view-mode")}>
       {renderForm()}
     </div>
   );

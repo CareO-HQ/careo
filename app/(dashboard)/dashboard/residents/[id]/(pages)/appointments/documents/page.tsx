@@ -116,6 +116,42 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
   const [resident, setResident] = useState<ResidentRecord | null>(null);
   const [residentLoading, setResidentLoading] = useState(true);
 
+  // Get all users for staff selection from Supabase to resolve IDs to names
+  const [allUsers, setAllUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
+
+  useEffect(() => {
+    async function fetchUsers() {
+      if (!supabase) return;
+      try {
+        const { data: usersData, error: usersError } = await supabase
+          .from("users")
+          .select("id, name, email");
+
+        if (!usersError && usersData) {
+          setAllUsers(usersData.map((u: any) => ({
+            id: u.id,
+            name: u.name || u.email?.split("@")[0] || "",
+            email: u.email || "",
+          })));
+        }
+      } catch (error) {
+        console.error("Error fetching users for name resolution:", error);
+      }
+    }
+    fetchUsers();
+  }, [supabase]);
+
+  const getAssignedStaffDisplayName = (staffIdentifier?: string) => {
+    if (!staffIdentifier) return "—";
+    const normalizedIdentifier = staffIdentifier.toLowerCase();
+    const matchedUser = allUsers.find(
+      (staff) =>
+        staff.id === staffIdentifier ||
+        staff.email.toLowerCase() === normalizedIdentifier,
+    );
+    return matchedUser?.name || staffIdentifier;
+  };
+
   useEffect(() => {
     async function fetchResident() {
       if (!id || !supabase) return;
@@ -398,7 +434,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
         appointment.title,
         appointment.description || "",
         appointment.location || "",
-        appointment.staff_id || "",
+        getAssignedStaffDisplayName(appointment.staff_id) || "",
         appointment.status
       ]);
 
@@ -738,7 +774,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
                                   <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
                                     <User className="w-3 h-3 text-blue-600" />
                                   </div>
-                                  <span className="text-xs text-gray-700 font-medium">{appointment.staffId}</span>
+                                  <span className="text-xs text-gray-700 font-medium">{getAssignedStaffDisplayName(appointment.staffId)}</span>
                                 </div>
                               ) : (
                                 <span className="text-gray-400 text-xs">—</span>
@@ -898,7 +934,7 @@ export default function AppointmentsDocumentsPage({ params }: AppointmentsDocume
                       {selectedAppointment.staffId ? (
                         <div className="flex items-center space-x-2">
                           <User className="w-4 h-4 text-gray-400" />
-                          <p className="font-medium">{selectedAppointment.staffId}</p>
+                          <p className="font-medium">{getAssignedStaffDisplayName(selectedAppointment.staffId)}</p>
                         </div>
                       ) : (
                         <p className="text-gray-400">No staff assigned</p>

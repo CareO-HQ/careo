@@ -190,7 +190,7 @@ const AllergiesCell = ({ residentId }: { residentId: string }) => {
   }
 
   if (!dietInfo?.allergies || dietInfo.allergies.length === 0) {
-    return <Badge variant="outline">No allergies</Badge>;
+    return <Badge variant="outline">No known allergies</Badge>;
   }
 
   const allergies = dietInfo.allergies;
@@ -576,16 +576,16 @@ const NotificationsCell = ({
       if (!shouldShowAlertForRole(alert, userRole)) {
         return false;
       }
-        if (
-          !canDismissAlert(
-            alert,
-            residentPhotoUpdatedAt,
-            latestBowelEntry?.created_at,
-            foodFluidCompliant,
-            latestUrineEntry?.created_at,
-            carePlanEvalLatest
-          )
-        ) {
+      if (
+        !canDismissAlert(
+          alert,
+          residentPhotoUpdatedAt,
+          latestBowelEntry?.created_at,
+          foodFluidCompliant,
+          latestUrineEntry?.created_at,
+          carePlanEvalLatest
+        )
+      ) {
         return true;
       }
       return !dismissedAlertIds.has(alert.id);

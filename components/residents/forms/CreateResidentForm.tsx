@@ -1,10 +1,10 @@
 "use client";
 
-import { CreateResidentSchema } from "@/schemas/CreateResidentSchema";
+import { CreateResidentSchema, EditResidentSchema } from "@/schemas/CreateResidentSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
-import { ChevronDownIcon, PlusIcon, Trash2Icon, User2Icon } from "lucide-react";
+import { ChevronDownIcon, PlusIcon, Trash2Icon, User2Icon, X } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -39,7 +39,7 @@ import ImageSelector from "@/components/onboarding/profile/ImageSelector";
 import { Calendar } from "@/components/ui/calendar";
 
 interface CreateResidentFormProps {
-  onSubmit?: (values: z.infer<typeof CreateResidentSchema>) => void;
+  onSubmit?: (values: any) => void;
   onCancel?: () => void;
   onSuccess?: () => void;
   editMode?: boolean;
@@ -65,7 +65,7 @@ export function CreateResidentForm({
 
   const isLoading = isSubmitting || isProfileLoading || isSupabaseLoading;
 
-  type FormType = z.infer<typeof CreateResidentSchema>;
+  type FormType = z.infer<typeof CreateResidentSchema> | z.infer<typeof EditResidentSchema>;
 
   // Function to get default values based on edit mode
   const getDefaultValues = useCallback(() => {
@@ -151,7 +151,7 @@ export function CreateResidentForm({
   }, [editMode, residentData]);
 
   const form = useForm<FormType>({
-    resolver: zodResolver(CreateResidentSchema) as any,
+    resolver: zodResolver(editMode ? EditResidentSchema : CreateResidentSchema) as any,
     mode: "onChange",
     defaultValues: getDefaultValues(),
   });
@@ -287,28 +287,33 @@ export function CreateResidentForm({
 
       const residentPayload = {
         first_name: values.firstName,
-        middle_name: values.middleName,
+        middle_name: values.middleName || null,
         last_name: values.lastName,
         date_of_birth: values.dateOfBirth,
-        phone_number: values.phoneNumber,
-        room_number: values.roomNumber,
-        admission_date: values.admissionDate,
-        team_id: values.teamId,
-        nhs_health_number: values.nhsHealthNumber,
+        phone_number: values.phoneNumber || null,
+        room_number: values.roomNumber || null,
+        admission_date: values.admissionDate || null,
+        team_id: (values.teamId && values.teamId !== "none") ? values.teamId : null,
+        nhs_health_number: values.nhsHealthNumber || null,
         image_url: imageUrl,
         ...(didUploadNewPhoto ? { photo_updated_at: new Date().toISOString() } : {}),
         // GP Details
-        gp_name: values.gpDetails?.name,
-        gp_address: values.gpDetails?.address,
-        gp_phone: values.gpDetails?.phoneNumber,
+        gp_name: values.gpDetails?.name || null,
+        gp_address: values.gpDetails?.address || null,
+        gp_phone: values.gpDetails?.phoneNumber || null,
         // Care Manager Details
-        care_manager_name: values.careManagerDetails?.name,
-        care_manager_address: values.careManagerDetails?.address,
-        care_manager_phone: values.careManagerDetails?.phoneNumber,
+        care_manager_name: values.careManagerDetails?.name || null,
+        care_manager_address: values.careManagerDetails?.address || null,
+        care_manager_phone: values.careManagerDetails?.phoneNumber || null,
         // Health, risks and dependencies
         health_conditions: values.healthConditions?.map((hc) => hc.condition) || [],
         risks: values.risks || [],
-        dependencies: values.dependencies,
+        dependencies: values.dependencies ? {
+          mobility: (values.dependencies.mobility && values.dependencies.mobility !== "none") ? values.dependencies.mobility : null,
+          eating: (values.dependencies.eating && values.dependencies.eating !== "none") ? values.dependencies.eating : null,
+          dressing: (values.dependencies.dressing && values.dependencies.dressing !== "none") ? values.dependencies.dressing : null,
+          toileting: (values.dependencies.toileting && values.dependencies.toileting !== "none") ? values.dependencies.toileting : null,
+        } : null,
         organization_id: profile.active_organization_id,
         care_home_id: profile.active_care_home_id,
         created_by: user.id,
@@ -585,7 +590,7 @@ export function CreateResidentForm({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField control={form.control} name="roomNumber" render={({ field }) => (
                 <FormItem>
-                  <FormLabel required>Room Number</FormLabel>
+                  <FormLabel required={!editMode}>Room Number</FormLabel>
                   <FormControl>
                     <Input placeholder="101A" disabled={isLoading} {...field} />
                   </FormControl>
@@ -594,7 +599,7 @@ export function CreateResidentForm({
               )} />
               <FormField control={form.control} name="teamId" render={({ field }) => (
                 <FormItem>
-                  <FormLabel required>Team/Unit</FormLabel>
+                  <FormLabel required={!editMode}>Team/Unit</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger className="w-full">
@@ -602,6 +607,7 @@ export function CreateResidentForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      {editMode && <SelectItem value="none">None / Not Specified</SelectItem>}
                       {teams.length ? teams.map(team => (
                         <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
                       )) : <div className="px-2 py-1.5 text-sm text-muted-foreground">No teams available</div>}
@@ -615,7 +621,7 @@ export function CreateResidentForm({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField control={form.control} name="nhsHealthNumber" render={({ field }) => (
                 <FormItem>
-                  <FormLabel required>NHS Health & Care Number</FormLabel>
+                  <FormLabel required={!editMode}>NHS Health & Care Number</FormLabel>
                   <FormControl>
                     <Input placeholder="A345657" disabled={isLoading} {...field} />
                   </FormControl>
@@ -624,37 +630,51 @@ export function CreateResidentForm({
               )} />
               <FormField control={form.control} name="admissionDate" render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel required>Admission Date</FormLabel>
-                  <Popover open={admissionDatePopoverOpen} onOpenChange={setAdmissionDatePopoverOpen} modal>
-                    <PopoverTrigger asChild>
+                  <FormLabel required={!editMode}>Admission Date</FormLabel>
+                  <div className="flex items-center gap-2">
+                    <Popover open={admissionDatePopoverOpen} onOpenChange={setAdmissionDatePopoverOpen} modal>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-between font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          disabled={isLoading}
+                        >
+                          {field.value
+                            ? new Date(field.value).toLocaleDateString()
+                            : "Select date"}
+                          <ChevronDownIcon />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ? new Date(field.value) : undefined}
+                          captionLayout="dropdown"
+                          onSelect={(date) => {
+                            if (date) {
+                              field.onChange(date.toISOString().split("T")[0]);
+                              setAdmissionDatePopoverOpen(false);
+                            }
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    {editMode && field.value && (
                       <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-between font-normal",
-                          !field.value && "text-muted-foreground"
-                        )}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => field.onChange("")}
+                        className="h-9 w-9 p-0 flex-shrink-0"
                         disabled={isLoading}
                       >
-                        {field.value
-                          ? new Date(field.value).toLocaleDateString()
-                          : "Select date"}
-                        <ChevronDownIcon />
+                        <X className="h-4 w-4 text-muted-foreground" />
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value ? new Date(field.value) : undefined}
-                        captionLayout="dropdown"
-                        onSelect={(date) => {
-                          if (date) {
-                            field.onChange(date.toISOString().split("T")[0]);
-                            setAdmissionDatePopoverOpen(false);
-                          }
-                        }}
-                      />
-                    </PopoverContent>
-                  </Popover>
+                    )}
+                  </div>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -911,7 +931,7 @@ export function CreateResidentForm({
                   name="dependencies.mobility"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel required>Mobility</FormLabel>
+                      <FormLabel required={!editMode}>Mobility</FormLabel>
                       <FormControl>
                         <Select
                           onValueChange={field.onChange}
@@ -922,6 +942,7 @@ export function CreateResidentForm({
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
+                            {editMode && <SelectItem value="none">None / Not Specified</SelectItem>}
                             <SelectItem value="Independent">
                               Independent
                             </SelectItem>
@@ -951,7 +972,7 @@ export function CreateResidentForm({
                   name="dependencies.eating"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel required>Eating</FormLabel>
+                      <FormLabel required={!editMode}>Eating</FormLabel>
                       <FormControl>
                         <Select
                           onValueChange={field.onChange}
@@ -962,6 +983,7 @@ export function CreateResidentForm({
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
+                            {editMode && <SelectItem value="none">None / Not Specified</SelectItem>}
                             <SelectItem value="Independent">
                               Independent
                             </SelectItem>
@@ -991,7 +1013,7 @@ export function CreateResidentForm({
                   name="dependencies.dressing"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel required>Dressing</FormLabel>
+                      <FormLabel required={!editMode}>Dressing</FormLabel>
                       <FormControl>
                         <Select
                           onValueChange={field.onChange}
@@ -1002,6 +1024,7 @@ export function CreateResidentForm({
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
+                            {editMode && <SelectItem value="none">None / Not Specified</SelectItem>}
                             <SelectItem value="Independent">
                               Independent
                             </SelectItem>
@@ -1031,7 +1054,7 @@ export function CreateResidentForm({
                   name="dependencies.toileting"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel required>Toileting</FormLabel>
+                      <FormLabel required={!editMode}>Toileting</FormLabel>
                       <FormControl>
                         <Select
                           onValueChange={field.onChange}
@@ -1042,6 +1065,7 @@ export function CreateResidentForm({
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
+                            {editMode && <SelectItem value="none">None / Not Specified</SelectItem>}
                             <SelectItem value="Independent">
                               Independent
                             </SelectItem>

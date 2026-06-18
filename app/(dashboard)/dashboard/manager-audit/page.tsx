@@ -386,6 +386,18 @@ function ManagerAuditPage() {
   const [activeTab, setActiveTab] = useState<string>("clinical");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    const cachedTab = sessionStorage.getItem("manager-audit-active-tab");
+    if (cachedTab) {
+      setActiveTab(cachedTab);
+    }
+  }, []);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    sessionStorage.setItem("manager-audit-active-tab", value);
+  };
+
   const handleCsvUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -710,6 +722,7 @@ function ManagerAuditPage() {
     // Close dialog and navigate
     setIsNewAuditDialogOpen(false);
     toast.success("Audit created successfully");
+    sessionStorage.setItem("manager-audit-active-tab", newAuditCategory);
     router.push(`/dashboard/manager-audit/${newAuditId}`);
   };
 
@@ -924,7 +937,7 @@ function ManagerAuditPage() {
         </>
       }
     >
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList>
           <TabsTrigger value="clinical">Clinical Audits</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
