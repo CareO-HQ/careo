@@ -2828,6 +2828,18 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
           savedResidents = [];
         }
 
+        // Data migration for staff-based audits (e.g. audit 7): if they previously saved residents instead of staff, wipe them so it reloads staff members
+        if (isStaffBased && savedResidents.length > 0) {
+          const savedIds = savedResidents.map((r: any) => r._id);
+          const { data: matchingResidents } = await supabase
+            .from('residents')
+            .select('id')
+            .in('id', savedIds);
+          if (matchingResidents && matchingResidents.length > 0) {
+            savedResidents = [];
+          }
+        }
+
         if (savedResidents.length > 0) {
           setSelectedResidents(savedResidents);
         } else {
