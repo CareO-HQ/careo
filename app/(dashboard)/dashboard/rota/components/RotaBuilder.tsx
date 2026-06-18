@@ -60,6 +60,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
   const [templates, setTemplates] = useState<Template[]>([]);
   const [rotaShifts, setRotaShifts] = useState<RotaShift[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [staffingRequirements, setStaffingRequirements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Dialog Add Shift state
@@ -67,6 +68,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedStaffId, setSelectedStaffId] = useState("unassigned");
+  const [selectedRole, setSelectedRole] = useState<"nurse" | "care_assistant" | "all">("all");
 
   const formattedWeekStart = format(currentWeekStart, "yyyy-MM-dd");
   const formattedWeekEnd = format(addDays(currentWeekStart, 6), "yyyy-MM-dd");
@@ -91,12 +93,21 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
         .eq("team_id", profile.active_team_id);
       setTemplates(tData || []);
 
+      // 1.5. Fetch staffing requirements
+      const { data: reqData } = await supabase
+        .from("shift_staffing_requirements")
+        .select("shift_template_id, nurses_required, care_assistants_required")
+        .eq("team_id", profile.active_team_id);
+      setStaffingRequirements(reqData || []);
+
       // 2. Fetch staff list
       const { data: sData } = await supabase
         .from("users")
         .select("id, name, role, contracted_weekly_hours")
         .eq("active_team_id", profile.active_team_id);
-      setStaff(sData || []);
+      // Filter out Manager and Owner roles from staff list
+      const filteredStaff = (sData || []).filter(u => u.role !== "owner" && u.role !== "manager");
+      setStaff(filteredStaff);
 
       // 3. Fetch rota
       const { data: rData } = await supabase
@@ -134,6 +145,30 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Lookup map for staffing requirements
+  const requirementsMap = React.useMemo(() => {
+    const map: Record<string, { nurses_required: number; care_assistants_required: number }> = {};
+    staffingRequirements.forEach(req => {
+      map[req.shift_template_id] = {
+        nurses_required: req.nurses_required,
+        care_assistants_required: req.care_assistants_required
+      };
+    });
+    return map;
+  }, [staffingRequirements]);
+
+  // Helper to match member roles in assignment
+  const isRoleMatch = useCallback((memberRole: string | null, targetRole: "nurse" | "care_assistant" | "all") => {
+    if (targetRole === "all") return true;
+    if (targetRole === "nurse") {
+      return memberRole === "nurse" || memberRole === "agency_nurse";
+    }
+    if (targetRole === "care_assistant") {
+      return memberRole === "care_assistant" || memberRole === "agency_care_assistant";
+    }
+    return false;
+  }, []);
 
   // Navigate Weeks
   const prevWeek = () => {
@@ -195,7 +230,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     }
   };
 
-  const handleOpenAddShift = (dateStr: string, templateId: string) => {
+  const handleOpenAddShift = (dateStr: string, templateId: string, role: "nurse" | "care_assistant" | "all" = "all") => {
     if (!isPowerUser) return;
     if (rotaStatus === "published") {
       toast.error("Cannot add shifts to a published rota.");
@@ -204,6 +239,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     setSelectedDate(dateStr);
     setSelectedTemplateId(templateId);
     setSelectedStaffId("unassigned");
+    setSelectedRole(role);
     setAddDialogOpen(true);
   };
 
@@ -384,39 +420,171 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                   </td>
                   
                   {datesOfWeek.map(day => {
-                    const shifts = rotaShifts.filter(
+                    const cellShifts = rotaShifts.filter(
                       s => s.shift_template_id === template.id && s.date === day.dateStr
                     );
+
+                    const req = requirementsMap[template.id] || { nurses_required: 1, care_assistants_required: 3 };
+
+                    // 1. Separate shifts by role
+                    const nurseShifts = cellShifts.filter(s => s.user?.role === "nurse" || s.user?.role === "agency_nurse");
+                    const caShifts = cellShifts.filter(s => s.user?.role === "care_assistant" || s.user?.role === "agency_care_assistant");
+                    const unassignedShifts = cellShifts.filter(s => !s.user_id);
+                    const otherShifts = cellShifts.filter(
+                      s => s.user_id &&
+                           s.user?.role !== "nurse" &&
+                           s.user?.role !== "agency_nurse" &&
+                           s.user?.role !== "care_assistant" &&
+                           s.user?.role !== "agency_care_assistant"
+                    );
+
+                    const nurseSlots: { role: "nurse"; shift: RotaShift | null }[] = [];
+                    const caSlots: { role: "care_assistant"; shift: RotaShift | null }[] = [];
+
+                    let nurseShiftIdx = 0;
+                    let unassignedShiftIdx = 0;
+
+                    for (let i = 0; i < req.nurses_required; i++) {
+                      if (nurseShiftIdx < nurseShifts.length) {
+                        nurseSlots.push({ role: "nurse", shift: nurseShifts[nurseShiftIdx++] });
+                      } else if (unassignedShiftIdx < unassignedShifts.length) {
+                        nurseSlots.push({ role: "nurse", shift: unassignedShifts[unassignedShiftIdx++] });
+                      } else {
+                        nurseSlots.push({ role: "nurse", shift: null });
+                      }
+                    }
+
+                    let caShiftIdx = 0;
+                    for (let i = 0; i < req.care_assistants_required; i++) {
+                      if (caShiftIdx < caShifts.length) {
+                        caSlots.push({ role: "care_assistant", shift: caShifts[caShiftIdx++] });
+                      } else if (unassignedShiftIdx < unassignedShifts.length) {
+                        caSlots.push({ role: "care_assistant", shift: unassignedShifts[unassignedShiftIdx++] });
+                      } else {
+                        caSlots.push({ role: "care_assistant", shift: null });
+                      }
+                    }
+
+                    const extraSlots: { role: "nurse" | "care_assistant" | "other"; shift: RotaShift }[] = [];
+                    while (nurseShiftIdx < nurseShifts.length) {
+                      extraSlots.push({ role: "nurse", shift: nurseShifts[nurseShiftIdx++] });
+                    }
+                    while (caShiftIdx < caShifts.length) {
+                      extraSlots.push({ role: "care_assistant", shift: caShifts[caShiftIdx++] });
+                    }
+                    while (unassignedShiftIdx < unassignedShifts.length) {
+                      extraSlots.push({ role: "other", shift: unassignedShifts[unassignedShiftIdx++] });
+                    }
+                    otherShifts.forEach(s => {
+                      extraSlots.push({ role: "other", shift: s });
+                    });
+
+                    const allSlots = [...nurseSlots, ...caSlots, ...extraSlots];
 
                     return (
                       <td key={day.dateStr} className="p-2 border-r align-top text-center min-h-[80px]">
                         <div className="space-y-1.5">
-                          {shifts.map(shift => (
-                            <div key={shift.id} className="flex items-center justify-between gap-1 p-1 bg-primary/10 border rounded text-xs">
-                              <span className="font-medium truncate">
-                                {shift.user?.name || "Unassigned"} ({shift.user?.role === "nurse" ? "RN" : "CA"})
-                              </span>
-                              {isPowerUser && rotaStatus !== "published" && (
-                                <button
-                                  onClick={() => handleDeleteShift(shift.id)}
-                                  className="text-red-500 hover:text-red-700 flex-shrink-0"
-                                >
-                                  <Trash className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                          {allSlots.map((slot, idx) => {
+                            if (slot.shift) {
+                               const isNurse = slot.role === "nurse" || slot.shift?.user?.role === "nurse" || slot.shift?.user?.role === "agency_nurse";
+                               const roleBadge = isNurse ? "RN" : "CA";
+                               const isUnassigned = !slot.shift?.user_id;
+                               const staffMember = slot.shift?.user_id ? staff.find(s => s.id === slot.shift?.user_id) : null;
+                               const worked = slot.shift?.user_id ? getStaffWeeklyHours(slot.shift?.user_id) : 0;
+                               const contracted = staffMember ? staffMember.contracted_weekly_hours : 0;
 
-                          {isPowerUser && rotaStatus !== "published" && (
-                            <Button
-                              variant="ghost"
-                              onClick={() => handleOpenAddShift(day.dateStr, template.id)}
-                              className="w-full h-7 border border-dashed rounded text-muted-foreground text-xs p-0 flex items-center justify-center hover:bg-muted"
-                            >
-                              <Plus className="w-3.5 h-3.5 mr-1" />
-                              Assign
-                            </Button>
-                          )}
+                              return (
+                                <div
+                                  key={slot.shift?.id}
+                                  className={`flex items-center justify-between gap-1.5 p-1 border rounded text-xs transition-colors bg-white ${
+                                    isNurse
+                                      ? "border-indigo-200 text-indigo-900"
+                                      : "border-teal-200 text-teal-900"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span
+                                      className={`px-1 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                        isNurse
+                                          ? "bg-indigo-200 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300"
+                                          : "bg-teal-200 text-teal-800 dark:bg-teal-900 dark:text-teal-300"
+                                      }`}
+                                    >
+                                      {roleBadge}
+                                    </span>
+                                    <span className={`font-medium truncate ${isUnassigned ? "italic text-muted-foreground" : ""}`}>
+                                      {slot.shift.user?.name || "Unassigned"}
+                                      {staffMember && ` (${worked}/${contracted}h)`}
+                                    </span>
+                                  </div>
+                                  {isPowerUser && rotaStatus !== "published" && (
+                                    <button
+                                      onClick={() => handleDeleteShift(slot.shift!.id)}
+                                      className="text-red-500 hover:text-red-700 flex-shrink-0 p-0.5 hover:bg-muted rounded transition"
+                                    >
+                                      <Trash className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            } else {
+                              // Render placeholder
+                              const isNurse = slot.role === "nurse";
+
+                              if (isPowerUser && rotaStatus !== "published") {
+                                return (
+                                  <Button
+                                    key={`empty-${slot.role}-${idx}`}
+                                    variant="ghost"
+                                    onClick={() => handleOpenAddShift(day.dateStr, template.id, slot.role === "nurse" ? "nurse" : "care_assistant")}
+                                    className={`w-full h-8 border border-dashed text-xs p-1 flex items-center justify-between rounded group transition-all ${
+                                      isNurse
+                                        ? "border-indigo-200 hover:border-indigo-400 bg-indigo-50/20 hover:bg-indigo-50/50 text-indigo-600 dark:border-indigo-900/40 dark:hover:border-indigo-700 dark:bg-indigo-950/10 dark:text-indigo-400"
+                                        : "border-teal-200 hover:border-teal-400 bg-teal-50/20 hover:bg-teal-50/50 text-teal-600 dark:border-teal-900/40 dark:hover:border-teal-700 dark:bg-teal-950/10 dark:text-teal-400"
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-1.5">
+                                      <span
+                                        className={`px-1 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                          isNurse
+                                            ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300"
+                                            : "bg-teal-100 text-teal-700 dark:bg-teal-900/60 dark:text-teal-300"
+                                        }`}
+                                      >
+                                        {isNurse ? "RN" : "CA"}
+                                      </span>
+                                      <span className="text-muted-foreground group-hover:text-foreground">Assign</span>
+                                    </span>
+                                    <Plus className="w-3 h-3 opacity-60 group-hover:opacity-100" />
+                                  </Button>
+                                );
+                              } else {
+                                return (
+                                  <div
+                                    key={`empty-${slot.role}-${idx}`}
+                                    className={`w-full h-8 border border-dashed text-xs p-1 flex items-center justify-between rounded ${
+                                      isNurse
+                                        ? "border-indigo-100 bg-indigo-50/10 text-indigo-400 dark:border-indigo-950 dark:bg-indigo-950/5"
+                                        : "border-teal-100 bg-teal-50/10 text-teal-400 dark:border-teal-950 dark:bg-teal-950/5"
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-1.5">
+                                      <span
+                                        className={`px-1 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                          isNurse
+                                            ? "bg-indigo-50 text-indigo-400 dark:bg-indigo-950/40 dark:text-indigo-500"
+                                            : "bg-teal-50 text-teal-400 dark:bg-teal-950/40 dark:text-teal-500"
+                                        }`}
+                                      >
+                                        {isNurse ? "RN" : "CA"}
+                                      </span>
+                                      <span className="text-muted-foreground">Empty Slot</span>
+                                    </span>
+                                  </div>
+                                );
+                              }
+                            }
+                          })}
                         </div>
                       </td>
                     );
@@ -433,38 +601,58 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
         <Card>
           <CardContent className="pt-6 space-y-4">
             <h3 className="font-bold text-lg">Staff Resources</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {staff.map(sMember => {
-                const assigned = getStaffWeeklyHours(sMember.id);
-                const contracted = sMember.contracted_weekly_hours;
-                const status = getHoursConflict(sMember);
+            <div className="overflow-x-auto border rounded-xl">
+              <table className="w-full border-collapse bg-card text-sm text-left">
+                <thead>
+                  <tr className="bg-muted/50 border-b">
+                    <th className="p-3 font-semibold">Staff Member</th>
+                    <th className="p-3 font-semibold">Role</th>
+                    <th className="p-3 font-semibold text-center">Assigned / Contracted Hours</th>
+                    <th className="p-3 font-semibold text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {staff.map(sMember => {
+                    const assigned = getStaffWeeklyHours(sMember.id);
+                    const contracted = sMember.contracted_weekly_hours;
+                    const status = getHoursConflict(sMember);
 
-                let badgeColor = "bg-green-100 text-green-800 border-green-300";
-                let statusLabel = "Within Contract";
+                    let badgeColor = "text-green-800 border-green-300 dark:text-green-300 dark:border-green-900/50";
+                    let statusLabel = "Within Contract";
 
-                if (status === "overtime") {
-                  badgeColor = "bg-amber-100 text-amber-800 border-amber-300";
-                  statusLabel = "Overtime - Warning";
-                } else if (status === "undertime") {
-                  badgeColor = "bg-blue-100 text-blue-800 border-blue-300";
-                  statusLabel = "Under Contract - Review";
-                }
+                    if (status === "overtime") {
+                      badgeColor = "text-amber-800 border-amber-300 dark:text-amber-300 dark:border-amber-900/50";
+                      statusLabel = "Overtime - Warning";
+                    } else if (status === "undertime") {
+                      badgeColor = "text-blue-800 border-blue-300 dark:text-blue-300 dark:border-blue-900/50";
+                      statusLabel = "Under Contract - Review";
+                    }
 
-                return (
-                  <div key={sMember.id} className="p-3 border rounded-lg bg-card flex flex-col justify-between">
-                    <div>
-                      <div className="font-semibold text-sm truncate">{sMember.name}</div>
-                      <div className="text-xs text-muted-foreground uppercase">{sMember.role === "nurse" ? "Registered Nurse" : "Care Assistant"}</div>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-xs font-mono">{assigned} / {contracted} hrs</span>
-                      <Badge variant="outline" className={`${badgeColor} text-[10px] px-1`}>
-                        {statusLabel}
-                      </Badge>
-                    </div>
-                  </div>
-                );
-              })}
+                    return (
+                      <tr key={sMember.id} className="border-b last:border-0 hover:bg-muted/10">
+                        <td className="p-3 font-medium">{sMember.name}</td>
+                        <td className="p-3 text-muted-foreground uppercase text-xs">
+                          {sMember.role === "nurse"
+                            ? "Registered Nurse"
+                            : sMember.role === "agency_nurse"
+                            ? "Agency Nurse"
+                            : sMember.role === "agency_care_assistant"
+                            ? "Agency Care Assistant"
+                            : "Care Assistant"}
+                        </td>
+                        <td className="p-3 text-center font-mono text-xs">
+                          {assigned} / {contracted} hrs
+                        </td>
+                        <td className="p-3 text-right">
+                          <Badge variant="outline" className={`${badgeColor} text-[10px] px-2 py-0.5`}>
+                            {statusLabel}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
 
             {/* Bottom Total Metrics */}
@@ -504,11 +692,19 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unassigned">Leave Unassigned</SelectItem>
-                  {staff.map(member => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.name} ({member.role === "nurse" ? "RN" : "CA"}) - {getStaffWeeklyHours(member.id)} hrs assigned
-                    </SelectItem>
-                  ))}
+                  {staff
+                    .filter(member => isRoleMatch(member.role, selectedRole))
+                    .map(member => {
+                      const template = templates.find(t => t.id === selectedTemplateId);
+                      const shiftHours = template ? Number(template.hours) : 0;
+                      const currentHrs = getStaffWeeklyHours(member.id);
+                      const totalHrs = currentHrs + shiftHours;
+                      return (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.name} ({member.role === "nurse" || member.role === "agency_nurse" ? "RN" : "CA"}) - {totalHrs} / {member.contracted_weekly_hours} hrs
+                        </SelectItem>
+                      );
+                    })}
                 </SelectContent>
               </Select>
             </div>

@@ -542,6 +542,8 @@ export async function requestLeaveAction(actorId: string, leaveData: {
   endDate: string;
   type: "annual_leave" | "sick_leave" | "training";
   notes?: string;
+  startTime?: string;
+  endTime?: string;
 }) {
   try {
     const supabase = getSupabaseClient();
@@ -569,6 +571,8 @@ export async function requestLeaveAction(actorId: string, leaveData: {
         team_id: leaveData.teamId,
         start_date: leaveData.startDate,
         end_date: leaveData.endDate,
+        start_time: leaveData.startTime || null,
+        end_time: leaveData.endTime || null,
         type: leaveData.type,
         notes: leaveData.notes,
         status: "pending"
@@ -591,6 +595,94 @@ export async function requestLeaveAction(actorId: string, leaveData: {
     return { success: false, error: error.message };
   }
 }
+
+export async function assignLeaveAction(actorId: string, leaveData: {
+  userId: string;
+  teamId: string;
+  startDate: string;
+  endDate: string;
+  startTime?: string;
+  endTime?: string;
+  type: "annual_leave" | "sick_leave" | "training";
+  notes?: string;
+}) {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Verify actor role is manager/owner/saas_admin
+    const { data: actor } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", actorId)
+      .single();
+
+    if (actor?.role !== "manager" && actor?.role !== "owner" && actor?.role !== "saas_admin") {
+      throw new Error("Only Managers can assign leaves to staff.");
+    }
+
+    // Submit approved request directly
+    const { data: request, error } = await supabase
+      .from("leave_requests")
+      .insert({
+        user_id: leaveData.userId,
+        team_id: leaveData.teamId,
+        start_date: leaveData.startDate,
+        end_date: leaveData.endDate,
+        start_time: leaveData.startTime || null,
+        end_time: leaveData.endTime || null,
+        type: leaveData.type,
+        notes: leaveData.notes,
+        status: "approved",
+        approved_by: actorId,
+        approved_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Deduct from annual leave balance if type is annual_leave
+    if (leaveData.type === "annual_leave") {
+      const days = Math.round((new Date(leaveData.endDate).getTime() - new Date(leaveData.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      
+      const { data: targetUser } = await supabase
+        .from("users")
+        .select("annual_leave_balance")
+        .eq("id", leaveData.userId)
+        .single();
+        
+      const currentBalance = Number(targetUser?.annual_leave_balance || 0);
+      const newBalance = Math.max(0, currentBalance - days);
+
+      await supabase
+        .from("users")
+        .update({ annual_leave_balance: newBalance })
+        .eq("id", leaveData.userId);
+    }
+
+    await logRotaAudit({
+      actorId,
+      actionType: "leave_approved",
+      teamId: leaveData.teamId,
+      details: { leave_id: request.id, target_user_id: leaveData.userId }
+    });
+
+    // Notify user
+    await supabase.from("notifications").insert({
+      team_id: leaveData.teamId,
+      user_id: leaveData.userId,
+      type: "leave_status_update",
+      message: `Your manager has assigned you ${leaveData.type.replace("_", " ")} from ${leaveData.startDate} to ${leaveData.endDate} (Status: Approved).`,
+      created_at: new Date().toISOString()
+    });
+
+    revalidatePath("/dashboard/rota");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 
 export async function approveLeaveAction(actorId: string, leaveId: string, approve: boolean, rejectionReason?: string) {
   try {

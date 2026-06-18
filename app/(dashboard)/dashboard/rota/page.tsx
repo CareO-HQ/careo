@@ -33,7 +33,7 @@ export default function RotaDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Workforce & Rota</h1>
-          <p className="text-muted-foreground">Manage shifts, leave requests, shift templates, and view hours analytics.</p>
+          <p className="text-muted-foreground">Manage shifts, leave management, shift templates, and view hours analytics.</p>
         </div>
       </div>
 
@@ -42,7 +42,7 @@ export default function RotaDashboard() {
           <TabsTrigger value="calendar">Rota Builder</TabsTrigger>
           {isPowerUser && <TabsTrigger value="templates">Shift Templates</TabsTrigger>}
           {isPowerUser && <TabsTrigger value="rules">Staffing Requirements</TabsTrigger>}
-          <TabsTrigger value="leave">Leave Requests</TabsTrigger>
+          <TabsTrigger value="leave">Leave Management</TabsTrigger>
           <TabsTrigger value="swaps">Shift Swaps</TabsTrigger>
           {isPowerUser && <TabsTrigger value="audit">Audit Trail</TabsTrigger>}
         </TabsList>
