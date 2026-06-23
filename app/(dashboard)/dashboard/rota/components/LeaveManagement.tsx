@@ -100,12 +100,24 @@ export default function LeaveManagement({ profile, isPowerUser }: { profile: any
   const fetchStaff = async () => {
     if (!profile?.active_team_id) return;
     try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("id, name, role")
-        .eq("active_team_id", profile.active_team_id);
-      if (error) throw error;
-      setStaff((data || []).filter((u: any) => u.role !== "owner" && u.role !== "manager"));
+      const { data: tsRows, error: tsError } = await supabase
+        .from("team_staff")
+        .select("user_id")
+        .eq("team_id", profile.active_team_id);
+      if (tsError) throw tsError;
+
+      const staffIds = tsRows?.map(r => r.user_id) || [];
+      let teamStaffList: any[] = [];
+
+      if (staffIds.length > 0) {
+        const { data, error } = await supabase
+          .from("users")
+          .select("id, name, role")
+          .in("id", staffIds);
+        if (error) throw error;
+        teamStaffList = data || [];
+      }
+      setStaff(teamStaffList.filter((u: any) => u.role !== "owner" && u.role !== "manager"));
     } catch (err: any) {
       console.error("Failed to load staff list:", err.message);
     }

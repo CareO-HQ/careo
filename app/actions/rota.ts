@@ -320,6 +320,8 @@ export async function addManualShiftAction(actorId: string, shiftData: {
   break_minutes: number;
   hours: number;
   notes?: string;
+  customStaffName?: string | null;
+  slotRole?: "nurse" | "care_assistant" | null;
 }) {
   try {
     const supabase = getSupabaseClient();
@@ -384,7 +386,9 @@ export async function addManualShiftAction(actorId: string, shiftData: {
         end_time: shiftData.end_time,
         break_minutes: shiftData.break_minutes,
         hours: shiftData.hours,
-        notes: shiftData.notes
+        notes: shiftData.notes,
+        custom_staff_name: shiftData.customStaffName || null,
+        slot_role: shiftData.slotRole || null
       })
       .select()
       .single();
@@ -395,7 +399,13 @@ export async function addManualShiftAction(actorId: string, shiftData: {
       actorId,
       actionType: "shift_added",
       teamId: rota.team_id,
-      details: { shift_id: newShift.id, date: shiftData.date, user_id: shiftData.userId }
+      details: {
+        shift_id: newShift.id,
+        date: shiftData.date,
+        user_id: shiftData.userId,
+        shift_template_id: shiftData.shiftTemplateId,
+        custom_staff_name: shiftData.customStaffName || null
+      }
     });
 
     revalidatePath("/dashboard/rota");
@@ -428,9 +438,43 @@ export async function deleteManualShiftAction(actorId: string, shiftId: string) 
         actorId,
         actionType: "shift_removed",
         teamId: (shift.rotas as any).team_id,
-        details: { shift_id: shiftId, date: shift.date, user_id: shift.user_id }
+        details: { shift_id: shiftId, date: shift.date, user_id: shift.user_id, shift_template_id: shift.shift_template_id }
       });
     }
+
+    revalidatePath("/dashboard/rota");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function clearRotaShiftsAction(actorId: string, rotaId: string) {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Fetch rota info to verify existence and get team_id for audit
+    const { data: rota } = await supabase
+      .from("rotas")
+      .select("team_id")
+      .eq("id", rotaId)
+      .single();
+
+    if (!rota) throw new Error("Rota not found");
+
+    const { error } = await supabase
+      .from("rota_shifts")
+      .delete()
+      .eq("rota_id", rotaId);
+
+    if (error) throw error;
+
+    await logRotaAudit({
+      actorId,
+      actionType: "rota_edited",
+      teamId: rota.team_id,
+      details: { rota_id: rotaId, change: "cleared_all_shifts" }
+    });
 
     revalidatePath("/dashboard/rota");
     return { success: true };
@@ -458,11 +502,21 @@ export async function publishRotaAction(actorId: string, rotaId: string) {
       .select("*, shift_templates(name)")
       .eq("team_id", rota.team_id);
 
-    // Fetch shift template IDs and staff roles
-    const { data: staffList } = await supabase
-      .from("users")
-      .select("id, role")
-      .eq("active_team_id", rota.team_id);
+    // Fetch shift template IDs and staff roles via team_staff
+    const { data: tsRows } = await supabase
+      .from("team_staff")
+      .select("user_id")
+      .eq("team_id", rota.team_id);
+
+    const staffIds = tsRows?.map(r => r.user_id) || [];
+    let staffList: { id: string; role: string }[] = [];
+    if (staffIds.length > 0) {
+      const { data: sData } = await supabase
+        .from("users")
+        .select("id, role")
+        .in("id", staffIds);
+      staffList = sData || [];
+    }
 
     const rolesMap = new Map<string, string>();
     staffList?.forEach(s => rolesMap.set(s.id, s.role || "care_assistant"));
@@ -478,7 +532,14 @@ export async function publishRotaAction(actorId: string, rotaId: string) {
         const dateStr = currentDate.toISOString().split("T")[0];
         // Filter shifts assigned to this template on this date
         const shifts = rota.rota_shifts.filter(s => s.shift_template_id === req.shift_template_id && s.date === dateStr);
-        const assignedNurses = shifts.filter(s => s.user_id && rolesMap.get(s.user_id) === "nurse").length;
+        const assignedNurses = shifts.filter(s => {
+          // Real assigned user with a nurse role
+          if (s.user_id) {
+            return rolesMap.get(s.user_id) === "nurse" || rolesMap.get(s.user_id) === "agency_nurse";
+          }
+          // Custom-name staff explicitly filling a nurse slot
+          return !!s.custom_staff_name && s.slot_role === "nurse";
+        }).length;
 
         if (assignedNurses < neededNurses) {
           understaffedShifts.push(`${dateStr}: Shift template "${(req.shift_templates as any).name}" needs at least ${neededNurses} Nurse(s) but has ${assignedNurses}.`);
@@ -1023,3 +1084,358 @@ async function checkHoursRestConflict(
 
   return false;
 }
+
+// Helper to validate shift conflicts (overlap and leave)
+async function validateUserShiftAssignment(
+  supabase: any,
+  rotaId: string,
+  userId: string,
+  date: string,
+  startTime: string,
+  endTime: string,
+  excludeShiftId?: string
+): Promise<{ valid: boolean; error?: string }> {
+  // 1. Prevent overlapping shifts on the same day for this user
+  let query = supabase
+    .from("rota_shifts")
+    .select("id, date, start_time, end_time")
+    .eq("rota_id", rotaId)
+    .eq("user_id", userId)
+    .eq("date", date);
+
+  if (excludeShiftId) {
+    query = query.neq("id", excludeShiftId);
+  }
+
+  const { data: overlaps } = await query;
+
+  if (overlaps && overlaps.length > 0) {
+    const isOverlapping = overlaps.some((existing: any) => {
+      const s1 = existing.start_time;
+      const e1 = existing.end_time;
+      const s2 = startTime;
+      const e2 = endTime;
+      // Overlaps if s1 < e2 and s2 < e1
+      return s1 < e2 && s2 < e1;
+    });
+
+    if (isOverlapping) {
+      return { valid: false, error: "Overlap Conflict: This staff member is already assigned to an overlapping shift on this day." };
+    }
+  }
+
+  // 2. Annual/Sick Leave Conflicts check
+  const { data: leaveConflicts } = await supabase
+    .from("leave_requests")
+    .select("id, type")
+    .eq("user_id", userId)
+    .eq("status", "approved")
+    .lte("start_date", date)
+    .gte("end_date", date);
+
+  if (leaveConflicts && leaveConflicts.length > 0) {
+    return { valid: false, error: `Leave Conflict: This staff member is on approved ${leaveConflicts[0].type.replace("_", " ")} on this date.` };
+  }
+
+  return { valid: true };
+}
+
+// Server action to swap two occupied shifts or move a staff member to another slot
+export async function swapOrMoveShiftAction(
+  actorId: string,
+  sourceShiftId: string,
+  targetShiftId: string | null,
+  targetDate?: string,
+  targetTemplateId?: string
+) {
+  try {
+    const supabase = getSupabaseClient();
+
+    // 1. Fetch source shift
+    const { data: sourceShift, error: srcError } = await supabase
+      .from("rota_shifts")
+      .select("*, rotas(team_id, status)")
+      .eq("id", sourceShiftId)
+      .single();
+
+    if (srcError || !sourceShift) {
+      throw new Error("Source shift not found");
+    }
+
+    const teamId = (sourceShift.rotas as any).team_id;
+    const rotaStatus = (sourceShift.rotas as any).status;
+
+    if (rotaStatus === "published") {
+      throw new Error("Cannot modify a published rota");
+    }
+
+    const sourceUserId = sourceShift.user_id;
+    if (!sourceUserId) {
+      throw new Error("Source shift has no assigned staff");
+    }
+
+    // Fetch source user profile
+    const { data: sourceUser } = await supabase
+      .from("users")
+      .select("name, role")
+      .eq("id", sourceUserId)
+      .single();
+
+    if (!sourceUser) {
+      throw new Error("Source staff member not found");
+    }
+
+    // Fetch source shift template name
+    let sourceTemplateName = "Shift";
+    if (sourceShift.shift_template_id) {
+      const { data: temp } = await supabase
+        .from("shift_templates")
+        .select("name")
+        .eq("id", sourceShift.shift_template_id)
+        .single();
+      if (temp) sourceTemplateName = temp.name;
+    }
+
+    if (targetShiftId) {
+      // SCENARIO 1: Swap or move to an existing shift (assigned or unassigned)
+      const { data: targetShift, error: tgtError } = await supabase
+        .from("rota_shifts")
+        .select("*, rotas(team_id, status)")
+        .eq("id", targetShiftId)
+        .single();
+
+      if (tgtError || !targetShift) {
+        throw new Error("Target shift not found");
+      }
+
+      if (targetShift.id === sourceShift.id) {
+        return { success: true }; // Dragged onto itself
+      }
+
+      const targetUserId = targetShift.user_id;
+
+      // Fetch target template name
+      let targetTemplateName = "Shift";
+      if (targetShift.shift_template_id) {
+        const { data: temp } = await supabase
+          .from("shift_templates")
+          .select("name")
+          .eq("id", targetShift.shift_template_id)
+          .single();
+        if (temp) targetTemplateName = temp.name;
+      }
+
+      // Validate source user on target shift date and times
+      const srcValidation = await validateUserShiftAssignment(
+        supabase,
+        sourceShift.rota_id,
+        sourceUserId,
+        targetShift.date,
+        targetShift.start_time,
+        targetShift.end_time,
+        sourceShift.id // exclude source shift
+      );
+
+      if (!srcValidation.valid) {
+        return { success: false, error: srcValidation.error };
+      }
+
+      if (targetUserId) {
+        // Real swap: Validate target user on source shift date and times
+        const tgtValidation = await validateUserShiftAssignment(
+          supabase,
+          sourceShift.rota_id,
+          targetUserId,
+          sourceShift.date,
+          sourceShift.start_time,
+          sourceShift.end_time,
+          targetShift.id // exclude target shift
+        );
+
+        if (!tgtValidation.valid) {
+          return { success: false, error: tgtValidation.error };
+        }
+
+        // Apply swap
+        const { error: swapErr1 } = await supabase
+          .from("rota_shifts")
+          .update({ user_id: targetUserId })
+          .eq("id", sourceShift.id);
+
+        const { error: swapErr2 } = await supabase
+          .from("rota_shifts")
+          .update({ user_id: sourceUserId })
+          .eq("id", targetShift.id);
+
+        if (swapErr1 || swapErr2) {
+          throw swapErr1 || swapErr2;
+        }
+
+        const { data: targetUser } = await supabase
+          .from("users")
+          .select("name")
+          .eq("id", targetUserId)
+          .single();
+
+        await logRotaAudit({
+          actorId,
+          actionType: "shift_swapped",
+          teamId,
+          details: {
+            msg: `Swapped staff members ${sourceUser.name} (${sourceTemplateName} on ${sourceShift.date}) and ${targetUser?.name || "Unknown"} (${targetTemplateName} on ${targetShift.date})`
+          }
+        });
+      } else {
+        // Target is an unassigned shift. Delete the source shift, and assign the staff member to the target shift.
+        const { error: moveErr1 } = await supabase
+          .from("rota_shifts")
+          .delete()
+          .eq("id", sourceShift.id);
+
+        const { error: moveErr2 } = await supabase
+          .from("rota_shifts")
+          .update({ user_id: sourceUserId })
+          .eq("id", targetShift.id);
+
+        if (moveErr1 || moveErr2) {
+          throw moveErr1 || moveErr2;
+        }
+
+        await logRotaAudit({
+          actorId,
+          actionType: "shift_reassigned",
+          teamId,
+          details: {
+            msg: `Moved staff member ${sourceUser.name} from ${sourceTemplateName} on ${sourceShift.date} to unassigned ${targetTemplateName} on ${targetShift.date}`
+          }
+        });
+      }
+    } else {
+      // SCENARIO 2: Move to an empty slot placeholder (create new shift)
+      if (!targetDate || !targetTemplateId) {
+        throw new Error("Missing target date or template for empty slot assignment");
+      }
+
+      const { data: template, error: tmplError } = await supabase
+        .from("shift_templates")
+        .select("name, start_time, end_time, hours, break_minutes")
+        .eq("id", targetTemplateId)
+        .single();
+
+      if (tmplError || !template) {
+        throw new Error("Target shift template not found");
+      }
+
+      // Validate source user on target date/time
+      const srcValidation = await validateUserShiftAssignment(
+        supabase,
+        sourceShift.rota_id,
+        sourceUserId,
+        targetDate,
+        template.start_time,
+        template.end_time,
+        sourceShift.id
+      );
+
+      if (!srcValidation.valid) {
+        return { success: false, error: srcValidation.error };
+      }
+
+      // Create new shift with source user assigned
+      const { data: newShift, error: createError } = await supabase
+        .from("rota_shifts")
+        .insert({
+          rota_id: sourceShift.rota_id,
+          user_id: sourceUserId,
+          shift_template_id: targetTemplateId,
+          date: targetDate,
+          start_time: template.start_time,
+          end_time: template.end_time,
+          break_minutes: template.break_minutes || 0,
+          hours: template.hours
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        throw createError;
+      }
+
+      // Delete source shift
+      const { error: clearError } = await supabase
+        .from("rota_shifts")
+        .delete()
+        .eq("id", sourceShift.id);
+
+      if (clearError) {
+        throw clearError;
+      }
+
+      await logRotaAudit({
+        actorId,
+        actionType: "shift_added",
+        teamId,
+        details: {
+          msg: `Moved staff member ${sourceUser.name} from ${sourceTemplateName} on ${sourceShift.date} to new ${template.name} on ${targetDate}`
+        }
+      });
+    }
+
+    revalidatePath("/dashboard/rota");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function unpublishRotaAction(actorId: string, rotaId: string) {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Fetch actor details to verify role
+    const { data: userDetails } = await supabase
+      .from("users")
+      .select("role, is_manager_approved_nurse, active_team_id")
+      .eq("id", actorId)
+      .single();
+
+    const isPowerUser = userDetails?.role === "saas_admin" || 
+                        userDetails?.role === "owner" || 
+                        userDetails?.role === "manager" || 
+                        (userDetails?.role === "nurse" && userDetails?.is_manager_approved_nurse);
+
+    if (!isPowerUser) {
+      throw new Error("Unauthorized to edit or unpublish rotas.");
+    }
+
+    const { data: rota } = await supabase
+      .from("rotas")
+      .select("team_id")
+      .eq("id", rotaId)
+      .single();
+
+    if (!rota) throw new Error("Rota not found");
+
+    const { error } = await supabase
+      .from("rotas")
+      .update({
+        status: "draft"
+      })
+      .eq("id", rotaId);
+
+    if (error) throw error;
+
+    await logRotaAudit({
+      actorId,
+      actionType: "rota_edited",
+      teamId: rota.team_id,
+      details: { rota_id: rotaId, change: "unpublished" }
+    });
+
+    revalidatePath("/dashboard/rota");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+

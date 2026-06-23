@@ -25,14 +25,27 @@ export async function generateWeeklyRota(supabase: SupabaseClient, config: Gener
 
   if (reqsError) throw reqsError;
 
-  // 2. Fetch Active Staff Assigned to the Unit (Team)
-  const { data: staffList, error: staffError } = await supabase
-    .from("users")
-    .select("*")
-    .eq("active_team_id", teamId)
-    .eq("is_onboarding_complete", true);
+  // 2. Fetch Active Staff Assigned to the Unit (Team) via team_staff
+  const { data: tsRows, error: tsError } = await supabase
+    .from("team_staff")
+    .select("user_id")
+    .eq("team_id", teamId);
 
-  if (staffError) throw staffError;
+  if (tsError) throw tsError;
+
+  const staffIds = tsRows?.map(r => r.user_id) || [];
+  let staffList: any[] = [];
+
+  if (staffIds.length > 0) {
+    const { data, error: staffError } = await supabase
+      .from("users")
+      .select("*")
+      .in("id", staffIds)
+      .eq("is_onboarding_complete", true);
+
+    if (staffError) throw staffError;
+    staffList = data || [];
+  }
 
   if (!staffList || staffList.length === 0) {
     throw new Error("No active staff members assigned to this unit/team.");
