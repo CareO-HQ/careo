@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Disable dark mode variant in Tailwind CSS v4 */
+@custom-variant dark (&:not(*));
 
 @theme inline {
   --color-background: var(--background);
@@ -78,6 +80,10 @@
 }
 
 @layer base {
+  html {
+    color-scheme: light;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }

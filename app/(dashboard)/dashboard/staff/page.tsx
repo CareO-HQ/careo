@@ -19,8 +19,10 @@ import {
 import { Search, Mail, Phone, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatRoleName } from "@/lib/utils";
-import { canViewStaffList, UserRole } from "@/lib/permissions";
+import { canViewStaffList, UserRole, canToggleApprovedNurseRole, canManageContractedHours } from "@/lib/permissions";
 import { withRoleGuard } from "@/lib/route-guards";
+import { updateStaffWorkforceAction } from "@/app/actions/rota";
+import { Switch } from "@/components/ui/switch";
 
 interface StaffMember {
   id: string;
@@ -223,6 +225,8 @@ function StaffPage() {
                 <TableHead>Phone</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Team</TableHead>
+                {canManageContractedHours(profile.role) && <TableHead>Contracted Hours</TableHead>}
+                {canToggleApprovedNurseRole(profile.role) && <TableHead>Elevated Access</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -303,6 +307,55 @@ function StaffPage() {
                           </span>
                         )}
                       </TableCell>
+                      {canManageContractedHours(profile.role) && (
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {role === "nurse" || role === "care_assistant" ? (
+                            <div className="flex items-center space-x-1 max-w-[100px]">
+                              <Input
+                                type="number"
+                                defaultValue={(member as any).contracted_weekly_hours || 0}
+                                className="h-8 text-center"
+                                onBlur={async (e) => {
+                                  const hours = Number(e.target.value);
+                                  if (hours === (member as any).contracted_weekly_hours) return;
+                                  try {
+                                    await updateStaffWorkforceAction(profile.id, memberId, { contracted_weekly_hours: hours });
+                                    toast.success(`Updated contracted hours to ${hours}`);
+                                    fetchStaff();
+                                  } catch (err: any) {
+                                    toast.error(err?.message || "Failed to update hours");
+                                  }
+                                }}
+                              />
+                              <span className="text-xs text-muted-foreground">hrs</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                      )}
+                      {canToggleApprovedNurseRole(profile.role) && (
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {role === "nurse" ? (
+                            <div className="flex items-center space-x-2 justify-center">
+                              <Switch
+                                checked={(member as any).is_manager_approved_nurse || false}
+                                onCheckedChange={async (checked) => {
+                                  try {
+                                    await updateStaffWorkforceAction(profile.id, memberId, { is_manager_approved_nurse: checked });
+                                    toast.success(checked ? "Approved Nurse" : "Revoked approval");
+                                    fetchStaff();
+                                  } catch (err: any) {
+                                    toast.error(err?.message || "Failed to toggle status");
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })
