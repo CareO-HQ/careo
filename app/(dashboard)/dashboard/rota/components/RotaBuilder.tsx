@@ -1146,10 +1146,10 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                               ? "Custom Entry"
                               : "Care Assistant"}
                           </td>
-                          <td className="p-3 text-center font-mono text-xs">
+                          <td className="p-3 text-center font-sans text-xs">
                             {assigned} hrs
                           </td>
-                          <td className="p-3 text-center font-mono text-xs">
+                          <td className="p-3 text-center font-sans text-xs">
                             {contracted} hrs
                           </td>
                           <td className="p-3 text-right">
