@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { AlertCircle, Calendar, ChevronLeft, ChevronRight, Play, CheckCircle, Trash, Plus, Pencil } from "lucide-react";
+import { AlertCircle, Calendar, ChevronLeft, ChevronRight, Play, CheckCircle, Trash, Plus, Pencil, Loader2, Sparkles } from "lucide-react";
 import { format, startOfWeek, addDays, parseISO } from "date-fns";
+import { Progress } from "@/components/ui/progress";
 import {
   createRotaAction,
   addManualShiftAction,
@@ -18,7 +19,9 @@ import {
   publishRotaAction,
   swapOrMoveShiftAction,
   clearRotaShiftsAction,
-  unpublishRotaAction
+  unpublishRotaAction,
+  createTemporaryStaffAction,
+  deleteTemporaryStaffAction
 } from "@/app/actions/rota";
 import { generateWeeklyRota } from "@/lib/rota-generator";
 
@@ -83,9 +86,23 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
   const [templates, setTemplates] = useState<Template[]>([]);
   const [rotaShifts, setRotaShifts] = useState<RotaShift[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [temporaryStaff, setTemporaryStaff] = useState<any[]>([]);
   const [staffingRequirements, setStaffingRequirements] = useState<any[]>([]);
   const [weeklyLeaves, setWeeklyLeaves] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Schedule generation progress states
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationStatus, setGenerationStatus] = useState("");
+  const [allocatedCount, setAllocatedCount] = useState(0);
+  const [totalAllocations, setTotalAllocations] = useState(0);
+
+  // Dialog Add Temporary Staff state
+  const [addTempStaffDialogOpen, setAddTempStaffDialogOpen] = useState(false);
+  const [tempStaffName, setTempStaffName] = useState("");
+  const [tempStaffRole, setTempStaffRole] = useState<"nurse" | "care_assistant">("care_assistant");
+  const [tempStaffHours, setTempStaffHours] = useState<number>(0);
 
   // Dialog Add Shift state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -150,6 +167,13 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
         filteredStaff = (sData || []).filter(u => u.role !== "owner" && u.role !== "manager");
       }
       setStaff(filteredStaff);
+
+      // 2.3 Fetch temporary staff
+      const { data: tsTemp } = await supabase
+        .from("temporary_staff")
+        .select("*")
+        .eq("team_id", profile.active_team_id);
+      setTemporaryStaff(tsTemp || []);
 
       // 2.5 Fetch weekly approved leave requests
       const { data: leavesData } = await supabase
@@ -247,6 +271,12 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     if (!rotaId || !profile?.active_team_id) return;
 
     try {
+      setIsGenerating(true);
+      setGenerationProgress(0);
+      setAllocatedCount(0);
+      setTotalAllocations(0);
+      setGenerationStatus("Computing smart allocations...");
+
       toast.info("Generating smart weekly rota slots...");
 
       const allocations = await generateWeeklyRota(supabase, {
@@ -255,7 +285,11 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
         endDate: formattedWeekEnd
       });
 
+      const validAllocations = allocations.filter(a => a.assignedTo);
+      setTotalAllocations(validAllocations.length);
+
       // Clear existing shifts of this rota
+      setGenerationStatus("Clearing existing shifts...");
       const { error: deleteError } = await supabase
         .from("rota_shifts")
         .delete()
@@ -264,25 +298,42 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
       if (deleteError) throw deleteError;
 
       // Add all allocations to the DB
-      for (const allocation of allocations) {
-        if (!allocation.assignedTo) continue;
+      let current = 0;
+      for (const allocation of validAllocations) {
+        setGenerationStatus(`Assigning shift ${current + 1} of ${validAllocations.length}...`);
+
+        const isTemp = allocation.assignedTo.startsWith("temp:");
+        const userId = isTemp ? null : allocation.assignedTo;
+        const customStaffName = isTemp ? allocation.assignedTo.slice(5) : null;
+
         await addManualShiftAction(profile.id, {
           rotaId,
-          userId: allocation.assignedTo,
+          userId: userId,
           shiftTemplateId: allocation.template.id,
           date: allocation.date,
           start_time: allocation.template.start_time,
           end_time: allocation.template.end_time,
           break_minutes: allocation.template.break_minutes || 0,
           hours: allocation.template.hours,
-          slotRole: allocation.role === "nurse" ? "nurse" : "care_assistant"
+          slotRole: allocation.role === "nurse" ? "nurse" : "care_assistant",
+          customStaffName: customStaffName
         });
+
+        current++;
+        setAllocatedCount(current);
+        setGenerationProgress(Math.round((current / validAllocations.length) * 100));
       }
 
       toast.success("Weekly Rota populated successfully via Smart Scheduler.");
       fetchData();
     } catch (err: any) {
       toast.error(err.message || "Error running smart rota generator");
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress(0);
+      setAllocatedCount(0);
+      setTotalAllocations(0);
+      setGenerationStatus("");
     }
   };
 
@@ -305,6 +356,31 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
       }
     } catch (err: any) {
       toast.error(err.message || "Error clearing rota");
+    }
+  };
+
+  const handleAddTempStaffSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile?.active_team_id) return;
+    if (!tempStaffName.trim()) {
+      toast.error("Please enter a staff name");
+      return;
+    }
+
+    const res = await createTemporaryStaffAction(profile.id, profile.active_team_id, {
+      name: tempStaffName.trim(),
+      role: tempStaffRole,
+      contracted_weekly_hours: tempStaffHours
+    });
+
+    if (res.success) {
+      toast.success("Temporary staff member added successfully");
+      setAddTempStaffDialogOpen(false);
+      setTempStaffName("");
+      setTempStaffHours(0);
+      fetchData();
+    } else {
+      toast.error(res.error || "Failed to add temporary staff member");
     }
   };
 
@@ -542,11 +618,23 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     return userIds.size + customNames.size;
   }, [rotaShifts]);
 
-  // Merge team staff + shift-assigned users + custom-name staff
+  // Merge team staff + temporary staff + shift-assigned users + custom-name staff
   const mergedStaffForTable = React.useMemo(() => {
     const map = new Map<string, StaffMember>();
     // 1. Team members from team_staff (may have contracted hours)
     staff.forEach(s => map.set(s.id, s));
+
+    // 1.5. Temporary staff from database (as synthetic custom:Name IDs)
+    temporaryStaff.forEach(ts => {
+      const syntheticId = `custom:${ts.name}`;
+      map.set(syntheticId, {
+        id: syntheticId,
+        name: ts.name,
+        role: ts.role,
+        contracted_weekly_hours: Number(ts.contracted_weekly_hours || 0),
+        is_temporary: true,
+      } as any);
+    });
 
     // 2. Users from rota shifts not already in team staff
     rotaShifts.forEach(shift => {
@@ -588,7 +676,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     });
 
     return Array.from(map.values());
-  }, [staff, rotaShifts]);
+  }, [staff, temporaryStaff, rotaShifts]);
 
   // Check conflicts
   const getHoursConflict = (sMember: StaffMember) => {
@@ -963,7 +1051,24 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
       {isPowerUser && rotaStatus !== "none" && (
         <Card>
           <CardContent className="pt-6 space-y-4">
-            <h3 className="font-bold text-lg">Staff Resources</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">Staff Resources</h3>
+              {isPowerUser && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setTempStaffName("");
+                    setTempStaffRole("care_assistant");
+                    setTempStaffHours(0);
+                    setAddTempStaffDialogOpen(true);
+                  }}
+                  className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Add Temporary Worker
+                </Button>
+              )}
+            </div>
             <div className="overflow-x-auto border rounded-xl">
               <table className="w-full border-collapse bg-card text-sm text-left">
                 <thead>
@@ -980,7 +1085,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                     const assigned = getStaffWeeklyHours(sMember.id);
                     const contracted = sMember.contracted_weekly_hours;
                     const status = getHoursConflict(sMember);
-
+ 
                     // Map leave details
                     const memberLeaves = weeklyLeaves.filter(l => l.user_id === sMember.id);
                     const isOnLeave = memberLeaves.length > 0;
@@ -991,11 +1096,11 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                         ? "Sick Leave"
                         : "Training")
                       : "On Leave";
-
+ 
                     // Filled badge styles for better visibility (matching pill design with soft backgrounds)
                     let badgeColor = "bg-green-50 text-green-700 border-green-200 hover:bg-green-50 rounded-full font-medium";
                     let statusLabel = "Within Contract";
-
+ 
                     if (status === "overtime") {
                       badgeColor = "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 rounded-full font-medium";
                       statusLabel = "Overtime - Warning";
@@ -1003,10 +1108,19 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                       badgeColor = "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50 rounded-full font-medium";
                       statusLabel = "Under Contract - Review";
                     }
-
+ 
                     return (
                       <tr key={sMember.id} className="border-b last:border-0 hover:bg-muted/10">
-                        <td className="p-3 font-medium">{sMember.name}</td>
+                        <td className="p-3 font-medium">
+                          <div className="flex items-center gap-2">
+                            {sMember.name}
+                            {(sMember as any).is_temporary && (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 rounded-full text-[10px] font-medium px-2 py-0.5">
+                                Temp
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
                         <td className="p-3 text-muted-foreground uppercase text-xs">
                           {sMember.role === "nurse"
                             ? "Registered Nurse"
@@ -1025,7 +1139,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                           {contracted} hrs
                         </td>
                         <td className="p-3 text-right">
-                          <div className="flex justify-end gap-1.5 flex-wrap">
+                          <div className="flex justify-end items-center gap-1.5 flex-wrap">
                             {isOnLeave && (
                               <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50 rounded-full font-medium text-[10px] px-2 py-0.5">
                                 {leaveLabel}
@@ -1034,6 +1148,29 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                             <Badge variant="outline" className={`${badgeColor} text-[10px] px-2 py-0.5`}>
                               {statusLabel}
                             </Badge>
+                            {(sMember as any).is_temporary && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50 p-0 ml-1"
+                                onClick={async () => {
+                                  if (confirm(`Are you sure you want to remove temporary staff member ${sMember.name}?`)) {
+                                    const tsRecord = temporaryStaff.find(ts => ts.name === sMember.name);
+                                    if (tsRecord) {
+                                      const res = await deleteTemporaryStaffAction(profile.id, tsRecord.id);
+                                      if (res.success) {
+                                        toast.success("Temporary staff member removed");
+                                        fetchData();
+                                      } else {
+                                        toast.error(res.error || "Failed to remove temporary staff");
+                                      }
+                                    }
+                                  }
+                                }}
+                              >
+                                <Trash className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1125,6 +1262,92 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
               <Button type="submit">Assign Shift</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog to Add Temporary Worker */}
+      <Dialog open={addTempStaffDialogOpen} onOpenChange={setAddTempStaffDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Temporary Worker</DialogTitle>
+            <DialogDescription>Define a temporary worker for scheduling and metrics.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddTempStaffSubmit} className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label htmlFor="temp-staff-name">Name</Label>
+              <Input
+                id="temp-staff-name"
+                placeholder="e.g. John Smith"
+                value={tempStaffName}
+                onChange={(e) => setTempStaffName(e.target.value)}
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="temp-staff-role">Role</Label>
+              <Select
+                value={tempStaffRole}
+                onValueChange={(val: "nurse" | "care_assistant") => setTempStaffRole(val)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="care_assistant">Care Assistant</SelectItem>
+                  <SelectItem value="nurse">Registered Nurse</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="temp-staff-hours">Contracted Hours (Weekly)</Label>
+              <Input
+                id="temp-staff-hours"
+                type="number"
+                min="0"
+                max="168"
+                value={tempStaffHours}
+                onChange={(e) => setTempStaffHours(Number(e.target.value))}
+                required
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setAddTempStaffDialogOpen(false)}>Cancel</Button>
+              <Button type="submit">Add Temporary Worker</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule Generation Progress Dialog */}
+      <Dialog open={isGenerating} onOpenChange={() => {}}>
+        <DialogContent 
+          onPointerDownOutside={(e) => e.preventDefault()} 
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          className="sm:max-w-md border-none bg-gradient-to-br from-indigo-50/90 via-white to-purple-50/90 dark:from-slate-900 dark:via-slate-900 dark:to-purple-950/20 shadow-2xl rounded-2xl p-6"
+        >
+          <DialogHeader className="flex flex-col items-center text-center space-y-4">
+            <div className="relative w-16 h-16 flex items-center justify-center bg-indigo-100/80 dark:bg-indigo-950/50 rounded-full ring-8 ring-indigo-50/50 dark:ring-indigo-950/20">
+              <Sparkles className="w-8 h-8 text-indigo-600 dark:text-indigo-400 animate-pulse" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-50">
+              Generating Smart Schedule
+            </DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400 text-sm max-w-xs">
+              {generationStatus}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-6 space-y-2">
+            <Progress value={generationProgress} className="h-2 bg-indigo-100 dark:bg-indigo-950/50 [&>div]:bg-indigo-600 dark:[&>div]:bg-indigo-400" />
+            <div className="flex justify-between text-xs text-muted-foreground font-medium">
+              <span>{generationProgress}% Complete</span>
+              {totalAllocations > 0 && (
+                <span>{allocatedCount} / {totalAllocations} slots</span>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

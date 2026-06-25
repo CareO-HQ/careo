@@ -1439,3 +1439,113 @@ export async function unpublishRotaAction(actorId: string, rotaId: string) {
   }
 }
 
+export async function createTemporaryStaffAction(
+  actorId: string,
+  teamId: string,
+  data: {
+    name: string;
+    role: "nurse" | "care_assistant";
+    contracted_weekly_hours: number;
+  }
+) {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Verify actor role is authorized
+    const { data: actor } = await supabase
+      .from("users")
+      .select("role, active_team_id, is_manager_approved_nurse")
+      .eq("id", actorId)
+      .single();
+
+    const isAuthorized = 
+      actor?.role === "manager" || 
+      actor?.role === "owner" || 
+      actor?.role === "saas_admin" ||
+      (actor?.role === "nurse" && actor?.is_manager_approved_nurse && actor?.active_team_id === teamId);
+
+    if (!isAuthorized) {
+      throw new Error("Only Managers or authorized Nurses can manage temporary staff.");
+    }
+
+    const { data: newStaff, error } = await supabase
+      .from("temporary_staff")
+      .insert({
+        team_id: teamId,
+        name: data.name,
+        role: data.role,
+        contracted_weekly_hours: data.contracted_weekly_hours
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await logRotaAudit({
+      actorId,
+      actionType: "rota_edited",
+      teamId,
+      details: { action: "temporary_staff_added", name: data.name, role: data.role }
+    });
+
+    revalidatePath("/dashboard/rota");
+    return { success: true, data: newStaff };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteTemporaryStaffAction(
+  actorId: string,
+  temporaryStaffId: string
+) {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Get team_id first
+    const { data: staff } = await supabase
+      .from("temporary_staff")
+      .select("team_id, name")
+      .eq("id", temporaryStaffId)
+      .single();
+
+    if (!staff) throw new Error("Temporary staff member not found");
+
+    // Verify actor can manage rota for this team
+    const { data: actor } = await supabase
+      .from("users")
+      .select("role, active_team_id, is_manager_approved_nurse")
+      .eq("id", actorId)
+      .single();
+
+    const isAuthorized = 
+      actor?.role === "manager" || 
+      actor?.role === "owner" || 
+      actor?.role === "saas_admin" ||
+      (actor?.role === "nurse" && actor?.is_manager_approved_nurse && actor?.active_team_id === staff.team_id);
+
+    if (!isAuthorized) {
+      throw new Error("Only Managers or authorized Nurses can manage temporary staff.");
+    }
+
+    const { error } = await supabase
+      .from("temporary_staff")
+      .delete()
+      .eq("id", temporaryStaffId);
+
+    if (error) throw error;
+
+    await logRotaAudit({
+      actorId,
+      actionType: "rota_edited",
+      teamId: staff.team_id,
+      details: { action: "temporary_staff_deleted", name: staff.name }
+    });
+
+    revalidatePath("/dashboard/rota");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+

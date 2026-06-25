@@ -33,6 +33,14 @@ export async function generateWeeklyRota(supabase: SupabaseClient, config: Gener
 
   if (tsError) throw tsError;
 
+  // 2.5 Fetch Temporary Staff assigned to the Unit (Team)
+  const { data: tempStaff, error: tempError } = await supabase
+    .from("temporary_staff")
+    .select("*")
+    .eq("team_id", teamId);
+
+  if (tempError) throw tempError;
+
   const staffIds = tsRows?.map(r => r.user_id) || [];
   let staffList: any[] = [];
 
@@ -45,6 +53,23 @@ export async function generateWeeklyRota(supabase: SupabaseClient, config: Gener
 
     if (staffError) throw staffError;
     staffList = data || [];
+  }
+
+  // Merge temporary staff into scheduling candidates list
+  if (tempStaff && tempStaff.length > 0) {
+    tempStaff.forEach(ts => {
+      staffList.push({
+        id: `temp:${ts.name}`,
+        name: ts.name,
+        role: ts.role,
+        contracted_weekly_hours: Number(ts.contracted_weekly_hours || 0),
+        is_temporary: true,
+        overtime_permitted: true,
+        max_weekly_hours: 48,
+        availability_rules: [],
+        preferred_working_days: []
+      });
+    });
   }
 
   if (!staffList || staffList.length === 0) {
@@ -115,26 +140,59 @@ export async function generateWeeklyRota(supabase: SupabaseClient, config: Gener
       return checkAvailabilityRule(c.availability_rules, slot.date, slot.template.start_time);
     });
 
-    // Score candidates based on Rules 5-10
-    let bestCandidate: any = null;
-    let highestScore = -Infinity;
-
-    for (const candidate of candidates) {
+    // Filter out blocked candidates (score <= -1000)
+    const eligibleCandidates = candidates.filter(c => {
       const score = evaluateCandidateScore({
-        candidate,
+        candidate: c,
         slot,
-        currentHours: staffHoursMap.get(candidate.id) || 0,
+        currentHours: staffHoursMap.get(c.id) || 0,
         prevShifts,
-        slotsToFill // current week's allocated shifts so far
+        slotsToFill
+      });
+      return score > -1000;
+    });
+
+    if (eligibleCandidates.length > 0) {
+      // Sort eligible candidates so that least worked hours get assigned first
+      eligibleCandidates.sort((a, b) => {
+        const aHours = staffHoursMap.get(a.id) || 0;
+        const bHours = staffHoursMap.get(b.id) || 0;
+
+        const aTarget = Number(a.contracted_weekly_hours || 0);
+        const bTarget = Number(b.contracted_weekly_hours || 0);
+
+        const aUnder = aHours < aTarget;
+        const bUnder = bHours < bTarget;
+
+        // 1. Under contracted hours prioritized over over contracted hours
+        if (aUnder && !bUnder) return -1;
+        if (!aUnder && bUnder) return 1;
+
+        // 2. Least worked hours prioritized
+        if (aHours !== bHours) {
+          return aHours - bHours;
+        }
+
+        // 3. Base score as tie breaker (higher score first)
+        const aScore = evaluateCandidateScore({
+          candidate: a,
+          slot,
+          currentHours: aHours,
+          prevShifts,
+          slotsToFill
+        });
+        const bScore = evaluateCandidateScore({
+          candidate: b,
+          slot,
+          currentHours: bHours,
+          prevShifts,
+          slotsToFill
+        });
+
+        return bScore - aScore;
       });
 
-      if (score > highestScore) {
-        highestScore = score;
-        bestCandidate = candidate;
-      }
-    }
-
-    if (bestCandidate && highestScore > -1000) {
+      const bestCandidate = eligibleCandidates[0];
       slot.assignedTo = bestCandidate.id;
       const hours = Number(slot.template.hours);
       staffHoursMap.set(bestCandidate.id, (staffHoursMap.get(bestCandidate.id) || 0) + hours);
