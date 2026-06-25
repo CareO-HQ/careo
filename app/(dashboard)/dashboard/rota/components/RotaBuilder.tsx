@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { AlertCircle, Calendar, ChevronLeft, ChevronRight, Play, CheckCircle, Trash, Plus, Pencil, Loader2, Sparkles } from "lucide-react";
+import { AlertCircle, Calendar, ChevronLeft, ChevronRight, Play, CheckCircle, Trash, Plus, Pencil, Loader2, Sparkles, Users, Briefcase, Building } from "lucide-react";
 import { format, startOfWeek, addDays, parseISO } from "date-fns";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -678,6 +678,24 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     return Array.from(map.values());
   }, [staff, temporaryStaff, rotaShifts]);
 
+  const { permanentStaff, bankStaff, agencyStaff } = React.useMemo(() => {
+    const permanent: StaffMember[] = [];
+    const bank: StaffMember[] = [];
+    const agency: StaffMember[] = [];
+
+    mergedStaffForTable.forEach(s => {
+      if ((s as any).is_temporary || s.id.startsWith("custom:") || s.role === "custom") {
+        bank.push(s);
+      } else if (s.role === "agency_nurse" || s.role === "agency_care_assistant") {
+        agency.push(s);
+      } else {
+        permanent.push(s);
+      }
+    });
+
+    return { permanentStaff: permanent, bankStaff: bank, agencyStaff: agency };
+  }, [mergedStaffForTable]);
+
   // Check conflicts
   const getHoursConflict = (sMember: StaffMember) => {
     const hrs = getStaffWeeklyHours(sMember.id);
@@ -1062,7 +1080,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                     setTempStaffHours(0);
                     setAddTempStaffDialogOpen(true);
                   }}
-                  className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
+                  className="h-8 bg-primary hover:bg-primary/95 text-primary-foreground"
                 >
                   <Plus className="w-4 h-4 mr-1.5" />
                   Add Temporary Worker
@@ -1081,101 +1099,159 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                   </tr>
                 </thead>
                 <tbody>
-                  {mergedStaffForTable.map(sMember => {
-                    const assigned = getStaffWeeklyHours(sMember.id);
-                    const contracted = sMember.contracted_weekly_hours;
-                    const status = getHoursConflict(sMember);
- 
-                    // Map leave details
-                    const memberLeaves = weeklyLeaves.filter(l => l.user_id === sMember.id);
-                    const isOnLeave = memberLeaves.length > 0;
-                    const leaveLabel = memberLeaves[0]
-                      ? (memberLeaves[0].type === "annual_leave"
-                        ? "Annual Leave"
-                        : memberLeaves[0].type === "sick_leave"
-                        ? "Sick Leave"
-                        : "Training")
-                      : "On Leave";
- 
-                    // Filled badge styles for better visibility (matching pill design with soft backgrounds)
-                    let badgeColor = "bg-green-50 text-green-700 border-green-200 hover:bg-green-50 rounded-full font-medium";
-                    let statusLabel = "Within Contract";
- 
-                    if (status === "overtime") {
-                      badgeColor = "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 rounded-full font-medium";
-                      statusLabel = "Overtime - Warning";
-                    } else if (status === "undertime") {
-                      badgeColor = "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50 rounded-full font-medium";
-                      statusLabel = "Under Contract - Review";
-                    }
- 
-                    return (
-                      <tr key={sMember.id} className="border-b last:border-0 hover:bg-muted/10">
-                        <td className="p-3 font-medium">
-                          <div className="flex items-center gap-2">
-                            {sMember.name}
-                            {(sMember as any).is_temporary && (
-                              <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 rounded-full text-[10px] font-medium px-2 py-0.5">
-                                Temp
+                  {(() => {
+                    const renderStaffRow = (sMember: StaffMember) => {
+                      const assigned = getStaffWeeklyHours(sMember.id);
+                      const contracted = sMember.contracted_weekly_hours;
+                      const status = getHoursConflict(sMember);
+
+                      // Map leave details
+                      const memberLeaves = weeklyLeaves.filter(l => l.user_id === sMember.id);
+                      const isOnLeave = memberLeaves.length > 0;
+                      const leaveLabel = memberLeaves[0]
+                        ? (memberLeaves[0].type === "annual_leave"
+                          ? "Annual Leave"
+                          : memberLeaves[0].type === "sick_leave"
+                          ? "Sick Leave"
+                          : "Training")
+                        : "On Leave";
+
+                      // Filled badge styles for better visibility (matching pill design with soft backgrounds)
+                      let badgeColor = "bg-green-50 text-green-700 border-green-200 hover:bg-green-50 rounded-full font-medium";
+                      let statusLabel = "Within Contract";
+
+                      if (status === "overtime") {
+                        badgeColor = "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 rounded-full font-medium";
+                        statusLabel = "Overtime - Warning";
+                      } else if (status === "undertime") {
+                        badgeColor = "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50 rounded-full font-medium";
+                        statusLabel = "Under Contract - Review";
+                      }
+
+                      return (
+                        <tr key={sMember.id} className="border-b last:border-0 hover:bg-muted/10">
+                          <td className="p-3 font-medium">
+                            <div className="flex items-center gap-2">
+                              {sMember.name}
+                            </div>
+                          </td>
+                          <td className="p-3 text-muted-foreground uppercase text-xs">
+                            {sMember.role === "nurse"
+                              ? "Registered Nurse"
+                              : sMember.role === "agency_nurse"
+                              ? "Agency Nurse"
+                              : sMember.role === "agency_care_assistant"
+                              ? "Agency Care Assistant"
+                              : sMember.role === "custom"
+                              ? "Custom Entry"
+                              : "Care Assistant"}
+                          </td>
+                          <td className="p-3 text-center font-mono text-xs">
+                            {assigned} hrs
+                          </td>
+                          <td className="p-3 text-center font-mono text-xs">
+                            {contracted} hrs
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="flex justify-end items-center gap-1.5 flex-wrap">
+                              {isOnLeave && (
+                                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50 rounded-full font-medium text-[10px] px-2 py-0.5">
+                                  {leaveLabel}
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className={`${badgeColor} text-[10px] px-2 py-0.5`}>
+                                {statusLabel}
                               </Badge>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-3 text-muted-foreground uppercase text-xs">
-                          {sMember.role === "nurse"
-                            ? "Registered Nurse"
-                            : sMember.role === "agency_nurse"
-                            ? "Agency Nurse"
-                            : sMember.role === "agency_care_assistant"
-                            ? "Agency Care Assistant"
-                            : sMember.role === "custom"
-                            ? "Custom Entry"
-                            : "Care Assistant"}
-                        </td>
-                        <td className="p-3 text-center font-mono text-xs">
-                          {assigned} hrs
-                        </td>
-                        <td className="p-3 text-center font-mono text-xs">
-                          {contracted} hrs
-                        </td>
-                        <td className="p-3 text-right">
-                          <div className="flex justify-end items-center gap-1.5 flex-wrap">
-                            {isOnLeave && (
-                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50 rounded-full font-medium text-[10px] px-2 py-0.5">
-                                {leaveLabel}
-                              </Badge>
-                            )}
-                            <Badge variant="outline" className={`${badgeColor} text-[10px] px-2 py-0.5`}>
-                              {statusLabel}
-                            </Badge>
-                            {(sMember as any).is_temporary && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50 p-0 ml-1"
-                                onClick={async () => {
-                                  if (confirm(`Are you sure you want to remove temporary staff member ${sMember.name}?`)) {
-                                    const tsRecord = temporaryStaff.find(ts => ts.name === sMember.name);
-                                    if (tsRecord) {
-                                      const res = await deleteTemporaryStaffAction(profile.id, tsRecord.id);
-                                      if (res.success) {
-                                        toast.success("Temporary staff member removed");
-                                        fetchData();
-                                      } else {
-                                        toast.error(res.error || "Failed to remove temporary staff");
+                              {(sMember as any).is_temporary && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50 p-0 ml-1"
+                                  onClick={async () => {
+                                    if (confirm(`Are you sure you want to remove temporary staff member ${sMember.name}?`)) {
+                                      const tsRecord = temporaryStaff.find(ts => ts.name === sMember.name);
+                                      if (tsRecord) {
+                                        const res = await deleteTemporaryStaffAction(profile.id, tsRecord.id);
+                                        if (res.success) {
+                                          toast.success("Temporary staff member removed");
+                                          fetchData();
+                                        } else {
+                                          toast.error(res.error || "Failed to remove temporary staff");
+                                        }
                                       }
                                     }
-                                  }
-                                }}
-                              >
-                                <Trash className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                                  }}
+                                >
+                                  <Trash className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    };
+
+                    return (
+                      <>
+                        {/* Permanent Staff Header */}
+                        <tr className="font-semibold border-b border-indigo-100">
+                          <td colSpan={5} className="p-2.5 pl-3 text-xs uppercase tracking-wider bg-indigo-50 text-indigo-700">
+                            <div className="flex items-center gap-2">
+                              <Users className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>Permanent Staff</span>
+                            </div>
+                          </td>
+                        </tr>
+                        {permanentStaff.length > 0 ? (
+                          permanentStaff.map(s => renderStaffRow(s))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="p-3 text-center text-xs text-muted-foreground italic">
+                              No permanent staff assigned
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Bank Header */}
+                        <tr className="font-semibold border-b border-emerald-100">
+                          <td colSpan={5} className="p-2.5 pl-3 text-xs uppercase tracking-wider bg-emerald-50 text-emerald-700">
+                            <div className="flex items-center gap-2">
+                              <Briefcase className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Bank</span>
+                            </div>
+                          </td>
+                        </tr>
+                        {bankStaff.length > 0 ? (
+                          bankStaff.map(s => renderStaffRow(s))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="p-3 text-center text-xs text-muted-foreground italic">
+                              No bank staff assigned
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Agency Header */}
+                        <tr className="font-semibold border-b border-amber-100">
+                          <td colSpan={5} className="p-2.5 pl-3 text-xs uppercase tracking-wider bg-amber-50 text-amber-700">
+                            <div className="flex items-center gap-2">
+                              <Building className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Agency</span>
+                            </div>
+                          </td>
+                        </tr>
+                        {agencyStaff.length > 0 ? (
+                          agencyStaff.map(s => renderStaffRow(s))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="p-3 text-center text-xs text-muted-foreground italic">
+                              No agency staff assigned
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     );
-                  })}
+                  })()}
                 </tbody>
               </table>
             </div>

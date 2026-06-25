@@ -33,14 +33,6 @@ export async function generateWeeklyRota(supabase: SupabaseClient, config: Gener
 
   if (tsError) throw tsError;
 
-  // 2.5 Fetch Temporary Staff assigned to the Unit (Team)
-  const { data: tempStaff, error: tempError } = await supabase
-    .from("temporary_staff")
-    .select("*")
-    .eq("team_id", teamId);
-
-  if (tempError) throw tempError;
-
   const staffIds = tsRows?.map(r => r.user_id) || [];
   let staffList: any[] = [];
 
@@ -52,24 +44,10 @@ export async function generateWeeklyRota(supabase: SupabaseClient, config: Gener
       .eq("is_onboarding_complete", true);
 
     if (staffError) throw staffError;
-    staffList = data || [];
-  }
-
-  // Merge temporary staff into scheduling candidates list
-  if (tempStaff && tempStaff.length > 0) {
-    tempStaff.forEach(ts => {
-      staffList.push({
-        id: `temp:${ts.name}`,
-        name: ts.name,
-        role: ts.role,
-        contracted_weekly_hours: Number(ts.contracted_weekly_hours || 0),
-        is_temporary: true,
-        overtime_permitted: true,
-        max_weekly_hours: 48,
-        availability_rules: [],
-        preferred_working_days: []
-      });
-    });
+    
+    // Filter staff list to only keep permanent staff (role === 'nurse' or role === 'care_assistant'),
+    // which excludes agency staff roles ('agency_nurse', 'agency_care_assistant').
+    staffList = (data || []).filter(s => s.role === "nurse" || s.role === "care_assistant");
   }
 
   if (!staffList || staffList.length === 0) {
@@ -153,7 +131,8 @@ export async function generateWeeklyRota(supabase: SupabaseClient, config: Gener
     });
 
     if (eligibleCandidates.length > 0) {
-      // Sort eligible candidates so that least worked hours get assigned first
+      // Sort eligible candidates so that the one with the most remaining contracted hours is prioritized.
+      // If remaining hours are equal, prioritize the one with least worked hours.
       eligibleCandidates.sort((a, b) => {
         const aHours = staffHoursMap.get(a.id) || 0;
         const bHours = staffHoursMap.get(b.id) || 0;
@@ -161,16 +140,17 @@ export async function generateWeeklyRota(supabase: SupabaseClient, config: Gener
         const aTarget = Number(a.contracted_weekly_hours || 0);
         const bTarget = Number(b.contracted_weekly_hours || 0);
 
-        const aUnder = aHours < aTarget;
-        const bUnder = bHours < bTarget;
+        const aRemaining = aTarget - aHours;
+        const bRemaining = bTarget - bHours;
 
-        // 1. Under contracted hours prioritized over over contracted hours
-        if (aUnder && !bUnder) return -1;
-        if (!aUnder && bUnder) return 1;
+        // 1. Most remaining contracted hours prioritized
+        if (aRemaining !== bRemaining) {
+          return bRemaining - aRemaining; // Descending (most remaining hours first)
+        }
 
         // 2. Least worked hours prioritized
         if (aHours !== bHours) {
-          return aHours - bHours;
+          return aHours - bHours; // Ascending
         }
 
         // 3. Base score as tie breaker (higher score first)
@@ -224,16 +204,23 @@ function evaluateCandidateScore(params: any): number {
   const hasRestViolation = checkRestPeriodViolation(candidate.id, slot, slotsToFill);
   if (hasRestViolation) return -9999;
 
-  // Rule 5: Contracted hours scoring
+  // Rule 5: Contracted hours scoring and one-shift overflow check
   const target = Number(candidate.contracted_weekly_hours || 0);
-  if (currentHours < target) {
-    score += 100; // High priority to get staff to their contracted hours
+  if (target > 0) {
+    if (currentHours < target) {
+      score += 100; // High priority to get staff to their contracted hours
+    } else {
+      // Under the new rule, if the candidate has already met or exceeded their contracted weekly hours,
+      // they cannot be assigned another shift (ensuring they only go over by at most 1 shift just once).
+      return -9999;
+    }
   } else {
-    // Over contracted hours - check overtime permission
-    if (!candidate.overtime_permitted) return -9999; // Blocker
+    // Fallback for 0 contracted hours: limit by max_weekly_hours
     const maxHours = Number(candidate.max_weekly_hours || 48);
-    if (currentHours + Number(slot.template.hours) > maxHours) return -9999; // Exceeds cap
-    score -= 50; // Deprioritize overtime assignment
+    if (currentHours >= maxHours) {
+      return -9999;
+    }
+    score += 10; // Neutral priority
   }
 
   // Rule 7: Continuity
@@ -252,7 +239,8 @@ function evaluateCandidateScore(params: any): number {
 }
 
 function checkRestPeriodViolation(userId: string, targetSlot: any, currentAssignments: any[]): boolean {
-  // Ensure at least 11 hours between target slot start/end and any other shift assigned to this user in current weekly schedule
+  // Ensure we prevent overlapping/double-booked shifts at the same exact time.
+  // We allow consecutive/back-to-back shifts by omitting the 11-hour rest period rule.
   const assignedShifts = currentAssignments.filter(s => s.assignedTo === userId);
   
   const targetStart = new Date(`${targetSlot.date}T${targetSlot.template.start_time}`);
@@ -268,18 +256,8 @@ function checkRestPeriodViolation(userId: string, targetSlot: any, currentAssign
       shiftEnd = new Date(shiftEnd.getTime() + 24 * 60 * 60 * 1000);
     }
 
-    // Overlap
+    // Overlap (simultaneous double-booking)
     if (targetStart < shiftEnd && shiftStart < targetEnd) return true;
-
-    // Check rest hour distance (11 hours)
-    if (shiftEnd <= targetStart) {
-      const diffHrs = (targetStart.getTime() - shiftEnd.getTime()) / (1000 * 60 * 60);
-      if (diffHrs < 11) return true;
-    }
-    if (targetEnd <= shiftStart) {
-      const diffHrs = (shiftStart.getTime() - targetEnd.getTime()) / (1000 * 60 * 60);
-      if (diffHrs < 11) return true;
-    }
   }
 
   return false;
