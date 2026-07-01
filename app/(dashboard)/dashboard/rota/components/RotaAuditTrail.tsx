@@ -203,7 +203,7 @@ export default function RotaAuditTrail({ profile }: { profile: any }) {
       case "shift_added":
         return `Assigned shift on ${details.date || 'Unknown Date'} to ${details.user_id ? getUserName(details.user_id) : (details.custom_staff_name || 'Unassigned')}`;
       case "shift_removed":
-        return `Removed shift on ${details.date || 'Unknown Date'} assigned to ${details.user_id ? getUserName(details.user_id) : (details.custom_staff_name || 'Unassigned')}`;
+        return `Removed shift on ${details.date || 'Unknown Date'} assigned to ${details.user_id ? getUserName(details.user_id) : (details.custom_staff_name || 'Unassigned')}${details.reason ? ` (Reason: ${details.reason})` : ''}`;
       case "shift_swapped":
         return `Proposed shift swap (Requesting Shift ID: ${details.requesting_shift_id || 'Unknown'})`;
       case "leave_requested":

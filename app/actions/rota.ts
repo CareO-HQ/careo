@@ -48,13 +48,14 @@ export async function logRotaAudit(action: {
   }
 }
 
-// 3. Update Staff Workforce details (Elevated role flag & Contracted Hours)
+// 3. Update Staff Workforce details (Elevated role flag, Contracted Hours, & Preferred Shift)
 export async function updateStaffWorkforceAction(
   actorId: string,
   staffId: string,
   updates: {
     is_manager_approved_nurse?: boolean;
     contracted_weekly_hours?: number;
+    preferred_shift_id?: string | null;
   }
 ) {
   try {
@@ -63,11 +64,21 @@ export async function updateStaffWorkforceAction(
     // Verify actor role
     const { data: actor } = await supabase
       .from("users")
-      .select("role, active_team_id")
+      .select("role, active_team_id, is_manager_approved_nurse")
       .eq("id", actorId)
       .single();
 
-    if (actor?.role !== "manager" && actor?.role !== "owner" && actor?.role !== "saas_admin") {
+    const isPowerUser = actor?.role === "saas_admin" || 
+                        actor?.role === "owner" || 
+                        actor?.role === "manager" || 
+                        (actor?.role === "nurse" && actor?.is_manager_approved_nurse);
+
+    if (!isPowerUser) {
+      throw new Error("Unauthorized to edit staff preferences.");
+    }
+
+    if ((updates.is_manager_approved_nurse !== undefined || updates.contracted_weekly_hours !== undefined) && 
+        actor?.role !== "manager" && actor?.role !== "owner" && actor?.role !== "saas_admin") {
       throw new Error("Only Managers can edit staff authorization and contracted hours.");
     }
 
@@ -85,6 +96,15 @@ export async function updateStaffWorkforceAction(
         actionType: updates.is_manager_approved_nurse ? "manager_approved_nurse_granted" : "manager_approved_nurse_revoked",
         teamId: actor.active_team_id || "",
         details: { target_staff_id: staffId }
+      });
+    }
+
+    if (updates.preferred_shift_id !== undefined) {
+      await logRotaAudit({
+        actorId,
+        actionType: "staff_preferred_shift_updated",
+        teamId: actor.active_team_id || "",
+        details: { target_staff_id: staffId, preferred_shift_id: updates.preferred_shift_id }
       });
     }
 
@@ -415,7 +435,7 @@ export async function addManualShiftAction(actorId: string, shiftData: {
   }
 }
 
-export async function deleteManualShiftAction(actorId: string, shiftId: string) {
+export async function deleteManualShiftAction(actorId: string, shiftId: string, reason?: string) {
   try {
     const supabase = getSupabaseClient();
 
@@ -438,7 +458,13 @@ export async function deleteManualShiftAction(actorId: string, shiftId: string) 
         actorId,
         actionType: "shift_removed",
         teamId: (shift.rotas as any).team_id,
-        details: { shift_id: shiftId, date: shift.date, user_id: shift.user_id, shift_template_id: shift.shift_template_id }
+        details: { 
+          shift_id: shiftId, 
+          date: shift.date, 
+          user_id: shift.user_id, 
+          shift_template_id: shift.shift_template_id,
+          reason: reason || undefined
+        }
       });
     }
 
@@ -483,7 +509,7 @@ export async function clearRotaShiftsAction(actorId: string, rotaId: string) {
   }
 }
 
-export async function publishRotaAction(actorId: string, rotaId: string) {
+export async function publishRotaAction(actorId: string, rotaId: string, bypassValidation = false) {
   try {
     const supabase = getSupabaseClient();
 
@@ -512,9 +538,9 @@ export async function publishRotaAction(actorId: string, rotaId: string) {
     let staffList: { id: string; role: string }[] = [];
     if (staffIds.length > 0) {
       const { data: sData } = await supabase
-        .from("users")
-        .select("id, role")
-        .in("id", staffIds);
+          .from("users")
+          .select("id, role")
+          .in("id", staffIds);
       staffList = sData || [];
     }
 
@@ -548,7 +574,7 @@ export async function publishRotaAction(actorId: string, rotaId: string) {
       }
     }
 
-    if (understaffedShifts.length > 0) {
+    if (understaffedShifts.length > 0 && !bypassValidation) {
       return {
         success: false,
         validationFailed: true,
@@ -1170,19 +1196,28 @@ export async function swapOrMoveShiftAction(
     }
 
     const sourceUserId = sourceShift.user_id;
-    if (!sourceUserId) {
+    const sourceCustomName = sourceShift.custom_staff_name;
+
+    if (!sourceUserId && !sourceCustomName) {
       throw new Error("Source shift has no assigned staff");
     }
 
-    // Fetch source user profile
-    const { data: sourceUser } = await supabase
-      .from("users")
-      .select("name, role")
-      .eq("id", sourceUserId)
-      .single();
+    let sourceUserRole = sourceShift.slot_role || "";
+    let sourceUserName = sourceCustomName || "Unknown Staff";
 
-    if (!sourceUser) {
-      throw new Error("Source staff member not found");
+    if (sourceUserId) {
+      // Fetch source user profile
+      const { data: sourceUser } = await supabase
+        .from("users")
+        .select("name, role")
+        .eq("id", sourceUserId)
+        .single();
+
+      if (!sourceUser) {
+        throw new Error("Source staff member not found");
+      }
+      sourceUserName = sourceUser.name;
+      sourceUserRole = sourceUser.role;
     }
 
     // Fetch source shift template name
@@ -1213,6 +1248,7 @@ export async function swapOrMoveShiftAction(
       }
 
       const targetUserId = targetShift.user_id;
+      const targetCustomName = targetShift.custom_staff_name;
 
       // Fetch target template name
       let targetTemplateName = "Shift";
@@ -1225,19 +1261,21 @@ export async function swapOrMoveShiftAction(
         if (temp) targetTemplateName = temp.name;
       }
 
-      // Validate source user on target shift date and times
-      const srcValidation = await validateUserShiftAssignment(
-        supabase,
-        sourceShift.rota_id,
-        sourceUserId,
-        targetShift.date,
-        targetShift.start_time,
-        targetShift.end_time,
-        sourceShift.id // exclude source shift
-      );
+      // Validate source user on target shift date and times (if real user)
+      if (sourceUserId) {
+        const srcValidation = await validateUserShiftAssignment(
+          supabase,
+          sourceShift.rota_id,
+          sourceUserId,
+          targetShift.date,
+          targetShift.start_time,
+          targetShift.end_time,
+          sourceShift.id // exclude source shift
+        );
 
-      if (!srcValidation.valid) {
-        return { success: false, error: srcValidation.error };
+        if (!srcValidation.valid) {
+          return { success: false, error: srcValidation.error };
+        }
       }
 
       if (targetUserId) {
@@ -1255,34 +1293,48 @@ export async function swapOrMoveShiftAction(
         if (!tgtValidation.valid) {
           return { success: false, error: tgtValidation.error };
         }
+      }
 
+      if (targetUserId || targetCustomName) {
         // Apply swap
         const { error: swapErr1 } = await supabase
           .from("rota_shifts")
-          .update({ user_id: targetUserId })
+          .update({ 
+            user_id: targetUserId,
+            custom_staff_name: targetCustomName || null,
+            slot_role: targetShift.slot_role || null
+          })
           .eq("id", sourceShift.id);
 
         const { error: swapErr2 } = await supabase
           .from("rota_shifts")
-          .update({ user_id: sourceUserId })
+          .update({ 
+            user_id: sourceUserId,
+            custom_staff_name: sourceCustomName || null,
+            slot_role: sourceShift.slot_role || null
+          })
           .eq("id", targetShift.id);
 
         if (swapErr1 || swapErr2) {
           throw swapErr1 || swapErr2;
         }
 
-        const { data: targetUser } = await supabase
-          .from("users")
-          .select("name")
-          .eq("id", targetUserId)
-          .single();
+        let targetUserName = targetCustomName || "Unknown";
+        if (targetUserId) {
+          const { data: targetUser } = await supabase
+            .from("users")
+            .select("name")
+            .eq("id", targetUserId)
+            .single();
+          if (targetUser) targetUserName = targetUser.name;
+        }
 
         await logRotaAudit({
           actorId,
           actionType: "shift_swapped",
           teamId,
           details: {
-            msg: `Swapped staff members ${sourceUser.name} (${sourceTemplateName} on ${sourceShift.date}) and ${targetUser?.name || "Unknown"} (${targetTemplateName} on ${targetShift.date})`
+            msg: `Swapped staff members ${sourceUserName} (${sourceTemplateName} on ${sourceShift.date}) and ${targetUserName} (${targetTemplateName} on ${targetShift.date})`
           }
         });
       } else {
@@ -1294,7 +1346,11 @@ export async function swapOrMoveShiftAction(
 
         const { error: moveErr2 } = await supabase
           .from("rota_shifts")
-          .update({ user_id: sourceUserId })
+          .update({ 
+            user_id: sourceUserId,
+            custom_staff_name: sourceCustomName || null,
+            slot_role: sourceShift.slot_role || null
+          })
           .eq("id", targetShift.id);
 
         if (moveErr1 || moveErr2) {
@@ -1306,7 +1362,7 @@ export async function swapOrMoveShiftAction(
           actionType: "shift_reassigned",
           teamId,
           details: {
-            msg: `Moved staff member ${sourceUser.name} from ${sourceTemplateName} on ${sourceShift.date} to unassigned ${targetTemplateName} on ${targetShift.date}`
+            msg: `Moved staff member ${sourceUserName} from ${sourceTemplateName} on ${sourceShift.date} to unassigned ${targetTemplateName} on ${targetShift.date}`
           }
         });
       }
@@ -1327,18 +1383,20 @@ export async function swapOrMoveShiftAction(
       }
 
       // Validate source user on target date/time
-      const srcValidation = await validateUserShiftAssignment(
-        supabase,
-        sourceShift.rota_id,
-        sourceUserId,
-        targetDate,
-        template.start_time,
-        template.end_time,
-        sourceShift.id
-      );
+      if (sourceUserId) {
+        const srcValidation = await validateUserShiftAssignment(
+          supabase,
+          sourceShift.rota_id,
+          sourceUserId,
+          targetDate,
+          template.start_time,
+          template.end_time,
+          sourceShift.id
+        );
 
-      if (!srcValidation.valid) {
-        return { success: false, error: srcValidation.error };
+        if (!srcValidation.valid) {
+          return { success: false, error: srcValidation.error };
+        }
       }
 
       // Create new shift with source user assigned
@@ -1347,6 +1405,8 @@ export async function swapOrMoveShiftAction(
         .insert({
           rota_id: sourceShift.rota_id,
           user_id: sourceUserId,
+          custom_staff_name: sourceCustomName || null,
+          slot_role: sourceShift.slot_role || null,
           shift_template_id: targetTemplateId,
           date: targetDate,
           start_time: template.start_time,
@@ -1376,7 +1436,7 @@ export async function swapOrMoveShiftAction(
         actionType: "shift_added",
         teamId,
         details: {
-          msg: `Moved staff member ${sourceUser.name} from ${sourceTemplateName} on ${sourceShift.date} to new ${template.name} on ${targetDate}`
+          msg: `Moved staff member ${sourceUserName} from ${sourceTemplateName} on ${sourceShift.date} to new ${template.name} on ${targetDate}`
         }
       });
     }

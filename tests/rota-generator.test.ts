@@ -206,6 +206,59 @@ async function runTests() {
     console.log("✅ Test 4 Passed!");
   }
 
+  // -------------------------------------------------------------
+  // Test Case 5: Assign shifts according to staff preferences
+  // -------------------------------------------------------------
+  {
+    console.log("\n👉 Test 5: Assign shifts according to preferences...");
+
+    const templates = [
+      { id: "t-day", name: "Day Shift", start_time: "08:00:00", end_time: "16:00:00", hours: 8 },
+      { id: "t-night", name: "Night Shift", start_time: "16:00:00", end_time: "24:00:00", hours: 8 },
+      { id: "t-evening", name: "Evening Shift", start_time: "12:00:00", end_time: "20:00:00", hours: 8 }
+    ];
+    // 1 Day Shift, 1 Night Shift, and 1 Evening Shift per day
+    const requirements = [
+      { shift_template_id: "t-day", nurses_required: 1, care_assistants_required: 0 },
+      { shift_template_id: "t-night", nurses_required: 1, care_assistants_required: 0 },
+      { shift_template_id: "t-evening", nurses_required: 1, care_assistants_required: 0 }
+    ];
+    const teamStaff = [
+      { user_id: "user-nurse-a" },
+      { user_id: "user-nurse-b" }
+    ];
+    const users = [
+      { id: "user-nurse-a", name: "Nurse A", role: "nurse", contracted_weekly_hours: 40, preferred_shift_id: "t-day", is_onboarding_complete: true },
+      { id: "user-nurse-b", name: "Nurse B", role: "nurse", contracted_weekly_hours: 40, preferred_shift_id: "t-night", is_onboarding_complete: true }
+    ];
+
+    const supabaseMock = createMockSupabase({ templates, requirements, teamStaff, users });
+
+    const result = await generateWeeklyRota(supabaseMock, {
+      teamId: "team-1",
+      startDate: "2026-06-29",
+      endDate: "2026-07-05"
+    });
+
+    // Nurse A is assigned to Day shifts (t-day), Nurse B to Night shifts (t-night).
+    // Verify that Day shifts are only assigned to Nurse A, and Night shifts only to Nurse B.
+    const dayAssignments = result.filter(r => r.template.id === "t-day");
+    const nightAssignments = result.filter(r => r.template.id === "t-night");
+    const eveningAssignments = result.filter(r => r.template.id === "t-evening");
+
+    // 5 day shifts and 5 night shifts should be allocated (to meet 40 hours limit per nurse).
+    assert.strictEqual(dayAssignments.filter(r => r.assignedTo === "user-nurse-a").length, 5, "Nurse A should get 5 Day shifts");
+    assert.strictEqual(dayAssignments.filter(r => r.assignedTo === "user-nurse-b").length, 0, "Nurse B should get 0 Day shifts");
+
+    assert.strictEqual(nightAssignments.filter(r => r.assignedTo === "user-nurse-b").length, 5, "Nurse B should get 5 Night shifts");
+    assert.strictEqual(nightAssignments.filter(r => r.assignedTo === "user-nurse-a").length, 0, "Nurse A should get 0 Night shifts");
+
+    // Evening shifts must remain completely unassigned since both nurses have other strict preferences
+    assert.strictEqual(eveningAssignments.filter(r => r.assignedTo !== null).length, 0, "Evening shifts must remain unassigned");
+
+    console.log("✅ Test 5 Passed!");
+  }
+
   console.log("\n✨ All tests completed successfully! 🎉");
 }
 
