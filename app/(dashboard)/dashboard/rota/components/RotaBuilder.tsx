@@ -36,6 +36,7 @@ interface Template {
   start_time: string;
   end_time: string;
   hours: number;
+  sort_order?: number;
 }
 
 interface RotaShift {
@@ -147,11 +148,13 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     try {
       setLoading(true);
 
-      // 1. Fetch shift templates
+      // 1. Fetch shift templates ordered by sort_order, then start_time
       const { data: tData } = await supabase
         .from("shift_templates")
-        .select("id, name, start_time, end_time, hours")
-        .eq("team_id", profile.active_team_id);
+        .select("id, name, start_time, end_time, hours, sort_order")
+        .eq("team_id", profile.active_team_id)
+        .order("sort_order", { ascending: true })
+        .order("start_time", { ascending: true });
       setTemplates(tData || []);
 
       // 1.5. Fetch staffing requirements

@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Edit } from "lucide-react";
+import { Plus, Trash2, Edit, GripVertical } from "lucide-react";
 import {
   createShiftTemplateAction,
   updateShiftTemplateAction,
-  deleteShiftTemplateAction
+  deleteShiftTemplateAction,
+  reorderShiftTemplatesAction
 } from "@/app/actions/rota";
 
 interface Template {
@@ -24,6 +25,7 @@ interface Template {
   break_minutes: number;
   hours: number;
   notes: string | null;
+  sort_order?: number;
 }
 
 export default function ShiftTemplates({ profile }: { profile: any }) {
@@ -32,6 +34,9 @@ export default function ShiftTemplates({ profile }: { profile: any }) {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
 
   // Form states
   const [name, setName] = useState("");
@@ -47,6 +52,7 @@ export default function ShiftTemplates({ profile }: { profile: any }) {
         .from("shift_templates")
         .select("*")
         .eq("team_id", profile.active_team_id)
+        .order("sort_order", { ascending: true })
         .order("start_time", { ascending: true });
 
       if (error) throw error;
@@ -61,6 +67,41 @@ export default function ShiftTemplates({ profile }: { profile: any }) {
   useEffect(() => {
     fetchTemplates();
   }, [profile?.active_team_id]);
+
+  const handleDrop = async (dragIdx: number, dropIdx: number) => {
+    if (dragIdx === dropIdx) return;
+    if (!profile?.active_team_id) return;
+
+    const reordered = [...templates];
+    const [movedItem] = reordered.splice(dragIdx, 1);
+    reordered.splice(dropIdx, 0, movedItem);
+
+    // Instantly update local state to feel responsive
+    setTemplates(reordered);
+
+    try {
+      setSavingOrder(true);
+      const orderedIds = reordered.map(t => t.id);
+      
+      const res = await reorderShiftTemplatesAction(
+        profile.id,
+        profile.active_team_id,
+        orderedIds
+      );
+
+      if (res.success) {
+        toast.success("Shift order updated successfully");
+      } else {
+        toast.error(res.error || "Failed to save shift order");
+        fetchTemplates();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update shift order");
+      fetchTemplates();
+    } finally {
+      setSavingOrder(false);
+    }
+  };
 
   const calculateHours = (start: string, end: string, breaks: number) => {
     const [sH, sM] = start.split(":").map(Number);
@@ -154,7 +195,9 @@ export default function ShiftTemplates({ profile }: { profile: any }) {
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Configure Rota Settings</CardTitle>
-          <CardDescription>Define your standard shift patterns and global operational rules.</CardDescription>
+          <CardDescription>
+            Define your standard shift patterns and global operational rules. Drag rows (using the grip handle or shift cell) up or down to reorder them. The order is automatically reflected in the Rota Builder.
+          </CardDescription>
         </div>
         <Button onClick={handleOpenAdd}>
           <Plus className="w-4 h-4 mr-2" />
@@ -170,6 +213,7 @@ export default function ShiftTemplates({ profile }: { profile: any }) {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]"></TableHead>
                 <TableHead>Shift Name</TableHead>
                 <TableHead>Start Time</TableHead>
                 <TableHead>End Time</TableHead>
@@ -179,23 +223,65 @@ export default function ShiftTemplates({ profile }: { profile: any }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {templates.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-semibold">{t.name}</TableCell>
-                  <TableCell>{t.start_time.slice(0, 5)}</TableCell>
-                  <TableCell>{t.end_time.slice(0, 5)}</TableCell>
-                  <TableCell>{t.break_minutes} mins</TableCell>
-                  <TableCell>{t.hours} hrs</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(t)}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(t.id)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {templates.map((t, idx) => {
+                const isDragging = draggedIndex === idx;
+                const isDragOver = dragOverIndex === idx;
+
+                return (
+                  <TableRow 
+                    key={t.id}
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggedIndex(idx);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (draggedIndex !== null && draggedIndex !== idx) {
+                        setDragOverIndex(idx);
+                      }
+                    }}
+                    onDragEnd={() => {
+                      setDraggedIndex(null);
+                      setDragOverIndex(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
+                        handleDrop(draggedIndex, dragOverIndex);
+                      }
+                      setDraggedIndex(null);
+                      setDragOverIndex(null);
+                    }}
+                    className={`
+                      transition-all duration-200
+                      ${isDragging ? "opacity-30 bg-muted/50" : ""}
+                      ${isDragOver ? "border-t-2 border-primary bg-primary/5" : ""}
+                    `}
+                  >
+                    <TableCell className="align-middle w-[40px] p-2">
+                      <div className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors p-1 flex justify-center">
+                        <GripVertical className="w-4 h-4" />
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-semibold align-middle cursor-grab active:cursor-grabbing">
+                      {t.name}
+                    </TableCell>
+                    <TableCell className="align-middle cursor-grab active:cursor-grabbing">{t.start_time.slice(0, 5)}</TableCell>
+                    <TableCell className="align-middle cursor-grab active:cursor-grabbing">{t.end_time.slice(0, 5)}</TableCell>
+                    <TableCell>{t.break_minutes} mins</TableCell>
+                    <TableCell>{t.hours} hrs</TableCell>
+                    <TableCell className="text-right space-x-2">
+                      <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(t)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(t.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

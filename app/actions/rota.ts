@@ -237,6 +237,40 @@ export async function deleteShiftTemplateAction(actorId: string, templateId: str
   }
 }
 
+export async function reorderShiftTemplatesAction(
+  actorId: string,
+  teamId: string,
+  orderedTemplateIds: string[]
+) {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Update sort_order for each template sequentially
+    for (let i = 0; i < orderedTemplateIds.length; i++) {
+      const { error } = await supabase
+        .from("shift_templates")
+        .update({ sort_order: i })
+        .eq("id", orderedTemplateIds[i])
+        .eq("team_id", teamId);
+      
+      if (error) throw error;
+    }
+
+    // Log the change in the Rota Audit Trail
+    await logRotaAudit({
+      actorId,
+      actionType: "staffing_rule_changed",
+      teamId,
+      details: { ordered_template_ids: orderedTemplateIds }
+    });
+
+    revalidatePath("/dashboard/rota");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 // 5. Staffing Requirements CRUD
 export async function configureStaffingRequirementsAction(
   actorId: string,
