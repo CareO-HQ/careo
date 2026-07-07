@@ -15,6 +15,7 @@ interface Template {
   name: string;
   start_time: string;
   end_time: string;
+  sort_order: number;
 }
 
 interface StaffingReq {
@@ -35,11 +36,13 @@ export default function StaffingRequirements({ profile }: { profile: any }) {
     try {
       setLoading(true);
       
-      // 1. Fetch shift templates
+      // 1. Fetch shift templates sorted by sort_order
       const { data: tData, error: tErr } = await supabase
         .from("shift_templates")
-        .select("id, name, start_time, end_time")
-        .eq("team_id", profile.active_team_id);
+        .select("id, name, start_time, end_time, sort_order")
+        .eq("team_id", profile.active_team_id)
+        .order("sort_order", { ascending: true })
+        .order("start_time", { ascending: true });
       
       if (tErr) throw tErr;
       setTemplates(tData || []);

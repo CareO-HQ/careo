@@ -306,7 +306,7 @@ export default function AgencyPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6 w-full min-w-0 max-w-7xl mx-auto">
       {/* Sticky Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
@@ -388,38 +388,44 @@ export default function AgencyPage() {
         </TabsList>
 
         {/* 1. Pending Requests Tab */}
-        <TabsContent value="requests" className="mt-6 space-y-4">
-          <Card className="border-slate-100/85 shadow-md">
+        <TabsContent value="requests" className="mt-6 w-full min-w-0 space-y-4">
+          <Card className="w-full border-slate-100/85 shadow-md">
             <CardHeader>
               <CardTitle className="text-xl font-semibold text-slate-800">Incoming Agency Requests</CardTitle>
               <CardDescription>
                 Approve requests and send onboarding links to nurses and care assistants.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="py-8 text-center text-slate-400">Loading requests...</div>
-              ) : pendingRequests.length === 0 ? (
-                <div className="py-12 text-center text-slate-400">
-                  <Clock className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                  <p className="font-medium text-slate-500">No pending requests</p>
-                  <p className="text-xs text-slate-400 mt-1">Requests from the agency portal will appear here.</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Worker Details</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Team</TableHead>
-                      <TableHead>Compliance & Docs</TableHead>
-                      <TableHead>Date Sent</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+            <CardContent className="w-full min-w-0">
+              <Table className="table-fixed w-full">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[22%]">Worker Details</TableHead>
+                    <TableHead className="w-[10%]">Role</TableHead>
+                    <TableHead className="w-[12%]">Team</TableHead>
+                    <TableHead className="w-[14%]">Compliance & Docs</TableHead>
+                    <TableHead className="w-[14%]">Date Sent</TableHead>
+                    <TableHead className="w-[14%]">Status</TableHead>
+                    <TableHead className="w-[14%] text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-48 text-center text-slate-400">
+                        Loading requests...
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingRequests.map((req) => (
+                  ) : pendingRequests.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-48 text-center text-slate-400">
+                        <Clock className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                        <p className="font-medium text-slate-500">No pending requests</p>
+                        <p className="text-xs text-slate-400 mt-1">Requests from the agency portal will appear here.</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pendingRequests.map((req) => (
                       <TableRow key={req.id} className="hover:bg-slate-50/50">
                         <TableCell>
                           <div className="font-semibold text-slate-800">{req.agency_staff?.name}</div>
@@ -519,45 +525,51 @@ export default function AgencyPage() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* 2. Active Staff Tab */}
-        <TabsContent value="active" className="mt-6 space-y-4">
-          <Card className="border-slate-100/85 shadow-md">
+        <TabsContent value="active" className="mt-6 w-full min-w-0 space-y-4">
+          <Card className="w-full border-slate-100/85 shadow-md">
             <CardHeader>
               <CardTitle className="text-xl font-semibold text-slate-800">Active Agency Workers</CardTitle>
               <CardDescription>
                 Currently active workers who have accepted their onboarding links and can log in.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="py-8 text-center text-slate-400">Loading active staff...</div>
-              ) : activeStaff.length === 0 ? (
-                <div className="py-12 text-center text-slate-400">
-                  <UserCheck className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                  <p className="font-medium text-slate-500">No active agency workers</p>
-                  <p className="text-xs text-slate-400 mt-1">Once workers accept onboarding invites, they will appear here.</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Worker Details</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Team</TableHead>
-                      <TableHead>Activated At</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+            <CardContent className="w-full min-w-0">
+              <Table className="table-fixed w-full">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[22%]">Worker Details</TableHead>
+                    <TableHead className="w-[10%]">Role</TableHead>
+                    <TableHead className="w-[12%]">Team</TableHead>
+                    <TableHead className="w-[28%]">Activated At</TableHead>
+                    <TableHead className="w-[28%] text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-48 text-center text-slate-400">
+                        Loading active staff...
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {activeStaff.map((req) => (
+                  ) : activeStaff.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-48 text-center text-slate-400">
+                        <UserCheck className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                        <p className="font-medium text-slate-500">No active agency workers</p>
+                        <p className="text-xs text-slate-400 mt-1">Once workers accept onboarding invites, they will appear here.</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    activeStaff.map((req) => (
                       <TableRow key={req.id} className="hover:bg-slate-50/50">
                         <TableCell>
                           <div className="font-semibold text-slate-800">{req.agency_staff?.name}</div>
@@ -587,34 +599,57 @@ export default function AgencyPage() {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* 3. History Tab */}
-        <TabsContent value="history" className="mt-6 space-y-4">
-          <Card className="border-slate-100/85 shadow-md">
+        <TabsContent value="history" className="mt-6 w-full min-w-0 space-y-4">
+          <Card className="w-full border-slate-100/85 shadow-md">
             <CardHeader>
               <CardTitle className="text-xl font-semibold text-slate-800">Assignment History</CardTitle>
               <CardDescription>
                 Records of past temporary worker shifts and declined requests.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="py-8 text-center text-slate-400">Loading history...</div>
-              ) : historyStaff.length === 0 ? (
-                <div className="py-12 text-center text-slate-400">
-                  <History className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                  <p className="font-medium text-slate-500">No history records</p>
-                  <p className="text-xs text-slate-400 mt-1">Previous assignments will be stored here.</p>
-                </div>
+            <CardContent className="w-full min-w-0">
+              {isLoading || historyStaff.length === 0 ? (
+                <Table className="table-fixed w-full">
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[22%]">Worker Details</TableHead>
+                      <TableHead className="w-[10%]">Role</TableHead>
+                      <TableHead className="w-[12%]">Team</TableHead>
+                      <TableHead className="w-[14%]">Assignment Period</TableHead>
+                      <TableHead className="w-[14%]">Verified By</TableHead>
+                      <TableHead className="w-[14%]">Inducted By</TableHead>
+                      <TableHead className="w-[14%]">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-48 text-center text-slate-400">
+                          Loading history...
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-48 text-center text-slate-400">
+                          <History className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                          <p className="font-medium text-slate-500">No history records</p>
+                          <p className="text-xs text-slate-400 mt-1">Previous assignments will be stored here.</p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-6 w-full min-w-0">
                   {/* Month Filter Dropdown */}
                   <div className="flex items-center gap-2.5 pb-2">
                     <span className="text-xs font-semibold text-slate-500">Filter by Month:</span>
@@ -637,26 +672,53 @@ export default function AgencyPage() {
                     selectedMonthFilter === "all"
                       ? groupHistoryByMonth(historyStaff)
                       : { [selectedMonthFilter]: groupHistoryByMonth(historyStaff)[selectedMonthFilter] || [] }
-                  ).map(([month, reqs]) => (
-                    reqs && reqs.length > 0 && (
-                      <div key={month} className="space-y-3">
-                        <h4 className="font-bold text-slate-800 text-sm border-l-4 border-teal-600 pl-2 mt-4 first:mt-0">
-                          {month}
-                        </h4>
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="hover:bg-transparent">
-                              <TableHead>Worker Details</TableHead>
-                              <TableHead>Role</TableHead>
-                              <TableHead>Team</TableHead>
-                              <TableHead>Assignment Period</TableHead>
-                              <TableHead>Verified By</TableHead>
-                              <TableHead>Inducted By</TableHead>
-                              <TableHead>Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {reqs.map((req) => (
+                  ).every(([, reqs]) => !reqs || reqs.length === 0) ? (
+                    <Table className="table-fixed w-full">
+                      <TableHeader>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="w-[22%]">Worker Details</TableHead>
+                          <TableHead className="w-[10%]">Role</TableHead>
+                          <TableHead className="w-[12%]">Team</TableHead>
+                          <TableHead className="w-[14%]">Assignment Period</TableHead>
+                          <TableHead className="w-[14%]">Verified By</TableHead>
+                          <TableHead className="w-[14%]">Inducted By</TableHead>
+                          <TableHead className="w-[14%]">Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell colSpan={7} className="h-48 text-center text-slate-400">
+                            <History className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                            <p className="font-medium text-slate-500">No records for selected month</p>
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    Object.entries(
+                      selectedMonthFilter === "all"
+                        ? groupHistoryByMonth(historyStaff)
+                        : { [selectedMonthFilter]: groupHistoryByMonth(historyStaff)[selectedMonthFilter] || [] }
+                    ).map(([month, reqs]) => (
+                      reqs && reqs.length > 0 && (
+                        <div key={month} className="space-y-3">
+                          <h4 className="font-bold text-slate-800 text-sm border-l-4 border-teal-600 pl-2 mt-4 first:mt-0">
+                            {month}
+                          </h4>
+                          <Table className="table-fixed w-full">
+                            <TableHeader>
+                              <TableRow className="hover:bg-transparent">
+                                <TableHead className="w-[22%]">Worker Details</TableHead>
+                                <TableHead className="w-[10%]">Role</TableHead>
+                                <TableHead className="w-[12%]">Team</TableHead>
+                                <TableHead className="w-[14%]">Assignment Period</TableHead>
+                                <TableHead className="w-[14%]">Verified By</TableHead>
+                                <TableHead className="w-[14%]">Inducted By</TableHead>
+                                <TableHead className="w-[14%]">Status</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {reqs.map((req) => (
                               <TableRow key={req.id} className="hover:bg-slate-50/50">
                                 <TableCell>
                                   <div className="font-semibold text-slate-800">{req.agency_staff?.name}</div>
@@ -703,7 +765,8 @@ export default function AgencyPage() {
                         </Table>
                       </div>
                     )
-                  ))}
+                  ))
+                  )}
                 </div>
               )}
             </CardContent>

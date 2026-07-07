@@ -85,6 +85,56 @@ function resolveActionPlanTableName(category: string): string {
     return `audit_${category === "carefile" ? "care_file" : category}_action_plans`;
 }
 
+const ACTIVE_ACTION_PLAN_STATUSES = ["pending", "in_progress", "overdue"] as const;
+
+function buildAssigneeOrFilter(userId: string, email: string): string {
+    const orParts: string[] = [];
+    if (userId) {
+        orParts.push(`assigned_to.eq.${userId}`);
+    }
+    if (email) {
+        orParts.push(`assigned_to.eq.${email}`, `assigned_to_email.eq.${email}`);
+    }
+    return orParts.join(",");
+}
+
+async function fetchCareHomeCommonPlansForAssignee(params: {
+    userId: string;
+    email: string;
+    organizationId?: string | null;
+    careHomeId?: string | null;
+}) {
+    const { userId, email, organizationId, careHomeId } = params;
+    if (!userId && !email) return [];
+
+    const assigneeOr = buildAssigneeOrFilter(userId, email);
+    if (!assigneeOr) return [];
+
+    try {
+        let query = supabase
+            .from(CARE_HOME_COMMON_ACTION_PLANS_TABLE)
+            .select("*")
+            .or(assigneeOr)
+            .in("status", [...ACTIVE_ACTION_PLAN_STATUSES]);
+        if (organizationId) {
+            query = query.eq("organization_id", organizationId);
+        }
+        if (careHomeId) {
+            query = query.eq("care_home_id", careHomeId);
+        }
+        const { data, error } = await query;
+        if (error || !data) return [];
+        return data.map((p) => ({
+            ...p,
+            auditCategory: "common",
+            actionPlanTable: CARE_HOME_COMMON_ACTION_PLANS_TABLE,
+        }));
+    } catch (err) {
+        console.error("Error fetching assigned care home common action plans:", err);
+        return [];
+    }
+}
+
 async function fetchCareHomeCommonPlansForParticipant(params: {
     userId: string;
     email: string;
@@ -663,6 +713,76 @@ export const auditService = {
             }
         }
         const commonPlans = await fetchCareHomeCommonPlansForParticipant({
+            userId,
+            email,
+            organizationId,
+            careHomeId,
+        });
+        allPlans.push(...commonPlans);
+        return allPlans;
+    },
+
+    async getAssignedActionPlans(params: {
+        userId: string;
+        email: string;
+        organizationId?: string | null;
+        careHomeId?: string | null;
+        /** When `care_assistant`, only assignee rows from `care_home_common_action_plans` are returned. */
+        role?: string | null;
+    }) {
+        const { userId, email, organizationId, careHomeId, role } = params;
+        if (!userId && !email) return [];
+
+        if (role === "care_assistant") {
+            return fetchCareHomeCommonPlansForAssignee({
+                userId,
+                email,
+                organizationId,
+                careHomeId,
+            });
+        }
+
+        const assigneeOr = buildAssigneeOrFilter(userId, email);
+        if (!assigneeOr) return [];
+
+        const tables = [
+            { name: "audit_resident_action_plans", category: "resident" },
+            { name: "audit_care_file_action_plans", category: "carefile" },
+            { name: "audit_governance_action_plans", category: "governance" },
+            { name: "audit_clinical_action_plans", category: "clinical" },
+            { name: "audit_environment_action_plans", category: "environment" },
+            { name: "audit_manager_action_plans", category: "manager" },
+        ];
+
+        const allPlans: Record<string, unknown>[] = [];
+        for (const table of tables) {
+            try {
+                let query = supabase
+                    .from(table.name)
+                    .select("*")
+                    .or(assigneeOr)
+                    .in("status", [...ACTIVE_ACTION_PLAN_STATUSES]);
+                if (organizationId) {
+                    query = query.eq("organization_id", organizationId);
+                }
+                if (careHomeId) {
+                    query = query.eq("care_home_id", careHomeId);
+                }
+                const { data, error } = await query;
+
+                if (!error && data) {
+                    allPlans.push(...data.map((p) => ({
+                        ...p,
+                        auditCategory: table.category,
+                        actionPlanTable: table.name,
+                    })));
+                }
+            } catch (err) {
+                console.error(`Error fetching assigned plans from ${table.name}:`, err);
+            }
+        }
+
+        const commonPlans = await fetchCareHomeCommonPlansForAssignee({
             userId,
             email,
             organizationId,

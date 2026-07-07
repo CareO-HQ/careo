@@ -417,6 +417,12 @@ export function canManageRotaTemplatesAndRules(role?: string, isApprovedNurse?: 
   return false;
 }
 
+export function canManagePreferences(role?: string, isApprovedNurse?: boolean): boolean {
+  if (role === "saas_admin" || role === "owner" || role === "manager") return true;
+  if (role === "nurse" && isApprovedNurse) return true;
+  return false;
+}
+
 export function canToggleApprovedNurseRole(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "saas_admin";
 }

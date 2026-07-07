@@ -131,11 +131,28 @@ export async function generateWeeklyRota(supabase: SupabaseClient, config: Gener
     });
 
     if (eligibleCandidates.length > 0) {
-      // Sort eligible candidates so that the one with the most remaining contracted hours is prioritized.
-      // If remaining hours are equal, prioritize the one with least worked hours.
+      // Sort eligible candidates.
+      // Priority 1: Preferred Shift Preference (Match > Neutral > Mismatch)
+      // Priority 2: Most remaining contracted hours (to fulfill minimum contract targets)
+      // Priority 3: Least worked hours (for fairness/load balance)
+      // Priority 4: Base score as tie breaker (continuity, preferred days, consecutive limits checks)
       eligibleCandidates.sort((a, b) => {
         const aHours = staffHoursMap.get(a.id) || 0;
         const bHours = staffHoursMap.get(b.id) || 0;
+
+        // Preference Tier: Match = 2, Neutral = 1, Mismatch = 0
+        const getPrefTier = (candidate: any) => {
+          if (candidate.preferred_shift_id === slot.template.id) return 2;
+          if (!candidate.preferred_shift_id) return 1;
+          return 0;
+        };
+
+        const aTier = getPrefTier(a);
+        const bTier = getPrefTier(b);
+
+        if (aTier !== bTier) {
+          return bTier - aTier; // Descending (higher preference tier first)
+        }
 
         const aTarget = Number(a.contracted_weekly_hours || 0);
         const bTarget = Number(b.contracted_weekly_hours || 0);
@@ -230,6 +247,15 @@ function evaluateCandidateScore(params: any): number {
   // Rule 8: Preferred Working Days
   const weekdayName = format(parseISO(slot.date), "EEEE"); // 'Monday'
   if (candidate.preferred_working_days?.includes(weekdayName)) score += 10;
+
+  // Preferred Shift Preference Rule (Strict Auto-Scheduler Constraint)
+  if (candidate.preferred_shift_id) {
+    if (candidate.preferred_shift_id === slot.template.id) {
+      score += 50; // Large boost for preferred shift
+    } else {
+      return -9999; // Strictly block from non-preferred shifts
+    }
+  }
 
   // Rule 9: Consecutive Shift Limits (Max 6 consecutive days)
   const hasConsecutiveViolation = checkConsecutiveShiftLimit(candidate.id, slot.date, slotsToFill);

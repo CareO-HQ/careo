@@ -21,12 +21,14 @@ import {
   clearRotaShiftsAction,
   unpublishRotaAction,
   createTemporaryStaffAction,
-  deleteTemporaryStaffAction
+  deleteTemporaryStaffAction,
+  updateStaffWorkforceAction
 } from "@/app/actions/rota";
 import { generateWeeklyRota } from "@/lib/rota-generator";
 
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 
 interface Template {
   id: string;
@@ -34,6 +36,7 @@ interface Template {
   start_time: string;
   end_time: string;
   hours: number;
+  sort_order?: number;
 }
 
 interface RotaShift {
@@ -58,6 +61,7 @@ interface StaffMember {
   name: string;
   role: string;
   contracted_weekly_hours: number;
+  preferred_shift_id?: string | null;
 }
 
 function resolveShiftDisplayRole(
@@ -110,10 +114,19 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedStaffId, setSelectedStaffId] = useState("unassigned");
   const [selectedRole, setSelectedRole] = useState<"nurse" | "care_assistant" | "all">("all");
+  const [showPermanent, setShowPermanent] = useState(true);
+  const [showBank, setShowBank] = useState(true);
+  const [showAgency, setShowAgency] = useState(true);
 
   // Custom staff name state
   const [isCustomName, setIsCustomName] = useState(false);
   const [customName, setCustomName] = useState("");
+
+  // Dialog Removal Reason state
+  const [removalDialogOpen, setRemovalDialogOpen] = useState(false);
+  const [shiftIdToRemove, setShiftIdToRemove] = useState<string | null>(null);
+  const [removalReason, setRemovalReason] = useState("");
+  const [showPublishWarningDialog, setShowPublishWarningDialog] = useState(false);
 
   // Drag and Drop state
   const [draggingUser, setDraggingUser] = useState<{ shiftId: string; userId: string; role: string } | null>(null);
@@ -135,11 +148,13 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     try {
       setLoading(true);
 
-      // 1. Fetch shift templates
+      // 1. Fetch shift templates ordered by sort_order, then start_time
       const { data: tData } = await supabase
         .from("shift_templates")
-        .select("id, name, start_time, end_time, hours")
-        .eq("team_id", profile.active_team_id);
+        .select("id, name, start_time, end_time, hours, sort_order")
+        .eq("team_id", profile.active_team_id)
+        .order("sort_order", { ascending: true })
+        .order("start_time", { ascending: true });
       setTemplates(tData || []);
 
       // 1.5. Fetch staffing requirements
@@ -161,7 +176,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
       if (staffIds.length > 0) {
         const { data: sData } = await supabase
           .from("users")
-          .select("id, name, role, contracted_weekly_hours")
+          .select("id, name, role, contracted_weekly_hours, preferred_shift_id")
           .in("id", staffIds);
         // Filter out Manager and Owner roles from staff list
         filteredStaff = (sData || []).filter(u => u.role !== "owner" && u.role !== "manager");
@@ -233,6 +248,34 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     });
     return map;
   }, [staffingRequirements]);
+
+  const unassignedCounts = React.useMemo(() => {
+    let unassignedNurses = 0;
+    let unassignedCAs = 0;
+
+    templates.forEach(template => {
+      const req = requirementsMap[template.id] || { nurses_required: 1, care_assistants_required: 3 };
+      datesOfWeek.forEach(day => {
+        const cellShifts = rotaShifts.filter(
+          s => s.shift_template_id === template.id && s.date === day.dateStr
+        );
+
+        const nurseShifts = cellShifts.filter(s => s.user?.role === "nurse" || s.user?.role === "agency_nurse");
+        const customNurseShifts = cellShifts.filter(s => !s.user_id && s.custom_staff_name && s.slot_role === "nurse");
+        const nurseEligible = [...nurseShifts, ...customNurseShifts];
+        const emptyNurses = Math.max(0, req.nurses_required - nurseEligible.length);
+        unassignedNurses += emptyNurses;
+
+        const caShifts = cellShifts.filter(s => s.user?.role === "care_assistant" || s.user?.role === "agency_care_assistant");
+        const customCAShifts = cellShifts.filter(s => !s.user_id && s.custom_staff_name && s.slot_role === "care_assistant");
+        const caEligible = [...caShifts, ...customCAShifts];
+        const emptyCAs = Math.max(0, req.care_assistants_required - caEligible.length);
+        unassignedCAs += emptyCAs;
+      });
+    });
+
+    return { nurses: unassignedNurses, careAssistants: unassignedCAs };
+  }, [templates, requirementsMap, datesOfWeek, rotaShifts]);
 
   // Helper to match member roles in assignment
   const isRoleMatch = useCallback((memberRole: string | null, targetRole: "nurse" | "care_assistant" | "all") => {
@@ -394,6 +437,9 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     setSelectedTemplateId(templateId);
     setSelectedStaffId("unassigned");
     setSelectedRole(role);
+    setShowPermanent(true);
+    setShowBank(true);
+    setShowAgency(true);
     setIsCustomName(false);
     setCustomName("");
     setAddDialogOpen(true);
@@ -406,8 +452,11 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     const template = templates.find(t => t.id === selectedTemplateId);
     if (!template) return;
 
-    const staffId = isCustomName ? null : (selectedStaffId === "unassigned" ? null : selectedStaffId);
-    const customStaffNameVal = isCustomName ? customName.trim() : null;
+    const isSyntheticBank = !isCustomName && selectedStaffId?.startsWith("custom:");
+    const staffId = isCustomName || isSyntheticBank ? null : (selectedStaffId === "unassigned" ? null : selectedStaffId);
+    const customStaffNameVal = isCustomName 
+      ? customName.trim() 
+      : (isSyntheticBank ? selectedStaffId.slice(7) : null);
 
     if (isCustomName && !customStaffNameVal) {
       toast.error("Please enter a custom staff name");
@@ -422,6 +471,11 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
       const member = staff.find(s => s.id === staffId);
       if (member) {
         slotRole = (member.role === "nurse" || member.role === "agency_nurse") ? "nurse" : "care_assistant";
+      }
+    } else if (isSyntheticBank) {
+      const bankMember = temporaryStaff.find(ts => `custom:${ts.name}` === selectedStaffId);
+      if (bankMember) {
+        slotRole = bankMember.role === "nurse" ? "nurse" : "care_assistant";
       }
     } else if (selectedRole === "nurse" || selectedRole === "care_assistant") {
       slotRole = selectedRole;
@@ -455,12 +509,25 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
       toast.error("Cannot modify a published rota.");
       return;
     }
-    const res = await deleteManualShiftAction(profile.id, shiftId);
-    if (res.success) {
-      toast.success("Shift assignment removed");
-      fetchData();
+
+    const shift = rotaShifts.find(s => s.id === shiftId);
+    const isPermanent = shift && shift.user_id && !shift.user_id.startsWith("custom:") && 
+      shift.user?.role !== "agency_nurse" && shift.user?.role !== "agency_care_assistant";
+
+    if (isPermanent) {
+      setShiftIdToRemove(shiftId);
+      setRemovalReason("");
+      setRemovalDialogOpen(true);
     } else {
-      toast.error(res.error || "Failed to remove shift");
+      if (confirm("Are you sure you want to remove this shift assignment?")) {
+        const res = await deleteManualShiftAction(profile.id, shiftId);
+        if (res.success) {
+          toast.success("Shift assignment removed");
+          fetchData();
+        } else {
+          toast.error(res.error || "Failed to remove shift");
+        }
+      }
     }
   };
 
@@ -568,26 +635,41 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
     }
   };
 
-  const handlePublish = async () => {
+  const executePublish = async (bypassValidation = false) => {
     if (!rotaId) return;
-    const res = await publishRotaAction(profile.id, rotaId);
-    if (res.success) {
-      toast.success("Rota has been published and staff notified!");
-      setIsEditing(false);
-      fetchData();
-    } else if (res.validationFailed) {
-      // Show blocking error rules
-      toast.error(
-        <div className="space-y-1">
-          <p className="font-bold">Publish Blocked (Nurse Coverage Gate Unmet):</p>
-          <ul className="text-xs list-disc list-inside">
-            {res.errors?.map((err, idx) => <li key={idx}>{err}</li>)}
-          </ul>
-        </div>,
-        { duration: 8000 }
-      );
+    setLoading(true);
+    try {
+      const res = await publishRotaAction(profile.id, rotaId, bypassValidation);
+      if (res.success) {
+        toast.success("Rota has been published and staff notified!");
+        setIsEditing(false);
+        fetchData();
+      } else if (res.validationFailed) {
+        // Show blocking error rules
+        toast.error(
+          <div className="space-y-1">
+            <p className="font-bold">Publish Blocked (Nurse Coverage Gate Unmet):</p>
+            <ul className="text-xs list-disc list-inside">
+              {res.errors?.map((err, idx) => <li key={idx}>{err}</li>)}
+            </ul>
+          </div>,
+          { duration: 8000 }
+        );
+      } else {
+        toast.error(res.error || "Failed to publish rota");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (unassignedCounts.nurses > 0 || unassignedCounts.careAssistants > 0) {
+      setShowPublishWarningDialog(true);
     } else {
-      toast.error(res.error || "Failed to publish rota");
+      await executePublish(false);
     }
   };
 
@@ -932,13 +1014,13 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
 
                                const slotId = slot.shift.id;
                                const isCurrentDragOver = dragOverSlotId === slotId;
-                               const isDraggable = isPowerUser && isEditing && rotaStatus !== "published" && !!slot.shift.user_id;
+                               const isDraggable = isPowerUser && isEditing && rotaStatus !== "published" && (!!slot.shift.user_id || !!slot.shift.custom_staff_name);
 
                                return (
                                  <div
                                    key={slotId}
                                    draggable={isDraggable}
-                                   onDragStart={(e) => handleDragStart(e, slotId, slot.shift!.user_id!, slot.shift!.user?.role || "")}
+                                   onDragStart={(e) => handleDragStart(e, slotId, slot.shift!.user_id || "", slot.shift!.user?.role || displayRole)}
                                    onDragEnd={handleDragEnd}
                                    onDragOver={(e) => handleDragOver(e, slotId, displayRole, slot.shift!.user?.role)}
                                    onDragLeave={handleDragLeave}
@@ -1095,6 +1177,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                     <th className="p-3 font-semibold">Role</th>
                     <th className="p-3 font-semibold text-center">Assigned Hours</th>
                     <th className="p-3 font-semibold text-center">Contracted Hours</th>
+                    <th className="p-3 font-semibold text-center">Preference</th>
                     <th className="p-3 font-semibold text-right">Status</th>
                   </tr>
                 </thead>
@@ -1152,6 +1235,51 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                           <td className="p-3 text-center font-sans text-xs">
                             {contracted} hrs
                           </td>
+                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            {sMember.role === "nurse" || sMember.role === "care_assistant" ? (
+                              !sMember.id.startsWith("custom:") ? (
+                                isPowerUser ? (
+                                  <Select
+                                    value={sMember.preferred_shift_id || "none"}
+                                    onValueChange={async (value) => {
+                                      const preferredShiftId = value === "none" ? null : value;
+                                      try {
+                                        const res = await updateStaffWorkforceAction(profile.id, sMember.id, { preferred_shift_id: preferredShiftId });
+                                        if (res.success) {
+                                          toast.success("Updated preferred shift preference");
+                                          fetchData();
+                                        } else {
+                                          toast.error(res.error || "Failed to update preference");
+                                        }
+                                      } catch (err: any) {
+                                        toast.error(err?.message || "Failed to update preference");
+                                      }
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-8 w-[140px] text-xs mx-auto">
+                                      <SelectValue placeholder="Select shift" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none">None</SelectItem>
+                                      {templates.map((template) => (
+                                        <SelectItem key={template.id} value={template.id} className="text-xs">
+                                          {template.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <span className="text-xs">
+                                    {templates.find(t => t.id === sMember.preferred_shift_id)?.name || "None"}
+                                  </span>
+                                )
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </td>
                           <td className="p-3 text-right">
                             <div className="flex justify-end items-center gap-1.5 flex-wrap">
                               {isOnLeave && (
@@ -1195,7 +1323,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                       <>
                         {/* Permanent Staff Header */}
                         <tr className="font-semibold border-b border-indigo-100">
-                          <td colSpan={5} className="p-2.5 pl-3 text-xs uppercase tracking-wider bg-indigo-50 text-indigo-700">
+                          <td colSpan={6} className="p-2.5 pl-3 text-xs uppercase tracking-wider bg-indigo-50 text-indigo-700">
                             <div className="flex items-center gap-2">
                               <Users className="w-3.5 h-3.5 text-indigo-600" />
                               <span>Permanent Staff</span>
@@ -1206,7 +1334,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                           permanentStaff.map(s => renderStaffRow(s))
                         ) : (
                           <tr>
-                            <td colSpan={5} className="p-3 text-center text-xs text-muted-foreground italic">
+                            <td colSpan={6} className="p-3 text-center text-xs text-muted-foreground italic">
                               No permanent staff assigned
                             </td>
                           </tr>
@@ -1214,7 +1342,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
 
                         {/* Bank Header */}
                         <tr className="font-semibold border-b border-emerald-100">
-                          <td colSpan={5} className="p-2.5 pl-3 text-xs uppercase tracking-wider bg-emerald-50 text-emerald-700">
+                          <td colSpan={6} className="p-2.5 pl-3 text-xs uppercase tracking-wider bg-emerald-50 text-emerald-700">
                             <div className="flex items-center gap-2">
                               <Briefcase className="w-3.5 h-3.5 text-emerald-600" />
                               <span>Bank</span>
@@ -1225,7 +1353,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                           bankStaff.map(s => renderStaffRow(s))
                         ) : (
                           <tr>
-                            <td colSpan={5} className="p-3 text-center text-xs text-muted-foreground italic">
+                            <td colSpan={6} className="p-3 text-center text-xs text-muted-foreground italic">
                               No bank staff assigned
                             </td>
                           </tr>
@@ -1233,7 +1361,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
 
                         {/* Agency Header */}
                         <tr className="font-semibold border-b border-amber-100">
-                          <td colSpan={5} className="p-2.5 pl-3 text-xs uppercase tracking-wider bg-amber-50 text-amber-700">
+                          <td colSpan={6} className="p-2.5 pl-3 text-xs uppercase tracking-wider bg-amber-50 text-amber-700">
                             <div className="flex items-center gap-2">
                               <Building className="w-3.5 h-3.5 text-amber-600" />
                               <span>Agency</span>
@@ -1244,7 +1372,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                           agencyStaff.map(s => renderStaffRow(s))
                         ) : (
                           <tr>
-                            <td colSpan={5} className="p-3 text-center text-xs text-muted-foreground italic">
+                            <td colSpan={6} className="p-3 text-center text-xs text-muted-foreground italic">
                               No agency staff assigned
                             </td>
                           </tr>
@@ -1296,6 +1424,58 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
               </Label>
             </div>
 
+            {!isCustomName && (
+              <div className="space-y-2 p-3 bg-muted/30 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  Filter Staff Type
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between py-0.5">
+                    <Label htmlFor="toggle-permanent" className="text-xs font-medium cursor-pointer">
+                      Permanent Staff
+                    </Label>
+                    <Switch
+                      id="toggle-permanent"
+                      className="data-[state=checked]:bg-black dark:data-[state=checked]:bg-white"
+                      checked={showPermanent}
+                      onCheckedChange={(checked) => {
+                        setShowPermanent(!!checked);
+                        setSelectedStaffId("unassigned");
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between py-0.5">
+                    <Label htmlFor="toggle-bank" className="text-xs font-medium cursor-pointer">
+                      Bank Staff
+                    </Label>
+                    <Switch
+                      id="toggle-bank"
+                      className="data-[state=checked]:bg-black dark:data-[state=checked]:bg-white"
+                      checked={showBank}
+                      onCheckedChange={(checked) => {
+                        setShowBank(!!checked);
+                        setSelectedStaffId("unassigned");
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between py-0.5">
+                    <Label htmlFor="toggle-agency" className="text-xs font-medium cursor-pointer">
+                      Agency Staff
+                    </Label>
+                    <Switch
+                      id="toggle-agency"
+                      className="data-[state=checked]:bg-black dark:data-[state=checked]:bg-white"
+                      checked={showAgency}
+                      onCheckedChange={(checked) => {
+                        setShowAgency(!!checked);
+                        setSelectedStaffId("unassigned");
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {isCustomName ? (
               <div className="space-y-2">
                 <Label htmlFor="custom-staff-name-input">Staff Name</Label>
@@ -1316,9 +1496,41 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unassigned">Leave Unassigned</SelectItem>
-                    {staff
-                      .filter(member => isRoleMatch(member.role, selectedRole))
-                      .map(member => {
+                    {(() => {
+                      const filteredSelectableStaff: any[] = [];
+
+                      if (showPermanent) {
+                        filteredSelectableStaff.push(
+                          ...staff.filter(member => {
+                            const isPermanent = member.role !== "agency_nurse" && member.role !== "agency_care_assistant";
+                            return isPermanent && isRoleMatch(member.role, selectedRole);
+                          })
+                        );
+                      }
+
+                      if (showBank) {
+                        filteredSelectableStaff.push(
+                          ...temporaryStaff
+                            .filter(ts => isRoleMatch(ts.role, selectedRole))
+                            .map(ts => ({
+                              id: `custom:${ts.name}`,
+                              name: ts.name,
+                              role: ts.role,
+                              contracted_weekly_hours: Number(ts.contracted_weekly_hours || 0)
+                            }))
+                        );
+                      }
+
+                      if (showAgency) {
+                        filteredSelectableStaff.push(
+                          ...staff.filter(member => {
+                            const isAgency = member.role === "agency_nurse" || member.role === "agency_care_assistant";
+                            return isAgency && isRoleMatch(member.role, selectedRole);
+                          })
+                        );
+                      }
+
+                      return filteredSelectableStaff.map(member => {
                         const template = templates.find(t => t.id === selectedTemplateId);
                         const shiftHours = template ? Number(template.hours) : 0;
                         const currentHrs = getStaffWeeklyHours(member.id);
@@ -1328,7 +1540,8 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                             {member.name} ({member.role === "nurse" || member.role === "agency_nurse" ? "RN" : "CA"}) - {totalHrs} / {member.contracted_weekly_hours} hrs
                           </SelectItem>
                         );
-                      })}
+                      });
+                    })()}
                   </SelectContent>
                 </Select>
               </div>
@@ -1336,6 +1549,52 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
               <Button type="submit">Assign Shift</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog to Confirm Removal and Ask Reason */}
+      <Dialog open={removalDialogOpen} onOpenChange={setRemovalDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reason for Removal</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for removing this permanent staff member from the shift.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!shiftIdToRemove) return;
+              if (!removalReason.trim()) {
+                toast.error("Please enter a reason for removal");
+                return;
+              }
+              const res = await deleteManualShiftAction(profile.id, shiftIdToRemove, removalReason.trim());
+              if (res.success) {
+                toast.success("Shift assignment removed");
+                setRemovalDialogOpen(false);
+                fetchData();
+              } else {
+                toast.error(res.error || "Failed to remove shift");
+              }
+            }}
+            className="space-y-4 pt-2"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="removal-reason-input">Reason</Label>
+              <Input
+                id="removal-reason-input"
+                placeholder="e.g. Called in sick, family emergency, training conflict..."
+                value={removalReason}
+                onChange={(e) => setRemovalReason(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setRemovalDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" className="bg-red-600 hover:bg-red-700 text-white">Remove Staff</Button>
             </div>
           </form>
         </DialogContent>
@@ -1423,6 +1682,53 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
                 <span>{allocatedCount} / {totalAllocations} slots</span>
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for Publish Warning */}
+      <Dialog open={showPublishWarningDialog} onOpenChange={setShowPublishWarningDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+              <AlertCircle className="h-5 w-5" />
+              Unassigned Slots Warning
+            </DialogTitle>
+            <DialogDescription>
+              There are unassigned slots in this week&apos;s rota. Publishing will leave these shifts unfilled.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 p-4 border border-amber-200 dark:border-amber-900/50 space-y-2">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-400">
+                The following slots are not assigned:
+              </p>
+              <ul className="text-xs list-disc list-inside space-y-1 text-amber-800 dark:text-amber-300">
+                {unassignedCounts.nurses > 0 && (
+                  <li>{unassignedCounts.nurses} Nurse (RN) slot{unassignedCounts.nurses > 1 ? 's' : ''} not assigned</li>
+                )}
+                {unassignedCounts.careAssistants > 0 && (
+                  <li>{unassignedCounts.careAssistants} Care Assistant (CA) slot{unassignedCounts.careAssistants > 1 ? 's' : ''} not assigned</li>
+                )}
+              </ul>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Are you sure you want to publish this rota anyway? Affected staff will be notified of their scheduled shifts.
+            </p>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowPublishWarningDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-amber-600 hover:bg-amber-700 text-white dark:bg-amber-600 dark:hover:bg-amber-700"
+              onClick={async () => {
+                setShowPublishWarningDialog(false);
+                await executePublish(true);
+              }}
+            >
+              Publish Anyway
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
