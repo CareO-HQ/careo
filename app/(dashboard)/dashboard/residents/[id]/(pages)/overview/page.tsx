@@ -37,7 +37,8 @@ import {
   ChevronDown,
   ChevronRight,
   GripVertical,
-  Printer
+  Printer,
+  FolderIcon
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -49,6 +50,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatTimestampToUKDateTime } from "@/lib/date-utils";
+import { subDays } from "date-fns";
 import { toast } from "sonner";
 
 function formatDOB(dob: any): string {
@@ -134,6 +136,8 @@ const TIME_CONFIG = {
   "5days": { label: "Within 5 Days of Admission", color: "#7c3aed" },
   ongoing: { label: "Ongoing", color: "#0d9488" }
 };
+
+const AUDIT_TIMELINE_DAYS = 30;
 
 // --- DEFAULT DATA FOR SEEDING ---
 const DEFAULT_TASKS = [
@@ -401,6 +405,11 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   const { formsState } = useCareFileForms({ residentId: id });
   const userRole = profile?.role;
 
+  const carePlanFolders = React.useMemo(() => {
+    const folders = FEATURES.SHOW_CARE_FILE_V2 ? config.careFilesV2 : config.careFiles;
+    return folders.filter((f) => f.type === "folder" && f.carePlan);
+  }, []);
+
   // --- TABS & FRONTEND STATES ---
   const [activeTab, setActiveTab] = React.useState<"overview" | "checklist" | "careplans" | "audit">("overview");
   const [tasks, setTasks] = React.useState<any[]>([]);
@@ -436,11 +445,8 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   const [selectedCarePlan, setSelectedCarePlan] = React.useState<any | null>(null);
   const [isCarePlanViewerOpen, setIsCarePlanViewerOpen] = React.useState(false);
 
-  // New Care Plan Dialog
-  const [isNewCarePlanOpen, setIsNewCarePlanOpen] = React.useState(false);
-  const [newCarePlanType, setNewCarePlanType] = React.useState("");
-  const [newCarePlanNeed, setNewCarePlanNeed] = React.useState("");
-  const [newCarePlanGoal, setNewCarePlanGoal] = React.useState("");
+  // Care folder picker (create care plan)
+  const [isCareFolderPickerOpen, setIsCareFolderPickerOpen] = React.useState(false);
 
   // Drag and Drop State
   const [draggingTaskId, setDraggingTaskId] = React.useState<string | null>(null);
@@ -512,6 +518,8 @@ export default function OverviewPage({ params }: OverviewPageProps) {
       setLoadingTasks(true);
       setLoadingAuditLogs(true);
 
+      const auditSince = subDays(new Date(), AUDIT_TIMELINE_DAYS).toISOString();
+
       const { data: tasksData, error: tasksError } = await supabase
         .from("resident_admission_tasks")
         .select("*")
@@ -535,6 +543,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
             .from("resident_admission_audit_logs")
             .select("*")
             .eq("resident_id", id)
+            .gte("created_at", auditSince)
             .order("created_at", { ascending: false });
 
           setTasks(refetchedTasks || []);
@@ -551,6 +560,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
           .from("resident_admission_audit_logs")
           .select("*")
           .eq("resident_id", id)
+          .gte("created_at", auditSince)
           .order("created_at", { ascending: false });
 
         if (auditError) throw auditError;
@@ -1091,64 +1101,12 @@ export default function OverviewPage({ params }: OverviewPageProps) {
   };
 
   // --- CARE PLANS ACTIONS ---
-  const confirmAddCarePlan = async () => {
-    if (!newCarePlanType.trim() || !resident) {
-      toast.error("Care plan title is required");
-      return;
-    }
-
-    try {
-      const staffName = profile?.name || "Staff";
-      const carePlanNo = `CP-${newCarePlanType.slice(0, 2).toUpperCase()}-${Math.floor(10 + Math.random() * 90)}`;
-      const aimsText = newCarePlanGoal || `To support the resident with their identified needs related to ${newCarePlanType.trim()}.`;
-
-      const goalsObj = {
-        aims: aimsText,
-        wishes: "Resident preferences will be discussed and updated here.",
-        nameOfCarePlan: newCarePlanType.trim(),
-        writtenBy: staffName,
-        dateWritten: new Date().toISOString(),
-        residentName: fullName,
-        dob: resident.date_of_birth,
-        bedroomNumber: resident.room_number || "N/A",
-        carePlanNumber: carePlanNo,
-        badges: [{ label: newCarePlanType.trim(), bg: "#eff6ff", color: "#1d4ed8" }]
-      };
-
-      const { error } = await supabase
-        .from("care_plan_assessments")
-        .insert({
-          resident_id: id,
-          organization_id: resident.organization_id,
-          care_plan_type: newCarePlanType.trim(),
-          need_identified: newCarePlanNeed || "Needs assessment related to this care plan is in progress.",
-          goals: goalsObj,
-          interventions: [],
-          status: "active",
-          created_by: profile?.id
-        });
-
-      if (error) throw error;
-      toast.success("Care plan created successfully");
-
-      await supabase.from("resident_admission_audit_logs").insert({
-        resident_id: id,
-        organization_id: resident.organization_id,
-        icon: "📋",
-        color: "#ede9fe",
-        action: `<b>${staffName}</b> created a new care plan <i>${newCarePlanType.trim()}</i>`,
-        created_by_name: staffName
-      });
-
-      setIsNewCarePlanOpen(false);
-      setNewCarePlanType("");
-      setNewCarePlanNeed("");
-      setNewCarePlanGoal("");
-      fetchCarePlansData();
-    } catch (err) {
-      console.error("Error creating care plan:", err);
-      toast.error("Failed to create care plan");
-    }
+  const handleCareFolderSelect = (folderKey: string) => {
+    setIsCareFolderPickerOpen(false);
+    const base = FEATURES.SHOW_CARE_FILE_V2
+      ? `/dashboard/residents/${id}/care-file-v2`
+      : `/dashboard/residents/${id}/care-file`;
+    router.push(`${base}/${folderKey}` as Route);
   };
 
   // --- VIEW RENDERS ---
@@ -1616,7 +1574,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
             <p className="text-xs text-muted-foreground mt-0.5">Click any care plan card to view the complete document and guidelines</p>
           </div>
           <Button
-            onClick={() => setIsNewCarePlanOpen(true)}
+            onClick={() => setIsCareFolderPickerOpen(true)}
             className="font-semibold text-xs h-9"
           >
             <Plus className="h-4 w-4 mr-1.5" />
@@ -1681,12 +1639,12 @@ export default function OverviewPage({ params }: OverviewPageProps) {
 
           {/* New Card link */}
           <div
-            onClick={() => setIsNewCarePlanOpen(true)}
+            onClick={() => setIsCareFolderPickerOpen(true)}
             className="border-2 border-dashed border-slate-200 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer rounded-xl flex flex-col items-center justify-center h-40 text-center p-5 select-none"
           >
             <Plus className="h-8 w-8 text-slate-300" />
             <p className="text-xs font-bold text-slate-500 mt-2">Create New Care Plan</p>
-            <p className="text-[10px] text-slate-400 mt-1 max-w-[200px]">Add custom aims, assessments, and clinical tasks for resident</p>
+            <p className="text-[10px] text-slate-400 mt-1 max-w-[200px]">Choose a care file folder to create a plan</p>
           </div>
         </div>
       </div>
@@ -1725,7 +1683,7 @@ export default function OverviewPage({ params }: OverviewPageProps) {
     if (groupedKeys.length === 0) {
       return (
         <div className="text-center py-12 text-slate-400 text-sm">
-          No audit entries recorded
+          No audit entries in the last 30 days
         </div>
       );
     }
@@ -1733,7 +1691,10 @@ export default function OverviewPage({ params }: OverviewPageProps) {
     return (
       <div className="w-full space-y-6 max-w-4xl mx-auto">
         <div className="border rounded-xl bg-white p-6 shadow-sm">
-          <h3 className="font-bold text-sm text-slate-800 mb-6 pb-2 border-b">Audit Timeline</h3>
+          <div className="mb-6 pb-2 border-b">
+            <h3 className="font-bold text-sm text-slate-800">Audit Timeline</h3>
+            <p className="text-xs text-slate-400 mt-1">Last 30 days</p>
+          </div>
           
           <div className="relative pl-6 border-l-2 border-slate-100 space-y-8">
             {groupedKeys.map((day) => {
@@ -2488,57 +2449,39 @@ export default function OverviewPage({ params }: OverviewPageProps) {
         </DialogContent>
       </Dialog>
 
-      {/* 5. Create Care Plan Dialog */}
-      <Dialog open={isNewCarePlanOpen} onOpenChange={setIsNewCarePlanOpen}>
-        <DialogContent className="max-w-md bg-white">
+      {/* 5. Care Folder Picker Dialog */}
+      <Dialog open={isCareFolderPickerOpen} onOpenChange={setIsCareFolderPickerOpen}>
+        <DialogContent className="max-w-lg bg-white max-h-[85vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Create New Care Plan</DialogTitle>
+            <DialogTitle>Select Care Folder</DialogTitle>
             <DialogDescription className="text-xs text-slate-500 mt-1">
-              Add a new custom clinical care plan for {fullName}.
+              Care plans are created within a care file folder. Choose the folder that matches the area of care.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700">Care Plan Title</label>
-              <input
-                type="text"
-                placeholder="e.g. Oral Health Care Plan"
-                value={newCarePlanType}
-                onChange={(e) => setNewCarePlanType(e.target.value)}
-                className="w-full border rounded-lg p-2.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700">Identified Needs / Assessment</label>
-              <textarea
-                placeholder="Describe the resident's specific needs, clinical details, and history..."
-                value={newCarePlanNeed}
-                onChange={(e) => setNewCarePlanNeed(e.target.value)}
-                rows={3}
-                className="w-full border rounded-lg p-2.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700">Goals & Aims</label>
-              <textarea
-                placeholder="Define the primary objective and aims of this plan..."
-                value={newCarePlanGoal}
-                onChange={(e) => setNewCarePlanGoal(e.target.value)}
-                rows={3}
-                className="w-full border rounded-lg p-2.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-              />
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 py-4 overflow-y-auto flex-1 min-h-0">
+            {carePlanFolders.map((folder) => (
+              <Card
+                key={folder.key}
+                className="cursor-pointer hover:bg-muted/50 p-3 border transition-colors"
+                onClick={() => handleCareFolderSelect(folder.key)}
+              >
+                <div className="flex items-start gap-2.5">
+                  <FolderIcon className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 leading-tight">{folder.value}</p>
+                    {folder.description && (
+                      <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{folder.description}</p>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
 
           <div className="flex justify-end gap-3 border-t pt-4">
-            <Button variant="outline" size="sm" onClick={() => setIsNewCarePlanOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => setIsCareFolderPickerOpen(false)}>
               Cancel
-            </Button>
-            <Button size="sm" onClick={confirmAddCarePlan}>
-              Create Care Plan
             </Button>
           </div>
         </DialogContent>

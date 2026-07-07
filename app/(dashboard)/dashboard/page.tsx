@@ -26,6 +26,18 @@ import {
   CloudSun,
 } from "lucide-react";
 import { format } from "date-fns";
+import { auditService } from "@/lib/audit-service";
+
+type AssignedActionPlan = {
+  id: string;
+  description: string;
+  status?: string;
+  priority?: string;
+  due_date?: string;
+  resident_name?: string;
+  auditCategory?: string;
+  actionPlanTable?: string;
+};
 import {
   AreaChart,
   Area,
@@ -58,7 +70,7 @@ export default function DashboardPage() {
   const [openIncidentsCount, setOpenIncidentsCount] = useState(0);
   const [resolvedIncidentsCount, setResolvedIncidentsCount] = useState(0);
   const [underReviewIncidentsCount, setUnderReviewIncidentsCount] = useState(0);
-  const [assignedTasks, setAssignedTasks] = useState<any[]>([]);
+  const [assignedActionPlans, setAssignedActionPlans] = useState<AssignedActionPlan[]>([]);
   const [userPendingTodos, setUserPendingTodos] = useState<any[]>([]);
   const [residentTrend, setResidentTrend] = useState(0);
   const [staffTrend, setStaffTrend] = useState(0);
@@ -329,26 +341,21 @@ export default function DashboardPage() {
 
       setUserPendingTodos(userPendingTodosData || []);
 
-      // Fetch pending resident checklist tasks (for "Assigned" tab)
-      let admissionTasksQuery = supabase
-        .from("resident_admission_tasks")
-        .select(`
-          id, title, timeframe, status, resident_id,
-          resident:residents!inner(first_name, last_name, care_home_id, team_id)
-        `)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-
-      if (activeTeamId) {
-        admissionTasksQuery = admissionTasksQuery.eq("resident.team_id", activeTeamId);
-      } else if (activeCareHomeId) {
-        admissionTasksQuery = admissionTasksQuery.eq("resident.care_home_id", activeCareHomeId);
-      } else {
-        admissionTasksQuery = admissionTasksQuery.eq("organization_id", activeOrganizationId);
-      }
-
-      const { data: admissionTasksData } = await admissionTasksQuery;
-      setAssignedTasks(admissionTasksData || []);
+      // Fetch action plans assigned to the current user (for "Assigned" tab)
+      const assignedPlansData = await auditService.getAssignedActionPlans({
+        userId: profile.id,
+        email: profile.email,
+        organizationId: activeOrganizationId,
+        careHomeId: activeCareHomeId,
+        role: profile.role,
+      });
+      setAssignedActionPlans(
+        (assignedPlansData as AssignedActionPlan[]).sort((a, b) => {
+          const aDue = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+          const bDue = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+          return aDue - bDue;
+        })
+      );
 
       // Fetch Latest Incidents with resident details (including room number)
       let incidentsQuery = supabase
@@ -561,22 +568,20 @@ export default function DashboardPage() {
     }
   };
 
-  const handleCompleteChecklistTask = async (taskId: string) => {
-    if (!profile?.name) return;
+  const handleCompleteActionPlan = async (plan: AssignedActionPlan) => {
+    if (!profile?.id) return;
     try {
-      const { error } = await supabase
-        .from("resident_admission_tasks")
-        .update({
-          status: "completed",
-          completed_by: profile.name,
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", taskId);
-
-      if (error) throw error;
+      await auditService.updateActionPlanStatus(
+        plan.auditCategory || "common",
+        plan.id,
+        "completed",
+        undefined,
+        profile.id,
+        profile.name || profile.email
+      );
       fetchDashboardData();
     } catch (err) {
-      console.error("Error completing checklist task:", err);
+      console.error("Error completing action plan:", err);
     }
   };
 
@@ -969,24 +974,45 @@ export default function DashboardPage() {
                   </div>
                 )
               ) : (
-                assignedTasks && assignedTasks.length > 0 ? (
-                  assignedTasks.map((task: any) => (
-                    <div key={task.id} className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-b-0 group">
+                assignedActionPlans && assignedActionPlans.length > 0 ? (
+                  assignedActionPlans.map((plan) => (
+                    <div
+                      key={`${plan.auditCategory ?? "plan"}:${plan.id}`}
+                      className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-b-0 group cursor-pointer"
+                      onClick={() => router.push("/dashboard/action-plans")}
+                    >
                       <button
-                        onClick={() => handleCompleteChecklistTask(task.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCompleteActionPlan(plan);
+                        }}
                         className="w-4 h-4 rounded-md border border-gray-300 hover:border-gray-400 bg-white flex items-center justify-center transition-all shrink-0 mt-0.5 cursor-pointer"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-semibold text-gray-900 leading-snug break-words">
-                          {task.title}
+                          {plan.description}
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-1.5 py-0.5">
-                            {task.resident ? `${task.resident.first_name} ${task.resident.last_name}` : "Resident"}
-                          </span>
-                          <span className="text-[9px] text-gray-400">
-                            {task.timeframe}
-                          </span>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          {plan.resident_name ? (
+                            <span className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-1.5 py-0.5">
+                              {plan.resident_name}
+                            </span>
+                          ) : null}
+                          {plan.priority ? (
+                            <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-1.5 py-0.5">
+                              {plan.priority}
+                            </span>
+                          ) : null}
+                          {plan.auditCategory ? (
+                            <span className="text-[9px] text-gray-500 capitalize">
+                              {plan.auditCategory}
+                            </span>
+                          ) : null}
+                          {plan.due_date ? (
+                            <span className="text-[9px] text-gray-400">
+                              Due: {format(new Date(plan.due_date), "MMM d")}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -994,9 +1020,9 @@ export default function DashboardPage() {
                 ) : (
                   <div className="flex flex-col items-center justify-center text-center py-10 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
                     <div className="text-4xl mb-2 filter saturate-100">📋</div>
-                    <div className="text-xs font-bold text-gray-900">No checklists found</div>
+                    <div className="text-xs font-bold text-gray-900">No assigned action plans</div>
                     <div className="text-[10px] text-gray-400 mt-1 max-w-[170px]">
-                      All admission checklists are completed.
+                      You have no pending action plans assigned to you.
                     </div>
                   </div>
                 )
