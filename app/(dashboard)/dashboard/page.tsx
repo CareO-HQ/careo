@@ -627,7 +627,7 @@ export default function DashboardPage() {
             {profile?.name || "Abi George"}
           </div>
           <div className="text-xs text-gray-500 mt-1 font-medium">
-            Here's what's happening at {profile?.care_home_name || "Maple Court Care Home"} today.
+            Here&apos;s what&apos;s happening at {profile?.care_home_name || "Maple Court Care Home"} today.
           </div>
         </div>
         <div className="flex items-center gap-3">

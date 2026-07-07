@@ -1695,7 +1695,7 @@ export default function RotaBuilder({ profile, isPowerUser }: { profile: any; is
               Unassigned Slots Warning
             </DialogTitle>
             <DialogDescription>
-              There are unassigned slots in this week's rota. Publishing will leave these shifts unfilled.
+              There are unassigned slots in this week&apos;s rota. Publishing will leave these shifts unfilled.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
