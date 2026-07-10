@@ -130,6 +130,7 @@ export default function ResidentsPage() {
           columns={columns}
           data={residents || []}
           teamName={displayName}
+          activeTeamId={activeTeamId}
         />
       )}
     </div>

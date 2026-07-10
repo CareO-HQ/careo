@@ -37,16 +37,19 @@ import { Dialog } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import { useProfile } from "@/hooks/use-profile";
 import { canCreateResident } from "@/lib/permissions";
+import { UnitBedCountField } from "@/components/residents/UnitBedCountField";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   teamName: string;
+  activeTeamId: string | null;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  activeTeamId,
 }: DataTableProps<TData, TValue>) {
   const router = useRouter();
   const { profile } = useProfile();
@@ -123,6 +126,7 @@ export function DataTable<TData, TValue>({
           </div>
           {canCreateResident(userRole) && (
             <div className="flex items-center gap-2">
+              <UnitBedCountField teamId={activeTeamId} />
               <Dialog>
                 <DialogTrigger asChild>
                   <Button variant="ghost" className="gap-2">

@@ -27,6 +27,11 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { auditService } from "@/lib/audit-service";
+import {
+  computeOccupancyRate,
+  getBedCapacityForScope,
+} from "@/lib/team-capacity";
+import { DashboardScratchPad } from "@/components/dashboard/DashboardScratchPad";
 
 type AssignedActionPlan = {
   id: string;
@@ -38,15 +43,67 @@ type AssignedActionPlan = {
   auditCategory?: string;
   actionPlanTable?: string;
 };
+
+type DashboardViewScope = "team" | "care_home";
+
+type EffectiveScope =
+  | { kind: "team"; id: string }
+  | { kind: "care_home"; id: string }
+  | { kind: "organization"; id: string };
+
+function resolveEffectiveScope(
+  dashboardViewScope: DashboardViewScope,
+  activeTeamId: string | null | undefined,
+  activeCareHomeId: string | null | undefined,
+  activeOrganizationId: string | null | undefined
+): EffectiveScope | null {
+  if (dashboardViewScope === "team" && activeTeamId) {
+    return { kind: "team", id: activeTeamId };
+  }
+  if (activeCareHomeId) {
+    return { kind: "care_home", id: activeCareHomeId };
+  }
+  if (activeOrganizationId) {
+    return { kind: "organization", id: activeOrganizationId };
+  }
+  return null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyResidentScope(query: any, scope: EffectiveScope) {
+  if (scope.kind === "team") return query.eq("team_id", scope.id);
+  if (scope.kind === "care_home") return query.eq("care_home_id", scope.id);
+  return query.eq("organization_id", scope.id);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyStaffScope(query: any, scope: EffectiveScope) {
+  if (scope.kind === "team") return query.eq("active_team_id", scope.id);
+  if (scope.kind === "care_home") return query.eq("active_care_home_id", scope.id);
+  return query.eq("active_organization_id", scope.id);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyResidentJoinScope(query: any, scope: EffectiveScope) {
+  if (scope.kind === "team") return query.eq("resident.team_id", scope.id);
+  if (scope.kind === "care_home") return query.eq("resident.care_home_id", scope.id);
+  return query.eq("organization_id", scope.id);
+}
+
 import {
   AreaChart,
   Area,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from "recharts";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -82,9 +139,39 @@ export default function DashboardPage() {
   const [temperature, setTemperature] = useState(16);
   const [weatherCode, setWeatherCode] = useState(3); // default overcast/cloud
 
+  const [dashboardViewScope, setDashboardViewScope] = useState<DashboardViewScope>("team");
+  const [scopeInitialized, setScopeInitialized] = useState(false);
+
   const activeOrganizationId = profile?.active_organization_id;
   const activeCareHomeId = profile?.active_care_home_id;
   const activeTeamId = profile?.active_team_id;
+  const canToggleScope = !!(activeTeamId && activeCareHomeId);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const storageKey = `dashboard-view-scope-${profile.id}`;
+    const stored = localStorage.getItem(storageKey);
+
+    if (stored === "team" || stored === "care_home") {
+      if (stored === "team" && profile.active_team_id) {
+        setDashboardViewScope("team");
+      } else {
+        setDashboardViewScope("care_home");
+      }
+    } else {
+      setDashboardViewScope(profile.active_team_id ? "team" : "care_home");
+    }
+
+    setScopeInitialized(true);
+  }, [profile?.id, profile?.active_team_id]);
+
+  const handleScopeChange = (scope: DashboardViewScope) => {
+    setDashboardViewScope(scope);
+    if (profile?.id) {
+      localStorage.setItem(`dashboard-view-scope-${profile.id}`, scope);
+    }
+  };
 
   // Fetch real location and weather dynamically via free APIs
   useEffect(() => {
@@ -128,75 +215,69 @@ export default function DashboardPage() {
   };
 
   const fetchDashboardData = useCallback(async () => {
-    if (!profile || isSupabaseLoading) return;
+    if (!profile || isSupabaseLoading || !scopeInitialized) return;
+
+    const effectiveScope = resolveEffectiveScope(
+      canToggleScope ? dashboardViewScope : activeTeamId ? "team" : "care_home",
+      activeTeamId,
+      activeCareHomeId,
+      activeOrganizationId
+    );
+
+    if (!effectiveScope) return;
 
     setDataLoading(true);
     try {
       let residentsRes, staffRes, teamsRes;
 
-      if (activeTeamId) {
-        const [resData, staffData, teamsData] = await Promise.all([
-          supabase.from("residents").select("id", { count: "exact", head: true }).eq("team_id", activeTeamId),
-          supabase.from("users").select("id", { count: "exact", head: true }).eq("active_team_id", activeTeamId),
-          supabase.from("teams").select("id, name").eq("care_home_id", activeCareHomeId),
-        ]);
-        residentsRes = resData;
-        staffRes = staffData;
-        teamsRes = teamsData;
-      } else if (activeCareHomeId) {
-        const [resData, staffData, teamsData] = await Promise.all([
-          supabase.from("residents").select("id", { count: "exact", head: true }).eq("care_home_id", activeCareHomeId),
-          supabase.from("users").select("id", { count: "exact", head: true }).eq("active_care_home_id", activeCareHomeId),
-          supabase.from("teams").select("id, name").eq("care_home_id", activeCareHomeId),
-        ]);
-        residentsRes = resData;
-        staffRes = staffData;
-        teamsRes = teamsData;
-      } else {
-        const [resData, staffData, teamsData] = await Promise.all([
-          supabase.from("residents").select("id", { count: "exact", head: true }).eq("organization_id", activeOrganizationId),
-          supabase.from("users").select("id", { count: "exact", head: true }).eq("active_organization_id", activeOrganizationId),
-          supabase.from("teams").select("id, name").eq("organization_id", activeOrganizationId),
-        ]);
-        residentsRes = resData;
-        staffRes = staffData;
-        teamsRes = teamsData;
-      }
+      const teamsQuery = activeCareHomeId
+        ? supabase.from("teams").select("id, name, bed_count").eq("care_home_id", activeCareHomeId)
+        : supabase.from("teams").select("id, name, bed_count").eq("organization_id", activeOrganizationId);
+
+      const [resData, staffData, teamsData] = await Promise.all([
+        applyResidentScope(
+          supabase.from("residents").select("id", { count: "exact", head: true }),
+          effectiveScope
+        ),
+        applyStaffScope(
+          supabase.from("users").select("id", { count: "exact", head: true }),
+          effectiveScope
+        ),
+        teamsQuery,
+      ]);
+      residentsRes = resData;
+      staffRes = staffData;
+      teamsRes = teamsData;
 
       // Trends (last 7 days)
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const sevenDaysAgoStr = sevenDaysAgo.toISOString();
 
-      let resAddedQuery = supabase
-        .from("residents")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", sevenDaysAgoStr);
+      let resAddedQuery = applyResidentScope(
+        supabase
+          .from("residents")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", sevenDaysAgoStr),
+        effectiveScope
+      );
 
-      let resDischargedQuery = supabase
-        .from("residents")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "discharged")
-        .gte("discharge_date", sevenDaysAgoStr);
+      let resDischargedQuery = applyResidentScope(
+        supabase
+          .from("residents")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "discharged")
+          .gte("discharge_date", sevenDaysAgoStr),
+        effectiveScope
+      );
 
-      let staffAddedQuery = supabase
-        .from("users")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", sevenDaysAgoStr);
-
-      if (activeTeamId) {
-        resAddedQuery = resAddedQuery.eq("team_id", activeTeamId);
-        resDischargedQuery = resDischargedQuery.eq("team_id", activeTeamId);
-        staffAddedQuery = staffAddedQuery.eq("active_team_id", activeTeamId);
-      } else if (activeCareHomeId) {
-        resAddedQuery = resAddedQuery.eq("care_home_id", activeCareHomeId);
-        resDischargedQuery = resDischargedQuery.eq("care_home_id", activeCareHomeId);
-        staffAddedQuery = staffAddedQuery.eq("active_care_home_id", activeCareHomeId);
-      } else {
-        resAddedQuery = resAddedQuery.eq("organization_id", activeOrganizationId);
-        resDischargedQuery = resDischargedQuery.eq("organization_id", activeOrganizationId);
-        staffAddedQuery = staffAddedQuery.eq("active_organization_id", activeOrganizationId);
-      }
+      let staffAddedQuery = applyStaffScope(
+        supabase
+          .from("users")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", sevenDaysAgoStr),
+        effectiveScope
+      );
 
       const [resAddedRes, resDischargedRes, staffAddedRes] = await Promise.all([
         resAddedQuery,
@@ -211,28 +292,30 @@ export default function DashboardPage() {
       setStaffTrend(staffAddedRes.count || 0);
 
       // Occupancy Rate
-      let activeResQuery = supabase
-        .from("residents")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "active");
-
-      if (activeTeamId) {
-        activeResQuery = activeResQuery.eq("team_id", activeTeamId);
-      } else if (activeCareHomeId) {
-        activeResQuery = activeResQuery.eq("care_home_id", activeCareHomeId);
-      } else {
-        activeResQuery = activeResQuery.eq("organization_id", activeOrganizationId);
-      }
+      const activeResQuery = applyResidentScope(
+        supabase
+          .from("residents")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "active"),
+        effectiveScope
+      );
 
       const activeResData = await activeResQuery;
       const activeCount = activeResData.count || 0;
-      const capacity = Math.max(50, activeCount);
-      const computedOccupancyRate = Math.round((activeCount / capacity) * 100);
+      const teams = teamsRes.data ?? [];
+      const bedCapacity = getBedCapacityForScope(
+        effectiveScope,
+        teams,
+        activeCount
+      );
+      const computedOccupancyRate = computeOccupancyRate(activeCount, bedCapacity);
       setOccupancyRate(computedOccupancyRate);
 
       const activeCount7DaysAgo = Math.max(0, activeCount - netResChange);
-      const capacity7DaysAgo = Math.max(50, activeCount7DaysAgo);
-      const occupancyRate7DaysAgo = Math.round((activeCount7DaysAgo / capacity7DaysAgo) * 100);
+      const occupancyRate7DaysAgo = computeOccupancyRate(
+        activeCount7DaysAgo,
+        bedCapacity
+      );
       setOccupancyTrend(computedOccupancyRate - occupancyRate7DaysAgo);
 
       // Incident Graph Query (last 7 or 30 days)
@@ -240,21 +323,16 @@ export default function DashboardPage() {
       startDate.setDate(startDate.getDate() - chartTimeRange + 1);
       const startDateStr = startDate.toISOString().split("T")[0];
 
-      let graphQuery = supabase
-        .from("incidents")
-        .select(`
+      const graphQuery = applyResidentJoinScope(
+        supabase
+          .from("incidents")
+          .select(`
           id, date, status,
           resident:residents!inner(care_home_id, team_id)
         `)
-        .gte("date", startDateStr);
-
-      if (activeTeamId) {
-        graphQuery = graphQuery.eq("resident.team_id", activeTeamId);
-      } else if (activeCareHomeId) {
-        graphQuery = graphQuery.eq("resident.care_home_id", activeCareHomeId);
-      } else {
-        graphQuery = graphQuery.eq("organization_id", activeOrganizationId);
-      }
+          .gte("date", startDateStr),
+        effectiveScope
+      );
 
       const { data: graphIncidents } = await graphQuery;
 
@@ -291,20 +369,15 @@ export default function DashboardPage() {
       setChartData(processedChartData);
 
       // Incidents Status Breakdown Query
-      let allIncidentsQuery = supabase
-        .from("incidents")
-        .select(`
+      const allIncidentsQuery = applyResidentJoinScope(
+        supabase
+          .from("incidents")
+          .select(`
           id, status,
           resident:residents!inner(care_home_id, team_id)
-        `);
-
-      if (activeTeamId) {
-        allIncidentsQuery = allIncidentsQuery.eq("resident.team_id", activeTeamId);
-      } else if (activeCareHomeId) {
-        allIncidentsQuery = allIncidentsQuery.eq("resident.care_home_id", activeCareHomeId);
-      } else {
-        allIncidentsQuery = allIncidentsQuery.eq("organization_id", activeOrganizationId);
-      }
+        `),
+        effectiveScope
+      );
 
       const { data: allIncidents } = await allIncidentsQuery;
       let totalInc = 0;
@@ -358,44 +431,34 @@ export default function DashboardPage() {
       );
 
       // Fetch Latest Incidents with resident details (including room number)
-      let incidentsQuery = supabase
-        .from("incidents")
-        .select(`
+      const incidentsQuery = applyResidentJoinScope(
+        supabase
+          .from("incidents")
+          .select(`
           id, incident_types, type_other_details, 
           incident_level, date, time, resident_id,
           resident:residents!inner(first_name, last_name, care_home_id, team_id, room_number)
         `)
-        .order("date", { ascending: false })
-        .limit(5);
-
-      if (activeTeamId) {
-        incidentsQuery = incidentsQuery.eq("resident.team_id", activeTeamId);
-      } else if (activeCareHomeId) {
-        incidentsQuery = incidentsQuery.eq("resident.care_home_id", activeCareHomeId);
-      } else if (activeOrganizationId) {
-        incidentsQuery = incidentsQuery.eq("organization_id", activeOrganizationId);
-      }
+          .order("date", { ascending: false })
+          .limit(5),
+        effectiveScope
+      );
 
       const { data: incidents } = await incidentsQuery;
 
       // Fetch Upcoming Appointments
-      let appointmentsQuery = supabase
-        .from("appointments")
-        .select(`
+      const appointmentsQuery = applyResidentJoinScope(
+        supabase
+          .from("appointments")
+          .select(`
           id, title, start_time, resident_id,
           resident:residents!inner(first_name, last_name, care_home_id, team_id, room_number)
         `)
-        .gte("start_time", new Date().toISOString())
-        .order("start_time", { ascending: true })
-        .limit(5);
-
-      if (activeTeamId) {
-        appointmentsQuery = appointmentsQuery.eq("resident.team_id", activeTeamId);
-      } else if (activeCareHomeId) {
-        appointmentsQuery = appointmentsQuery.eq("resident.care_home_id", activeCareHomeId);
-      } else if (activeOrganizationId) {
-        appointmentsQuery = appointmentsQuery.eq("organization_id", activeOrganizationId);
-      }
+          .gte("start_time", new Date().toISOString())
+          .order("start_time", { ascending: true })
+          .limit(5),
+        effectiveScope
+      );
 
       const { data: appointments } = await appointmentsQuery;
 
@@ -418,7 +481,7 @@ export default function DashboardPage() {
     } finally {
       setDataLoading(false);
     }
-  }, [profile, activeOrganizationId, activeCareHomeId, activeTeamId, isSupabaseLoading, supabase, chartTimeRange]);
+  }, [profile, activeOrganizationId, activeCareHomeId, activeTeamId, canToggleScope, dashboardViewScope, scopeInitialized, isSupabaseLoading, supabase, chartTimeRange]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -606,7 +669,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (isProfileLoading || isSupabaseLoading || dataLoading) {
+  if (isProfileLoading || isSupabaseLoading || !scopeInitialized || dataLoading) {
     return (
       <div className="flex items-center justify-center h-[50vh] w-full">
         <Loader2 className="h-8 w-8 animate-spin text-green-600" />
@@ -615,7 +678,10 @@ export default function DashboardPage() {
   }
 
   const todayDateText = format(new Date(), "EEEE, d MMMM yyyy");
-
+  const scopeSubtitle =
+    canToggleScope && dashboardViewScope === "team"
+      ? `Here's what's happening in ${profile?.active_team_name || "your unit"} today.`
+      : `Here's what's happening at ${profile?.care_home_name || "Maple Court Care Home"} today.`;
 
   return (
     <div className="w-full space-y-6">
@@ -627,23 +693,54 @@ export default function DashboardPage() {
             {profile?.name || "Abi George"}
           </div>
           <div className="text-xs text-gray-500 mt-1 font-medium">
-            Here&apos;s what&apos;s happening at {profile?.care_home_name || "Maple Court Care Home"} today.
+            {scopeSubtitle}
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button className="relative p-2.5 border border-gray-200 bg-white rounded-xl shadow-xs text-gray-700 hover:bg-gray-50 transition-colors">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-            <span className="absolute -top-1.5 -right-1.5 bg-green-600 text-white font-bold text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
-              3
-            </span>
-          </button>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-2 text-right hidden sm:block shadow-xs">
             <div className="text-xs font-bold text-gray-900">{todayDateText}</div>
             <div className="text-[10px] text-gray-400 mt-0.5">{locationText}</div>
           </div>
+          {canToggleScope && (
+            <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1 shadow-xs">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => handleScopeChange("care_home")}
+                    className={`p-2 rounded-lg transition-colors ${
+                      dashboardViewScope === "care_home"
+                        ? "bg-green-50 border border-green-200 text-green-700"
+                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                    }`}
+                    aria-label="Care home view"
+                    aria-pressed={dashboardViewScope === "care_home"}
+                  >
+                    <Building2 className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Full care home</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => handleScopeChange("team")}
+                    className={`p-2 rounded-lg transition-colors ${
+                      dashboardViewScope === "team"
+                        ? "bg-green-50 border border-green-200 text-green-700"
+                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                    }`}
+                    aria-label="Current team view"
+                    aria-pressed={dashboardViewScope === "team"}
+                  >
+                    <Users className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Current team</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 text-sm font-bold text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-xs">
             {getWeatherIcon(weatherCode)}
             {temperature}°C
@@ -1066,9 +1163,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Bottom row */}
-      <div className="w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         {/* Incident Overview Chart */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-xs flex flex-col justify-between w-full">
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-5 shadow-xs flex flex-col justify-between w-full">
           <div>
             <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
               <div className="text-sm font-bold text-gray-900 tracking-tight">Incident Overview</div>
@@ -1104,7 +1201,7 @@ export default function DashboardPage() {
                     tick={{ fontSize: 10, fill: "#9ca3af" }}
                     domain={[0, Math.max(5, ...chartData.map(d => d.Incidents || 0)) + 2]}
                   />
-                  <Tooltip
+                  <RechartsTooltip
                     contentStyle={{
                       fontSize: 11,
                       borderRadius: 8,
@@ -1158,6 +1255,8 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        <DashboardScratchPad />
       </div>
     </div>
   );

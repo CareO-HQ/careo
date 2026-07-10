@@ -8,6 +8,11 @@ import { useProfile } from "@/hooks/use-profile";
 import { toast } from "sonner";
 import { UploadIcon, FileDownIcon, AlertCircleIcon, CheckCircle2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  getActiveResidentCountsByTeam,
+  getCapacityWarningMessage,
+  shouldWarnCapacity,
+} from "@/lib/team-capacity";
 
 interface BulkUploadResidentsProps {
   onSuccess?: () => void;
@@ -55,6 +60,7 @@ interface UploadRow {
   data: CSVRow;
   status: "pending" | "success" | "error";
   error?: string;
+  warning?: string;
 }
 
 export function BulkUploadResidents({ onSuccess }: BulkUploadResidentsProps) {
@@ -164,12 +170,20 @@ export function BulkUploadResidents({ onSuccess }: BulkUploadResidentsProps) {
       // 1. Fetch all teams for the care home to map names
       const { data: teams, error: teamsError } = await supabase
         .from("teams")
-        .select("id, name")
+        .select("id, name, bed_count")
         .eq("care_home_id", profile.active_care_home_id);
 
       if (teamsError) throw teamsError;
 
-      const teamMap = new Map(teams?.map(t => [t.name.toLowerCase(), t.id]));
+      const teamMap = new Map(teams?.map((t) => [t.name.toLowerCase(), t.id]));
+      const teamBedCountMap = new Map(
+        teams?.map((t) => [t.id, t.bed_count as number | null]) ?? []
+      );
+      const teamNameMap = new Map(teams?.map((t) => [t.id, t.name]) ?? []);
+      const teamRunningCounts = await getActiveResidentCountsByTeam(
+        supabase,
+        profile.active_care_home_id
+      );
 
       const uploadResults: UploadRow[] = rows.map((row, i) => ({
         index: i,
@@ -193,6 +207,20 @@ export function BulkUploadResidents({ onSuccess }: BulkUploadResidentsProps) {
 
           const teamId = teamMap.get(row.team_name.toLowerCase());
           if (!teamId) throw new Error(`Team '${row.team_name}' not found`);
+
+          const bedCount = teamBedCountMap.get(teamId);
+          const currentCount = teamRunningCounts.get(teamId) ?? 0;
+          const projectedCount = currentCount + 1;
+          let capacityWarning: string | undefined;
+
+          if (shouldWarnCapacity(bedCount, projectedCount)) {
+            capacityWarning = getCapacityWarningMessage(
+              teamNameMap.get(teamId) ?? row.team_name,
+              currentCount,
+              bedCount,
+              projectedCount
+            );
+          }
 
           // Prepare payload
           const residentPayload = {
@@ -266,6 +294,10 @@ export function BulkUploadResidents({ onSuccess }: BulkUploadResidentsProps) {
           }
 
           uploadResults[i].status = "success";
+          if (capacityWarning) {
+            uploadResults[i].warning = capacityWarning;
+          }
+          teamRunningCounts.set(teamId, projectedCount);
         } catch (err: any) {
           uploadResults[i].status = "error";
           uploadResults[i].error = err.message;
@@ -275,10 +307,16 @@ export function BulkUploadResidents({ onSuccess }: BulkUploadResidentsProps) {
       setResults(uploadResults);
       const successCount = uploadResults.filter(r => r.status === "success").length;
       const errorCount = uploadResults.filter(r => r.status === "error").length;
+      const warningCount = uploadResults.filter(r => r.warning).length;
 
       if (successCount > 0) {
         toast.success(`Successfully uploaded ${successCount} residents`);
         window.dispatchEvent(new CustomEvent("residents-updated"));
+      }
+      if (warningCount > 0) {
+        toast.warning(
+          `${warningCount} row${warningCount === 1 ? "" : "s"} added at or over unit bed capacity`
+        );
       }
       if (errorCount > 0) {
         toast.error(`Failed to upload ${errorCount} rows`);
@@ -351,6 +389,9 @@ export function BulkUploadResidents({ onSuccess }: BulkUploadResidentsProps) {
                   Row {res.index + 1}: {res.data.first_name} {res.data.last_name}
                 </p>
                 {res.error && <p className="text-muted-foreground break-words">{res.error}</p>}
+                {res.warning && (
+                  <p className="text-amber-600 break-words">{res.warning}</p>
+                )}
               </div>
             </div>
           ))}
