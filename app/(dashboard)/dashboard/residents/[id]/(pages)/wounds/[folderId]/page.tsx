@@ -22,6 +22,7 @@ import {
   X,
   PanelRight,
   PanelRightClose,
+  Images,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -60,6 +61,7 @@ import { normalizeBodyMapData } from "@/lib/body-map-utils";
 import { generateBodyMapPDF } from "@/lib/body-map-pdf-utils";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
+
 
 // --- Types ---
 
@@ -231,6 +233,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   const [isCarePlanReviewMode, setIsCarePlanReviewMode] = useState(false);
   const [isCarePlanViewOnly, setIsCarePlanViewOnly] = useState(false);
   const [isSavingCarePlan, setIsSavingCarePlan] = useState(false);
+
 
   // Body Map states
   const [bodyMapData, setBodyMapData] = useState<BodyMapData>({ sessions: [] });
@@ -769,6 +772,16 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
             </>
           )}
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-shrink-0"
+          onClick={() => router.push(`/dashboard/residents/${residentId}/wounds/gallery/${folderId}`)}
+        >
+          <Images className="w-4 h-4 mr-2" />
+          Gallery
+        </Button>
 
         <Button
           variant="ghost"
@@ -1434,6 +1447,8 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+
     </div>
   );
 }
