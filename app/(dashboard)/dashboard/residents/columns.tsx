@@ -35,6 +35,32 @@ import {
 import { FORM_REVIEW_DUE_TOMORROW_ALERT_TYPE } from "@/lib/form-review-alerts";
 import { formReviewAlertCareFileHref } from "@/lib/form-review-alert-navigation";
 import { FEATURES } from "@/lib/config/features";
+import { ResidentHospitalTransferCell } from "@/components/residents/ResidentHospitalTransferCell";
+import { HandoverTransferState } from "@/lib/handover-hospital-transfer";
+
+export interface ResidentsColumnsOptions {
+  transferStates: Record<string, HandoverTransferState>;
+  onTransferChanged: () => void | Promise<void>;
+  organizationId?: string;
+  currentUserId?: string;
+  selectedDate: Date;
+  selectedShift: "day" | "night";
+}
+
+function sortByRoomNumber(a?: string | null, b?: string | null): number {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+
+  const numA = parseInt(a, 10);
+  const numB = parseInt(b, 10);
+
+  if (!isNaN(numA) && !isNaN(numB)) {
+    return numA - numB;
+  }
+
+  return a.localeCompare(b);
+}
 
 const NON_DISMISSIBLE_ALERT_TYPES = new Set<string>([
   "resident_photo_refresh_required",
@@ -846,31 +872,45 @@ const NotificationsCell = ({
   );
 };
 
-export const columns: ColumnDef<Resident, unknown>[] = [
+export function getResidentsColumns({
+  transferStates,
+  onTransferChanged,
+  organizationId,
+  currentUserId,
+  selectedDate,
+  selectedShift,
+}: ResidentsColumnsOptions): ColumnDef<Resident, unknown>[] {
+  return [
   {
-    id: "name",
-    accessorFn: (row) => `${row.first_name || ''} ${row.last_name || ''}`.trim(),
+    id: "resident",
+    accessorFn: (row) =>
+      `${row.first_name || ""} ${row.last_name || ""} ${row.room_number || ""}`.trim(),
     header: () => {
       return (
-        <div className="text-left text-muted-foreground text-sm"> Name </div>
+        <div className="text-left text-muted-foreground text-sm">Resident</div>
       );
     },
-    enableSorting: false,
+    enableSorting: true,
+    sortingFn: (rowA, rowB) =>
+      sortByRoomNumber(rowA.original.room_number, rowB.original.room_number),
     filterFn: (row, columnId, value) => {
       const resident = row.original;
-      if (!value || typeof value !== 'string') return true;
+      if (!value || typeof value !== "string") return true;
 
       const searchTerm = value.toLowerCase().trim();
       if (!searchTerm) return true;
 
-      const firstName = (resident.first_name || '').toLowerCase();
-      const lastName = (resident.last_name || '').toLowerCase();
+      const firstName = (resident.first_name || "").toLowerCase();
+      const lastName = (resident.last_name || "").toLowerCase();
       const fullName = `${firstName} ${lastName}`.trim();
+      const roomNumber = (resident.room_number || "").toLowerCase();
 
-      // Search in first name, last name, and full name
-      return firstName.includes(searchTerm) ||
+      return (
+        firstName.includes(searchTerm) ||
         lastName.includes(searchTerm) ||
-        fullName.includes(searchTerm);
+        fullName.includes(searchTerm) ||
+        roomNumber.includes(searchTerm)
+      );
     },
     cell: ({ row }) => {
       const resident = row.original;
@@ -888,48 +928,40 @@ export const columns: ColumnDef<Resident, unknown>[] = [
           <div className="font-medium">
             <p>
               {resident.first_name} {resident.last_name}
-            </p>{" "}
-            <span className="text-muted-foreground">{age} years old</span>
+            </p>
+            <span className="text-muted-foreground text-sm">
+              Room {resident.room_number || "—"} · {age} years old
+            </span>
           </div>
         </div>
       );
-    }
+    },
   },
   {
-    accessorKey: "roomNumber",
+    id: "hospitalTransfer",
     header: () => {
       return (
-        <div className="text-left text-muted-foreground text-sm">Room No</div>
+        <div className="text-left text-muted-foreground text-sm">
+          Transfer to hospital
+        </div>
       );
     },
-    enableSorting: true,
-    sortingFn: (rowA, rowB) => {
-      const a = rowA.original.room_number;
-      const b = rowB.original.room_number;
-
-      // Handle null/undefined values
-      if (!a && !b) return 0;
-      if (!a) return 1;
-      if (!b) return -1;
-
-      // Try to parse as numbers for numeric sorting
-      const numA = parseInt(a, 10);
-      const numB = parseInt(b, 10);
-
-      if (!isNaN(numA) && !isNaN(numB)) {
-        return numA - numB;
-      }
-
-      // Fall back to string sorting
-      return a.localeCompare(b);
-    },
+    enableSorting: false,
     cell: ({ row }) => {
+      const resident = row.original;
+
       return (
-        <p className="text-muted-foreground">
-          {row.original.room_number || "-"}
-        </p>
+        <ResidentHospitalTransferCell
+          resident={resident}
+          selectedDate={selectedDate}
+          selectedShift={selectedShift}
+          organizationId={organizationId}
+          currentUserId={currentUserId}
+          transferState={transferStates[resident.id]}
+          onChanged={onTransferChanged}
+        />
       );
-    }
+    },
   },
   {
     accessorKey: "healthConditions",
@@ -1199,3 +1231,4 @@ export const columns: ColumnDef<Resident, unknown>[] = [
     }
   }
 ];
+}

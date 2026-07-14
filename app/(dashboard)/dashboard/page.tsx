@@ -228,13 +228,11 @@ export default function DashboardPage() {
 
     setDataLoading(true);
     try {
-      let residentsRes, staffRes, teamsRes;
-
       const teamsQuery = activeCareHomeId
         ? supabase.from("teams").select("id, name, bed_count").eq("care_home_id", activeCareHomeId)
         : supabase.from("teams").select("id, name, bed_count").eq("organization_id", activeOrganizationId);
 
-      const [resData, staffData, teamsData] = await Promise.all([
+      const [residentsRes, staffRes, teamsRes] = await Promise.all([
         applyResidentScope(
           supabase.from("residents").select("id", { count: "exact", head: true }),
           effectiveScope
@@ -245,16 +243,13 @@ export default function DashboardPage() {
         ),
         teamsQuery,
       ]);
-      residentsRes = resData;
-      staffRes = staffData;
-      teamsRes = teamsData;
 
       // Trends (last 7 days)
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const sevenDaysAgoStr = sevenDaysAgo.toISOString();
 
-      let resAddedQuery = applyResidentScope(
+      const resAddedQuery = applyResidentScope(
         supabase
           .from("residents")
           .select("id", { count: "exact", head: true })
@@ -262,7 +257,7 @@ export default function DashboardPage() {
         effectiveScope
       );
 
-      let resDischargedQuery = applyResidentScope(
+      const resDischargedQuery = applyResidentScope(
         supabase
           .from("residents")
           .select("id", { count: "exact", head: true })
@@ -271,7 +266,7 @@ export default function DashboardPage() {
         effectiveScope
       );
 
-      let staffAddedQuery = applyStaffScope(
+      const staffAddedQuery = applyStaffScope(
         supabase
           .from("users")
           .select("id", { count: "exact", head: true })

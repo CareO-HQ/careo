@@ -57,7 +57,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { HospitalPassportInlineForm } from "./hospital-passport-inline-form";
 import { ViewPassportInline } from "./view-passport-inline";
 import { TransferLogInlineForm } from "./transfer-log-inline-form";
@@ -82,6 +82,7 @@ type HospitalTransferPageProps = {
 export default function HospitalTransferPage({ params }: HospitalTransferPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { profile, isLoading: isProfileLoading } = useProfile();
   const { activeOrganization, activeOrganizationId } = useActiveTeam();
   const { supabase } = useSupabase();
@@ -128,6 +129,7 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
   const [transferLogToDelete, setTransferLogToDelete] = useState<any>(null);
   const [showDeleteBodyMapDialog, setShowDeleteBodyMapDialog] = useState(false);
   const [bodyMapToDelete, setBodyMapToDelete] = useState<any>(null);
+  const deeplinkHandledRef = React.useRef<string | null>(null);
 
   // Fetch data on load
   useEffect(() => {
@@ -158,6 +160,38 @@ export default function HospitalTransferPage({ params }: HospitalTransferPagePro
     }
     loadData();
   }, [id, supabase]);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const open = searchParams.get("open");
+    const logId = searchParams.get("logId");
+    const edit = searchParams.get("edit");
+
+    if (open !== "transfer-log" || !logId) {
+      deeplinkHandledRef.current = null;
+      return;
+    }
+
+    const deeplinkKey = `${logId}:${edit ?? ""}`;
+    if (deeplinkHandledRef.current === deeplinkKey) return;
+
+    const log = transferLogs.find((entry) => entry._id === logId);
+    if (!log) {
+      toast.error("Transfer log not found");
+      router.replace(`/dashboard/residents/${id}/hospital-transfer`);
+      return;
+    }
+
+    deeplinkHandledRef.current = deeplinkKey;
+    setActiveItem({ type: "transfer-log", id: log._id, data: log });
+    if (edit === "1") {
+      setEditingTransferLog(log);
+      setIsEditingTransferLog(true);
+    }
+
+    router.replace(`/dashboard/residents/${id}/hospital-transfer`);
+  }, [isLoading, searchParams, transferLogs, id, router]);
 
   useEffect(() => {
     if (!activeOrganizationId || !supabase) {

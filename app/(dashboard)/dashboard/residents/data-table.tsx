@@ -61,7 +61,7 @@ export function DataTable<TData, TValue>({
   );
   const [sorting, setSorting] = React.useState<SortingState>([
     {
-      id: "roomNumber",
+      id: "resident",
       desc: false
     }
   ]);
@@ -87,7 +87,7 @@ export function DataTable<TData, TValue>({
   // Debounced search effect
   React.useEffect(() => {
     const timeoutId = setTimeout(() => {
-      table.getColumn("name")?.setFilterValue(searchValue);
+      table.getColumn("resident")?.setFilterValue(searchValue);
     }, 300);
 
     return () => clearTimeout(timeoutId);

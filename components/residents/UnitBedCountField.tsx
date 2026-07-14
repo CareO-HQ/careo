@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
-import { canInviteMembers } from "@/lib/permissions";
+import { canInviteMembers, type UserRole } from "@/lib/permissions";
 import { getTeamCapacity } from "@/lib/team-capacity";
 import { toast } from "sonner";
 
@@ -23,8 +23,8 @@ export function UnitBedCountField({ teamId }: UnitBedCountFieldProps) {
   const [isSaving, startSaveTransition] = useTransition();
 
   const isSaasAdmin = profile?.is_saas_admin === true;
-  const userRole = isSaasAdmin ? "saas_admin" : profile?.role;
-  const canEdit = canInviteMembers(userRole ?? "");
+  const userRole = (isSaasAdmin ? "saas_admin" : profile?.role) as UserRole | undefined;
+  const canEdit = userRole ? canInviteMembers(userRole) : false;
 
   const fetchCapacity = useCallback(async () => {
     if (!teamId) return;
