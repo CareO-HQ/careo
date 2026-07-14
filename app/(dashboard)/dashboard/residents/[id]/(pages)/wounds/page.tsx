@@ -60,6 +60,7 @@ import {
   Folder,
   ChevronDown,
   Heart,
+  Images,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useActiveTeam } from "@/hooks/use-active-team";
@@ -67,6 +68,7 @@ import { authClient } from "@/lib/auth-client";
 import { InteractiveBodyMap } from "@/components/body-map/InteractiveBodyMap";
 import { BodyRegion } from "@/types/body-map";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { WoundGalleryDialog } from "@/components/wounds/WoundGalleryDialog";
 
 type WoundsPageProps = {
   params: Promise<{ id: string }>;
@@ -113,6 +115,7 @@ export default function WoundsPage({ params }: WoundsPageProps) {
   const [selectedWound, setSelectedWound] = useState<Wound | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
   const [selectedWoundType, setSelectedWoundType] = useState<string>("");
   const [selectedRegion, setSelectedRegion] = useState<BodyRegion | null>(null);
@@ -663,13 +666,16 @@ export default function WoundsPage({ params }: WoundsPageProps) {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Wound Folders ({woundFolders.length})</span>
-            <Button
-              onClick={handleCreateWound}
-              size="sm"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Wound
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => router.push(`/dashboard/residents/${residentId}/wounds/gallery`)} size="sm">
+                <Images className="w-4 h-4 mr-2" />
+                Gallery
+              </Button>
+              <Button onClick={handleCreateWound} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Wound
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -1042,6 +1048,8 @@ export default function WoundsPage({ params }: WoundsPageProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+
     </div>
   );
 }

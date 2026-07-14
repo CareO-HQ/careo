@@ -12,6 +12,7 @@ type WoundPhotographEvaluationRecord = {
   rgn_signature: string;
   comment?: string | null;
   created_at: string;
+  next_photo_date?: string | null;
 };
 
 type GenerateWoundPhotographEvaluationPDFOptions = {
@@ -231,6 +232,7 @@ export const generateWoundPhotographEvaluationPDF = async ({
 
     const labelsAndValues: Array<{ label: string; value: string }> = [
       { label: "Photograph Date", value: asDate(evaluation.photograph_date) },
+      { label: "Next Photo Date", value: asDate(evaluation.next_photo_date) },
       { label: "Date", value: asDate(evaluation.photograph_date) },
       { label: "Left/Right", value: parsedSite.leftRight },
       { label: "Actual Position", value: parsedSite.actualPosition },

@@ -330,6 +330,29 @@ export default function CareFileV2FolderPage() {
         void openFormFromQuery();
     }, [formKeyFromQuery, formRecordIdFromQuery, residentId, filteredForms, folderKey]);
 
+    useEffect(() => {
+        if (formKeyFromQuery !== "v2-weight-chart" || formRecordIdFromQuery || !residentId) {
+            return;
+        }
+
+        const existsInCurrentFolder = filteredForms.some((form) => form.key === "v2-weight-chart");
+        if (!existsInCurrentFolder) {
+            return;
+        }
+
+        const openKey = `${folderKey}:v2-weight-chart:new`;
+        if (openedFormFromQueryRef.current === openKey) {
+            return;
+        }
+
+        setActiveFileId(null);
+        setActiveFormKey("v2-weight-chart");
+        setIsReviewMode(false);
+        setIsViewOnly(false);
+        setFormDataForEdit(null);
+        openedFormFromQueryRef.current = openKey;
+    }, [formKeyFromQuery, formRecordIdFromQuery, residentId, filteredForms, folderKey]);
+
     const activeFile = uploadedFiles.find((f) => f.id === activeFileId);
 
     const activeOrganizationId = profile?.active_organization_id;

@@ -16,6 +16,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Search, Scale, TrendingUp, TrendingDown, Loader2, Calendar, ArrowUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import type { Route } from 'next';
 
 type WeightCheckData = {
   residentId: string;
@@ -37,6 +39,7 @@ type SortKey = 'name' | 'lastCheckedDate' | 'nextDueDate' | 'change';
 
 export default function WeightCheckPage() {
   const { profile, isLoading: isProfileLoading } = useProfile();
+  const router = useRouter();
   const [weightData, setWeightData] = useState<WeightCheckData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,6 +47,14 @@ export default function WeightCheckPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const activeTeamId = profile?.active_team_id;
+
+  const getWeightChartHref = (residentId: string) => {
+    const role = profile?.role;
+    if (role === "care_assistant" || role === "agency_care_assistant") {
+      return `/dashboard/residents/${residentId}/weight-monitoring`;
+    }
+    return `/dashboard/residents/${residentId}/care-file-v2/v2-nutrition-hydration?formKey=v2-weight-chart`;
+  };
 
   useEffect(() => {
     const fetchWeightCheckData = async () => {
@@ -250,7 +261,8 @@ export default function WeightCheckPage() {
                   {sortedData.map((item) => (
                     <TableRow
                       key={item.residentId}
-                      className={cn(getStatusRowClass(item.status))}
+                      className={cn('cursor-pointer', getStatusRowClass(item.status))}
+                      onClick={() => router.push(getWeightChartHref(item.residentId) as Route)}
                     >
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{item.roomNumber}</TableCell>

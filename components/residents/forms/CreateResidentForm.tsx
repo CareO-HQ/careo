@@ -37,6 +37,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import ImageSelector from "@/components/onboarding/profile/ImageSelector";
 import { Calendar } from "@/components/ui/calendar";
+import {
+  getCapacityWarningMessage,
+  getTeamCapacity,
+  shouldWarnCapacity,
+} from "@/lib/team-capacity";
 
 interface CreateResidentFormProps {
   onSubmit?: (values: any) => void;
@@ -356,6 +361,28 @@ export function CreateResidentForm({
 
         toast.success("Resident updated successfully");
       } else {
+        const targetTeamId =
+          values.teamId && values.teamId !== "none"
+            ? values.teamId
+            : profile.active_team_id;
+
+        if (targetTeamId) {
+          const capacity = await getTeamCapacity(supabase, targetTeamId);
+          if (
+            capacity &&
+            shouldWarnCapacity(capacity.bedCount, capacity.residentCount + 1)
+          ) {
+            toast.warning(
+              getCapacityWarningMessage(
+                capacity.teamName ?? "This unit",
+                capacity.residentCount,
+                capacity.bedCount!,
+                capacity.residentCount + 1
+              )
+            );
+          }
+        }
+
         // Create new resident
         const { data: newResident, error: createError } = await supabase
           .from("residents")

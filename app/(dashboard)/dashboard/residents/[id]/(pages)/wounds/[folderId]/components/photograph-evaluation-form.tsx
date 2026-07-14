@@ -38,9 +38,15 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { buildStorageObjectUrl } from "@/lib/storage";
+import { formatTimestampToUKDateTime } from "@/lib/date-utils";
+import {
+  fetchWoundGalleryPhotos,
+  type WoundGalleryPhotoRecord,
+} from "@/lib/wound-gallery-service";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { generateWoundPhotographEvaluationPDF } from "@/lib/wound-photograph-evaluation-pdf-utils";
+import { WoundPhotoSelectorDialog } from "@/components/wounds/WoundPhotoSelectorDialog";
 
 // --- Zod Schema ---
 const PhotographEvaluationSchema = z.object({
@@ -53,6 +59,7 @@ const PhotographEvaluationSchema = z.object({
   actualMeasurement: z.string().optional(),
   rgnSignature: z.string().min(1, "RGN signature is required"),
   comments: z.string().optional(),
+  nextPhotoDate: z.date().nullable().optional(),
 });
 
 type PhotographEvaluationFormValues = z.infer<typeof PhotographEvaluationSchema>;
@@ -74,6 +81,7 @@ type Props = {
     rgn_signature: string;
     comment?: string;
     created_at: string;
+    next_photo_date?: string | null;
   }>;
   isLoadingEvaluations?: boolean;
   onSaved?: () => void;
@@ -93,10 +101,14 @@ export function PhotographEvaluationForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [selectedGalleryPhotoId, setSelectedGalleryPhotoId] = useState<string | null>(null);
+  const [galleryPhotos, setGalleryPhotos] = useState<WoundGalleryPhotoRecord[]>([]);
+  const [isLoadingGallery, setIsLoadingGallery] = useState(false);
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [editingEvaluationId, setEditingEvaluationId] = useState<string | null>(null);
+  const [isSelectorOpen, setIsSelectorOpen] = useState(false);
 
   const handleDownloadPDF = async () => {
     try {
@@ -115,6 +127,7 @@ export function PhotographEvaluationForm({
           rgn_signature: evaluation.rgn_signature,
           comment: evaluation.comment ?? null,
           created_at: evaluation.created_at,
+          next_photo_date: evaluation.next_photo_date ?? null,
         })),
       });
       toast.success("PDF downloaded successfully");
@@ -150,6 +163,7 @@ export function PhotographEvaluationForm({
       actualMeasurement: "",
       rgnSignature: profile?.name || "",
       comments: "",
+      nextPhotoDate: null,
     },
   });
 
@@ -160,36 +174,80 @@ export function PhotographEvaluationForm({
     }
   }, [profile?.name, form]);
 
+  React.useEffect(() => {
+    if (!residentId || !woundFolderId) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingGallery(true);
+    fetchWoundGalleryPhotos({ residentId, woundFolderId })
+      .then((photos) => {
+        if (!cancelled) {
+          setGalleryPhotos(photos);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load wound gallery photos:", error);
+        if (!cancelled) {
+          setGalleryPhotos([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingGallery(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [residentId, woundFolderId]);
+
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
-      if (!file.type.startsWith("image/")) {
-        toast.error("Please select an image file");
-        return;
-      }
-
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error("Image size must be less than 10MB");
-        return;
-      }
-
-      setPhotoFile(file);
-
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      handleSelectLocalFile(file);
     }
+  };
+
+  const handleSelectLocalFile = (file: File) => {
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image size must be less than 10MB");
+      return;
+    }
+
+    setPhotoFile(file);
+    setSelectedGalleryPhotoId(null);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPhotoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleRemovePhoto = () => {
     setPhotoFile(null);
     setPhotoPreview(null);
+    setSelectedGalleryPhotoId(null);
   };
+
+  const handleSelectGalleryPhoto = (photo: WoundGalleryPhotoRecord) => {
+    setSelectedGalleryPhotoId(photo.id);
+    setPhotoFile(null);
+    setPhotoPreview(photo.signedUrl || photo.photographUrl);
+  };
+
+
 
   const handleEditEvaluation = (evaluation: typeof evaluations[0]) => {
     // Parse site_of_wound to extract components
@@ -233,11 +291,13 @@ export function PhotographEvaluationForm({
       actualMeasurement: measurement,
       rgnSignature: evaluation.rgn_signature || profile?.name || "",
       comments: evaluation.comment || "",
+      nextPhotoDate: evaluation.next_photo_date ? new Date(evaluation.next_photo_date) : null,
     });
 
     // Set the existing photo as preview
     setPhotoPreview(evaluation.signedUrl || evaluation.photograph_url);
     setPhotoFile(null); // No file yet, using existing URL
+    setSelectedGalleryPhotoId(null);
 
     // Enter edit mode
     setEditingEvaluationId(evaluation.id);
@@ -257,9 +317,11 @@ export function PhotographEvaluationForm({
       actualMeasurement: "",
       rgnSignature: profile?.name || "",
       comments: "",
+      nextPhotoDate: null,
     });
     setPhotoFile(null);
     setPhotoPreview(null);
+    setSelectedGalleryPhotoId(null);
   };
 
   const onSubmit = async (values: PhotographEvaluationFormValues) => {
@@ -269,9 +331,9 @@ export function PhotographEvaluationForm({
     }
 
     // When editing, photo is optional (can keep existing one)
-    // When creating new, photo is required
-    if (!editingEvaluationId && !photoFile) {
-      toast.error("Please upload a photograph");
+    // When creating new, photo is required (upload or gallery)
+    if (!editingEvaluationId && !photoFile && !selectedGalleryPhotoId) {
+      toast.error("Please select a gallery photo or upload a photograph");
       return;
     }
 
@@ -283,9 +345,11 @@ export function PhotographEvaluationForm({
       console.log("Edit Mode:", !!editingEvaluationId);
 
       let photographUrl = photoPreview; // Default to existing preview
+      let sourceGalleryPhotoId: string | null = selectedGalleryPhotoId;
 
       // Upload new photograph if provided
       if (photoFile) {
+        sourceGalleryPhotoId = null;
         const fileExt = photoFile.name.split(".").pop();
         const fileName = `${woundFolderId}/${Date.now()}.${fileExt}`;
         const filePath = `wound-photographs/${fileName}`;
@@ -304,6 +368,11 @@ export function PhotographEvaluationForm({
         }
 
         photographUrl = buildStorageObjectUrl("wound-photos", filePath);
+      } else if (selectedGalleryPhotoId) {
+        const selectedPhoto = galleryPhotos.find((photo) => photo.id === selectedGalleryPhotoId);
+        if (selectedPhoto) {
+          photographUrl = selectedPhoto.photographUrl;
+        }
       }
 
       // Build site info
@@ -330,6 +399,8 @@ export function PhotographEvaluationForm({
         rgn_user_id: profile.id,
         comment: values.comments || null,
         created_by: profile.id,
+        source_gallery_photo_id: sourceGalleryPhotoId,
+        next_photo_date: values.nextPhotoDate ? format(values.nextPhotoDate, "yyyy-MM-dd") : null,
       };
 
       // Update or insert based on edit mode
@@ -459,29 +530,23 @@ export function PhotographEvaluationForm({
                                   New Photo
                                 </Badge>
                               )}
+                              {selectedGalleryPhotoId && !photoFile && (
+                                <Badge className="absolute top-3 left-3 bg-violet-500 shadow-sm">
+                                  Gallery Photo
+                                </Badge>
+                              )}
                             </div>
                             <div className="flex gap-2">
-                              <label htmlFor="photo-change" className="flex-1">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="w-full border-gray-300 hover:bg-gray-50"
-                                  asChild
-                                >
-                                  <span>
-                                    <Upload className="w-4 h-4 mr-2" />
-                                    {editingEvaluationId ? "Change Photo" : "Change"}
-                                  </span>
-                                </Button>
-                                <input
-                                  id="photo-change"
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={handlePhotoChange}
-                                  className="hidden"
-                                />
-                              </label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 border-gray-300 hover:bg-gray-50"
+                                onClick={() => setIsSelectorOpen(true)}
+                              >
+                                <Upload className="w-4 h-4 mr-2" />
+                                {editingEvaluationId ? "Change Photo" : "Change"}
+                              </Button>
                               {!editingEvaluationId && (
                                 <Button
                                   type="button"
@@ -495,38 +560,33 @@ export function PhotographEvaluationForm({
                             </div>
                           </div>
                         ) : (
-                          <div className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center min-h-[350px] flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                          <div
+                            onClick={() => setIsSelectorOpen(true)}
+                            className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center min-h-[350px] flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
                             <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-4">
                               <ImageIcon className="w-8 h-8 text-blue-500" />
                             </div>
-                            <label htmlFor="photo-upload" className="cursor-pointer">
-                              <div className="flex flex-col items-center">
-                                <span className="text-sm font-semibold text-gray-900 mb-1">
-                                  Upload wound photograph
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  JPG, PNG or GIF (max 10MB)
-                                </span>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="mt-4"
-                                  asChild
-                                >
-                                  <span>
-                                    <Upload className="w-4 h-4 mr-2" />
-                                    Choose file
-                                  </span>
-                                </Button>
-                              </div>
-                              <input
-                                id="photo-upload"
-                                type="file"
-                                accept="image/*"
-                                onChange={handlePhotoChange}
-                                className="hidden"
-                              />
-                            </label>
+                            <div className="flex flex-col items-center">
+                              <span className="text-sm font-semibold text-gray-900 mb-1">
+                                Choose wound photograph
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                Select from mobile gallery or upload from computer
+                              </span>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="mt-4"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsSelectorOpen(true);
+                                }}
+                              >
+                                <Upload className="w-4 h-4 mr-2" />
+                                Select Photograph
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -572,6 +632,57 @@ export function PhotographEvaluationForm({
                                     />
                                   </PopoverContent>
                                 </Popover>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        {/* Next Photo Date Field */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-700">Next Photograph Evaluation Date</label>
+                          <FormField
+                            control={form.control}
+                            name="nextPhotoDate"
+                            render={({ field }) => (
+                              <FormItem>
+                                <div className="flex gap-2">
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <FormControl>
+                                        <Button
+                                          variant="outline"
+                                          className={cn(
+                                            "w-full justify-start text-left font-normal h-10 border-gray-300",
+                                            !field.value && "text-muted-foreground"
+                                          )}
+                                        >
+                                          <CalendarIcon className="mr-2 h-4 w-4 text-gray-500" />
+                                          {field.value ? format(field.value, "dd/MM/yyyy") : <span>Select next photo date</span>}
+                                        </Button>
+                                      </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <Calendar
+                                        mode="single"
+                                        selected={field.value || undefined}
+                                        onSelect={field.onChange}
+                                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                  {field.value && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-10 w-10 border border-gray-300 hover:bg-gray-100"
+                                      onClick={() => field.onChange(null)}
+                                    >
+                                      <X className="w-4 h-4 text-gray-500" />
+                                    </Button>
+                                  )}
+                                </div>
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -722,10 +833,10 @@ export function PhotographEvaluationForm({
                                   />
                                 </FormControl>
                                 <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
 
                         {/* Comments */}
                         <div className="space-y-2">
@@ -788,496 +899,557 @@ export function PhotographEvaluationForm({
               const isEditing = editingEvaluationId === evaluation.id;
 
               return (
-              <div key={evaluation.id} className="bg-white border rounded-lg shadow-sm">
-                {!isEditing ? (
-                  <>
-                    {/* Display View Header */}
-                    <div className="border-b bg-slate-50 px-6 py-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <h2 className="text-xl font-bold">WOUND PHOTOGRAPHIC EVALUATION</h2>
-                          {woundNumber && (
-                            <Badge variant="outline" className="font-mono font-semibold text-base">
-                              Wound #{woundNumber}
+                <div key={evaluation.id} className="bg-white border rounded-lg shadow-sm">
+                  {!isEditing ? (
+                    <>
+                      {/* Display View Header */}
+                      <div className="border-b bg-slate-50 px-6 py-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-3">
+                            <h2 className="text-xl font-bold">WOUND PHOTOGRAPHIC EVALUATION</h2>
+                            {woundNumber && (
+                              <Badge variant="outline" className="font-mono font-semibold text-base">
+                                Wound #{woundNumber}
+                              </Badge>
+                            )}
+                            <Badge variant="secondary" className="text-xs">
+                              Evaluation #{evaluations.length - index}
                             </Badge>
-                          )}
-                          <Badge variant="secondary" className="text-xs">
-                            Evaluation #{evaluations.length - index}
-                          </Badge>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditEvaluation(evaluation)}
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit
+                          </Button>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditEvaluation(evaluation)}
-                        >
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit
-                        </Button>
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          <span className="font-semibold">Resident:</span> {residentName}
+                        </div>
                       </div>
-                      <div className="mt-2 text-sm text-muted-foreground">
-                        <span className="font-semibold">Resident:</span> {residentName}
-                      </div>
-                    </div>
 
-                    {/* Display View Content */}
-                    <div className="p-6">
-                  {/* Single border around both sections */}
-                  <div className="border-2 border-black">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x-2 lg:divide-black">
-                      {/* Insert Photograph Section */}
-                      <div>
-                        <div className="bg-slate-100 border-b-2 border-black px-3 py-2">
-                          <div className="font-bold text-sm">Insert Photograph</div>
-                        </div>
-                        <div className="p-4 flex items-center justify-center min-h-[300px]">
-                          {(evaluation.signedUrl || evaluation.photograph_url) ? (
-                            <img
-                              src={evaluation.signedUrl || evaluation.photograph_url}
-                              alt="Wound photograph"
-                              className="max-w-full max-h-[400px] object-contain"
-                              onError={(e) => {
-                                console.error("Failed to load image for evaluation:", evaluation.id, {
-                                  signedUrl: evaluation.signedUrl,
-                                  photograph_url: evaluation.photograph_url
-                                });
-                                e.currentTarget.style.display = 'none';
-                                e.currentTarget.parentElement!.innerHTML = `
+                      {/* Display View Content */}
+                      <div className="p-6">
+                        {/* Single border around both sections */}
+                        <div className="border-2 border-black">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x-2 lg:divide-black">
+                            {/* Insert Photograph Section */}
+                            <div>
+                              <div className="bg-slate-100 border-b-2 border-black px-3 py-2">
+                                <div className="font-bold text-sm">Insert Photograph</div>
+                              </div>
+                              <div className="p-4 flex items-center justify-center min-h-[300px]">
+                                {(evaluation.signedUrl || evaluation.photograph_url) ? (
+                                  <img
+                                    src={evaluation.signedUrl || evaluation.photograph_url}
+                                    alt="Wound photograph"
+                                    className="max-w-full max-h-[400px] object-contain"
+                                    onError={(e) => {
+                                      console.error("Failed to load image for evaluation:", evaluation.id, {
+                                        signedUrl: evaluation.signedUrl,
+                                        photograph_url: evaluation.photograph_url
+                                      });
+                                      e.currentTarget.style.display = 'none';
+                                      e.currentTarget.parentElement!.innerHTML = `
                                   <div class="text-center text-muted-foreground">
                                     <svg class="w-16 h-16 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                                     <p class="text-sm">Failed to load photograph</p>
                                     <p class="text-xs mt-2">Image may have been deleted or moved</p>
                                   </div>
                                 `;
-                              }}
-                            />
-                          ) : (
-                            <div className="text-center text-muted-foreground">
-                              <ImageIcon className="w-16 h-16 mx-auto mb-2 opacity-30" />
-                              <p className="text-sm">No photograph available</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Evaluation Details */}
-                      <div>
-                        <div className="bg-slate-100 border-b-2 border-black px-4 py-2">
-                          <div className="font-bold text-sm">Evaluation Details</div>
-                        </div>
-                        <div className="p-4 space-y-4">
-                          <div>
-                            <div className="text-xs font-semibold text-gray-600 mb-1">Date Photograph taken</div>
-                            <div className="text-base font-medium">
-                              {evaluation.photograph_date
-                                ? format(new Date(evaluation.photograph_date), "dd/MM/yyyy")
-                                : "N/A"}
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="text-xs font-semibold text-gray-600 mb-1">Site of Wound</div>
-                            <div className="text-base font-medium">{evaluation.site_of_wound}</div>
-                          </div>
-
-                          <div>
-                            <div className="text-xs font-semibold text-gray-600 mb-1">RGN Signature</div>
-                            <div className="text-base font-medium">{evaluation.rgn_signature}</div>
-                          </div>
-
-                          {evaluation.comment && (
-                            <div>
-                              <div className="text-xs font-semibold text-gray-600 mb-1">Comments</div>
-                              <div className="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">
-                                {evaluation.comment}
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="text-center text-muted-foreground">
+                                    <ImageIcon className="w-16 h-16 mx-auto mb-2 opacity-30" />
+                                    <p className="text-sm">No photograph available</p>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
 
-                      <div className="mt-6 flex justify-between">
-                        <Badge variant="secondary" className="text-xs">
-                          Recorded: {evaluation.created_at
-                            ? format(new Date(evaluation.created_at), "dd MMM yyyy HH:mm")
-                            : "Unknown"}
-                        </Badge>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {/* Edit View - Inline Form */}
-                    <div className="border-b bg-slate-50 px-6 py-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <h2 className="text-xl font-bold">EDIT WOUND PHOTOGRAPHIC EVALUATION</h2>
-                          {woundNumber && (
-                            <Badge variant="outline" className="font-mono font-semibold text-base">
-                              Wound #{woundNumber}
-                            </Badge>
-                          )}
-                        </div>
-                        <Badge variant="secondary">Editing</Badge>
-                      </div>
-                      <div className="mt-2 text-sm text-muted-foreground">
-                        <span className="font-semibold">Resident:</span> {residentName}
-                      </div>
-                    </div>
-
-                    <Form {...form}>
-                      <form onSubmit={form.handleSubmit(onSubmit)}>
-                        <div className="p-6">
-                          {/* Single border around both sections */}
-                          <div className="border-2 border-black">
-                            <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x-2 lg:divide-black">
-                              {/* Insert Photograph Section */}
-                              <div>
-                                <div className="bg-slate-100 border-b-2 border-black px-3 py-2">
-                                  <div className="font-bold text-sm">Insert Photograph</div>
+                            {/* Evaluation Details */}
+                            <div>
+                              <div className="bg-slate-100 border-b-2 border-black px-4 py-2">
+                                <div className="font-bold text-sm">Evaluation Details</div>
+                              </div>
+                              <div className="p-4 space-y-4">
+                                <div>
+                                  <div className="text-xs font-semibold text-gray-600 mb-1">Date Photograph taken</div>
+                                  <div className="text-base font-medium">
+                                    {evaluation.photograph_date
+                                      ? format(new Date(evaluation.photograph_date), "dd/MM/yyyy")
+                                      : "N/A"}
+                                  </div>
                                 </div>
-                                <div className="p-4">
-                                  {photoPreview ? (
-                                    <div className="space-y-3">
-                                      <div className="relative">
-                                        <img
-                                          src={photoPreview}
-                                          alt="Preview"
-                                          className="w-full max-h-[400px] object-contain border-2 border-gray-300"
-                                        />
-                                        {editingEvaluationId && !photoFile && (
-                                          <Badge className="absolute top-2 left-2 bg-blue-500">
-                                            Current Photo
-                                          </Badge>
-                                        )}
-                                        {photoFile && (
-                                          <Badge className="absolute top-2 left-2 bg-green-500">
-                                            New Photo
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <div className="flex gap-2">
-                                        <label htmlFor="photo-change-inline" className="flex-1">
+
+                                <div>
+                                  <div className="text-xs font-semibold text-gray-600 mb-1">Next Photograph Evaluation Date</div>
+                                  <div className="text-base font-medium text-blue-600">
+                                    {evaluation.next_photo_date
+                                      ? format(new Date(evaluation.next_photo_date), "dd/MM/yyyy")
+                                      : "N/A"}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="text-xs font-semibold text-gray-600 mb-1">Site of Wound</div>
+                                  <div className="text-base font-medium">{evaluation.site_of_wound}</div>
+                                </div>
+
+                                <div>
+                                  <div className="text-xs font-semibold text-gray-600 mb-1">RGN Signature</div>
+                                  <div className="text-base font-medium">{evaluation.rgn_signature}</div>
+                                </div>
+
+                                {evaluation.comment && (
+                                  <div>
+                                    <div className="text-xs font-semibold text-gray-600 mb-1">Comments</div>
+                                    <div className="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">
+                                      {evaluation.comment}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-between">
+                          <Badge variant="secondary" className="text-xs">
+                            Recorded: {evaluation.created_at
+                              ? format(new Date(evaluation.created_at), "dd MMM yyyy HH:mm")
+                              : "Unknown"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Edit View - Inline Form */}
+                      <div className="border-b bg-slate-50 px-6 py-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-3">
+                            <h2 className="text-xl font-bold">EDIT WOUND PHOTOGRAPHIC EVALUATION</h2>
+                            {woundNumber && (
+                              <Badge variant="outline" className="font-mono font-semibold text-base">
+                                Wound #{woundNumber}
+                              </Badge>
+                            )}
+                          </div>
+                          <Badge variant="secondary">Editing</Badge>
+                        </div>
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          <span className="font-semibold">Resident:</span> {residentName}
+                        </div>
+                      </div>
+
+                      <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)}>
+                          <div className="p-6">
+                            {/* Single border around both sections */}
+                            <div className="border-2 border-black">
+                              <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x-2 lg:divide-black">
+                                {/* Insert Photograph Section */}
+                                <div>
+                                  <div className="bg-slate-100 border-b-2 border-black px-3 py-2">
+                                    <div className="font-bold text-sm">Insert Photograph</div>
+                                  </div>
+                                  <div className="p-4">
+                                    {photoPreview ? (
+                                      <div className="space-y-3">
+                                        <div className="relative">
+                                          <img
+                                            src={photoPreview}
+                                            alt="Preview"
+                                            className="w-full max-h-[400px] object-contain border-2 border-gray-300"
+                                          />
+                                          {editingEvaluationId && !photoFile && (
+                                            <Badge className="absolute top-2 left-2 bg-blue-500">
+                                              Current Photo
+                                            </Badge>
+                                          )}
+                                          {photoFile && (
+                                            <Badge className="absolute top-2 left-2 bg-green-500">
+                                              New Photo
+                                            </Badge>
+                                          )}
+                                          {selectedGalleryPhotoId && !photoFile && (
+                                            <Badge className="absolute top-2 left-2 bg-violet-500">
+                                              Gallery Photo
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <div className="flex gap-2">
                                           <Button
                                             type="button"
                                             variant="outline"
                                             size="sm"
                                             className="w-full"
-                                            asChild
+                                            onClick={() => setIsSelectorOpen(true)}
                                           >
-                                            <span>
-                                              <Upload className="w-4 h-4 mr-2" />
-                                              Change Photo
-                                            </span>
+                                            <Upload className="w-4 h-4 mr-2" />
+                                            Change Photo
                                           </Button>
-                                          <input
-                                            id="photo-change-inline"
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handlePhotoChange}
-                                            className="hidden"
-                                          />
-                                        </label>
+                                        </div>
                                       </div>
-                                    </div>
-                                  ) : (
-                                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
-                                      <ImageIcon className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-30" />
-                                      <label htmlFor="photo-upload-inline" className="cursor-pointer">
+                                    ) : (
+                                      <div
+                                        onClick={() => setIsSelectorOpen(true)}
+                                        className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center min-h-[300px] flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50/50 transition-colors"
+                                      >
+                                        <ImageIcon className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-30" />
                                         <div className="flex flex-col items-center">
                                           <Upload className="w-8 h-8 mb-2 text-primary" />
                                           <span className="text-sm font-medium text-primary">
-                                            Click to upload photograph
+                                            Select Photograph
                                           </span>
                                           <span className="text-xs text-muted-foreground mt-1">
-                                            JPG, PNG or GIF (max 10MB)
+                                            Select from mobile gallery or upload from computer
                                           </span>
                                         </div>
-                                        <input
-                                          id="photo-upload-inline"
-                                          type="file"
-                                          accept="image/*"
-                                          onChange={handlePhotoChange}
-                                          className="hidden"
-                                        />
-                                      </label>
-                                    </div>
-                                  )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
 
-                              {/* Form Fields */}
-                              <div>
-                                <div className="divide-y divide-gray-300">
-                                  <div className="grid grid-cols-2 divide-x divide-gray-300">
-                                    <div className="px-3 py-2 text-xs font-medium border-r border-gray-300 bg-slate-50">
-                                      Date Photograph taken
+                                {/* Form Fields */}
+                                <div>
+                                  <div className="divide-y divide-gray-300">
+                                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                                      <div className="px-3 py-2 text-xs font-medium border-r border-gray-300 bg-slate-50">
+                                        Date Photograph taken
+                                      </div>
+                                      <div className="px-3 py-2">
+                                        <FormField
+                                          control={form.control}
+                                          name="photographDate"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <Popover>
+                                                <PopoverTrigger asChild>
+                                                  <FormControl>
+                                                    <Button
+                                                      variant="ghost"
+                                                      className={cn(
+                                                        "h-6 text-xs w-full justify-start text-left font-normal p-0 hover:bg-transparent",
+                                                        !field.value && "text-muted-foreground"
+                                                      )}
+                                                    >
+                                                      {field.value ? format(field.value, "dd/MM/yyyy") : <span>Select date</span>}
+                                                      <CalendarIcon className="ml-auto h-3 w-3 opacity-50" />
+                                                    </Button>
+                                                  </FormControl>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                  <Calendar
+                                                    mode="single"
+                                                    selected={field.value}
+                                                    onSelect={field.onChange}
+                                                    disabled={(date) => date > new Date()}
+                                                  />
+                                                </PopoverContent>
+                                              </Popover>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
                                     </div>
-                                    <div className="px-3 py-2">
-                                      <FormField
-                                        control={form.control}
-                                        name="photographDate"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <Popover>
-                                              <PopoverTrigger asChild>
-                                                <FormControl>
-                                                  <Button
-                                                    variant="ghost"
-                                                    className={cn(
-                                                      "h-6 text-xs w-full justify-start text-left font-normal p-0 hover:bg-transparent",
-                                                      !field.value && "text-muted-foreground"
-                                                    )}
-                                                  >
-                                                    {field.value ? format(field.value, "dd/MM/yyyy") : <span>Select date</span>}
-                                                    <CalendarIcon className="ml-auto h-3 w-3 opacity-50" />
-                                                  </Button>
-                                                </FormControl>
-                                              </PopoverTrigger>
-                                              <PopoverContent className="w-auto p-0" align="start">
-                                                <Calendar
-                                                  mode="single"
-                                                  selected={field.value}
-                                                  onSelect={field.onChange}
-                                                  disabled={(date) => date > new Date()}
+
+                                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                                      <div className="px-3 py-2 text-xs font-medium border-r border-gray-300 bg-slate-50">
+                                        Next Photograph Evaluation Date
+                                      </div>
+                                      <div className="px-3 py-2 flex items-center justify-between">
+                                        <FormField
+                                          control={form.control}
+                                          name="nextPhotoDate"
+                                          render={({ field }) => (
+                                            <FormItem className="flex-1">
+                                              <Popover>
+                                                <PopoverTrigger asChild>
+                                                  <FormControl>
+                                                    <Button
+                                                      variant="ghost"
+                                                      className={cn(
+                                                        "h-6 text-xs w-full justify-start text-left font-normal p-0 hover:bg-transparent",
+                                                        !field.value && "text-muted-foreground"
+                                                      )}
+                                                    >
+                                                      {field.value ? format(field.value, "dd/MM/yyyy") : <span>Select next photo date</span>}
+                                                      <CalendarIcon className="ml-auto h-3 w-3 opacity-50" />
+                                                    </Button>
+                                                  </FormControl>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                  <Calendar
+                                                    mode="single"
+                                                    selected={field.value || undefined}
+                                                    onSelect={field.onChange}
+                                                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                                  />
+                                                </PopoverContent>
+                                              </Popover>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                        {form.watch("nextPhotoDate") && (
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-4 w-4 p-0 ml-1 opacity-60 hover:opacity-100"
+                                            onClick={() => form.setValue("nextPhotoDate", null)}
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="px-3 py-2 bg-slate-50 font-bold text-xs">Site of Wound</div>
+
+                                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                                      <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                                        Left/Right
+                                      </div>
+                                      <div className="px-3 py-1.5">
+                                        <FormField
+                                          control={form.control}
+                                          name="leftRight"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormControl>
+                                                <Input
+                                                  className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                                  placeholder="e.g., Left"
+                                                  {...field}
                                                 />
-                                              </PopoverContent>
-                                            </Popover>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
                                     </div>
-                                  </div>
 
-                                  <div className="px-3 py-2 bg-slate-50 font-bold text-xs">Site of Wound</div>
+                                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                                      <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                                        Actual Position
+                                      </div>
+                                      <div className="px-3 py-1.5">
+                                        <FormField
+                                          control={form.control}
+                                          name="actualPosition"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormControl>
+                                                <Input
+                                                  className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                                  placeholder="e.g., Heel"
+                                                  {...field}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
+                                    </div>
 
-                                  <div className="grid grid-cols-2 divide-x divide-gray-300">
-                                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                                      Left/Right
+                                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                                      <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">State</div>
+                                      <div className="px-3 py-1.5">
+                                        <FormField
+                                          control={form.control}
+                                          name="state"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormControl>
+                                                <Input
+                                                  className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                                  placeholder="e.g., Grade 2"
+                                                  {...field}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
                                     </div>
-                                    <div className="px-3 py-1.5">
-                                      <FormField
-                                        control={form.control}
-                                        name="leftRight"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormControl>
-                                              <Input
-                                                className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                                placeholder="e.g., Left"
-                                                {...field}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    </div>
-                                  </div>
 
-                                  <div className="grid grid-cols-2 divide-x divide-gray-300">
-                                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                                      Actual Position
+                                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                                      <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                                        Inner/Outer
+                                      </div>
+                                      <div className="px-3 py-1.5">
+                                        <FormField
+                                          control={form.control}
+                                          name="innerOuter"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormControl>
+                                                <Input
+                                                  className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                                  placeholder="e.g., Inner"
+                                                  {...field}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
                                     </div>
-                                    <div className="px-3 py-1.5">
-                                      <FormField
-                                        control={form.control}
-                                        name="actualPosition"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormControl>
-                                              <Input
-                                                className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                                placeholder="e.g., Heel"
-                                                {...field}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    </div>
-                                  </div>
 
-                                  <div className="grid grid-cols-2 divide-x divide-gray-300">
-                                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">State</div>
-                                    <div className="px-3 py-1.5">
-                                      <FormField
-                                        control={form.control}
-                                        name="state"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormControl>
-                                              <Input
-                                                className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                                placeholder="e.g., Grade 2"
-                                                {...field}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
+                                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                                      <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                                        Wound Location *
+                                      </div>
+                                      <div className="px-3 py-1.5">
+                                        <FormField
+                                          control={form.control}
+                                          name="siteOfWound"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormControl>
+                                                <Input
+                                                  className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                                  placeholder="e.g., Right Elbow"
+                                                  {...field}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
                                     </div>
-                                  </div>
 
-                                  <div className="grid grid-cols-2 divide-x divide-gray-300">
-                                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                                      Inner/Outer
+                                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                                      <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                                        Actual Measurement
+                                      </div>
+                                      <div className="px-3 py-1.5">
+                                        <FormField
+                                          control={form.control}
+                                          name="actualMeasurement"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormControl>
+                                                <Input
+                                                  className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                                  placeholder="e.g., 2 x 1.5 cm"
+                                                  {...field}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
                                     </div>
-                                    <div className="px-3 py-1.5">
-                                      <FormField
-                                        control={form.control}
-                                        name="innerOuter"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormControl>
-                                              <Input
-                                                className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                                placeholder="e.g., Inner"
-                                                {...field}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    </div>
-                                  </div>
 
-                                  <div className="grid grid-cols-2 divide-x divide-gray-300">
-                                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                                      Wound Location *
+                                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                                      <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
+                                        RGN Signature *
+                                      </div>
+                                      <div className="px-3 py-1.5">
+                                        <FormField
+                                          control={form.control}
+                                          name="rgnSignature"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormControl>
+                                                <Input
+                                                  className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
+                                                  placeholder="Your name"
+                                                  {...field}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
                                     </div>
-                                    <div className="px-3 py-1.5">
-                                      <FormField
-                                        control={form.control}
-                                        name="siteOfWound"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormControl>
-                                              <Input
-                                                className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                                placeholder="e.g., Right Elbow"
-                                                {...field}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    </div>
-                                  </div>
 
-                                  <div className="grid grid-cols-2 divide-x divide-gray-300">
-                                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                                      Actual Measurement
-                                    </div>
-                                    <div className="px-3 py-1.5">
-                                      <FormField
-                                        control={form.control}
-                                        name="actualMeasurement"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormControl>
-                                              <Input
-                                                className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                                placeholder="e.g., 2 x 1.5 cm"
-                                                {...field}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    </div>
-                                  </div>
-
-                                  <div className="grid grid-cols-2 divide-x divide-gray-300">
-                                    <div className="px-3 py-1.5 text-xs font-medium border-r border-gray-300">
-                                      RGN Signature *
-                                    </div>
-                                    <div className="px-3 py-1.5">
-                                      <FormField
-                                        control={form.control}
-                                        name="rgnSignature"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormControl>
-                                              <Input
-                                                className="h-6 text-xs border-0 p-0 focus-visible:ring-0"
-                                                placeholder="Your name"
-                                                {...field}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    </div>
-                                  </div>
-
-                                  <div className="grid grid-cols-2 divide-x divide-gray-300">
-                                    <div className="px-3 py-2 text-xs font-medium border-r border-gray-300">Comments</div>
-                                    <div className="px-3 py-2">
-                                      <FormField
-                                        control={form.control}
-                                        name="comments"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormControl>
-                                              <Textarea
-                                                className="min-h-[80px] text-xs border-0 p-0 focus-visible:ring-0 resize-none"
-                                                placeholder="Additional notes..."
-                                                {...field}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
+                                    <div className="grid grid-cols-2 divide-x divide-gray-300">
+                                      <div className="px-3 py-2 text-xs font-medium border-r border-gray-300">Comments</div>
+                                      <div className="px-3 py-2">
+                                        <FormField
+                                          control={form.control}
+                                          name="comments"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormControl>
+                                                <Textarea
+                                                  className="min-h-[80px] text-xs border-0 p-0 focus-visible:ring-0 resize-none"
+                                                  placeholder="Additional notes..."
+                                                  {...field}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="border-t px-6 py-4 bg-slate-50 flex justify-between items-center">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleCancelEdit}
-                          >
-                            Cancel
-                          </Button>
-                          <Button type="submit" disabled={isSubmitting} size="lg">
-                            {isSubmitting ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Updating...
-                              </>
-                            ) : (
-                              <>
-                                <Save className="w-4 h-4 mr-2" />
-                                Update Evaluation
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </form>
-                    </Form>
-                  </>
-                )}
-              </div>
-            );
+                          <div className="border-t px-6 py-4 bg-slate-50 flex justify-between items-center">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={handleCancelEdit}
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit" disabled={isSubmitting} size="lg">
+                              {isSubmitting ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Updating...
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="w-4 h-4 mr-2" />
+                                  Update Evaluation
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </form>
+                      </Form>
+                    </>
+                  )}
+                </div>
+              );
             })}
           </div>
         )}
       </div>
+
+      <WoundPhotoSelectorDialog
+        open={isSelectorOpen}
+        onOpenChange={setIsSelectorOpen}
+        residentId={residentId}
+        woundFolderId={woundFolderId}
+        galleryPhotos={galleryPhotos}
+        isLoadingGallery={isLoadingGallery}
+        selectedGalleryPhotoId={selectedGalleryPhotoId}
+        onSelectGalleryPhoto={handleSelectGalleryPhoto}
+        onSelectLocalFile={handleSelectLocalFile}
+      />
     </ScrollArea>
   );
 }

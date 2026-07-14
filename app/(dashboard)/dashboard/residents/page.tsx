@@ -1,22 +1,42 @@
 "use client";
 
 import { useActiveTeam } from "@/hooks/use-active-team";
-import { useEffect, useState, useCallback } from "react";
-import { columns } from "./columns";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { getResidentsColumns } from "./columns";
 import { DataTable } from "./data-table";
 import { Resident } from "@/types";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
-import { toast } from "sonner";
+import { fetchHandoverTransferStates, HandoverTransferState } from "@/lib/handover-hospital-transfer";
+import { getCurrentShift } from "@/lib/config/shift-config";
 
 export default function ResidentsPage() {
   const { activeTeamId, activeTeam, activeOrganizationId, activeOrganization, activeCareHomeId } = useActiveTeam();
   const { profile, isLoading: isProfileLoading } = useProfile();
   const { supabase, isLoading: isSupabaseLoading } = useSupabase();
   const [residents, setResidents] = useState<Resident[]>([]);
+  const [transferStates, setTransferStates] = useState<Record<string, HandoverTransferState>>({});
   const [isLoading, setIsLoading] = useState(true);
 
+  const selectedDate = useMemo(() => new Date(), []);
+  const selectedShift = getCurrentShift();
+
   const contextLoading = isProfileLoading || isSupabaseLoading;
+
+  const fetchTransferStates = useCallback(async (residentList: Resident[]) => {
+    if (!supabase || residentList.length === 0) {
+      setTransferStates({});
+      return;
+    }
+
+    const states = await fetchHandoverTransferStates(
+      supabase,
+      residentList.map((resident) => resident.id),
+      selectedDate,
+      selectedShift
+    );
+    setTransferStates(states);
+  }, [supabase, selectedDate, selectedShift]);
 
   const fetchResidents = useCallback(async () => {
     if (contextLoading) return;
@@ -43,14 +63,40 @@ export default function ResidentsPage() {
 
       const { data, error } = await query;
       if (error) throw error;
-      setResidents(data as Resident[]);
+      const nextResidents = (data as Resident[]) || [];
+      setResidents(nextResidents);
+      await fetchTransferStates(nextResidents);
     } catch (error: any) {
       console.error("Error fetching residents:", error);
       // toast.error("Failed to load residents");
     } finally {
       setIsLoading(false);
     }
-  }, [activeTeamId, activeCareHomeId, activeOrganizationId, contextLoading, supabase]);
+  }, [activeTeamId, activeCareHomeId, activeOrganizationId, contextLoading, supabase, fetchTransferStates]);
+
+  const handleTransferChanged = useCallback(async () => {
+    await fetchTransferStates(residents);
+  }, [fetchTransferStates, residents]);
+
+  const tableColumns = useMemo(
+    () =>
+      getResidentsColumns({
+        transferStates,
+        onTransferChanged: handleTransferChanged,
+        organizationId: profile?.active_organization_id || undefined,
+        currentUserId: profile?.id,
+        selectedDate,
+        selectedShift,
+      }),
+    [
+      transferStates,
+      handleTransferChanged,
+      profile?.active_organization_id,
+      profile?.id,
+      selectedDate,
+      selectedShift,
+    ]
+  );
 
   useEffect(() => {
     fetchResidents();
@@ -127,9 +173,10 @@ export default function ResidentsPage() {
         </div>
       ) : (
         <DataTable<Resident, unknown>
-          columns={columns}
+          columns={tableColumns}
           data={residents || []}
           teamName={displayName}
+          activeTeamId={activeTeamId}
         />
       )}
     </div>

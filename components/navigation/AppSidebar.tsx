@@ -377,7 +377,7 @@ export function AppSidebar() {
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard">
-                    <HomeIcon />
+                    <HomeIcon className="text-blue-500" />
                     <span>Home</span>
                   </Link>
                 </SidebarMenuButton>
@@ -389,7 +389,7 @@ export function AppSidebar() {
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/residents">
-                    <User2Icon />
+                    <User2Icon className="text-violet-500" />
                     <span>Residents</span>
                   </Link>
                 </SidebarMenuButton>
@@ -407,7 +407,7 @@ export function AppSidebar() {
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/staff">
-                    <UsersIcon />
+                    <UsersIcon className="text-emerald-500" />
                     <span>Staff</span>
                   </Link>
                 </SidebarMenuButton>
@@ -419,7 +419,7 @@ export function AppSidebar() {
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href={"/dashboard/agency" as any}>
-                    <Briefcase className="w-4 h-4 text-black" />
+                    <Briefcase className="text-orange-500" />
                     <span>Agency</span>
                   </Link>
                 </SidebarMenuButton>
@@ -437,7 +437,7 @@ export function AppSidebar() {
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href={"/dashboard/rota" as any}>
-                    <CalendarIcon />
+                    <CalendarIcon className="text-violet-500" />
                     <span>Staff Rota</span>
                   </Link>
                 </SidebarMenuButton>
@@ -449,7 +449,7 @@ export function AppSidebar() {
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/handover">
-                    <ClipboardListIcon />
+                    <ClipboardListIcon className="text-amber-500" />
                     <span>Handover</span>
                   </Link>
                 </SidebarMenuButton>
@@ -462,7 +462,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/appointment" className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2">
-                      <CalendarIcon className="w-4 h-4" />
+                      <CalendarIcon className="w-4 h-4 text-cyan-500" />
                       <span>Appointment</span>
                     </div>
                     {unreadAppointmentsCount > 0 && (
@@ -481,7 +481,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/incidents" className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2">
-                      <Shield className="w-4 h-4" />
+                      <Shield className="w-4 h-4 text-red-500" />
                       <span>Incidents</span>
                     </div>
                     {unreadIncidentCount > 0 && (
@@ -500,7 +500,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/action-plans" className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2">
-                      <ListTodo className="w-4 h-4" />
+                      <ListTodo className="w-4 h-4 text-green-500" />
                       <span>Action Plans</span>
                     </div>
                     {totalNewActionPlansCount > 0 && (
@@ -519,7 +519,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/notification" className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2">
-                      <BellIcon className="w-4 h-4" />
+                      <BellIcon className="w-4 h-4 text-pink-500" />
                       <span>Notification</span>
                     </div>
                     {unreadNotificationCount > 0 && (
@@ -544,7 +544,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/wounds" className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2">
-                      <Heart className="w-4 h-4" />
+                      <Heart className="w-4 h-4 text-red-500" />
                       <span>Wounds</span>
                     </div>
                     {unreadWoundsCount > 0 && (
@@ -561,7 +561,7 @@ export function AppSidebar() {
               <SidebarMenuItem className="list-none">
                 <SidebarMenuButton asChild>
                   <Link href="/dashboard/medications">
-                    <Pill />
+                    <Pill className="text-blue-500" />
                     <span>Medications</span>
                   </Link>
                 </SidebarMenuButton>
@@ -577,8 +577,8 @@ export function AppSidebar() {
               <SidebarMenuItem className="list-none">
                 <CollapsibleTrigger asChild>
                   <SidebarMenuButton className="w-full">
-                    <Zap />
-                    <span>QwikInfo</span>
+                    <Zap className="text-amber-500" />
+                    <span>Quick Info</span>
                     <ChevronDown className={`ml-auto transition-transform duration-200 ${isQwikInfoOpen ? 'rotate-180' : ''}`} />
                   </SidebarMenuButton>
                 </CollapsibleTrigger>
