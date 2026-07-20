@@ -54,6 +54,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { residentService, Resident } from "@/lib/resident-service";
 import { multidisciplinaryService, MultidisciplinaryNote } from "@/lib/multidisciplinary-service";
 import { toast } from "sonner";
+import { useProfile } from "@/hooks/use-profile";
+
 
 type MultidisciplinaryNotesDocumentsPageProps = {
   params: Promise<{ id: string }>;
@@ -62,6 +64,7 @@ type MultidisciplinaryNotesDocumentsPageProps = {
 export default function MultidisciplinaryNotesDocumentsPage({ params }: MultidisciplinaryNotesDocumentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
+  const { profile } = useProfile();
 
   // State for data
   const [resident, setResident] = useState<Resident | null | undefined>(undefined);
@@ -231,7 +234,9 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
               relative_informed_details: n.relativeInformedDetails,
               signature: n.signature
             }))
-          }
+          },
+          orgLogoUrl: profile?.organization_logo_url,
+          careHomeName: profile?.care_home_name || profile?.organization_name,
         }),
       });
 
@@ -527,71 +532,101 @@ export default function MultidisciplinaryNotesDocumentsPage({ params }: Multidis
             </div>
           ) : (
             <div className="space-y-0">
-              {paginatedGroupedNotes.map(([date, notes]) => (
-                <div key={date} className="border-b last:border-b-0">
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader className="hidden">
-                        <TableRow>
-                          <TableHead>Summary</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <TableRow className="hover:bg-gray-50/50">
-                          <TableCell className="py-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="p-2 bg-indigo-50 rounded-lg">
-                                  <Calendar className="w-4 h-4 text-indigo-600" />
-                                </div>
-                                <div>
-                                  <span className="font-semibold text-gray-900 block">
-                                    {format(new Date(date), "EEEE, MMMM d, yyyy")}
-                                  </span>
-                                  <span className="text-xs text-gray-500">
-                                    {notes.length} Multidisciplinary Note{notes.length > 1 ? 's' : ''}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 border-t sm:border-t-0 sm:border-l sm:pl-4 pt-2 sm:pt-0">
-                                <div className="flex items-center space-x-1">
-                                  <Users className="w-3 h-3" />
-                                  <span>{notes.map(n => n.teamMemberName).join(", ")}</span>
-                                </div>
-                              </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-gray-50/75">
+                    <TableRow>
+                      <TableHead className="w-[120px] text-xs font-bold text-gray-500 uppercase tracking-wider">Date & Time</TableHead>
+                      <TableHead className="w-[180px] text-xs font-bold text-gray-500 uppercase tracking-wider">Team Member</TableHead>
+                      <TableHead className="min-w-[200px] text-xs font-bold text-gray-500 uppercase tracking-wider">Reason for Visit</TableHead>
+                      <TableHead className="min-w-[200px] text-xs font-bold text-gray-500 uppercase tracking-wider">Outcome & Recommendations</TableHead>
+                      <TableHead className="w-[140px] text-xs font-bold text-gray-500 uppercase tracking-wider">Relative Informed</TableHead>
+                      <TableHead className="w-[120px] text-xs font-bold text-gray-500 uppercase tracking-wider">Signature</TableHead>
+                      <TableHead className="w-[100px] text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedNotes.map((note) => {
+                      const noteProfession = note.profession || "Other";
+                      return (
+                        <TableRow key={note.id} className="hover:bg-gray-50/50 transition-colors">
+                          <TableCell className="align-top py-3.5">
+                            <div className="font-semibold text-gray-900 text-xs">
+                              {format(new Date(note.noteDate), "dd/MM/yyyy")}
+                            </div>
+                            <div className="text-[10px] text-gray-500 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3.5 h-3.5 text-gray-400" />
+                              {note.noteTime || "--:--"}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right py-4">
-                            <div className="flex items-center justify-end space-x-2">
+                          <TableCell className="align-top py-3.5">
+                            <div className="font-semibold text-gray-900 text-xs flex items-center gap-1">
+                              <User className="w-3.5 h-3.5 text-gray-400" />
+                              {note.teamMemberName}
+                            </div>
+                            {noteProfession && (
+                              <Badge className="text-[9px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-50 border-0 h-4 mt-1 px-1.5 py-0">
+                                {noteProfession}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="align-top py-3.5 max-w-[250px]">
+                            <p className="text-xs text-gray-600 line-clamp-2 whitespace-pre-wrap leading-relaxed" title={note.reasonForVisit}>
+                              {note.reasonForVisit}
+                            </p>
+                          </TableCell>
+                          <TableCell className="align-top py-3.5 max-w-[250px]">
+                            <p className="text-xs text-gray-600 line-clamp-2 whitespace-pre-wrap leading-relaxed" title={note.outcome}>
+                              {note.outcome}
+                            </p>
+                          </TableCell>
+                          <TableCell className="align-top py-3.5">
+                            <div className="flex flex-col gap-1.5">
+                              <Badge variant="outline" className={`w-fit text-[10px] py-0 px-1.5 h-4 ${note.relativeInformed ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+                                {note.relativeInformed ? 'Informed' : 'Not Informed'}
+                              </Badge>
+                              {note.relativeInformedDetails && (
+                                <span className="text-[10px] text-gray-400 line-clamp-1 max-w-[120px]" title={note.relativeInformedDetails}>
+                                  {note.relativeInformedDetails}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="align-top py-3.5">
+                            <div className="text-xs text-gray-600 font-medium italic flex items-center gap-1">
+                              <UserCheck className="w-3.5 h-3.5 text-gray-400" />
+                              {note.signature}
+                            </div>
+                          </TableCell>
+                          <TableCell className="align-top py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleViewDay(date, notes)}
-                                className="h-8 text-xs"
+                                onClick={() => handleViewNote(note)}
+                                className="h-7 w-7 p-0 border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-indigo-600"
+                                title="View Detail"
                               >
-                                <Eye className="w-3.5 h-3.5 mr-1.5 align-middle" />
-                                <span className="align-middle">View Detail</span>
+                                <Eye className="w-3.5 h-3.5" />
                               </Button>
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleDownloadDailyPDF(date, notes)}
+                                onClick={() => handleDownloadDailyPDF(note.noteDate, [note])}
                                 disabled={isDownloading}
-                                className="h-8 text-xs text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                className="h-7 w-7 p-0 border-indigo-100 text-indigo-600 hover:bg-indigo-50"
+                                title="Download PDF"
                               >
-                                <Download className="w-3.5 h-3.5 mr-1.5 align-middle" />
-                                <span className="align-middle">Download PDF</span>
+                                <Download className="w-3.5 h-3.5" />
                               </Button>
                             </div>
                           </TableCell>
                         </TableRow>
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              ))}
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
 
               {/* Pagination */}
               {totalPages > 1 && (

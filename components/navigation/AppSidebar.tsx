@@ -7,6 +7,7 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail
@@ -40,6 +41,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { TeamSwitcher } from "./TeamSwitcher";
 import { useProfile } from "@/hooks/use-profile";
@@ -64,6 +66,7 @@ import {
 import CreateResidentDialog from "../residents/CreateResidentDialog";
 
 import { LogoutButton } from "../auth/LogoutButton";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
 export function AppSidebar() {
   const [isResidentDialogOpen, setIsResidentDialogOpen] = useState(false);
@@ -83,6 +86,39 @@ export function AppSidebar() {
   const activeTeamId = profile?.active_team_id || null;
   const userRole = profile?.role;
   const effectiveRole = userRole;
+
+  const pathname = usePathname();
+
+  // Helper to read cookie in client components
+  const [mdtSession, setMdtSession] = useState<any>(null);
+  useEffect(() => {
+    if (userRole === "mdt") {
+      const getCookie = (name: string): string | null => {
+        if (typeof document === "undefined") return null;
+        const nameEQ = name + "=";
+        const ca = document.cookie.split(";");
+        for (let i = 0; i < ca.length; i++) {
+          let c = ca[i];
+          while (c.charAt(0) === " ") c = c.substring(1, c.length);
+          if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+        }
+        return null;
+      };
+      const sessionCookie = getCookie("mdt_session_data");
+      if (sessionCookie) {
+        try {
+          setMdtSession(JSON.parse(decodeURIComponent(sessionCookie)));
+        } catch (e) {
+          console.error("Error parsing MDT session", e);
+          setMdtSession(null);
+        }
+      } else {
+        setMdtSession(null);
+      }
+    } else {
+      setMdtSession(null);
+    }
+  }, [userRole, pathname]);
 
   // Fetch all sidebar counts
   const fetchCounts = useCallback(async () => {
@@ -145,6 +181,7 @@ export function AppSidebar() {
         .select("id, type, user_id, team_id")
         .eq("organization_id", activeOrganizationId)
         .eq("care_home_id", activeCareHomeId)
+        .lte("created_at", new Date().toISOString())
         .or(`user_id.eq.${user.id},user_id.is.null`);
 
       const systemBroadcastVisible = (n: { user_id: string | null; team_id: string | null }) => {
@@ -360,6 +397,95 @@ export function AppSidebar() {
   const displayName = profile?.care_home_name || profile?.organization_name || "";
   const isStillLoading = isProfileLoading;
 
+  if (userRole === "mdt") {
+    return (
+      <Sidebar collapsible="offcanvas" className="border-r border-gray-100">
+        <SidebarContent className="bg-white">
+          <SidebarMenu className="p-2 border-b border-gray-100 bg-white">
+            <SidebarMenuItem className="list-none">
+              <SidebarMenuButton className="w-full px-1.5 py-2 h-auto cursor-default hover:bg-transparent">
+                <div className="flex flex-row items-center gap-2.5 w-full">
+                  <Avatar className="rounded-md h-9 w-9">
+                    <AvatarImage
+                      src={profile?.organization_logo_url || ""}
+                      alt="Organization logo"
+                    />
+                    <AvatarFallback className="text-sm rounded-md bg-zinc-900 text-white font-semibold flex items-center justify-center h-9 w-9">
+                      {(profile?.care_home_name || "C").charAt(0).toLowerCase()}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <div className="flex-1 min-w-0 text-left">
+                    <span className="truncate font-semibold text-gray-900 text-sm block leading-tight">
+                      {profile?.care_home_name || "Care Home"}
+                    </span>
+                    <p className="text-xs text-muted-foreground truncate leading-normal mt-0.5">
+                      {mdtSession?.unitName || profile?.active_team_name || "Team Name"}
+                    </p>
+                  </div>
+                  <ChevronDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-gray-400 font-semibold uppercase tracking-wider text-[10px]">Active Session</SidebarGroupLabel>
+            <SidebarGroupContent className="px-4 py-2 space-y-4">
+              {mdtSession ? (
+                <>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Professional</p>
+                    <p className="text-sm font-semibold text-gray-800">{mdtSession.fullName}</p>
+                    <p className="text-xs text-gray-500 font-medium">{mdtSession.profession}</p>
+                  </div>
+                  <div className="space-y-1 pt-2">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Active Resident</p>
+                    <p className="text-sm font-semibold text-gray-855 text-indigo-900">{mdtSession.residentName}</p>
+                    <p className="text-xs text-gray-500 font-medium">Unit: {mdtSession.unitName}</p>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">No active visit session</p>
+              )}
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-gray-400 font-semibold uppercase tracking-wider text-[10px]">Navigation</SidebarGroupLabel>
+            <SidebarGroupContent>
+              {mdtSession && (
+                <SidebarMenuItem className="list-none">
+                  <SidebarMenuButton asChild className="hover:bg-indigo-50/50">
+                    <Link href={`/dashboard/residents/${mdtSession.residentId}/multidisciplinary-note`}>
+                      <FileTextIcon className="text-indigo-600" />
+                      <span className="font-semibold text-indigo-900">MDT Visit Note</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+
+        <SidebarFooter className="bg-white border-t border-gray-100 p-4 space-y-2">
+          <SidebarMenuItem className="list-none">
+            <SidebarMenuButton asChild className="hover:bg-gray-50">
+              <Link href="/dashboard/mdt-session">
+                <SettingsIcon className="text-gray-500" />
+                <span className="text-gray-700 font-medium">Change Resident</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem className="list-none">
+            <LogoutButton />
+          </SidebarMenuItem>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+    );
+  }
+
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarContent>
@@ -567,6 +693,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )}
+
 
             {/* QwikInfo Collapsible */}
             <Collapsible

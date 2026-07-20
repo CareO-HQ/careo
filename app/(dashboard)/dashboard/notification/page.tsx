@@ -338,6 +338,12 @@ export default function NotificationPage() {
           label: "Hospital transfer log",
           color: "text-blue-600",
         };
+      case "external_access_reminder":
+        return {
+          icon: <Clock className="w-4 h-4" />,
+          label: "External Access Reminder",
+          color: "text-amber-600",
+        };
       default:
         return {
           icon: <Bell className="w-4 h-4" />,

@@ -59,9 +59,18 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
                 async (payload) => {
                     const newRole = payload.new?.role;
                     const newActiveOrgId = payload.new?.active_organization_id;
+                    const newIsLoginAllowed = payload.new?.is_login_allowed;
                     const isAgency = newRole === "agency_nurse" || newRole === "agency_care_assistant";
                     
                     const isOnboardingPage = typeof window !== "undefined" && window.location.pathname.startsWith("/onboarding");
+
+                    if (newRole === "mdt" && newIsLoginAllowed === false) {
+                        console.log("[SupabaseProvider] MDT user login disabled. Logging out...");
+                        await supabase.auth.signOut();
+                        router.push("/login");
+                        router.refresh();
+                        return;
+                    }
 
                     if (isAgency && !newActiveOrgId && !isOnboardingPage) {
                         console.log("[SupabaseProvider] Real-time offboarding detected. Logging out...");

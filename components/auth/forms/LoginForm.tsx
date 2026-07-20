@@ -53,6 +53,19 @@ export default function LoginForm() {
         const user = authData.user;
         if (!user) throw new Error("No user found after login");
 
+        // Check if the user is an MDT member and has login disabled
+        const { data: dbUser } = await supabase
+          .from("users")
+          .select("role, is_login_allowed")
+          .eq("id", user.id)
+          .single();
+
+        if (dbUser && dbUser.role === "mdt" && dbUser.is_login_allowed === false) {
+          await supabase.auth.signOut();
+          toast.error("Your account has been deactivated. Please contact your manager.");
+          return;
+        }
+
         const appMetadata = user.app_metadata || {};
         const isSaasAdmin = !!appMetadata.is_saas_admin;
         const isOnboardingComplete = !!appMetadata.is_onboarding_complete;

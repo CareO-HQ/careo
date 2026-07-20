@@ -34,6 +34,7 @@ export type Profile = {
     active_team_name?: string;
     role?: string;
     is_manager_approved_nurse?: boolean;
+    is_login_allowed?: boolean;
 };
 
 export function useProfile() {
@@ -124,6 +125,16 @@ export function useProfile() {
                     }
                 }
 
+                // Check if user is MDT and login is disabled
+                if (userRole === "mdt" && dbUser.is_login_allowed === false) {
+                    console.log("[useProfile] Login disabled for MDT user. Logging out...");
+                    await supabase.auth.signOut();
+                    if (typeof window !== "undefined") {
+                        window.location.href = "/login";
+                    }
+                    return;
+                }
+
                 // Resolve nested relationships with fallback cascading logic
                 const activeTeam = dbUser.active_team as any;
                 const activeCareHome = dbUser.active_care_home as any;
@@ -176,6 +187,7 @@ export function useProfile() {
                     is_onboarding_complete: !!dbUser.is_onboarding_complete,
                     role: dbUser.role || user?.app_metadata?.role || (dbUser.is_saas_admin ? "saas_admin" : "member"),
                     is_manager_approved_nurse: !!dbUser.is_manager_approved_nurse,
+                    is_login_allowed: dbUser.is_login_allowed !== false,
                     address: dbUser.address || null,
                     date_of_join: dbUser.date_of_join || null,
                     right_to_work_status: dbUser.right_to_work_status || null,

@@ -6,7 +6,7 @@ export const InviteUsersOnboardingForm = z
       z
         .object({
           email: z.string().optional(),
-          role: z.enum(["manager", "nurse", "care_assistant"])
+          role: z.enum(["manager", "nurse", "care_assistant", "mdt"])
         })
         .optional()
     )

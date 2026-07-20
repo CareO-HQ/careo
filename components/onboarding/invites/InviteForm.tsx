@@ -263,6 +263,9 @@ export default function InviteForm() {
                               {allowedRoles.includes("care_assistant") && (
                                 <SelectItem value="care_assistant">Care Assistant</SelectItem>
                               )}
+                              {allowedRoles.includes("mdt") && (
+                                <SelectItem value="mdt">MDT Professional</SelectItem>
+                              )}
                             </SelectContent>
                           </Select>
                         </FormControl>
