@@ -7,6 +7,18 @@ import { useProfile } from "@/hooks/use-profile";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(";");
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === " ") c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
+}
+
 export default function DashboardLayout({
   children
 }: Readonly<{
@@ -19,6 +31,47 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!isLoading && profile?.is_saas_admin) {
       router.push("/admin");
+    }
+  }, [profile, isLoading, router]);
+
+  // Handle MDT session redirects and restriction
+  useEffect(() => {
+    if (isLoading || !profile) return;
+
+    if (profile.role === "mdt") {
+      const sessionCookie = getCookie("mdt_session_data");
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+
+      if (!sessionCookie) {
+        if (currentPath !== "/dashboard/mdt-session") {
+          router.push("/dashboard/mdt-session");
+        }
+      } else {
+        try {
+          const sessionData = JSON.parse(decodeURIComponent(sessionCookie));
+          
+          // Validate that the session data belongs to the currently logged-in user
+          if (sessionData.userId !== profile.id) {
+            document.cookie = "mdt_session_data=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax";
+            if (currentPath !== "/dashboard/mdt-session") {
+              router.push("/dashboard/mdt-session");
+            }
+            return;
+          }
+
+          const targetPath = `/dashboard/residents/${sessionData.residentId}/multidisciplinary-note`;
+          const isAllowedPath = currentPath === targetPath || currentPath.startsWith(targetPath + "/");
+          
+          if (!isAllowedPath && currentPath !== "/dashboard/mdt-session") {
+            router.push(targetPath as any);
+          }
+        } catch (e) {
+          console.error("Failed to parse MDT session cookie", e);
+          if (currentPath !== "/dashboard/mdt-session") {
+            router.push("/dashboard/mdt-session");
+          }
+        }
+      }
     }
   }, [profile, isLoading, router]);
 

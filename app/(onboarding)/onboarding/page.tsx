@@ -370,6 +370,53 @@ export default function OnboardingPage() {
     );
   }
 
+  // MDT ONBOARDING
+  if (userRole === "mdt") {
+    // Redirect if onboarding already complete
+    if (isOnboardingComplete) {
+      return (
+        <ContentWrapper className="max-w-xl w-full">
+          <div className="flex flex-col justify-center items-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Redirecting to dashboard...</p>
+            </div>
+          </div>
+        </ContentWrapper>
+      );
+    }
+
+    return (
+      <ContentWrapper className="max-w-xl w-full">
+        <div className="flex flex-col justify-start items-start mt-4">
+          <span className="flex justify-center items-center w-full">
+            <img
+              src="/images/CareO_Logo.png"
+              alt="CareO"
+              className="h-8 w-auto max-w-[140px] object-contain object-left"
+            />
+          </span>
+          {/* Stepper */}
+          <Stepper step={step} totalSteps={1} />
+          <p className="text-2xl font-bold mt-4">
+            {step === 1 && "Set up your profile"}
+          </p>
+          <p className="text-muted-foreground my-2">
+            {step === 1 &&
+              "Check if the profile information is correct. You'll be able to change this later in the account settings page."}
+          </p>
+          {step === 1 && (
+            <ProfileForm
+              step={step}
+              setStep={setStep}
+              isLastStep={true}
+            />
+          )}
+        </div>
+      </ContentWrapper>
+    );
+  }
+
   // Fallback: If no activeMember or role doesn't match, show new user onboarding
   // This handles cases where the user is newly registered and doesn't have a role yet
   // They need to create an organization to become an owner

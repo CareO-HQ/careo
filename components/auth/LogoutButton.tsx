@@ -26,6 +26,10 @@ export function LogoutButton({
     const handleLogout = async () => {
         try {
             setIsLoading(true);
+            
+            // Clear MDT session cookie if present
+            document.cookie = "mdt_session_data=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax";
+
             const { error } = await supabase.auth.signOut();
             if (error) throw error;
 

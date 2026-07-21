@@ -1,4 +1,4 @@
-export type UserRole = "saas_admin" | "owner" | "manager" | "nurse" | "care_assistant" | "agency_nurse" | "agency_care_assistant";
+export type UserRole = "saas_admin" | "owner" | "manager" | "nurse" | "care_assistant" | "agency_nurse" | "agency_care_assistant" | "mdt";
 
 // Simple role definitions for better-auth
 // The organization plugin expects minimal role configuration
@@ -292,7 +292,7 @@ export function canViewHospitalTransfer(role?: string): boolean {
 
 // Multidisciplinary Notes
 export function canViewMultidisciplinaryNotes(role?: string): boolean {
-  return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin" || role === "agency_nurse";
+  return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin" || role === "agency_nurse" || role === "mdt";
 }
 
 export function canEditIncident(role?: string): boolean {
@@ -396,7 +396,7 @@ export function getAllowedRolesToInvite(role: UserRole): UserRole[] {
     return ["manager"];
   }
   if (role === "manager") {
-    return ["nurse", "care_assistant"];
+    return ["nurse", "care_assistant", "mdt"];
   }
   return [];
 }

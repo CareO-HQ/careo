@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { chromium } from "playwright";
 import { formatInTimeZone } from "date-fns-tz";
@@ -12,7 +12,7 @@ function formatTimestampToUKTime(time: string | null | undefined): string {
   return time; // Note time is already stored as HH:mm in many places for MDT
 }
 
-function generateMDTDailyHTML(resident: any, dayData: any): string {
+function generateMDTDailyHTML(resident: any, dayData: any, orgLogoUrl?: string, careHomeName?: string): string {
   const { date, notes } = dayData;
   const fullName = `${resident.first_name} ${resident.last_name}`;
   const formattedDate = format(parseISO(date), "EEEE, MMMM d, yyyy");
@@ -31,7 +31,7 @@ function generateMDTDailyHTML(resident: any, dayData: any): string {
         <style>
           @page { 
             size: A4; 
-            margin: 15mm; 
+            margin: 0; 
           }
           @media print { 
             body { margin: 0; } 
@@ -45,19 +45,50 @@ function generateMDTDailyHTML(resident: any, dayData: any): string {
             padding: 0;
             background: #fff;
           }
+          .page-container {
+            padding: 24px;
+            margin: 0;
+            box-sizing: border-box;
+            min-height: calc(297mm - 20mm);
+            display: flex;
+            flex-direction: column;
+          }
           .brand-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 20px;
-            background: #f9fafb;
-            border-bottom: 2px solid #4f46e5;
+            padding-bottom: 20px;
+            background: #fff;
+            border-bottom: 2px solid #22c55e;
+            margin-bottom: 20px;
+          }
+          .brand-logo-container {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
           }
           .brand-logo {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 800;
-            color: #4f46e5;
+            color: #1f2937;
+            text-transform: uppercase;
             letter-spacing: -0.025em;
+          }
+          .care-home-name {
+            font-size: 14px;
+            color: #4b5563;
+            font-weight: 500;
+          }
+          .header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+          }
+          .header-logo {
+            max-height: 50px;
+            max-width: 150px;
+            object-fit: contain;
           }
           .report-type {
             font-size: 12px;
@@ -67,12 +98,13 @@ function generateMDTDailyHTML(resident: any, dayData: any): string {
             color: #6b7280;
           }
           .resident-info {
-            padding: 20px;
+            padding: 10px 0 20px 0;
             background: #ffffff;
             border-bottom: 1px solid #e5e7eb;
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 20px;
+            margin-bottom: 20px;
           }
           .info-block {
             display: flex;
@@ -91,11 +123,12 @@ function generateMDTDailyHTML(resident: any, dayData: any): string {
             color: #111827;
           }
           .content {
-            padding: 20px;
+            padding: 0;
+            flex-grow: 1;
           }
           .daily-summary-bar {
-            background: #f5f3ff;
-            border: 1px solid #ddd6fe;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
             border-radius: 8px;
             padding: 12px 20px;
             margin-bottom: 24px;
@@ -105,7 +138,7 @@ function generateMDTDailyHTML(resident: any, dayData: any): string {
           }
           .summary-text {
             font-size: 14px;
-            color: #4338ca;
+            color: #166534;
             font-weight: 600;
           }
           .note-item {
@@ -145,7 +178,7 @@ function generateMDTDailyHTML(resident: any, dayData: any): string {
             font-size: 11px;
             font-weight: 700;
             text-transform: uppercase;
-            color: #4f46e5;
+            color: #166534;
             margin-bottom: 6px;
           }
           .section-content {
@@ -159,12 +192,12 @@ function generateMDTDailyHTML(resident: any, dayData: any): string {
             border-radius: 9999px;
             font-size: 10px;
             font-weight: 600;
-            background: #e0e7ff;
-            color: #4338ca;
+            background: #dcfce7;
+            color: #166534;
           }
           .footer {
             margin-top: 40px;
-            padding: 20px;
+            padding: 20px 0 0 0;
             border-top: 1px solid #e5e7eb;
             font-size: 11px;
             color: #9ca3af;
@@ -182,74 +215,84 @@ function generateMDTDailyHTML(resident: any, dayData: any): string {
         </style>
       </head>
       <body>
-        <div class="brand-header">
-          <div class="brand-logo">CareO</div>
-          <div class="report-type">MDT Visit Report</div>
-        </div>
+        <div class="page-container">
+          <div class="brand-header">
+            <div class="brand-logo-container">
+              <div class="brand-logo">MDT VISIT REPORT</div>
+              ${careHomeName ? `<div class="care-home-name">${careHomeName}</div>` : ''}
+            </div>
+            <div class="header-right">
+              ${orgLogoUrl ? `<img class="header-logo" src="${orgLogoUrl}" alt="Care home logo" />` : ''}
+            </div>
+          </div>
 
-        <div class="resident-info">
-          <div class="info-block">
-            <span class="info-label">Resident Name</span>
-            <span class="info-value">${fullName}</span>
-          </div>
-          <div class="info-block">
-            <span class="info-label">Date of Birth</span>
-            <span class="info-value">${dob}</span>
-          </div>
-          <div class="info-block">
-            <span class="info-label">Room Number</span>
-            <span class="info-value">${room}</span>
-          </div>
-          <div class="info-block">
-            <span class="info-label">NHS Number</span>
-            <span class="info-value">${resident.nhs || '--'}</span>
-          </div>
-        </div>
-        
-        <div class="content">
-          <div class="daily-summary-bar">
-            <span class="summary-text">${formattedDate}</span>
-            <span class="badge">${notes.length} Total Visits</span>
+          <div class="resident-info">
+            <div class="info-block">
+              <span class="info-label">Resident Name</span>
+              <span class="info-value">${fullName}</span>
+            </div>
+            <div class="info-block">
+              <span class="info-label">Date of Birth</span>
+              <span class="info-value">${dob}</span>
+            </div>
+            <div class="info-block">
+              <span class="info-label">Room Number</span>
+              <span class="info-value">${room}</span>
+            </div>
+            <div class="info-block">
+              <span class="info-label">NHS Number</span>
+              <span class="info-value">${resident.nhs || '--'}</span>
+            </div>
           </div>
           
-          <div class="section">
-            ${notes.map((note: any, index: number) => `
-              <div class="note-item">
-                <div class="note-header">
-                  <div class="note-title">${note.team_member_name}</div>
-                  <div class="note-meta">${note.note_time}</div>
-                </div>
-                
-                <div class="note-body">
-                  <div class="note-section">
-                    <div class="section-label">Reason for Visit</div>
-                    <div class="section-content">${note.reason_for_visit}</div>
+          <div class="content">
+            <div class="daily-summary-bar">
+              <span class="summary-text">${formattedDate}</span>
+              <span class="badge">${notes.length} Total Visits</span>
+            </div>
+            
+            <div class="section">
+              ${notes.map((note: any, index: number) => `
+                <div class="note-item">
+                  <div class="note-header">
+                    <div class="note-title">
+                      ${note.team_member_name}
+                      ${note.profession ? `<span class="badge" style="margin-left: 8px; font-size: 10px;">${note.profession}</span>` : ''}
+                    </div>
+                    <div class="note-meta">${note.note_time}</div>
                   </div>
                   
-                  <div class="note-section">
-                    <div class="section-label">Outcome & Recommendations</div>
-                    <div class="section-content">${note.outcome}</div>
-                  </div>
-                  
-                  <div class="note-section">
-                    <div class="section-label">Relative Informed</div>
-                    <div class="section-content">${note.relative_informed ? `Yes - ${note.relative_informed_details || 'No details provided'}` : 'No'}</div>
-                  </div>
+                  <div class="note-body">
+                    <div class="note-section">
+                      <div class="section-label">Reason for Visit</div>
+                      <div class="section-content">${note.reason_for_visit}</div>
+                    </div>
+                    
+                    <div class="note-section">
+                      <div class="section-label">Outcome & Recommendations</div>
+                      <div class="section-content">${note.outcome}</div>
+                    </div>
+                    
+                    <div class="note-section">
+                      <div class="section-label">Relative Informed</div>
+                      <div class="section-content">${note.relative_informed ? `Yes - ${note.relative_informed_details || 'No details provided'}` : 'No'}</div>
+                    </div>
 
-                  <div class="signature-box">
-                    <span>Recorded by: ${note.signature}</span>
-                    <span>Confidential Patient Record</span>
+                    <div class="signature-box">
+                      <span>Recorded by: ${note.signature}</span>
+                      <span>Confidential Patient Record</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            `).join('')}
+              `).join('')}
+            </div>
           </div>
-        </div>
-        
-        <div class="footer">
-          <div style="font-weight: 600; margin-bottom: 4px;">CareO Management System</div>
-          <div>Generated on ${formatInTimeZone(new Date(), UK_TIMEZONE, 'dd/MM/yyyy HH:mm')} UK Time</div>
-          <div style="margin-top: 8px;">Confidential • For professional use only</div>
+          
+          <div class="footer">
+            <div style="font-weight: 600; margin-bottom: 4px;">CareO Management System</div>
+            <div>Generated on ${formatInTimeZone(new Date(), UK_TIMEZONE, 'dd/MM/yyyy HH:mm')} UK Time</div>
+            <div style="margin-top: 8px;">Confidential • For professional use only</div>
+          </div>
         </div>
       </body>
     </html>
@@ -289,7 +332,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { resident, dayData } = body;
+    const { resident, dayData, orgLogoUrl, careHomeName } = body;
 
     if (!resident || !dayData) {
       return NextResponse.json(
@@ -298,7 +341,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const htmlContent = generateMDTDailyHTML(resident, dayData);
+    const htmlContent = generateMDTDailyHTML(resident, dayData, orgLogoUrl, careHomeName);
 
     const browser = await chromium.launch({
       headless: true,
@@ -317,10 +360,10 @@ export async function POST(request: NextRequest) {
         format: "A4",
         printBackground: true,
         margin: {
-          top: "20mm",
-          bottom: "20mm",
-          left: "20mm",
-          right: "20mm"
+          top: "10mm",
+          bottom: "10mm",
+          left: "10mm",
+          right: "10mm"
         }
       });
 

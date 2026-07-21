@@ -99,6 +99,54 @@ export async function insertHospitalTransferLogNotification(
     if (error) throw error;
 }
 
+export interface InsertExternalAccessReminderNotificationParams {
+    organizationId: string;
+    careHomeId: string | null;
+    teamId: string | null;
+    userId: string;
+    staffId: string;
+    staffName: string;
+    durationMinutes: number;
+    senderId: string;
+    senderName: string;
+}
+
+/** Inserts a scheduled reminder notification for revoking external staff access. */
+export async function insertExternalAccessReminderNotification(
+    client: SupabaseClient,
+    params: InsertExternalAccessReminderNotificationParams
+): Promise<void> {
+    const scheduledAt = new Date(Date.now() + params.durationMinutes * 60 * 1000).toISOString();
+    const durationLabel = params.durationMinutes >= 60
+        ? `${Math.round(params.durationMinutes / 60)} hour(s)`
+        : `${params.durationMinutes} minute(s)`;
+
+    const title = "Turn off external access";
+    const message = `Reminder: Please turn off external access for ${params.staffName || "external staff"}. Set duration (${durationLabel}) has elapsed.`;
+
+    const { error } = await client.from("notifications").insert({
+        organization_id: params.organizationId,
+        care_home_id: params.careHomeId,
+        team_id: params.teamId,
+        user_id: params.userId,
+        type: "external_access_reminder",
+        title,
+        message,
+        link: "/dashboard/staff",
+        sender_id: params.senderId,
+        sender_name: params.senderName || "System",
+        created_at: scheduledAt,
+        metadata: {
+            staffId: params.staffId,
+            staffName: params.staffName,
+            durationMinutes: params.durationMinutes,
+            scheduledAt,
+        },
+    });
+
+    if (error) throw error;
+}
+
 export interface Notification {
     id: string;
     organization_id: string;
@@ -134,11 +182,13 @@ export const getNotifications = async (
 
     // 2. Fetch notifications: personal (user_id) + broadcast (user_id null), with team scoping for non–power users
     const isPower = isNotificationPowerUserRole(userRole);
+    const nowIso = new Date().toISOString();
 
     let personalQuery = supabase
         .from("notifications")
         .select("*")
         .eq("user_id", userId)
+        .lte("created_at", nowIso)
         .order("created_at", { ascending: false })
         .limit(Math.max(limit, 80));
 
@@ -150,6 +200,7 @@ export const getNotifications = async (
         .from("notifications")
         .select("*")
         .is("user_id", null)
+        .lte("created_at", nowIso)
         .order("created_at", { ascending: false })
         .limit(Math.max(limit, 80));
 

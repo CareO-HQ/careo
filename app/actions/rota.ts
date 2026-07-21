@@ -56,6 +56,7 @@ export async function updateStaffWorkforceAction(
     is_manager_approved_nurse?: boolean;
     contracted_weekly_hours?: number;
     preferred_shift_id?: string | null;
+    is_login_allowed?: boolean;
   }
 ) {
   try {
@@ -77,9 +78,9 @@ export async function updateStaffWorkforceAction(
       throw new Error("Unauthorized to edit staff preferences.");
     }
 
-    if ((updates.is_manager_approved_nurse !== undefined || updates.contracted_weekly_hours !== undefined) && 
+    if ((updates.is_manager_approved_nurse !== undefined || updates.contracted_weekly_hours !== undefined || updates.is_login_allowed !== undefined) && 
         actor?.role !== "manager" && actor?.role !== "owner" && actor?.role !== "saas_admin") {
-      throw new Error("Only Managers can edit staff authorization and contracted hours.");
+      throw new Error("Only Managers can edit staff authorization, contracted hours, and login permissions.");
     }
 
     const { error } = await supabase
@@ -105,6 +106,15 @@ export async function updateStaffWorkforceAction(
         actionType: "staff_preferred_shift_updated",
         teamId: actor.active_team_id || "",
         details: { target_staff_id: staffId, preferred_shift_id: updates.preferred_shift_id }
+      });
+    }
+
+    if (updates.is_login_allowed !== undefined) {
+      await logRotaAudit({
+        actorId,
+        actionType: updates.is_login_allowed ? "mdt_login_allowed" : "mdt_login_disabled",
+        teamId: actor.active_team_id || "",
+        details: { target_staff_id: staffId }
       });
     }
 

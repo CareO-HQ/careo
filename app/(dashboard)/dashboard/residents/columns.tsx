@@ -938,32 +938,6 @@ export function getResidentsColumns({
     },
   },
   {
-    id: "hospitalTransfer",
-    header: () => {
-      return (
-        <div className="text-left text-muted-foreground text-sm">
-          Transfer to hospital
-        </div>
-      );
-    },
-    enableSorting: false,
-    cell: ({ row }) => {
-      const resident = row.original;
-
-      return (
-        <ResidentHospitalTransferCell
-          resident={resident}
-          selectedDate={selectedDate}
-          selectedShift={selectedShift}
-          organizationId={organizationId}
-          currentUserId={currentUserId}
-          transferState={transferStates[resident.id]}
-          onChanged={onTransferChanged}
-        />
-      );
-    },
-  },
-  {
     accessorKey: "healthConditions",
     header: () => {
       return (
@@ -1209,6 +1183,32 @@ export function getResidentsColumns({
       const resident = row.original;
       return <NextMedicationCell residentId={resident.id} />;
     }
+  },
+  {
+    id: "hospitalTransfer",
+    header: () => {
+      return (
+        <div className="text-left text-muted-foreground text-sm">
+          Hospital Transfer
+        </div>
+      );
+    },
+    enableSorting: false,
+    cell: ({ row }) => {
+      const resident = row.original;
+
+      return (
+        <ResidentHospitalTransferCell
+          resident={resident}
+          selectedDate={selectedDate}
+          selectedShift={selectedShift}
+          organizationId={organizationId}
+          currentUserId={currentUserId}
+          transferState={transferStates[resident.id]}
+          onChanged={onTransferChanged}
+        />
+      );
+    },
   },
   {
     accessorKey: "alerts",

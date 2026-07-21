@@ -47,10 +47,39 @@ export default function UploadFileModal({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { activeTeamId } = useActiveTeam();
+  const { activeTeamId: defaultActiveTeamId } = useActiveTeam();
   const { profile } = useProfile();
   const activeOrgId = profile?.active_organization_id;
   const userEmail = profile?.email;
+
+  // Helper to read cookie in client components
+  const getCookie = (name: string): string | null => {
+    if (typeof document === "undefined") return null;
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(";");
+    for (let i = 0; i < ca.length; i++) {
+      let c = ca[i];
+      while (c.charAt(0) === " ") c = c.substring(1, c.length);
+      if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+    }
+    return null;
+  };
+
+  // Resolve activeTeamId for MDT
+  let activeTeamId = defaultActiveTeamId;
+  if (profile?.role === "mdt") {
+    const sessionCookie = getCookie("mdt_session_data");
+    if (sessionCookie) {
+      try {
+        const sessionData = JSON.parse(decodeURIComponent(sessionCookie));
+        if (sessionData?.unitId) {
+          activeTeamId = sessionData.unitId;
+        }
+      } catch (e) {
+        console.error("Error parsing MDT session in UploadFileModal", e);
+      }
+    }
+  }
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
