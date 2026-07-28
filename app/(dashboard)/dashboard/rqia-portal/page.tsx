@@ -1160,8 +1160,8 @@ function RqiaPortalContent() {
       if (data && data.length > 0) {
         // Fetch diet & lifestyle records for allergies and active hospital transfer logs
         const residentIds = data.map((r: any) => r.id);
-        let dietMap: Record<string, any[]> = {};
-        let transferMap: Record<string, boolean> = {};
+        const dietMap: Record<string, any[]> = {};
+        const transferMap: Record<string, boolean> = {};
 
         if (residentIds.length > 0) {
           const [{ data: dietData }, { data: transferLogs }] = await Promise.all([

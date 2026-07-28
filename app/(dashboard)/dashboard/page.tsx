@@ -32,6 +32,20 @@ import {
   getBedCapacityForScope,
 } from "@/lib/team-capacity";
 import { DashboardScratchPad } from "@/components/dashboard/DashboardScratchPad";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from "recharts";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type AssignedActionPlan = {
   id: string;
@@ -69,41 +83,23 @@ function resolveEffectiveScope(
   return null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyResidentScope(query: any, scope: EffectiveScope) {
   if (scope.kind === "team") return query.eq("team_id", scope.id);
   if (scope.kind === "care_home") return query.eq("care_home_id", scope.id);
   return query.eq("organization_id", scope.id);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyStaffScope(query: any, scope: EffectiveScope) {
   if (scope.kind === "team") return query.eq("active_team_id", scope.id);
   if (scope.kind === "care_home") return query.eq("active_care_home_id", scope.id);
   return query.eq("active_organization_id", scope.id);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyResidentJoinScope(query: any, scope: EffectiveScope) {
   if (scope.kind === "team") return query.eq("resident.team_id", scope.id);
   if (scope.kind === "care_home") return query.eq("resident.care_home_id", scope.id);
   return query.eq("organization_id", scope.id);
 }
-
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-} from "recharts";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 export default function DashboardPage() {
   const router = useRouter();

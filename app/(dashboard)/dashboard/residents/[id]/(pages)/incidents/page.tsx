@@ -133,12 +133,13 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
   const [incidentFolders, setIncidentFolders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Set default name when create dialog opens
+  // Set default name when create dialog opens (only when field is empty)
   useEffect(() => {
-    if (isCreateDialogOpen) {
+    if (isCreateDialogOpen && !newIncidentName) {
       const today = format(new Date(), "dd-MM-yyyy");
       setNewIncidentName(today);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCreateDialogOpen]);
 
   // Fetch data from Supabase
@@ -705,7 +706,7 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                               <Folder className={`w-5 h-5 ${isFall ? "text-red-600" : "text-blue-600"}`} />
                               <div className="flex flex-col">
                                 <span className={`font-medium ${isFall ? "text-red-900" : "text-blue-900"}`}>
-                                  {formatDateStandard(incident?.date, folder.name, folder.created_at)}
+                                  {folder.name || formatDateStandard(undefined, undefined, folder.created_at)}
                                 </span>
                                 <span className={`text-xs ${isFall ? "text-red-700" : "text-blue-700"}`}>
                                   {isFall ? "Fall Record" : "Incident Folder"}
@@ -962,7 +963,13 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
       </Dialog>
 
       {/* Create Incident Folder Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <Dialog
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) setNewIncidentName("");
+          setIsCreateDialogOpen(open);
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -993,7 +1000,10 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
           <div className="flex justify-end space-x-2">
             <Button
               variant="outline"
-              onClick={() => setIsCreateDialogOpen(false)}
+              onClick={() => {
+                setNewIncidentName("");
+                setIsCreateDialogOpen(false);
+              }}
             >
               Cancel
             </Button>

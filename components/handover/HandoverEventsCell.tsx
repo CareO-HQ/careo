@@ -15,10 +15,10 @@ import {
 const toneClasses: Record<HandoverEventRow["tone"], string> = {
   default: "text-foreground",
   muted: "text-muted-foreground",
-  success: "text-green-600 font-medium",
-  warning: "text-amber-600 font-medium",
-  danger: "text-red-600 font-medium",
-  info: "text-blue-600 font-medium",
+  success: "text-green-700 dark:text-green-400 font-medium",
+  warning: "text-amber-700 dark:text-amber-400 font-medium",
+  danger: "text-red-700 dark:text-red-400 font-medium",
+  info: "text-blue-700 dark:text-blue-400 font-medium",
 };
 
 interface HandoverEventsCellProps {
@@ -26,11 +26,29 @@ interface HandoverEventsCellProps {
   compact?: boolean;
 }
 
+function FormattedText({ text, className }: { text: string; className?: string }) {
+  if (!text.includes("**")) {
+    return <span className={className}>{text}</span>;
+  }
+  const parts = text.split("**");
+  return (
+    <span className={className}>
+      {parts.map((part, index) =>
+        index % 2 === 1 ? (
+          <strong key={index} className="font-semibold text-foreground">
+            {part}
+          </strong>
+        ) : (
+          part
+        )
+      )}
+    </span>
+  );
+}
+
 function EventValue({ row }: { row: HandoverEventRow }) {
   const content = (
-    <span className={cn("text-xs tabular-nums", toneClasses[row.tone])}>
-      {row.value}
-    </span>
+    <FormattedText text={row.value} className={cn("text-xs leading-relaxed", toneClasses[row.tone])} />
   );
 
   if (!row.tooltip) return content;
@@ -38,9 +56,7 @@ function EventValue({ row }: { row: HandoverEventRow }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={cn("text-xs tabular-nums cursor-default", toneClasses[row.tone])}>
-          {row.value}
-        </span>
+        <span className="cursor-default">{content}</span>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-xs whitespace-pre-line text-xs">
         {row.tooltip}
@@ -54,36 +70,43 @@ export function HandoverEventsCell({ data, compact = false }: HandoverEventsCell
 
   if (compact) {
     return (
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1.5 py-1">
         {rows.map((row) => (
-          <span
+          <div
             key={row.label}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border",
-              row.tone === "muted" && "bg-muted/40 text-muted-foreground border-transparent",
-              row.tone === "success" && "bg-green-50 text-green-700 border-green-200",
-              row.tone === "warning" && "bg-amber-50 text-amber-700 border-amber-200",
-              row.tone === "danger" && "bg-red-50 text-red-700 border-red-200",
-              row.tone === "info" && "bg-blue-50 text-blue-700 border-blue-200",
+              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs border leading-tight",
+              row.tone === "muted" && "bg-muted/30 text-muted-foreground border-border/50",
+              row.tone === "success" && "bg-green-50 text-green-800 border-green-200 dark:bg-green-950/40 dark:text-green-300",
+              row.tone === "warning" && "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300",
+              row.tone === "danger" && "bg-red-50 text-red-800 border-red-200 dark:bg-red-950/40 dark:text-red-300",
+              row.tone === "info" && "bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300",
               row.tone === "default" && "bg-background border-border"
             )}
           >
-            <span className="opacity-70">{row.label.split("/")[0]}</span>
-            {row.value}
-          </span>
+            <span className="font-semibold text-[11px] opacity-80 shrink-0">{row.label}:</span>
+            <EventValue row={row} />
+          </div>
         ))}
       </div>
     );
   }
 
   return (
-    <div className="space-y-0.5 py-1">
+    <div className="w-full border rounded-lg overflow-hidden text-xs bg-background divide-y shadow-xs">
+      <div className="flex bg-muted/40 font-semibold text-muted-foreground px-3 py-2 border-b">
+        <div className="w-36 shrink-0">Category</div>
+        <div className="flex-1">Details</div>
+      </div>
       {rows.map((row) => (
-        <div key={row.label} className="flex items-center justify-between gap-3 text-xs leading-tight">
-          <span className="text-muted-foreground shrink-0 w-[88px]">{row.label}</span>
-          <EventValue row={row} />
+        <div key={row.label} className="flex items-start px-3 py-2.5 gap-3 hover:bg-muted/20 transition-colors">
+          <div className="w-36 shrink-0 font-medium text-foreground pt-0.5">{row.label}</div>
+          <div className="flex-1">
+            <EventValue row={row} />
+          </div>
         </div>
       ))}
     </div>
   );
 }
+

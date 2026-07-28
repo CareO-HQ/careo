@@ -13,96 +13,125 @@ export function formatHandoverEvents(data?: ResidentHandoverData | null): Handov
     return getEmptyEventRows();
   }
 
-  const foodFluidValue =
-    data.foodIntakePercentage > 0 || data.totalFluid > 0
-      ? `${data.foodIntakePercentage}% · ${data.totalFluid}ml`
-      : "—";
+  // 1. Food & Fluid
+  const targetFluid = data.targetFluid || 1800;
+  const foodFluidValue = `Ate ${data.foodIntakePercentage}% of meals. Fluids ${data.totalFluid.toLocaleString()}ml / ${targetFluid.toLocaleString()}ml target.`;
   const foodFluidTone =
     data.foodIntakePercentage === 0 && data.totalFluid === 0
       ? "muted"
       : data.foodIntakePercentage >= 75 && data.totalFluid >= 1500
-        ? "success"
-        : data.foodIntakePercentage >= 50 && data.totalFluid >= 1000
-          ? "warning"
-          : "danger";
+      ? "success"
+      : data.foodIntakePercentage >= 50 && data.totalFluid >= 1000
+      ? "warning"
+      : "danger";
 
-  const continenceValue = data.continenceCount > 0 ? String(data.continenceCount) : "—";
-  const medicationValue =
-    data.medicationTotal > 0 ? `${data.medicationPercentage}%` : "—";
+  // 2. Bowel
+  const bowelValue = data.bowelDetail?.timestamp
+    ? data.bowelDetail.timestamp
+    : data.continenceCount > 0
+    ? `${data.continenceCount} entry logged today`
+    : "No bowel movement logged";
+  const bowelTone = data.bowelDetail?.timestamp || data.continenceCount > 0 ? "info" : "muted";
+
+  // 3. Medication
+  let scheduledText = "";
+  if (data.medicationDetail?.actionedSlots && data.medicationDetail.actionedSlots.length > 0) {
+    const parts = data.medicationDetail.actionedSlots.map((slot) => {
+      const label =
+        slot.status === "completed" ? "completely taken" :
+        slot.status === "partial"   ? "partially taken"  : "not taken";
+      return `${slot.time} ${label}`;
+    });
+    scheduledText = parts.join(". ") + ".";
+  } else if (data.medicationTotal > 0) {
+    scheduledText =
+      data.medicationPercentage === 100
+        ? "Scheduled medications completed."
+        : `Medications scheduled (${data.medicationPercentage}% given).`;
+  }
+
+  let prnText = "";
+  if (data.medicationDetail?.prnGivenList && data.medicationDetail.prnGivenList.length > 0) {
+    const prnParts = data.medicationDetail.prnGivenList.map(
+      (prn) => `${prn.amount || "1"} PRN ${prn.name} given at ${prn.time}`
+    );
+    prnText = prnParts.join(", ") + ".";
+  }
+
+  const medicationValue = [scheduledText, prnText].filter(Boolean).join(" ") || "No medications scheduled.";
+  const overallStatus = data.medicationDetail?.overallStatus;
   const medicationTone =
-    data.medicationTotal === 0
+    !overallStatus || overallStatus === "none"
       ? "muted"
-      : data.medicationPercentage >= 100
-        ? "success"
-        : data.medicationPercentage >= 75
-          ? "warning"
-          : "danger";
+      : overallStatus === "completed"
+      ? "success"
+      : overallStatus === "partial"
+      ? "warning"
+      : "danger"; // not_taken
 
-  const earliestAppointment = [...data.appointments].sort(
-    (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
-  )[0];
-  const appointmentValue =
-    data.appointmentCount > 0 && earliestAppointment
-      ? `${format(new Date(earliestAppointment.start_time), "HH:mm")}${data.appointmentCount > 1 ? ` (+${data.appointmentCount - 1})` : ""}`
-      : "—";
-  const appointmentTooltip =
-    data.appointments.length > 0
-      ? data.appointments
-          .map((apt) => {
-            const time = format(new Date(apt.start_time), "HH:mm");
-            return `${time} ${apt.title}${apt.location ? ` @ ${apt.location}` : ""}`;
-          })
-          .join("\n")
-      : undefined;
+  // 4. Appointments
+  const appointmentValue = data.nextAppointment
+    ? `${data.nextAppointment.title} ${data.nextAppointment.relativeDay} at ${data.nextAppointment.time}.`
+    : data.appointmentCount > 0
+    ? `${data.appointmentCount} appointment(s) scheduled today.`
+    : "No appointments scheduled.";
+  const appointmentTone = data.nextAppointment || data.appointmentCount > 0 ? "info" : "muted";
 
-  const incidentParts: string[] = [];
-  if (data.incidentCount > 0) incidentParts.push(`${data.incidentCount} inc`);
-  if (data.fallCount > 0) incidentParts.push(`${data.fallCount} fall${data.fallCount > 1 ? "s" : ""}`);
-  const incidentsValue = incidentParts.length > 0 ? incidentParts.join(" · ") : "—";
-  const incidentsTone =
-    data.incidentCount > 0 || data.fallCount > 0 ? "danger" : "muted";
+  // 5. Incidents
+  const incidentValue = data.latestIncident
+    ? `${data.latestIncident.type} ${data.latestIncident.relativeDay} at ${data.latestIncident.time}. ${data.latestIncident.outcome}.`
+    : data.incidentCount > 0 || data.fallCount > 0
+    ? `${data.incidentCount} incident(s), ${data.fallCount} fall(s) reported.`
+    : "No incidents.";
+  const incidentTone = data.latestIncident || data.incidentCount > 0 || data.fallCount > 0 ? "danger" : "muted";
 
-  const woundsValue = data.woundCount > 0 ? String(data.woundCount) : "—";
-  const transferValue =
-    data.hospitalTransferCount > 0 ? String(data.hospitalTransferCount) : "—";
+  // 6. Wounds
+  const woundValue = data.woundDetail
+    ? `${data.woundDetail.activeCount} active wound${data.woundDetail.activeCount > 1 ? "s" : ""}.${
+        data.woundDetail.nextReviewTime ? ` Next review: ${data.woundDetail.nextReviewTime}.` : ""
+      }`
+    : data.woundCount > 0
+    ? `${data.woundCount} active wound(s).`
+    : "No active wounds.";
+  const woundTone = data.woundCount > 0 ? "warning" : "muted";
+
+  // 7. Hospital Transfer
+  const transferValue = data.latestTransfer
+    ? data.latestTransfer.type === "transferred"
+      ? `Transferred to hospital ${data.latestTransfer.relativeDay}${data.latestTransfer.time ? ` at ${data.latestTransfer.time}` : ""}.`
+      : `Returned from hospital ${data.latestTransfer.relativeDay}${data.latestTransfer.hasDischargeSummary ? " with discharge summary" : ""}.`
+    : data.hospitalTransferCount > 0
+    ? `${data.hospitalTransferCount} hospital transfer log(s).`
+    : "No hospital transfers.";
+  const transferTone =
+    data.latestTransfer?.type === "transferred"
+      ? "danger"
+      : data.latestTransfer?.type === "returned"
+      ? "info"
+      : data.hospitalTransferCount > 0
+      ? "warning"
+      : "muted";
 
   return [
-    { label: "Food/Fluid", value: foodFluidValue, tone: foodFluidTone },
-    { label: "Incontinence", value: continenceValue, tone: data.continenceCount > 0 ? "info" : "muted" },
-    {
-      label: "Medication",
-      value: medicationValue,
-      tone: medicationTone,
-      tooltip:
-        data.medicationTotal > 0
-          ? `${data.medicationTaken}/${data.medicationTotal} taken`
-          : undefined,
-    },
-    {
-      label: "Appointment",
-      value: appointmentValue,
-      tone: data.appointmentCount > 0 ? "info" : "muted",
-      tooltip: appointmentTooltip,
-    },
-    { label: "Incidents", value: incidentsValue, tone: incidentsTone },
-    { label: "Wounds", value: woundsValue, tone: data.woundCount > 0 ? "warning" : "muted" },
-    {
-      label: "Transfer",
-      value: transferValue,
-      tone: data.hospitalTransferCount > 0 ? "danger" : "muted",
-    },
+    { label: "Food & Fluid", value: foodFluidValue, tone: foodFluidTone },
+    { label: "Bowel", value: bowelValue, tone: bowelTone },
+    { label: "Medication", value: medicationValue, tone: medicationTone },
+    { label: "Appointments", value: appointmentValue, tone: appointmentTone },
+    { label: "Incidents", value: incidentValue, tone: incidentTone },
+    { label: "Wounds", value: woundValue, tone: woundTone },
+    { label: "Hospital Transfer", value: transferValue, tone: transferTone },
   ];
 }
 
 function getEmptyEventRows(): HandoverEventRow[] {
   return [
-    "Food/Fluid",
-    "Incontinence",
+    "Food & Fluid",
+    "Bowel",
     "Medication",
-    "Appointment",
+    "Appointments",
     "Incidents",
     "Wounds",
-    "Transfer",
+    "Hospital Transfer",
   ].map((label) => ({ label, value: "—", tone: "muted" as const }));
 }
 
@@ -124,6 +153,7 @@ export function formatArchivedHandoverEvents(resident: Record<string, unknown>):
           : 0)
     ),
     totalFluid: Number(resident.totalFluid ?? resident.total_fluid ?? 0),
+    targetFluid: Number(resident.targetFluid ?? resident.target_fluid ?? 1800),
     continenceCount: Number(resident.continenceCount ?? resident.continence_count ?? 0),
     medicationPercentage: Number(resident.medicationPercentage ?? resident.medication_percentage ?? 0),
     medicationTotal: Number(resident.medicationTotal ?? resident.medication_total ?? 0),
@@ -140,3 +170,4 @@ export function formatArchivedHandoverEvents(resident: Record<string, unknown>):
 
   return formatHandoverEvents(data);
 }
+
