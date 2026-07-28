@@ -1,4 +1,4 @@
-export type UserRole = "saas_admin" | "owner" | "manager" | "nurse" | "care_assistant" | "agency_nurse" | "agency_care_assistant" | "mdt";
+export type UserRole = "saas_admin" | "owner" | "manager" | "nurse" | "care_assistant" | "agency_nurse" | "agency_care_assistant" | "mdt" | "rqia";
 
 // Simple role definitions for better-auth
 // The organization plugin expects minimal role configuration
@@ -251,7 +251,7 @@ export function canViewAppointments(role?: string): boolean {
 
 // Incidents & Falls
 export function canViewIncidents(role?: string): boolean {
-  return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin" || role === "agency_nurse";
+  return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin" || role === "agency_nurse" || role === "rqia";
 }
 
 // Health & Monitoring
@@ -265,7 +265,7 @@ export function canViewHealthSafetyTitle(role?: string): boolean {
 
 // Clinical
 export function canViewClinical(role?: string): boolean {
-  return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin" || role === "agency_nurse";
+  return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin" || role === "agency_nurse" || role === "rqia";
 }
 
 // Lifestyle & Social
@@ -396,7 +396,7 @@ export function getAllowedRolesToInvite(role: UserRole): UserRole[] {
     return ["manager"];
   }
   if (role === "manager") {
-    return ["nurse", "care_assistant", "mdt"];
+    return ["nurse", "care_assistant", "mdt", "rqia"];
   }
   return [];
 }

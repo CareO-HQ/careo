@@ -36,6 +36,7 @@ export function PostFallAssessmentForm({
     orgLogoUrl,
 }: PostFallAssessmentFormProps) {
     const { profile } = useProfile();
+    const isRqiaView = profile?.role === "rqia";
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [isViewMode, setIsViewMode] = useState(!!savedReport);
@@ -454,9 +455,11 @@ export function PostFallAssessmentForm({
                         PDF
                     </Button>
                     {isViewMode ? (
-                        <Button variant="outline" onClick={() => setIsViewMode(false)}>
-                            Edit
-                        </Button>
+                        !isRqiaView && (
+                            <Button variant="outline" onClick={() => setIsViewMode(false)}>
+                                Edit
+                            </Button>
+                        )
                     ) : (
                         <Button onClick={handleSubmit} disabled={isSubmitting}>
                             {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}

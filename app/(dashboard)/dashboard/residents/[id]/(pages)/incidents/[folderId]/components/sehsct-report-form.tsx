@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { IncidentTimeSelect } from "@/components/incidents/incident-time-select";
 import { formatIncidentTimeDisplay } from "@/lib/incident-time-utils";
 import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
+import { useProfile } from "@/hooks/use-profile";
 
 interface SEHSCTReportFormProps {
   folderId: string;
@@ -41,6 +42,8 @@ export function SEHSCTReportForm({
   onSaved,
   savedReport,
 }: SEHSCTReportFormProps) {
+  const { profile } = useProfile();
+  const isRqiaView = profile?.role === "rqia";
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isDownloading, setIsDownloading] = React.useState(false);
   const [isViewMode, setIsViewMode] = React.useState(!!savedReport);
@@ -289,9 +292,11 @@ export function SEHSCTReportForm({
             <Download className="w-4 h-4 mr-2" /> {isDownloading ? "Downloading..." : "Download PDF"}
           </Button>
           {isViewMode ? (
-            <Button onClick={() => setIsViewMode(false)} disabled={isSubmitting}>
-              Edit Report
-            </Button>
+            !isRqiaView && (
+              <Button onClick={() => setIsViewMode(false)} disabled={isSubmitting}>
+                Edit Report
+              </Button>
+            )
           ) : (
             <Button onClick={handleSubmit} disabled={isSubmitting}>
               {isSubmitting ? "Saving..." : (<><Save className="w-4 h-4 mr-2" /> Save Report</>)}

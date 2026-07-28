@@ -34,7 +34,7 @@ export default function DashboardLayout({
     }
   }, [profile, isLoading, router]);
 
-  // Handle MDT session redirects and restriction
+  // Handle MDT and RQIA session redirects and restriction
   useEffect(() => {
     if (isLoading || !profile) return;
 
@@ -69,6 +69,45 @@ export default function DashboardLayout({
           console.error("Failed to parse MDT session cookie", e);
           if (currentPath !== "/dashboard/mdt-session") {
             router.push("/dashboard/mdt-session");
+          }
+        }
+      }
+    }
+
+    // Handle RQIA session redirects and restriction
+    if (profile.role === "rqia") {
+      const sessionCookie = getCookie("rqia_session_data");
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+
+      if (!sessionCookie) {
+        if (currentPath !== "/dashboard/rqia-session") {
+          router.push("/dashboard/rqia-session" as any);
+        }
+      } else {
+        try {
+          const sessionData = JSON.parse(decodeURIComponent(sessionCookie));
+
+          // Validate that the session data belongs to the currently logged-in user
+          if (sessionData.userId !== profile.id) {
+            document.cookie = "rqia_session_data=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax";
+            if (currentPath !== "/dashboard/rqia-session") {
+              router.push("/dashboard/rqia-session" as any);
+            }
+            return;
+          }
+
+          const isAllowedRqiaPath =
+            currentPath === "/dashboard/rqia-portal" ||
+            currentPath === "/dashboard/rqia-session" ||
+            currentPath.startsWith("/dashboard/residents/");
+
+          if (!isAllowedRqiaPath) {
+            router.push("/dashboard/rqia-portal" as any);
+          }
+        } catch (e) {
+          console.error("Failed to parse RQIA session cookie", e);
+          if (currentPath !== "/dashboard/rqia-session") {
+            router.push("/dashboard/rqia-session" as any);
           }
         }
       }

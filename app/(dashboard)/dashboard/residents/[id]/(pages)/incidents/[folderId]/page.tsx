@@ -6,7 +6,7 @@ import { useActiveTeam } from "@/hooks/use-active-team";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { supabase } from "@/lib/supabase";
 import { ArrowLeft, Download, FileText, Folder, Loader2, Paperclip, Trash2, Plus, X, Map as MapIcon, Edit, CircleCheckIcon, CircleDashedIcon, PanelRight, PanelRightClose } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -148,8 +148,8 @@ const FORM_OPTIONS: FormOption[] = [
   },
   {
     key: "nhs",
-    label: "NHS",
-    description: "Generic NHS Trust Report",
+    label: "NHS / Health Trust",
+    description: "Generic NHS incident report",
     type: "incident",
   },
   {
@@ -281,10 +281,13 @@ type IncidentFolderPageProps = {
 export default function IncidentFolderPage({ params }: IncidentFolderPageProps) {
   const { id: residentId, folderId } = React.use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const { profile } = useProfile();
   const { activeOrganizationId } = useActiveTeam();
   const { supabase: supabaseClient } = useSupabase();
+
+  const isRqiaView = profile?.role === "rqia" || searchParams?.get("from") === "rqia" || searchParams?.get("viewOnly") === "true";
 
   const [resident, setResident] = useState<ResidentData | null>(null);
   const [folder, setFolder] = useState<IncidentFolder | null>(null);
@@ -315,7 +318,7 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
 
   const activeFile = uploadedFiles.find((f) => f.id === activeFileId) ?? null;
   const fullName = resident ? `${resident.first_name} ${resident.last_name}` : "";
-  const userCanEditIncident = canEditIncident(profile?.role);
+  const userCanEditIncident = !isRqiaView && canEditIncident(profile?.role);
   const canShowIncidentEditButton = userCanEditIncident && profile?.role !== "nurse";
 
   // Helper: get saved report for a given form type
@@ -341,6 +344,17 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
       );
     }
   }, [hasIncidentReport, addedForms, folder?.folder_type]);
+
+  // Auto-select initial form when forms/reports load and nothing is currently selected
+  useEffect(() => {
+    if (activeFormKey !== null || activeFileId !== null) return;
+    if (hasIncidentReport) {
+      setActiveFormKey("incident-report");
+    } else if (savedReports.length > 0) {
+      setActiveFormKey(savedReports[0].report_type as IncidentFormType);
+    }
+  }, [hasIncidentReport, savedReports, activeFormKey, activeFileId]);
+
 
   // Lock body scroll — this page manages its own full-viewport layout
   useEffect(() => {
@@ -642,11 +656,13 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
   };
 
   const handleFormClick = (formKey: IncidentFormType) => {
+    if (isRqiaView && !isFormCompleted(formKey)) return;
     setActiveFileId(null); // Clear any active file
     setActiveFormKey(formKey);
   };
 
   const handleFallFormClick = (formKey: IncidentFormType) => {
+    if (isRqiaView && !isFormCompleted(formKey)) return;
     setActiveFileId(null); // Clear any active file
     // Toggle: if clicking the same form, close it to show guidelines
     setActiveFormKey(activeFormKey === formKey ? null : formKey);
@@ -675,12 +691,23 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
     <div className="flex flex-col -mx-6 -mt-16 -mb-6 h-screen overflow-hidden">
       {/* Top Bar */}
       <div className="flex items-center gap-2 px-6 py-3 bg-background border-b flex-shrink-0">
-        <button
-          onClick={() => router.push(`/dashboard/residents/${residentId}/incidents`)}
-          className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground flex-shrink-0"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
+        {isRqiaView ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/dashboard/rqia-portal?residentId=${residentId}&tab=incidents` as any)}
+            className="h-8 gap-1.5 text-xs border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold flex-shrink-0"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to RQIA Portal
+          </Button>
+        ) : (
+          <button
+            onClick={() => router.push(`/dashboard/residents/${residentId}/incidents`)}
+            className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground flex-shrink-0"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+        )}
         <div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground min-w-0 overflow-hidden">
           <span>Incidents</span> <span>/</span>
           <span className="font-medium text-foreground flex items-center gap-1.5 truncate">
@@ -862,21 +889,23 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                                     </p>
                                   )}
                                 </div>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-xs flex-shrink-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const region = BODY_REGIONS.find((r) => r.region_id === entry.region_id);
-                                    if (region) {
-                                      setBmSelectedRegion(region);
-                                      setBmEditingEntry(entry);
-                                    }
-                                  }}
-                                >
-                                  Edit
-                                </Button>
+                                  {!isRqiaView && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 text-xs flex-shrink-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const region = BODY_REGIONS.find((r) => r.region_id === entry.region_id);
+                                        if (region) {
+                                          setBmSelectedRegion(region);
+                                          setBmEditingEntry(entry);
+                                        }
+                                      }}
+                                    >
+                                      Edit
+                                    </Button>
+                                  )}
                               </div>
                             </div>
                           ))}
@@ -1131,10 +1160,14 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                   {/* Post-fall Assessment */}
                   <button
                     onClick={() => handleFallFormClick("post-fall-assessment")}
-                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeFormKey === "post-fall-assessment"
-                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                      : "hover:bg-muted/60 text-foreground"
-                      }`}
+                    title={isRqiaView && !hasPostFallAssessment ? "Form not filled yet" : ""}
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                      isRqiaView && !hasPostFallAssessment
+                        ? "cursor-not-allowed opacity-50"
+                        : activeFormKey === "post-fall-assessment"
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                        : "hover:bg-muted/60 text-foreground"
+                    }`}
                   >
                     {hasPostFallAssessment ? (
                       <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
@@ -1156,10 +1189,14 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                   {/* 24-hour Post-Fall Observation */}
                   <button
                     onClick={() => handleFallFormClick("post-fall-observation")}
-                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${activeFormKey === "post-fall-observation"
-                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                      : "hover:bg-muted/60 text-foreground"
-                      }`}
+                    title={isRqiaView && !hasPostFallObservation ? "Form not filled yet" : ""}
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                      isRqiaView && !hasPostFallObservation
+                        ? "cursor-not-allowed opacity-50"
+                        : activeFormKey === "post-fall-observation"
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                        : "hover:bg-muted/60 text-foreground"
+                    }`}
                   >
                     {hasPostFallObservation ? (
                       <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
@@ -1197,13 +1234,15 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                     <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
                       Forms
                     </p>
-                    <button
-                      onClick={() => setIsFormSelectionOpen(true)}
-                      className="p-1 rounded-md hover:bg-muted transition-colors"
-                      title="Add form"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
+                    {!isRqiaView && (
+                      <button
+                        onClick={() => setIsFormSelectionOpen(true)}
+                        className="p-1 rounded-md hover:bg-muted transition-colors"
+                        title="Add form"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                      </button>
+                    )}
                   </div>
                   {filteredForms.length === 0 ? (
                     <p className="text-[11px] text-muted-foreground px-1.5 py-1">
@@ -1215,17 +1254,23 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                     const isActive = activeFormKey === formKey;
                     const formOption = FORM_OPTIONS.find((f) => f.key === formKey);
                     const completed = isFormCompleted(formKey);
+                    const isUnfilledRqia = isRqiaView && !completed;
                     return (
                       <div
                         key={formKey}
-                        className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg transition-all ${isActive
-                          ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                          : "hover:bg-muted/60 text-foreground"
+                        className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg transition-all ${
+                          isUnfilledRqia
+                            ? "cursor-not-allowed opacity-50"
+                            : isActive
+                            ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                            : "hover:bg-muted/60 text-foreground"
                           }`}
+                        title={isUnfilledRqia ? "Form not filled yet" : ""}
                       >
                         <button
                           onClick={() => handleFormClick(formKey)}
-                          className="flex items-start gap-2.5 flex-1 min-w-0 text-left"
+                          disabled={isUnfilledRqia}
+                          className={`flex items-start gap-2.5 flex-1 min-w-0 text-left ${isUnfilledRqia ? "cursor-not-allowed" : ""}`}
                         >
                           {completed ? (
                             <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
@@ -1243,8 +1288,8 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                             )}
                           </div>
                         </button>
-                        {/* Don't allow removing a completed form */}
-                        {!completed && (
+                        {/* Don't allow removing a completed form or in RQIA view */}
+                        {!completed && !isRqiaView && (
                           <button
                             onClick={(e) => handleRemoveForm(formKey, e)}
                             className="flex-shrink-0 mt-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
@@ -1269,36 +1314,48 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                   Body Map
                 </p>
               </div>
-              <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${activeFormKey === "body-map"
-                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                  : "hover:bg-muted/60 text-foreground"
-                  }`}
-                onClick={() => {
-                  setActiveFileId(null);
-                  setActiveFormKey("body-map");
-                }}
-              >
-                {hasBodyMapData && bodyMapEntryCount > 0 ? (
-                  <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
-                ) : (
-                  <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
-                )}
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
-                    Body Map
-                  </p>
-                  {hasBodyMapData && bodyMapEntryCount > 0 ? (
-                    <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
-                      {bodyMapEntryCount} {bodyMapEntryCount === 1 ? "observation" : "observations"}
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-muted-foreground">
-                      Click to start
-                    </p>
-                  )}
-                </div>
-              </button>
+              {(() => {
+                const hasEntries = hasBodyMapData && bodyMapEntryCount > 0;
+                const isUnfilledRqia = isRqiaView && !hasEntries;
+                return (
+                  <button
+                    disabled={isUnfilledRqia}
+                    title={isUnfilledRqia ? "Body map not filled yet" : ""}
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                      isUnfilledRqia
+                        ? "cursor-not-allowed opacity-50"
+                        : activeFormKey === "body-map"
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                        : "hover:bg-muted/60 text-foreground"
+                    }`}
+                    onClick={() => {
+                      if (isUnfilledRqia) return;
+                      setActiveFileId(null);
+                      setActiveFormKey("body-map");
+                    }}
+                  >
+                    {hasEntries ? (
+                      <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                    ) : (
+                      <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                        Body Map
+                      </p>
+                      {hasEntries ? (
+                        <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                          {bodyMapEntryCount} {bodyMapEntryCount === 1 ? "observation" : "observations"}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">
+                          {isRqiaView ? "Not recorded" : "Click to start"}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })()}
             </div>
 
             {/* Documents section */}
@@ -1307,12 +1364,14 @@ export default function IncidentFolderPage({ params }: IncidentFolderPageProps) 
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
                   Documents
                 </p>
-                <UploadFileModal
-                  folderName={`incident-${folderId}`}
-                  residentId={residentId}
-                  variant="icon"
-                  onUploaded={fetchUploadedFiles}
-                />
+                {!isRqiaView && (
+                  <UploadFileModal
+                    folderName={`incident-${folderId}`}
+                    residentId={residentId}
+                    variant="icon"
+                    onUploaded={fetchUploadedFiles}
+                  />
+                )}
               </div>
 
               {filesLoading ? (

@@ -132,6 +132,31 @@ export default function MdtSessionPage() {
     startTransition(async () => {
       const selectedResident = residents.find(r => r.id === selectedResidentId);
       const selectedUnit = units.find(u => u.id === selectedUnitId);
+      const residentName = selectedResident ? `${selectedResident.firstName} ${selectedResident.lastName}` : "";
+
+      // Insert session log entry into public.mdt_login_logs table
+      if (supabase && profile?.id) {
+        try {
+          const { error: logError } = await supabase.from("mdt_login_logs").insert({
+            user_id: profile.id,
+            full_name: fullName.trim(),
+            profession,
+            unit_id: selectedUnitId,
+            unit_name: selectedUnit?.name || "",
+            resident_id: selectedResidentId,
+            resident_name: residentName,
+            care_home_id: profile.active_care_home_id || (profile as any).care_home_id || null,
+            organization_id: profile.active_organization_id || (profile as any).organization_id || null,
+            logged_in_at: new Date().toISOString()
+          });
+
+          if (logError) {
+            console.error("Failed to insert MDT login log:", logError);
+          }
+        } catch (err) {
+          console.error("Failed to log MDT session entry:", err);
+        }
+      }
 
       const sessionData = {
         userId: profile?.id,
@@ -140,7 +165,7 @@ export default function MdtSessionPage() {
         unitId: selectedUnitId,
         unitName: selectedUnit?.name || "",
         residentId: selectedResidentId,
-        residentName: selectedResident ? `${selectedResident.firstName} ${selectedResident.lastName}` : "",
+        residentName,
         timestamp: Date.now()
       };
 

@@ -204,6 +204,8 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   const { profile } = useProfile();
   const { supabase: supabaseClient } = useSupabase();
 
+  const isRqiaView = profile?.role === "rqia" || searchParams?.get("from") === "rqia" || searchParams?.get("viewOnly") === "true";
+
   const [resident, setResident] = useState<ResidentData | null>(null);
   const [folder, setFolder] = useState<WoundFolder | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
@@ -679,31 +681,37 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
   };
 
   const handleInitialAssessmentClick = () => {
+    if (isRqiaView && initialWoundAssessments.length === 0) return;
     setActiveFileId(null);
     setActiveView("initial-assessment");
   };
 
   const handleAssessmentClick = () => {
+    if (isRqiaView && woundAssessments.length === 0) return;
     setActiveFileId(null);
     setActiveView("assessment");
   };
 
   const handleEvaluationClick = () => {
+    if (isRqiaView && treatmentEvaluations.length === 0) return;
     setActiveFileId(null);
     setActiveView("evaluation");
   };
 
   const handlePhotographClick = () => {
+    if (isRqiaView && photographEvaluations.length === 0) return;
     setActiveFileId(null);
     setActiveView("photograph");
   };
 
   const handleBodyMapClick = () => {
+    if (isRqiaView && bodyMapEntryCount === 0) return;
     setActiveFileId(null);
     setActiveView("body-map");
   };
 
   const handleCarePlanClick = (cp?: any) => {
+    if (isRqiaView && !cp && activeCarePlans.length === 0) return;
     setActiveFileId(null);
     setActiveView("care-plans");
     if (cp) {
@@ -752,12 +760,23 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
     <div className="flex flex-col -mx-16 -mt-16 -mb-6 h-screen overflow-hidden">
       {/* Top Bar */}
       <div className="flex items-center gap-3 px-6 py-3 bg-background border-b flex-shrink-0">
-        <button
-          onClick={() => router.push(`/dashboard/residents/${residentId}/wounds`)}
-          className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground flex-shrink-0"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
+        {isRqiaView ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/dashboard/rqia-portal?residentId=${residentId}&tab=wounds` as any)}
+            className="h-8 gap-1.5 text-xs border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold flex-shrink-0"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to RQIA Portal
+          </Button>
+        ) : (
+          <button
+            onClick={() => router.push(`/dashboard/residents/${residentId}/wounds`)}
+            className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground flex-shrink-0"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+        )}
         <div className="flex flex-1 items-center gap-2 text-sm min-w-0">
           <span className="text-muted-foreground">Wounds</span>
           <span className="text-muted-foreground">/</span>
@@ -996,21 +1015,23 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                                     </p>
                                   )}
                                 </div>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-xs flex-shrink-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const region = BODY_REGIONS.find((r) => r.region_id === entry.region_id);
-                                    if (region) {
-                                      setBmSelectedRegion(region);
-                                      setBmEditingEntry(entry);
-                                    }
-                                  }}
-                                >
-                                  Edit
-                                </Button>
+                                  {!isRqiaView && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 text-xs flex-shrink-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const region = BODY_REGIONS.find((r) => r.region_id === entry.region_id);
+                                        if (region) {
+                                          setBmSelectedRegion(region);
+                                          setBmEditingEntry(entry);
+                                        }
+                                      }}
+                                    >
+                                      Edit
+                                    </Button>
+                                  )}
                               </div>
                             </div>
                           ))}
@@ -1044,9 +1065,11 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                   </div>
                   <div className="flex items-center gap-2">
                     {isCarePlanViewOnly ? (
-                      <Button variant="outline" size="sm" onClick={() => { setIsCarePlanViewOnly(false); setIsCarePlanReviewMode(true); }} className="gap-2">
-                        <Edit3 className="w-4 h-4" /> Edit
-                      </Button>
+                      !isRqiaView && (
+                        <Button variant="outline" size="sm" onClick={() => { setIsCarePlanViewOnly(false); setIsCarePlanReviewMode(true); }} className="gap-2">
+                          <Edit3 className="w-4 h-4" /> Edit
+                        </Button>
+                      )
                     ) : (
                       <>
                         <Button variant="outline" size="sm" onClick={handleCloseCarePlan} disabled={isSavingCarePlan}>Cancel</Button>
@@ -1150,33 +1173,44 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                   Body Map
                 </p>
               </div>
-              <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${activeView === "body-map"
-                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                  : "hover:bg-muted/60 text-foreground"
-                  }`}
-                onClick={handleBodyMapClick}
-              >
-                {hasBodyMapData && bodyMapEntryCount > 0 ? (
-                  <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
-                ) : (
-                  <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
-                )}
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
-                    Body Map
-                  </p>
-                  {hasBodyMapData && bodyMapEntryCount > 0 ? (
-                    <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
-                      {bodyMapEntryCount} {bodyMapEntryCount === 1 ? "observation" : "observations"}
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-muted-foreground">
-                      Click to start
-                    </p>
-                  )}
-                </div>
-              </button>
+              {(() => {
+                const hasEntries = hasBodyMapData && bodyMapEntryCount > 0;
+                const isUnfilledRqia = isRqiaView && !hasEntries;
+                return (
+                  <button
+                    disabled={isUnfilledRqia}
+                    title={isUnfilledRqia ? "Body map not filled yet" : ""}
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                      isUnfilledRqia
+                        ? "cursor-not-allowed opacity-50"
+                        : activeView === "body-map"
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                        : "hover:bg-muted/60 text-foreground"
+                    }`}
+                    onClick={handleBodyMapClick}
+                  >
+                    {hasEntries ? (
+                      <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                    ) : (
+                      <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                        Body Map
+                      </p>
+                      {hasEntries ? (
+                        <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                          {bodyMapEntryCount} {bodyMapEntryCount === 1 ? "observation" : "observations"}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">
+                          {isRqiaView ? "Not recorded" : "Click to start"}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })()}
             </div>
 
             <Separator className="bg-muted/50" />
@@ -1190,120 +1224,164 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
               </div>
 
               {/* Initial Wound Assessment */}
-              <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer mb-1 ${activeView === "initial-assessment"
-                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                  : "hover:bg-muted/60 text-foreground"
-                  }`}
-                onClick={handleInitialAssessmentClick}
-              >
-                {initialWoundAssessments.length > 0 ? (
-                  <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
-                ) : (
-                  <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
-                )}
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
-                    Initial Assessment
-                  </p>
-                  {initialWoundAssessments.length > 0 ? (
-                    <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
-                      Completed
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-muted-foreground">
-                      Click to start
-                    </p>
-                  )}
-                </div>
-              </button>
+              {(() => {
+                const hasInit = initialWoundAssessments.length > 0;
+                const isUnfilledRqia = isRqiaView && !hasInit;
+                return (
+                  <button
+                    disabled={isUnfilledRqia}
+                    title={isUnfilledRqia ? "Initial assessment not filled yet" : ""}
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all mb-1 ${
+                      isUnfilledRqia
+                        ? "cursor-not-allowed opacity-50"
+                        : activeView === "initial-assessment"
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                        : "hover:bg-muted/60 text-foreground"
+                    }`}
+                    onClick={handleInitialAssessmentClick}
+                  >
+                    {hasInit ? (
+                      <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                    ) : (
+                      <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                        Initial Assessment
+                      </p>
+                      {hasInit ? (
+                        <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                          Completed
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">
+                          {isRqiaView ? "Not recorded" : "Click to start"}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })()}
 
               {/* Ongoing Wound Assessment */}
-              <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer mb-1 ${activeView === "assessment"
-                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                  : "hover:bg-muted/60 text-foreground"
-                  }`}
-                onClick={handleAssessmentClick}
-              >
-                {woundAssessments.length > 0 ? (
-                  <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
-                ) : (
-                  <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
-                )}
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
-                    Ongoing Wound Assessment
-                  </p>
-                  {woundAssessments.length > 0 ? (
-                    <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
-                      {woundAssessments.length} {woundAssessments.length === 1 ? "assessment" : "assessments"}
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-muted-foreground">
-                      Click to start
-                    </p>
-                  )}
-                </div>
-              </button>
+              {(() => {
+                const hasAss = woundAssessments.length > 0;
+                const isUnfilledRqia = isRqiaView && !hasAss;
+                return (
+                  <button
+                    disabled={isUnfilledRqia}
+                    title={isUnfilledRqia ? "Ongoing assessment not filled yet" : ""}
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all mb-1 ${
+                      isUnfilledRqia
+                        ? "cursor-not-allowed opacity-50"
+                        : activeView === "assessment"
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                        : "hover:bg-muted/60 text-foreground"
+                    }`}
+                    onClick={handleAssessmentClick}
+                  >
+                    {hasAss ? (
+                      <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                    ) : (
+                      <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                        Ongoing Wound Assessment
+                      </p>
+                      {hasAss ? (
+                        <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                          {woundAssessments.length} {woundAssessments.length === 1 ? "assessment" : "assessments"}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">
+                          {isRqiaView ? "Not recorded" : "Click to start"}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })()}
 
               {/* Treatment Evaluation */}
-              <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer mb-1 ${activeView === "evaluation"
-                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                  : "hover:bg-muted/60 text-foreground"
-                  }`}
-                onClick={handleEvaluationClick}
-              >
-                {treatmentEvaluations.length > 0 ? (
-                  <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
-                ) : (
-                  <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
-                )}
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
-                    Treatment Evaluation
-                  </p>
-                  {treatmentEvaluations.length > 0 ? (
-                    <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
-                      {treatmentEvaluations.length} {treatmentEvaluations.length === 1 ? "evaluation" : "evaluations"}
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-muted-foreground">
-                      Click to start
-                    </p>
-                  )}
-                </div>
-              </button>
+              {(() => {
+                const hasEval = treatmentEvaluations.length > 0;
+                const isUnfilledRqia = isRqiaView && !hasEval;
+                return (
+                  <button
+                    disabled={isUnfilledRqia}
+                    title={isUnfilledRqia ? "Treatment evaluation not filled yet" : ""}
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all mb-1 ${
+                      isUnfilledRqia
+                        ? "cursor-not-allowed opacity-50"
+                        : activeView === "evaluation"
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                        : "hover:bg-muted/60 text-foreground"
+                    }`}
+                    onClick={handleEvaluationClick}
+                  >
+                    {hasEval ? (
+                      <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                    ) : (
+                      <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                        Treatment Evaluation
+                      </p>
+                      {hasEval ? (
+                        <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                          {treatmentEvaluations.length} {treatmentEvaluations.length === 1 ? "evaluation" : "evaluations"}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">
+                          {isRqiaView ? "Not recorded" : "Click to start"}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })()}
 
               {/* Photograph Evaluation */}
-              <button
-                className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${activeView === "photograph"
-                  ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                  : "hover:bg-muted/60 text-foreground"
-                  }`}
-                onClick={handlePhotographClick}
-              >
-                {photographEvaluations.length > 0 ? (
-                  <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
-                ) : (
-                  <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
-                )}
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
-                    Photograph Evaluation
-                  </p>
-                  {photographEvaluations.length > 0 ? (
-                    <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
-                      {photographEvaluations.length} {photographEvaluations.length === 1 ? "evaluation" : "evaluations"}
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-muted-foreground">
-                      Click to start
-                    </p>
-                  )}
-                </div>
-              </button>
+              {(() => {
+                const hasPhoto = photographEvaluations.length > 0;
+                const isUnfilledRqia = isRqiaView && !hasPhoto;
+                return (
+                  <button
+                    disabled={isUnfilledRqia}
+                    title={isUnfilledRqia ? "Photograph evaluation not filled yet" : ""}
+                    className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all ${
+                      isUnfilledRqia
+                        ? "cursor-not-allowed opacity-50"
+                        : activeView === "photograph"
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                        : "hover:bg-muted/60 text-foreground"
+                    }`}
+                    onClick={handlePhotographClick}
+                  >
+                    {hasPhoto ? (
+                      <CircleCheckIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                    ) : (
+                      <CircleDashedIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-muted-foreground/70" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold leading-tight mb-0.5 truncate">
+                        Photograph Evaluation
+                      </p>
+                      {hasPhoto ? (
+                        <p className="text-xs px-1 rounded-md text-emerald-500 bg-emerald-50">
+                          {photographEvaluations.length} {photographEvaluations.length === 1 ? "evaluation" : "evaluations"}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">
+                          {isRqiaView ? "Not recorded" : "Click to start"}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })()}
             </div>
 
             {/* Care Plans section */}
@@ -1312,15 +1390,17 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
                   Planning
                 </p>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => handleCarePlanClick()}
-                  title="New Care Plan"
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
+                {!isRqiaView && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5"
+                    onClick={() => handleCarePlanClick()}
+                    title="New Care Plan"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
               <div className="flex flex-col gap-1">
                 {activeCarePlans.length > 0 ? (
@@ -1347,7 +1427,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                       </button>
                     );
                   })
-                ) : (
+                ) : !isRqiaView ? (
                   <button
                     className={`w-full flex items-start gap-2.5 px-2 py-2 rounded-lg text-left transition-all cursor-pointer ${activeView === "care-plans" && !selectedCarePlan
                       ? "bg-primary/10 text-primary ring-1 ring-primary/20"
@@ -1362,7 +1442,7 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                       </p>
                     </div>
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
 
@@ -1372,12 +1452,14 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
                   Documents
                 </p>
-                <UploadFileModal
-                  folderName={`wound-${folderId}`}
-                  residentId={residentId}
-                  variant="icon"
-                  onUploaded={fetchUploadedFiles}
-                />
+                {!isRqiaView && (
+                  <UploadFileModal
+                    folderName={`wound-${folderId}`}
+                    residentId={residentId}
+                    variant="icon"
+                    onUploaded={fetchUploadedFiles}
+                  />
+                )}
               </div>
 
               {filesLoading ? (
@@ -1412,13 +1494,15 @@ export default function WoundFolderPage({ params }: WoundFolderPageProps) {
                             </p>
                           </div>
                         </button>
-                        <button
-                          onClick={(e) => handleDeleteFile(file, e)}
-                          className="flex-shrink-0 mt-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                          title="Delete file"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                        {!isRqiaView && (
+                          <button
+                            onClick={(e) => handleDeleteFile(file, e)}
+                            className="flex-shrink-0 mt-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                            title="Delete file"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     );
                   })}

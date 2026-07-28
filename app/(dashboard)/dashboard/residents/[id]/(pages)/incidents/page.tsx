@@ -66,6 +66,44 @@ type IncidentsPageProps = {
   params: Promise<{ id: string }>;
 };
 
+function formatDateStandard(rawDate?: string, rawFolderName?: string, rawCreatedAt?: string): string {
+  const input = (rawDate || rawFolderName || "").trim();
+
+  if (input) {
+    const ymdMatch = input.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (ymdMatch) {
+      const [, yyyy, mm, dd] = ymdMatch;
+      return `${dd}-${mm}-${yyyy}`;
+    }
+
+    const dmyMatch = input.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if (dmyMatch) {
+      const [, dd, mm, yyyy] = dmyMatch;
+      return `${dd.padStart(2, "0")}-${mm.padStart(2, "0")}-${yyyy}`;
+    }
+
+    const dmyEmbedded = input.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+    if (dmyEmbedded) {
+      const [, dd, mm, yyyy] = dmyEmbedded;
+      return `${dd.padStart(2, "0")}-${mm.padStart(2, "0")}-${yyyy}`;
+    }
+
+    const d = new Date(input);
+    if (!isNaN(d.getTime())) {
+      return format(d, "dd-MM-yyyy");
+    }
+  }
+
+  if (rawCreatedAt) {
+    const d = new Date(rawCreatedAt);
+    if (!isNaN(d.getTime())) {
+      return format(d, "dd-MM-yyyy");
+    }
+  }
+
+  return input || "Recent";
+}
+
 export default function IncidentsPage({ params }: IncidentsPageProps) {
   const { id } = React.use(params);
   const router = useRouter();
@@ -666,7 +704,9 @@ export default function IncidentsPage({ params }: IncidentsPageProps) {
                             <div className="flex items-center gap-3 py-1">
                               <Folder className={`w-5 h-5 ${isFall ? "text-red-600" : "text-blue-600"}`} />
                               <div className="flex flex-col">
-                                <span className={`font-medium ${isFall ? "text-red-900" : "text-blue-900"}`}>{folder.name}</span>
+                                <span className={`font-medium ${isFall ? "text-red-900" : "text-blue-900"}`}>
+                                  {formatDateStandard(incident?.date, folder.name, folder.created_at)}
+                                </span>
                                 <span className={`text-xs ${isFall ? "text-red-700" : "text-blue-700"}`}>
                                   {isFall ? "Fall Record" : "Incident Folder"}
                                 </span>

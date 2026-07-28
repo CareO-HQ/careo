@@ -472,14 +472,16 @@ export function PhotographEvaluationForm({
                 <Download className="w-4 h-4" />
                 Download PDF
               </Button>
-              <Button
-                onClick={() => setShowNewForm(true)}
-                size="sm"
-                className="gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                New Evaluation
-              </Button>
+              {profile?.role !== "rqia" && (
+                <Button
+                  onClick={() => setShowNewForm(true)}
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Evaluation
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -916,14 +918,16 @@ export function PhotographEvaluationForm({
                               Evaluation #{evaluations.length - index}
                             </Badge>
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditEvaluation(evaluation)}
-                          >
-                            <Edit className="w-4 h-4 mr-2" />
-                            Edit
-                          </Button>
+                          {profile?.role !== "rqia" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditEvaluation(evaluation)}
+                            >
+                              <Edit className="w-4 h-4 mr-2" />
+                              Edit
+                            </Button>
+                          )}
                         </div>
                         <div className="mt-2 text-sm text-muted-foreground">
                           <span className="font-semibold">Resident:</span> {residentName}

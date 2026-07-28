@@ -373,6 +373,7 @@ export function PostFallObservationChart({
                 </Button>
             </div>
 
+            {profile?.role !== "rqia" && (
             <Card className="border-emerald-100 shadow-sm overflow-hidden">
                 <CardContent className="p-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
@@ -522,6 +523,7 @@ export function PostFallObservationChart({
                     </div>
                 </CardContent>
             </Card>
+            )}
 
             <Card className="border-gray-200 shadow-sm">
                 <CardHeader className="bg-gray-50/50 border-b py-3 px-6">

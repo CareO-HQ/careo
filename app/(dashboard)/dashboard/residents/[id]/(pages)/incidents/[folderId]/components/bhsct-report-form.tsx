@@ -26,6 +26,7 @@ interface BHSCTReportFormProps {
 }
 
 import { generateCareFilePDF } from "@/lib/care-file-pdf-utils";
+import { useProfile } from "@/hooks/use-profile";
 
 export function BHSCTReportForm({
   folderId,
@@ -42,6 +43,8 @@ export function BHSCTReportForm({
   onSaved,
   savedReport,
 }: BHSCTReportFormProps) {
+  const { profile } = useProfile();
+  const isRqiaView = profile?.role === "rqia";
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isDownloading, setIsDownloading] = React.useState(false);
   const [isViewMode, setIsViewMode] = React.useState(!!savedReport);
@@ -233,9 +236,11 @@ export function BHSCTReportForm({
             <Download className="w-4 h-4 mr-2" /> {isDownloading ? "Downloading..." : "Download PDF"}
           </Button>
           {isViewMode ? (
-            <Button onClick={() => setIsViewMode(false)} disabled={isSubmitting}>
-              Edit Report
-            </Button>
+            !isRqiaView && (
+              <Button onClick={() => setIsViewMode(false)} disabled={isSubmitting}>
+                Edit Report
+              </Button>
+            )
           ) : (
             <Button onClick={handleSubmit} disabled={isSubmitting}>
               {isSubmitting ? "Saving..." : (<><Save className="w-4 h-4 mr-2" /> Save Report</>)}

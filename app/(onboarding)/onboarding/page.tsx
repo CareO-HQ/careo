@@ -370,8 +370,8 @@ export default function OnboardingPage() {
     );
   }
 
-  // MDT ONBOARDING
-  if (userRole === "mdt") {
+  // MDT or RQIA ONBOARDING
+  if (userRole === "mdt" || userRole === "rqia") {
     // Redirect if onboarding already complete
     if (isOnboardingComplete) {
       return (
