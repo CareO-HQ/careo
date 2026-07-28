@@ -32,6 +32,10 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
                 router.refresh();
             }
             if (event === "SIGNED_OUT") {
+                if (typeof document !== "undefined") {
+                  document.cookie = "mdt_session_data=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax";
+                  document.cookie = "rqia_session_data=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax";
+                }
                 router.push("/login");
                 router.refresh();
             }
@@ -64,8 +68,12 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
                     
                     const isOnboardingPage = typeof window !== "undefined" && window.location.pathname.startsWith("/onboarding");
 
-                    if (newRole === "mdt" && newIsLoginAllowed === false) {
-                        console.log("[SupabaseProvider] MDT user login disabled. Logging out...");
+                    if ((newRole === "mdt" || newRole === "rqia") && newIsLoginAllowed === false) {
+                        console.log("[SupabaseProvider] MDT/RQIA user login disabled. Logging out...");
+                        if (typeof document !== "undefined") {
+                          document.cookie = "mdt_session_data=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax";
+                          document.cookie = "rqia_session_data=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax";
+                        }
                         await supabase.auth.signOut();
                         router.push("/login");
                         router.refresh();

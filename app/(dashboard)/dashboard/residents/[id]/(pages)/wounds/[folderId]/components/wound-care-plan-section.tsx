@@ -132,7 +132,7 @@ export function WoundCarePlanSection({ residentId, folderId, resident }: WoundCa
                                     <CardTitle className="text-lg font-bold">{cp.care_plan_type || "Care Plan"}</CardTitle>
                                     <Button variant="outline" size="sm" onClick={() => handleEdit(cp)} className="gap-2 text-xs">
                                         <Edit3 className="w-3.5 h-3.5" />
-                                        View/Edit
+                                        {profile?.role === "rqia" ? "View" : "View/Edit"}
                                     </Button>
                                 </div>
                                 <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
@@ -171,10 +171,12 @@ export function WoundCarePlanSection({ residentId, folderId, resident }: WoundCa
                     <FileText className="w-12 h-12 mb-4 opacity-20" />
                     <h3 className="text-lg font-medium text-foreground">No Care Plans yet</h3>
                     <p className="max-w-xs text-center text-sm mt-2 mb-6">Create a structured care plan specifically for this wound to track goals and interventions.</p>
-                    <Button onClick={handleCreateNew} variant="outline" className="gap-2">
-                        <Plus className="w-4 h-4" />
-                        Create First Care Plan
-                    </Button>
+                    {profile?.role !== "rqia" && (
+                        <Button onClick={handleCreateNew} variant="outline" className="gap-2">
+                            <Plus className="w-4 h-4" />
+                            Create First Care Plan
+                        </Button>
+                    )}
                 </div>
             )}
 
@@ -195,9 +197,11 @@ export function WoundCarePlanSection({ residentId, folderId, resident }: WoundCa
                                 </div>
                                 <div className="flex items-center gap-2">
                                     {isViewOnly ? (
-                                        <Button variant="outline" size="sm" onClick={() => { setIsViewOnly(false); setIsReviewMode(true); }} className="gap-2">
-                                            <Edit3 className="w-4 h-4" /> Edit
-                                        </Button>
+                                        profile?.role !== "rqia" && (
+                                            <Button variant="outline" size="sm" onClick={() => { setIsViewOnly(false); setIsReviewMode(true); }} className="gap-2">
+                                                <Edit3 className="w-4 h-4" /> Edit
+                                            </Button>
+                                        )
                                     ) : (
                                         <Button size="sm" onClick={handleExternalSubmit} disabled={isSaving} className="gap-2">
                                             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Submit

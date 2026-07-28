@@ -24,11 +24,13 @@ import { withRoleGuard } from "@/lib/route-guards";
 import { updateStaffWorkforceAction } from "@/app/actions/rota";
 import { Switch } from "@/components/ui/switch";
 import { ExternalAccessReminderModal } from "@/components/staff/ExternalAccessReminderModal";
+import { RqiaLoginHistoryModal } from "@/components/staff/RqiaLoginHistoryModal";
+import { MdtLoginHistoryModal } from "@/components/staff/MdtLoginHistoryModal";
 import { insertExternalAccessReminderNotification } from "@/lib/notifications";
 
 interface StaffMember {
   id: string;
-  name: string;
+  name: string | null;
   email: string;
   phone: string | null;
   image_url: string | null;
@@ -46,6 +48,10 @@ function StaffPage() {
   const [staff, setStaff] = useState<StaffMember[] | undefined>(undefined);
   const [selectedStaffForReminder, setSelectedStaffForReminder] = useState<StaffMember | null>(null);
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [selectedRqiaStaff, setSelectedRqiaStaff] = useState<{ id: string; name: string } | null>(null);
+  const [isRqiaHistoryModalOpen, setIsRqiaHistoryModalOpen] = useState(false);
+  const [selectedMdtStaff, setSelectedMdtStaff] = useState<{ id: string; name: string } | null>(null);
+  const [isMdtHistoryModalOpen, setIsMdtHistoryModalOpen] = useState(false);
   const router = useRouter();
   const { profile } = useProfile();
   const { supabase } = useSupabase();
@@ -188,8 +194,8 @@ function StaffPage() {
     );
   });
 
-  const permanentStaff = filteredStaff.filter(member => member.role !== 'mdt');
-  const externalStaff = filteredStaff.filter(member => member.role === 'mdt');
+  const permanentStaff = filteredStaff.filter(member => member.role !== 'mdt' && member.role !== 'rqia');
+  const externalStaff = filteredStaff.filter(member => member.role === 'mdt' || member.role === 'rqia');
 
   // Determine display name for header
   const displayName = activeTeamId
@@ -461,7 +467,17 @@ function StaffPage() {
                         <TableRow
                           key={memberId}
                           className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => router.push(`/dashboard/staff/${memberId}`)}
+                          onClick={() => {
+                            if (role === 'rqia') {
+                              setSelectedRqiaStaff({ id: memberId, name: name || email });
+                              setIsRqiaHistoryModalOpen(true);
+                            } else if (role === 'mdt') {
+                              setSelectedMdtStaff({ id: memberId, name: name || email });
+                              setIsMdtHistoryModalOpen(true);
+                            } else {
+                              router.push(`/dashboard/staff/${memberId}`);
+                            }
+                          }}
                         >
                           <TableCell>
                             <div className="flex items-center space-x-3">
@@ -494,7 +510,7 @@ function StaffPage() {
                           </TableCell>
                           <TableCell>
                             <Badge variant="secondary">
-                              {role === 'mdt' ? 'MDT' : formatRoleName(role || '')}
+                              {role === 'mdt' ? 'MDT' : role === 'rqia' ? 'RQIA Inspector' : formatRoleName(role || '')}
                             </Badge>
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
@@ -504,7 +520,7 @@ function StaffPage() {
                                 onCheckedChange={async (checked) => {
                                   try {
                                     await updateStaffWorkforceAction(profile.id, memberId, { is_login_allowed: checked });
-                                    toast.success(checked ? "Login allowed for MDT staff" : "Login blocked for MDT staff");
+                                    toast.success(checked ? "Login allowed for staff" : "Login blocked for staff");
                                     fetchStaff();
                                     if (checked) {
                                       setSelectedStaffForReminder(member);
@@ -540,6 +556,22 @@ function StaffPage() {
         onClose={() => setIsReminderModalOpen(false)}
         staffName={selectedStaffForReminder?.name || selectedStaffForReminder?.email || "MDT Staff"}
         onConfirmReminder={handleConfirmReminder}
+      />
+
+      {/* Inspection Session History Modal for RQIA Inspectors */}
+      <RqiaLoginHistoryModal
+        isOpen={isRqiaHistoryModalOpen}
+        onClose={() => setIsRqiaHistoryModalOpen(false)}
+        staffUserId={selectedRqiaStaff?.id || ""}
+        staffName={selectedRqiaStaff?.name || "RQIA Inspector"}
+      />
+
+      {/* Visit Session History Modal for MDT Professionals */}
+      <MdtLoginHistoryModal
+        isOpen={isMdtHistoryModalOpen}
+        onClose={() => setIsMdtHistoryModalOpen(false)}
+        staffUserId={selectedMdtStaff?.id || ""}
+        staffName={selectedMdtStaff?.name || "MDT Professional"}
       />
     </div>
   );

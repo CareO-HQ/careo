@@ -60,7 +60,7 @@ export default function LoginForm() {
           .eq("id", user.id)
           .single();
 
-        if (dbUser && dbUser.role === "mdt" && dbUser.is_login_allowed === false) {
+        if (dbUser && (dbUser.role === "mdt" || dbUser.role === "rqia") && dbUser.is_login_allowed === false) {
           await supabase.auth.signOut();
           toast.error("Your account has been deactivated. Please contact your manager.");
           return;

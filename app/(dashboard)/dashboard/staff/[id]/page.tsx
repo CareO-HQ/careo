@@ -9,6 +9,8 @@ import { useProfile } from "@/hooks/use-profile";
 import { formatRoleName } from "@/lib/utils";
 import { canViewStaffList, UserRole } from "@/lib/permissions";
 import { withRoleGuard } from "@/lib/route-guards";
+import { RqiaLoginHistoryView } from "@/components/staff/RqiaLoginHistoryView";
+import { MdtLoginHistoryView } from "@/components/staff/MdtLoginHistoryView";
 import {
   ArrowLeft,
   Bell,
@@ -288,6 +290,20 @@ function StaffProfilePage({ params }: StaffPageProps) {
           </Card>
         </div>
       </div>
+
+      {/* RQIA LOGINS HISTORY */}
+      {staffMember.role === "rqia" && (
+        <div className="mb-8 p-6 bg-white rounded-xl border shadow-xs">
+          <RqiaLoginHistoryView userId={id} staffName={fullName} />
+        </div>
+      )}
+
+      {/* MDT VISITS HISTORY */}
+      {staffMember.role === "mdt" && (
+        <div className="mb-8 p-6 bg-white rounded-xl border shadow-xs">
+          <MdtLoginHistoryView userId={id} staffName={fullName} />
+        </div>
+      )}
     </div>
   );
 }

@@ -125,9 +125,9 @@ export function useProfile() {
                     }
                 }
 
-                // Check if user is MDT and login is disabled
-                if (userRole === "mdt" && dbUser.is_login_allowed === false) {
-                    console.log("[useProfile] Login disabled for MDT user. Logging out...");
+                // Check if user is MDT or RQIA and login is disabled
+                if ((userRole === "mdt" || userRole === "rqia") && dbUser.is_login_allowed === false) {
+                    console.log("[useProfile] Login disabled for external user (MDT/RQIA). Logging out...");
                     await supabase.auth.signOut();
                     if (typeof window !== "undefined") {
                         window.location.href = "/login";

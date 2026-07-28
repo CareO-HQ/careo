@@ -89,21 +89,24 @@ export function AppSidebar() {
 
   const pathname = usePathname();
 
-  // Helper to read cookie in client components
+  // Helper to read cookies in client components
   const [mdtSession, setMdtSession] = useState<any>(null);
+  const [rqiaSession, setRqiaSession] = useState<any>(null);
+
   useEffect(() => {
+    const getCookie = (name: string): string | null => {
+      if (typeof document === "undefined") return null;
+      const nameEQ = name + "=";
+      const ca = document.cookie.split(";");
+      for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) === " ") c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+      }
+      return null;
+    };
+
     if (userRole === "mdt") {
-      const getCookie = (name: string): string | null => {
-        if (typeof document === "undefined") return null;
-        const nameEQ = name + "=";
-        const ca = document.cookie.split(";");
-        for (let i = 0; i < ca.length; i++) {
-          let c = ca[i];
-          while (c.charAt(0) === " ") c = c.substring(1, c.length);
-          if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
-        }
-        return null;
-      };
       const sessionCookie = getCookie("mdt_session_data");
       if (sessionCookie) {
         try {
@@ -117,6 +120,22 @@ export function AppSidebar() {
       }
     } else {
       setMdtSession(null);
+    }
+
+    if (userRole === "rqia") {
+      const sessionCookie = getCookie("rqia_session_data");
+      if (sessionCookie) {
+        try {
+          setRqiaSession(JSON.parse(decodeURIComponent(sessionCookie)));
+        } catch (e) {
+          console.error("Error parsing RQIA session", e);
+          setRqiaSession(null);
+        }
+      } else {
+        setRqiaSession(null);
+      }
+    } else {
+      setRqiaSession(null);
     }
   }, [userRole, pathname]);
 
@@ -396,6 +415,61 @@ export function AppSidebar() {
 
   const displayName = profile?.care_home_name || profile?.organization_name || "";
   const isStillLoading = isProfileLoading;
+
+  if (userRole === "rqia") {
+    return (
+      <Sidebar collapsible="offcanvas" className="border-r border-gray-100">
+        <SidebarContent className="bg-white">
+          <TeamSwitcher
+            orgName={displayName}
+            isPending={isStillLoading}
+          />
+
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-gray-400 font-semibold uppercase tracking-wider text-[10px]">Active Inspector</SidebarGroupLabel>
+            <SidebarGroupContent className="px-4 py-2 space-y-2">
+              {rqiaSession ? (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Inspector Name</p>
+                  <p className="text-sm font-semibold text-blue-950">{rqiaSession.fullName}</p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">No session active</p>
+              )}
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-gray-400 font-semibold uppercase tracking-wider text-[10px]">Navigation</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild className="hover:bg-blue-50">
+                  <Link href={"/dashboard/rqia-portal" as any}>
+                    <UsersIcon className="text-blue-600 h-4 w-4" />
+                    <span className="font-semibold text-blue-950">Residents</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+
+        <SidebarFooter className="bg-white border-t border-gray-100 p-4 space-y-2">
+          <SidebarMenuItem className="list-none">
+            <SidebarMenuButton asChild className="hover:bg-gray-50">
+              <Link href={"/dashboard/rqia-session" as any}>
+                <SettingsIcon className="text-gray-500 h-4 w-4" />
+                <span className="text-gray-700 font-medium">Update Inspector Name</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem className="list-none">
+            <LogoutButton />
+          </SidebarMenuItem>
+        </SidebarFooter>
+      </Sidebar>
+    );
+  }
 
   if (userRole === "mdt") {
     return (

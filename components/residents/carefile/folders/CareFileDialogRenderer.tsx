@@ -464,6 +464,7 @@ export function CareFileDialogRenderer({
             residentId={residentId}
             residentName={`${resident?.first_name} ${resident?.last_name}`}
             hideHeader={true}
+            hideFrequencySelector={viewOnly || userRole === "rqia"}
             onSaveSuccess={onSaveSuccess}
           />
         );

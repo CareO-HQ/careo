@@ -266,6 +266,9 @@ export default function InviteForm() {
                               {allowedRoles.includes("mdt") && (
                                 <SelectItem value="mdt">MDT Professional</SelectItem>
                               )}
+                              {allowedRoles.includes("rqia") && (
+                                <SelectItem value="rqia">RQIA Inspector</SelectItem>
+                              )}
                             </SelectContent>
                           </Select>
                         </FormControl>

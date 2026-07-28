@@ -226,6 +226,7 @@ export default function ContinencePage({ params }: ContinencePageProps) {
           bowel_size: bowelSize,
           notes: notes || null,
           recorded_by: profile.id,
+          recorded_by_name: currentUserName,
         })
         .select();
 
@@ -318,6 +319,7 @@ export default function ContinencePage({ params }: ContinencePageProps) {
           continence_aid: continenceAid,
           notes: notes || null,
           recorded_by: profile.id,
+          recorded_by_name: currentUserName,
         })
         .select();
 

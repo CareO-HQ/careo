@@ -50,10 +50,21 @@ interface WeightChartProps {
   residentId: string;
   residentName?: string;
   hideHeader?: boolean;
+  hideFrequencySelector?: boolean;
+  hideRecordButton?: boolean;
+  readOnly?: boolean;
   onSaveSuccess?: (data?: any) => void;
 }
 
-export function WeightChart({ residentId, residentName, hideHeader = false, onSaveSuccess }: WeightChartProps) {
+export function WeightChart({
+  residentId,
+  residentName,
+  hideHeader = false,
+  hideFrequencySelector = false,
+  hideRecordButton = false,
+  readOnly = false,
+  onSaveSuccess,
+}: WeightChartProps) {
   const { profile } = useProfile();
   const [records, setRecords] = useState<WeightRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -233,9 +244,10 @@ export function WeightChart({ residentId, residentName, hideHeader = false, onSa
             <h3 className="text-sm font-medium text-gray-900">Weight Tracking</h3>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Record button */}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          {!hideRecordButton && !readOnly && (
+            <div className="flex items-center gap-2">
+              {/* Record button */}
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button
                   size="sm"
@@ -346,11 +358,12 @@ export function WeightChart({ residentId, residentName, hideHeader = false, onSa
               </DialogContent>
             </Dialog>
           </div>
+        )}
         </div>
       )}
 
       {/* Re-render the Record button separately if header is hidden */}
-      {hideHeader && (
+      {hideHeader && !hideRecordButton && !readOnly && (
         <div className="flex justify-end">
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -466,63 +479,65 @@ export function WeightChart({ residentId, residentName, hideHeader = false, onSa
       )}
 
       {/* Check Frequency Selector */}
-      <div className="bg-white border border-gray-200 rounded-lg p-3">
-        <label className="text-xs font-medium text-gray-700 mb-2 block">
-          Weight Check Frequency
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            onClick={() => updateCheckFrequency("weekly")}
-            disabled={isUpdatingFrequency}
-            className={`flex items-center justify-center gap-2 p-2 rounded-lg border transition-all ${
-              checkFrequency === "weekly"
-                ? "border-blue-500 bg-blue-50 text-blue-700"
-                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
-            }`}
-          >
-            {checkFrequency === "weekly" ? (
-              <CheckCircle2 className="w-4 h-4" />
-            ) : (
-              <Circle className="w-4 h-4 text-gray-300" />
-            )}
-            <span className="text-xs font-medium">Weekly</span>
-          </button>
+      {!hideFrequencySelector && (
+        <div className="bg-white border border-gray-200 rounded-lg p-3">
+          <label className="text-xs font-medium text-gray-700 mb-2 block">
+            Weight Check Frequency
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => updateCheckFrequency("weekly")}
+              disabled={isUpdatingFrequency}
+              className={`flex items-center justify-center gap-2 p-2 rounded-lg border transition-all ${
+                checkFrequency === "weekly"
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
+              }`}
+            >
+              {checkFrequency === "weekly" ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <Circle className="w-4 h-4 text-gray-300" />
+              )}
+              <span className="text-xs font-medium">Weekly</span>
+            </button>
 
-          <button
-            onClick={() => updateCheckFrequency("monthly")}
-            disabled={isUpdatingFrequency}
-            className={`flex items-center justify-center gap-2 p-2 rounded-lg border transition-all ${
-              checkFrequency === "monthly"
-                ? "border-blue-500 bg-blue-50 text-blue-700"
-                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
-            }`}
-          >
-            {checkFrequency === "monthly" ? (
-              <CheckCircle2 className="w-4 h-4" />
-            ) : (
-              <Circle className="w-4 h-4 text-gray-300" />
-            )}
-            <span className="text-xs font-medium">Monthly</span>
-          </button>
+            <button
+              onClick={() => updateCheckFrequency("monthly")}
+              disabled={isUpdatingFrequency}
+              className={`flex items-center justify-center gap-2 p-2 rounded-lg border transition-all ${
+                checkFrequency === "monthly"
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
+              }`}
+            >
+              {checkFrequency === "monthly" ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <Circle className="w-4 h-4 text-gray-300" />
+              )}
+              <span className="text-xs font-medium">Monthly</span>
+            </button>
 
-          <button
-            onClick={() => updateCheckFrequency("as-needed")}
-            disabled={isUpdatingFrequency}
-            className={`flex items-center justify-center gap-2 p-2 rounded-lg border transition-all ${
-              checkFrequency === "as-needed"
-                ? "border-blue-500 bg-blue-50 text-blue-700"
-                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
-            }`}
-          >
-            {checkFrequency === "as-needed" ? (
-              <CheckCircle2 className="w-4 h-4" />
-            ) : (
-              <Circle className="w-4 h-4 text-gray-300" />
-            )}
-            <span className="text-xs font-medium">As Needed</span>
-          </button>
+            <button
+              onClick={() => updateCheckFrequency("as-needed")}
+              disabled={isUpdatingFrequency}
+              className={`flex items-center justify-center gap-2 p-2 rounded-lg border transition-all ${
+                checkFrequency === "as-needed"
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
+              }`}
+            >
+              {checkFrequency === "as-needed" ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <Circle className="w-4 h-4 text-gray-300" />
+              )}
+              <span className="text-xs font-medium">As Needed</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Weight trend indicator */}
       {weightChange && (

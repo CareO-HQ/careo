@@ -126,7 +126,8 @@ function SectionHeader({ title, icon }: { title: string; icon?: React.ReactNode 
 
 // --- Props ---
 interface IncidentReportViewerProps {
-  folderId: string;
+  folderId?: string;
+  initialData?: any;
   orgLogoUrl?: string;
   canEdit?: boolean;
   onEdit?: () => void;
@@ -134,16 +135,26 @@ interface IncidentReportViewerProps {
 
 export function IncidentReportViewer({
   folderId,
+  initialData,
   orgLogoUrl,
   canEdit = false,
   onEdit,
 }: IncidentReportViewerProps) {
-  const [incident, setIncident] = React.useState<any>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [incident, setIncident] = React.useState<any>(initialData || null);
+  const [isLoading, setIsLoading] = React.useState(!initialData);
   const [isDownloading, setIsDownloading] = React.useState(false);
 
   React.useEffect(() => {
+    if (initialData) {
+      setIncident(initialData);
+      setIsLoading(false);
+      return;
+    }
     const fetchIncident = async () => {
+      if (!folderId) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       const { data, error } = await supabase
         .from("incidents")
@@ -157,7 +168,7 @@ export function IncidentReportViewer({
       setIsLoading(false);
     };
     fetchIncident();
-  }, [folderId]);
+  }, [folderId, initialData]);
 
   if (isLoading) {
     return (

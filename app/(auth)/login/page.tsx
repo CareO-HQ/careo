@@ -16,10 +16,11 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const { session, isLoading } = useSupabase();
 
-  // Clear MDT session cookie on login mount to ensure a fresh session setup
+  // Clear MDT and RQIA session cookies on login mount to ensure a fresh session setup
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.cookie = "mdt_session_data=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax";
+      document.cookie = "rqia_session_data=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax";
     }
   }, []);
 
