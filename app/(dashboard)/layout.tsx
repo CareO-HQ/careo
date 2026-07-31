@@ -112,6 +112,14 @@ export default function DashboardLayout({
         }
       }
     }
+
+    // Handle Kitchen Staff redirects and restriction
+    if (profile.role === "kitchen_staff") {
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+      if (currentPath !== "/dashboard/kitchen-portal") {
+        router.push("/dashboard/kitchen-portal" as any);
+      }
+    }
   }, [profile, isLoading, router]);
 
   if (isLoading) {

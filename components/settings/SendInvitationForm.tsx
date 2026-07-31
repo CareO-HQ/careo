@@ -248,6 +248,9 @@ export default function SendInvitationForm() {
                       {userRole && getAllowedRolesToInvite(userRole).includes("rqia") && (
                         <SelectItem value="rqia">RQIA Inspector</SelectItem>
                       )}
+                      {userRole && getAllowedRolesToInvite(userRole).includes("kitchen_staff") && (
+                        <SelectItem value="kitchen_staff">Kitchen Staff</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </FormControl>

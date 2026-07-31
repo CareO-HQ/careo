@@ -370,8 +370,15 @@ export default function OnboardingPage() {
     );
   }
 
-  // MDT or RQIA ONBOARDING
-  if (userRole === "mdt" || userRole === "rqia") {
+  // OTHER INVITED STAFF ONBOARDING (kitchen_staff, agency_nurse, agency_care_assistant, mdt, rqia)
+  if (
+    userRole === "kitchen_staff" ||
+    userRole === "agency_nurse" ||
+    userRole === "agency_care_assistant" ||
+    userRole === "mdt" ||
+    userRole === "rqia" ||
+    (userRole && userRole !== "owner")
+  ) {
     // Redirect if onboarding already complete
     if (isOnboardingComplete) {
       return (
@@ -417,9 +424,7 @@ export default function OnboardingPage() {
     );
   }
 
-  // Fallback: If no activeMember or role doesn't match, show new user onboarding
-  // This handles cases where the user is newly registered and doesn't have a role yet
-  // They need to create an organization to become an owner
+  // Fallback: Only for brand new unassigned users (without any role) creating a care home to become an owner
   const NEW_USER_TOTAL_STEPS = 3;
 
   return (

@@ -662,7 +662,7 @@ export const auditService = {
         const { userId, email, organizationId, careHomeId, role } = params;
         if (!userId && !email) return [];
 
-        if (role === "care_assistant") {
+        if (role === "care_assistant" || role === "kitchen_staff") {
             return fetchCareHomeCommonPlansForParticipant({
                 userId,
                 email,
@@ -733,7 +733,7 @@ export const auditService = {
         const { userId, email, organizationId, careHomeId, role } = params;
         if (!userId && !email) return [];
 
-        if (role === "care_assistant") {
+        if (role === "care_assistant" || role === "kitchen_staff") {
             return fetchCareHomeCommonPlansForAssignee({
                 userId,
                 email,
