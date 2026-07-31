@@ -585,11 +585,7 @@ export default function MyActionPlansPage() {
                   }`}
                 onClick={() => handleActionPlanClick(plan)}
               >
-                {isCommonActionPlan(plan) ? (
-                  <div className="rounded-md border border-primary/25 bg-primary/10 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-primary">
-                    Common action plan · shared with assignee only
-                  </div>
-                ) : null}
+
                 <div className="flex items-center justify-between gap-2">
                   <Badge className={getPriorityColor(String(plan.priority ?? "")) + " text-xs font-normal"}>
                     {String(plan.priority ?? "")}
@@ -657,11 +653,7 @@ export default function MyActionPlansPage() {
                 className="border border-border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-accent/40 hover:border-muted-foreground/25 transition-colors bg-card text-card-foreground shadow-sm"
                 onClick={() => handleActionPlanClick(plan)}
               >
-                {isCommonActionPlan(plan) ? (
-                  <div className="rounded-md border border-primary/25 bg-primary/10 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-primary">
-                    Common action plan · shared with assignee only
-                  </div>
-                ) : null}
+
                 <div className="flex items-center justify-between gap-2">
                   <Badge className={getPriorityColor(String(plan.priority ?? "")) + " text-xs font-normal"}>
                     {String(plan.priority ?? "")}
@@ -729,11 +721,7 @@ export default function MyActionPlansPage() {
                 className="border border-border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-accent/40 hover:border-muted-foreground/25 transition-colors bg-card text-card-foreground shadow-sm relative group"
                 onClick={() => handleActionPlanClick(plan)}
               >
-                {isCommonActionPlan(plan) ? (
-                  <div className="rounded-md border border-primary/25 bg-primary/10 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-primary">
-                    Common action plan · shared with assignee only
-                  </div>
-                ) : null}
+
                 <div className="flex items-center justify-between gap-2">
                   <Badge className={getPriorityColor(String(plan.priority ?? "")) + " text-xs font-normal"}>
                     {String(plan.priority ?? "")}
@@ -904,11 +892,7 @@ export default function MyActionPlansPage() {
               </DialogHeader>
 
               <div className="space-y-4 py-2">
-                {selectedActionPlan && isCommonActionPlan(selectedActionPlan) ? (
-                  <div className="rounded-md border border-primary/25 bg-primary/10 px-2 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-primary">
-                    Common action plan · care home · visible to you and the other party only
-                  </div>
-                ) : null}
+
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   {String(selectedActionPlan.description ?? "")}
                 </p>

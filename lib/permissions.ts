@@ -1,4 +1,4 @@
-export type UserRole = "saas_admin" | "owner" | "manager" | "nurse" | "care_assistant" | "agency_nurse" | "agency_care_assistant" | "mdt" | "rqia";
+export type UserRole = "saas_admin" | "owner" | "manager" | "nurse" | "care_assistant" | "agency_nurse" | "agency_care_assistant" | "mdt" | "rqia" | "kitchen_staff";
 
 // Simple role definitions for better-auth
 // The organization plugin expects minimal role configuration
@@ -71,7 +71,7 @@ export function canCreateResident(role?: string): boolean {
 }
 
 export function canViewSidebarStaff(role?: string): boolean {
-  return role === "owner" || role === "manager" || role === "saas_admin";
+  return role === "owner" || role === "manager" || role === "saas_admin" || role === "nurse";
 }
 
 export function canViewSidebarAgency(role?: string): boolean {
@@ -333,6 +333,18 @@ export function canViewStaffList(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "saas_admin";
 }
 
+export function canAccessStaffPage(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "saas_admin" || role === "nurse";
+}
+
+export function canViewFullStaffList(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "saas_admin";
+}
+
+export function canToggleExternalAccess(role?: string): boolean {
+  return role === "owner" || role === "manager" || role === "saas_admin" || role === "nurse";
+}
+
 export function canManageDiet(role?: string): boolean {
   if (!role) return false;
   return role === "owner" || role === "manager" || role === "nurse" || role === "agency_nurse";
@@ -396,9 +408,20 @@ export function getAllowedRolesToInvite(role: UserRole): UserRole[] {
     return ["manager"];
   }
   if (role === "manager") {
-    return ["nurse", "care_assistant", "mdt", "rqia"];
+    return ["nurse", "care_assistant", "mdt", "rqia", "kitchen_staff"];
   }
   return [];
+}
+
+export function canViewKitchenPortal(role?: string): boolean {
+  return (
+    role === "owner" ||
+    role === "manager" ||
+    role === "nurse" ||
+    role === "care_assistant" ||
+    role === "saas_admin" ||
+    role === "kitchen_staff"
+  );
 }
 
 export function canViewSidebarRota(role?: string): boolean {

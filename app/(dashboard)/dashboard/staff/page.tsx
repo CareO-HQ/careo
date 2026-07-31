@@ -16,10 +16,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Mail, Phone, Plus, X } from "lucide-react";
+import { Search, Mail, Phone, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatRoleName } from "@/lib/utils";
-import { canViewStaffList, UserRole, canToggleApprovedNurseRole, canManageContractedHours } from "@/lib/permissions";
+import { canAccessStaffPage, canViewFullStaffList, canToggleExternalAccess, UserRole, canToggleApprovedNurseRole, canManageContractedHours } from "@/lib/permissions";
 import { withRoleGuard } from "@/lib/route-guards";
 import { updateStaffWorkforceAction } from "@/app/actions/rota";
 import { Switch } from "@/components/ui/switch";
@@ -27,6 +27,7 @@ import { ExternalAccessReminderModal } from "@/components/staff/ExternalAccessRe
 import { RqiaLoginHistoryModal } from "@/components/staff/RqiaLoginHistoryModal";
 import { MdtLoginHistoryModal } from "@/components/staff/MdtLoginHistoryModal";
 import { insertExternalAccessReminderNotification } from "@/lib/notifications";
+import SendInvitationModal from "@/components/settings/SendInvitationModal";
 
 interface StaffMember {
   id: string;
@@ -194,8 +195,10 @@ function StaffPage() {
     );
   });
 
-  const permanentStaff = filteredStaff.filter(member => member.role !== 'mdt' && member.role !== 'rqia');
-  const externalStaff = filteredStaff.filter(member => member.role === 'mdt' || member.role === 'rqia');
+  const isExternalMember = (member: StaffMember) => member.role === 'mdt' || member.role === 'rqia';
+  const permanentStaff = filteredStaff.filter(member => !isExternalMember(member));
+  const externalStaff = filteredStaff.filter(isExternalMember);
+  const allExternalStaff = staffWithoutCurrentUser.filter(isExternalMember);
 
   // Determine display name for header
   const displayName = activeTeamId
@@ -213,9 +216,11 @@ function StaffPage() {
     );
   }
 
-  if (profile && !canViewStaffList(profile.role as UserRole)) {
+  if (profile && !canAccessStaffPage(profile.role as UserRole)) {
     return null;
   }
+
+  const showFullStaffList = canViewFullStaffList(profile.role as UserRole);
 
   return (
     <div className="container mx-auto space-y-4">
@@ -255,177 +260,184 @@ function StaffPage() {
           {/* Results count */}
           <div className="flex items-center gap-4">
             <div className="text-sm text-muted-foreground">
-              {filteredStaff.length} of {staffWithoutCurrentUser.length} staff member(s)
+              {showFullStaffList
+                ? `${filteredStaff.length} of ${staffWithoutCurrentUser.length} staff member(s)`
+                : `${externalStaff.length} of ${allExternalStaff.length} staff member(s)`}
             </div>
-            <Button variant="outline" disabled>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Staff Member
-            </Button>
+            {showFullStaffList && (
+              <SendInvitationModal
+                triggerVariant="outline"
+                triggerSize="default"
+                triggerLabel="Add Staff Member"
+              />
+            )}
           </div>
         </div>
 
         <div className="space-y-8">
           {/* Permanent Staff Section */}
-          <div className="space-y-2">
-            <h2 className="text-lg font-semibold text-zinc-900">Permanent Staff</h2>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Staff Member</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Team</TableHead>
-                    {canManageContractedHours(profile.role) && <TableHead>Contracted Hours</TableHead>}
-                    {canToggleApprovedNurseRole(profile.role) && <TableHead>Elevated Access</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {!staff ? (
+          {showFullStaffList && (
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold text-zinc-900">Permanent Staff</h2>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">
-                        <p className="text-muted-foreground">Loading staff members...</p>
-                      </TableCell>
+                      <TableHead>Staff Member</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Team</TableHead>
+                      {canManageContractedHours(profile.role) && <TableHead>Contracted Hours</TableHead>}
+                      {canToggleApprovedNurseRole(profile.role) && <TableHead>Elevated Access</TableHead>}
                     </TableRow>
-                  ) : permanentStaff.length ? (
-                    permanentStaff.map((member) => {
-                      const name = member.name;
-                      const email = member.email;
-                      const phone = member.phone;
-                      const imageUrl = member.image_url;
-                      const role = member.role;
-                      const memberId = member.id;
-                      const teamName = member.team_name;
+                  </TableHeader>
+                  <TableBody>
+                    {!staff ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-24 text-center">
+                          <p className="text-muted-foreground">Loading staff members...</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : permanentStaff.length ? (
+                      permanentStaff.map((member) => {
+                        const name = member.name;
+                        const email = member.email;
+                        const phone = member.phone;
+                        const imageUrl = member.image_url;
+                        const role = member.role;
+                        const memberId = member.id;
+                        const teamName = member.team_name;
 
-                      // Get initials from name or email
-                      const nameParts = name?.split(' ') || [];
-                      const initials = nameParts.length >= 2
-                        ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
-                        : name?.[0]?.toUpperCase() || email[0].toUpperCase();
+                        // Get initials from name or email
+                        const nameParts = name?.split(' ') || [];
+                        const initials = nameParts.length >= 2
+                          ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
+                          : name?.[0]?.toUpperCase() || email[0].toUpperCase();
 
-                      return (
-                        <TableRow
-                          key={memberId}
-                          className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => router.push(`/dashboard/staff/${memberId}`)}
-                        >
-                          <TableCell>
-                            <div className="flex items-center space-x-3">
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={imageUrl || ""} alt={name || email} />
-                                <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                                  {initials}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="font-medium text-sm">{name || 'No name set'}</p>
+                        return (
+                          <TableRow
+                            key={memberId}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => router.push(`/dashboard/staff/${memberId}`)}
+                          >
+                            <TableCell>
+                              <div className="flex items-center space-x-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={imageUrl || ""} alt={name || email} />
+                                  <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                                    {initials}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium text-sm">{name || 'No name set'}</p>
+                                </div>
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-1 text-sm">
-                              <Mail className="h-3 w-3 text-muted-foreground" />
-                              <span>{email}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {phone ? (
+                            </TableCell>
+                            <TableCell>
                               <div className="flex items-center space-x-1 text-sm">
-                                <Phone className="h-3 w-3 text-muted-foreground" />
-                                <span>{phone}</span>
+                                <Mail className="h-3 w-3 text-muted-foreground" />
+                                <span>{email}</span>
                               </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">No phone</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {role ? (
-                              <Badge variant="secondary">
-                                {formatRoleName(role)}
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">No role</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {teamName ? (
-                              <Badge variant="outline" className="text-xs">
-                                {teamName}
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">
-                                {activeTeamId ? 'N/A' : 'All teams'}
-                              </span>
-                            )}
-                          </TableCell>
-                          {canManageContractedHours(profile.role) && (
-                            <TableCell onClick={(e) => e.stopPropagation()}>
-                              {role === "nurse" || role === "care_assistant" ? (
-                                <div className="flex items-center space-x-1 max-w-[100px]">
-                                  <Input
-                                    type="number"
-                                    defaultValue={(member as any).contracted_weekly_hours || 0}
-                                    className="h-8 text-center"
-                                    onBlur={async (e) => {
-                                      const hours = Number(e.target.value);
-                                      if (hours === (member as any).contracted_weekly_hours) return;
-                                      try {
-                                        await updateStaffWorkforceAction(profile.id, memberId, { contracted_weekly_hours: hours });
-                                        toast.success(`Updated contracted hours to ${hours}`);
-                                        fetchStaff();
-                                      } catch (err: any) {
-                                        toast.error(err?.message || "Failed to update hours");
-                                      }
-                                    }}
-                                  />
-                                  <span className="text-xs text-muted-foreground">hrs</span>
+                            </TableCell>
+                            <TableCell>
+                              {phone ? (
+                                <div className="flex items-center space-x-1 text-sm">
+                                  <Phone className="h-3 w-3 text-muted-foreground" />
+                                  <span>{phone}</span>
                                 </div>
                               ) : (
-                                <span className="text-xs text-muted-foreground">-</span>
+                                <span className="text-xs text-muted-foreground">No phone</span>
                               )}
                             </TableCell>
-                          )}
-                          {canToggleApprovedNurseRole(profile.role) && (
-                            <TableCell onClick={(e) => e.stopPropagation()}>
-                              {role === "nurse" ? (
-                                <div className="flex items-center space-x-2 justify-center">
-                                  <Switch
-                                    checked={(member as any).is_manager_approved_nurse || false}
-                                    onCheckedChange={async (checked) => {
-                                      try {
-                                        await updateStaffWorkforceAction(profile.id, memberId, { is_manager_approved_nurse: checked });
-                                        toast.success(checked ? "Approved Nurse" : "Revoked approval");
-                                        fetchStaff();
-                                      } catch (err: any) {
-                                        toast.error(err?.message || "Failed to toggle status");
-                                      }
-                                    }}
-                                  />
-                                </div>
+                            <TableCell>
+                              {role ? (
+                                <Badge variant="secondary">
+                                  {formatRoleName(role)}
+                                </Badge>
                               ) : (
-                                <span className="text-xs text-muted-foreground">-</span>
+                                <span className="text-xs text-muted-foreground">No role</span>
                               )}
                             </TableCell>
-                          )}
-                        </TableRow>
-                      );
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">
-                        <p className="text-muted-foreground">
-                          {staffWithoutCurrentUser.length === 0
-                            ? 'No staff members found in this organization/team.'
-                            : 'No staff members found matching your search.'}
-                        </p>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                            <TableCell>
+                              {teamName ? (
+                                <Badge variant="outline" className="text-xs">
+                                  {teamName}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">
+                                  {activeTeamId ? 'N/A' : 'All teams'}
+                                </span>
+                              )}
+                            </TableCell>
+                            {canManageContractedHours(profile.role) && (
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                {role === "nurse" || role === "care_assistant" ? (
+                                  <div className="flex items-center space-x-1 max-w-[100px]">
+                                    <Input
+                                      type="number"
+                                      defaultValue={(member as any).contracted_weekly_hours || 0}
+                                      className="h-8 text-center"
+                                      onBlur={async (e) => {
+                                        const hours = Number(e.target.value);
+                                        if (hours === (member as any).contracted_weekly_hours) return;
+                                        try {
+                                          await updateStaffWorkforceAction(profile.id, memberId, { contracted_weekly_hours: hours });
+                                          toast.success(`Updated contracted hours to ${hours}`);
+                                          fetchStaff();
+                                        } catch (err: any) {
+                                          toast.error(err?.message || "Failed to update hours");
+                                        }
+                                      }}
+                                    />
+                                    <span className="text-xs text-muted-foreground">hrs</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            )}
+                            {canToggleApprovedNurseRole(profile.role) && (
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                {role === "nurse" ? (
+                                  <div className="flex items-center space-x-2 justify-center">
+                                    <Switch
+                                      checked={(member as any).is_manager_approved_nurse || false}
+                                      onCheckedChange={async (checked) => {
+                                        try {
+                                          await updateStaffWorkforceAction(profile.id, memberId, { is_manager_approved_nurse: checked });
+                                          toast.success(checked ? "Approved Nurse" : "Revoked approval");
+                                          fetchStaff();
+                                        } catch (err: any) {
+                                          toast.error(err?.message || "Failed to toggle status");
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-24 text-center">
+                          <p className="text-muted-foreground">
+                            {staffWithoutCurrentUser.length === 0
+                              ? 'No staff members found in this organization/team.'
+                              : 'No staff members found matching your search.'}
+                          </p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* External Staff Section */}
           <div className="space-y-2">
@@ -515,22 +527,30 @@ function StaffPage() {
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center">
-                              <Switch
-                                checked={(member as any).is_login_allowed !== false}
-                                onCheckedChange={async (checked) => {
-                                  try {
-                                    await updateStaffWorkforceAction(profile.id, memberId, { is_login_allowed: checked });
-                                    toast.success(checked ? "Login allowed for staff" : "Login blocked for staff");
-                                    fetchStaff();
-                                    if (checked) {
-                                      setSelectedStaffForReminder(member);
-                                      setIsReminderModalOpen(true);
+                              {canToggleExternalAccess(profile.role) ? (
+                                <Switch
+                                  checked={(member as any).is_login_allowed !== false}
+                                  onCheckedChange={async (checked) => {
+                                    try {
+                                      const res = await updateStaffWorkforceAction(profile.id, memberId, { is_login_allowed: checked });
+                                      if (!res?.success) {
+                                        toast.error(res?.error || "Failed to update login permission");
+                                        return;
+                                      }
+                                      toast.success(checked ? "Login allowed for staff" : "Login blocked for staff");
+                                      fetchStaff();
+                                      if (checked) {
+                                        setSelectedStaffForReminder(member);
+                                        setIsReminderModalOpen(true);
+                                      }
+                                    } catch (err: any) {
+                                      toast.error(err?.message || "Failed to update login permission");
                                     }
-                                  } catch (err: any) {
-                                    toast.error(err?.message || "Failed to update login permission");
-                                  }
-                                }}
-                              />
+                                  }}
+                                />
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -577,5 +597,5 @@ function StaffPage() {
   );
 }
 
-// Protect route - only Owners, Managers, and SaaS Admins can access
-export default withRoleGuard(StaffPage, ["owner", "manager", "saas_admin"]);
+// Protect route - Owners, Managers, and SaaS Admins see everything; Nurses see External Access only
+export default withRoleGuard(StaffPage, ["owner", "manager", "saas_admin", "nurse"]);

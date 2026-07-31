@@ -69,17 +69,33 @@ export async function updateStaffWorkforceAction(
       .eq("id", actorId)
       .single();
 
-    const isPowerUser = actor?.role === "saas_admin" || 
-                        actor?.role === "owner" || 
-                        actor?.role === "manager" || 
-                        (actor?.role === "nurse" && actor?.is_manager_approved_nurse);
+    const isManagerLevel = actor?.role === "saas_admin" ||
+                           actor?.role === "owner" ||
+                           actor?.role === "manager";
 
-    if (!isPowerUser) {
+    // Nurses may only flip external (MDT/RQIA) login access, and never alongside other fields
+    const updateKeys = Object.keys(updates);
+    const isExternalAccessOnlyUpdate = updateKeys.length > 0 && updateKeys.every(key => key === "is_login_allowed");
+    const isNurseExternalAccessUpdate = actor?.role === "nurse" && isExternalAccessOnlyUpdate;
+
+    const isPowerUser = isManagerLevel || (actor?.role === "nurse" && actor?.is_manager_approved_nurse);
+
+    if (!isPowerUser && !isNurseExternalAccessUpdate) {
       throw new Error("Unauthorized to edit staff preferences.");
     }
 
-    if ((updates.is_manager_approved_nurse !== undefined || updates.contracted_weekly_hours !== undefined || updates.is_login_allowed !== undefined) && 
-        actor?.role !== "manager" && actor?.role !== "owner" && actor?.role !== "saas_admin") {
+    if (isNurseExternalAccessUpdate) {
+      const { data: target } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", staffId)
+        .single();
+
+      if (target?.role !== "mdt" && target?.role !== "rqia") {
+        throw new Error("Nurses can only manage external (MDT/RQIA) access.");
+      }
+    } else if (!isManagerLevel &&
+               (updates.is_manager_approved_nurse !== undefined || updates.contracted_weekly_hours !== undefined || updates.is_login_allowed !== undefined)) {
       throw new Error("Only Managers can edit staff authorization, contracted hours, and login permissions.");
     }
 

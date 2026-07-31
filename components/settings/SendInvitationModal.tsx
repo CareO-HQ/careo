@@ -14,7 +14,22 @@ import SendInvitationForm from "./SendInvitationForm";
 import { useProfile } from "@/hooks/use-profile";
 import { canInviteMembers, type UserRole } from "@/lib/permissions";
 
-export default function SendInvitationModal() {
+type TriggerVariant = "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+type TriggerSize = "default" | "sm" | "lg" | "icon";
+
+interface SendInvitationModalProps {
+  triggerVariant?: TriggerVariant;
+  triggerSize?: TriggerSize;
+  triggerLabel?: string;
+  triggerClassName?: string;
+}
+
+export default function SendInvitationModal({
+  triggerVariant = "ghost",
+  triggerSize = "sm",
+  triggerLabel = "Send invitation",
+  triggerClassName
+}: SendInvitationModalProps = {}) {
   const { profile } = useProfile();
 
   const userRole = profile?.role as UserRole | undefined;
@@ -27,9 +42,9 @@ export default function SendInvitationModal() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
+        <Button variant={triggerVariant} size={triggerSize} className={triggerClassName}>
           <PlusIcon className="w-4 h-4" />
-          Send invitation
+          {triggerLabel}
         </Button>
       </DialogTrigger>
       <DialogContent>

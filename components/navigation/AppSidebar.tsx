@@ -33,7 +33,8 @@ import {
   Scale,
   Droplet,
   Droplets,
-  Briefcase
+  Briefcase,
+  Utensils
 } from "lucide-react";
 import {
   Collapsible,
@@ -415,6 +416,49 @@ export function AppSidebar() {
 
   const displayName = profile?.care_home_name || profile?.organization_name || "";
   const isStillLoading = isProfileLoading;
+
+  if (userRole === "kitchen_staff") {
+    return (
+      <Sidebar collapsible="offcanvas" className="border-r border-gray-100">
+        <SidebarContent className="bg-white">
+          <TeamSwitcher
+            orgName={displayName}
+            isPending={isStillLoading}
+          />
+
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-gray-400 font-semibold uppercase tracking-wider text-[10px]">Kitchen Staff Portal</SidebarGroupLabel>
+            <SidebarGroupContent className="px-4 py-2 space-y-2">
+              <div className="space-y-1">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Active Unit</p>
+                <p className="text-sm font-semibold text-amber-950">{profile?.active_team_name || "All Units"}</p>
+              </div>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-gray-400 font-semibold uppercase tracking-wider text-[10px]">Navigation</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenuItem className="list-none">
+                <SidebarMenuButton asChild className="hover:bg-amber-50">
+                  <Link href={"/dashboard/kitchen-portal" as any}>
+                    <Utensils className="text-amber-600 h-4 w-4" />
+                    <span className="font-semibold text-amber-950">Diet Information</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+
+        <SidebarFooter className="bg-white border-t border-gray-100 p-4 space-y-2">
+          <SidebarMenuItem className="list-none">
+            <LogoutButton />
+          </SidebarMenuItem>
+        </SidebarFooter>
+      </Sidebar>
+    );
+  }
 
   if (userRole === "rqia") {
     return (

@@ -147,6 +147,47 @@ export async function insertExternalAccessReminderNotification(
     if (error) throw error;
 }
 
+export interface InsertDietChangeNotificationParams {
+    organizationId: string;
+    careHomeId: string | null;
+    teamId: string | null;
+    residentId: string;
+    residentName: string;
+    roomNumber?: string | null;
+    senderId?: string;
+    senderName?: string;
+}
+
+/** Inserts a broadcast notification for resident diet info changes. */
+export async function insertDietChangeNotification(
+    client: SupabaseClient,
+    params: InsertDietChangeNotificationParams
+): Promise<void> {
+    const title = "Diet Information Updated";
+    const roomText = params.roomNumber ? ` (Rm ${params.roomNumber})` : "";
+    const message = `Diet info for ${params.residentName}${roomText} has been changed.`;
+
+    const { error } = await client.from("notifications").insert({
+        organization_id: params.organizationId,
+        care_home_id: params.careHomeId,
+        team_id: params.teamId,
+        user_id: null,
+        type: "diet_change",
+        title,
+        message,
+        link: `/dashboard/kitchen-portal?residentId=${params.residentId}`,
+        sender_id: params.senderId ?? null,
+        sender_name: params.senderName ?? "Staff",
+        metadata: {
+            residentId: params.residentId,
+            residentName: params.residentName,
+            roomNumber: params.roomNumber ?? null,
+        },
+    });
+
+    if (error) throw error;
+}
+
 export interface Notification {
     id: string;
     organization_id: string;
@@ -452,6 +493,31 @@ export const deleteAllNotifications = async (userId: string, careHomeId?: string
     // We already achieved "clearing the inbox".
 
     return { deleted: notificationIds.length };
+};
+
+/** Dismisses a specific set of notifications for one user (per-user, idempotent). */
+export const dismissNotificationsForUser = async (userId: string, notificationIds: string[]) => {
+    if (!userId || notificationIds.length === 0) return { dismissed: 0 };
+
+    const uniqueIds = Array.from(new Set(notificationIds));
+    const dismissedAt = new Date().toISOString();
+
+    const dismissalRecords = uniqueIds.map(id => ({
+        notification_id: id,
+        user_id: userId,
+        dismissed_at: dismissedAt,
+    }));
+
+    const { error } = await supabase
+        .from("notification_dismissals")
+        .upsert(dismissalRecords, { onConflict: 'notification_id,user_id' });
+
+    if (error) {
+        console.error("Error dismissing notifications:", error);
+        throw error;
+    }
+
+    return { dismissed: uniqueIds.length };
 };
 
 export const getActionPlanById = async (actionPlanId: string, auditCategoryHint?: string) => {
