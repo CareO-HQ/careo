@@ -29,7 +29,7 @@ export function incidentTimePartsFrom24h(
   fallback: Date = new Date()
 ): IncidentTimeParts {
   const trimmed = value?.trim() ?? "";
-  const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  const match = trimmed.match(/^(\d{1,2}):([0-5]\d)$/);
   if (!match) {
     return incidentTimePartsFrom24h(getDefaultIncidentTimeValue(fallback), fallback);
   }

@@ -212,15 +212,16 @@ export default function HandoverPage() {
     try {
       const dateString = format(selectedDate, "yyyy-MM-dd");
 
-      const { data: existingHandover } = await supabase
+      // Older saves could leave several reports for one shift, so replace all of them.
+      const { data: existingHandovers, error: existingError } = await supabase
         .from("handover_reports")
-        .select("*")
+        .select("id")
         .eq("team_id", activeTeamId)
         .eq("date", dateString)
-        .eq("shift", selectedShift)
-        .maybeSingle();
+        .eq("shift", selectedShift);
+      if (existingError) throw existingError;
 
-      if (existingHandover) {
+      if (existingHandovers && existingHandovers.length > 0) {
         const confirmed = confirm(
           `A handover report already exists for ${format(selectedDate, "PPP")} - ${selectedShift} shift.\n\nDo you want to overwrite it?`
         );
@@ -228,7 +229,11 @@ export default function HandoverPage() {
           setIsSaving(false);
           return;
         }
-        await supabase.from("handover_reports").delete().eq("id", existingHandover.id);
+        const { error: deleteError } = await supabase
+          .from("handover_reports")
+          .delete()
+          .in("id", existingHandovers.map((h) => h.id));
+        if (deleteError) throw deleteError;
       }
 
       toast.info("Finalizing comments…");

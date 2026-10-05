@@ -3268,4 +3268,4 @@ function ResidentCareFileAuditPage({ params }: ResidentCareFileAuditPageProps) {
   );
 }
 
-export default withRoleGuard(ResidentCareFileAuditPage, ["manager", "admin", "owner"]);
+export default withRoleGuard(ResidentCareFileAuditPage, ["owner", "manager", "saas_admin"]);

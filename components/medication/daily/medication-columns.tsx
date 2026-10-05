@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { isEligibleWitness } from "@/lib/medication/witness";
 import { ControlledDrugBadge } from "@/components/medication/ControlledDrugBadge";
 import {
   Dialog,
@@ -64,7 +65,7 @@ interface Medication {
 export const createMedicationColumns = (
   createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string, witnessId?: string, status?: string, prnReason?: string, prnOutcome?: string) => Promise<any>,
   showAdministerButton: boolean = false,
-  teamMembers?: Array<{ userId: string; name: string }>,
+  teamMembers?: Array<{ userId: string; name: string; role?: string | null }>,
   currentUser?: { name: string; userId: string },
   useSimplifiedTopicalDialog: boolean = true,
   administeredTimesToday: Record<string, Array<{ time: string, by: string }>> = {},
@@ -551,7 +552,7 @@ export const createMedicationColumns = (
                                 <SelectValue placeholder="Select witness" />
                               </SelectTrigger>
                               <SelectContent>
-                                {teamMembers?.map((member) => (
+                                {teamMembers?.filter((member) => isEligibleWitness(member, currentUser?.userId)).map((member) => (
                                   <SelectItem
                                     key={member.userId}
                                     value={member.userId}
@@ -731,7 +732,7 @@ export const createMedicationColumns = (
                                   <SelectValue placeholder="Select witness" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {teamMembers?.map((member) => (
+                                  {teamMembers?.filter((member) => isEligibleWitness(member, currentUser?.userId)).map((member) => (
                                     <SelectItem
                                       key={member.userId}
                                       value={member.userId}
@@ -809,7 +810,7 @@ export const createMedicationColumns = (
                                   <SelectValue placeholder="Select witness" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {teamMembers?.map((member) => (
+                                  {teamMembers?.filter((member) => isEligibleWitness(member, currentUser?.userId)).map((member) => (
                                     <SelectItem
                                       key={member.userId}
                                       value={member.userId}
@@ -906,7 +907,7 @@ export const createMedicationColumns = (
 export const createTopicalMedicationColumns = (
   createAndAdministerMedicationIntake?: (medicationId: string, residentId: string, time: string, quantity: number, notes?: string, witnessId?: string, status?: string) => Promise<any>,
   showAdministerButton: boolean = false,
-  teamMembers?: Array<{ userId: string; name: string }>,
+  teamMembers?: Array<{ userId: string; name: string; role?: string | null }>,
   currentUser?: { name: string; userId: string },
   administeredTimesToday: Record<string, Array<{ time: string, by: string }>> = {},
   preSelectedTime?: string | null

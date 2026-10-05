@@ -4,7 +4,7 @@ import { AppSidebar } from "@/components/navigation/AppSidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { useProfile } from "@/hooks/use-profile";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 function getCookie(name: string): string | null {
@@ -26,6 +26,8 @@ export default function DashboardLayout({
 }>) {
   const { profile, isLoading } = useProfile();
   const router = useRouter();
+  // Role redirects must re-run on client-side navigation (links, back/forward), not only on profile load.
+  const pathname = usePathname();
 
   // Redirect SaaS Admin to admin dashboard
   useEffect(() => {
@@ -120,9 +122,13 @@ export default function DashboardLayout({
         router.push("/dashboard/kitchen-portal" as any);
       }
     }
-  }, [profile, isLoading, router]);
+  }, [profile, isLoading, router, pathname]);
 
-  if (isLoading) {
+  // Don't render (and fetch data for) a blocked page while the kitchen redirect is pending.
+  const kitchenRedirectPending =
+    profile?.role === "kitchen_staff" && pathname !== "/dashboard/kitchen-portal";
+
+  if (isLoading || kitchenRedirectPending) {
     return (
       <div className="flex items-center justify-center h-screen w-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>

@@ -1,0 +1,38 @@
+{
+  "date": "5 October 2026",
+  "e2eSummary": "all 239 tests in about 16 minutes",
+  "suites": [
+    {
+      "name": "Unit (Vitest)",
+      "command": "npm run test:unit",
+      "passed": 302,
+      "failed": 0,
+      "note": "Includes every tests/unit BUG regression."
+    },
+    {
+      "name": "Database security (Vitest)",
+      "command": "npm run test:db",
+      "passed": 109,
+      "failed": 0,
+      "note": "Against local Supabase with all four new migrations applied. Includes 2 expected failures (it.fails) for open item D13 and the staff_trainings access tests."
+    },
+    {
+      "name": "End-to-end (Playwright)",
+      "command": "npx playwright test",
+      "passed": 239,
+      "failed": 0,
+      "note": "One clean full run on the final code (16.2 min), including the staff training records, owner-free witness lists and the dashboard incidents card."
+    }
+  ],
+  "followUps": [
+    "Decide on the open item D13: which care-home fields managers may change (the agency link code needs manager access). D12 is now fixed; confirm the access rule chosen for training records (owners/managers of the care home edit, staff read their own) and whether RQIA inspectors should see them.",
+    "Apply all four new migrations when deploying: `20261005120000_security_hardening.sql`, `20261005150000_resident_record_integrity.sql`, `20261005170000_handover_delete_policies.sql` and `20261005180000_staff_trainings.sql`.",
+    "Dates saved with `toISOString().split(\"T\")[0]` remain in about 50 other places. The 47 that compute 'today' are only wrong between midnight and 1 AM UK time in summer; the rest convert a date (care-file assessment dialogs, rota and document date ranges) and should be checked one by one the way D3/D4 were fixed.",
+    "Handover reports saved before D7 may include duplicates for the same shift; the next save of that shift replaces them all. A one-off clean-up query is optional.",
+    "Dead code worth deleting: `.bak`/backup copies of the hospital passport form, the unused `comprehensive-incident-form.tsx` and `report-incident-form.tsx`, and `components/medication/daily/history-columns.tsx` (unused, with the same UTC-time display as D2).",
+    "Manual testing still matters for what the automated suites cannot judge: layout on tablets/phones, wording and usability, PDF/print output, real email delivery, and production data. See the 'Manual vs automated testing' section.",
+    "NHS number validation (B16): editing an existing resident whose stored NHS number fails the Modulus 11 check now requires correcting it. Consider a one-off report of residents with invalid numbers.",
+    "The `resident-files` storage bucket still accepts any MIME type; only the browser restricts uploads to PDF/images. `components/files/UploadFileButton.tsx` accepts any file, so restricting the bucket needs checking against that feature first.",
+    "Pages the page sweep only opens (no deeper flow yet): manager audit (CSV import), appointments and notifications read state, quick-info checks, wounds and medications overviews, agency, MDT summary, settings teams/labels/security."
+  ]
+}

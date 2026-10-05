@@ -156,7 +156,7 @@ export default function TopicalMedicationPage({ params }: TopicalMedicationPageP
 
       const { data: users, error: usersError } = await supabase
         .from("users")
-        .select("id, name, email")
+        .select("id, name, email, role")
         .eq("active_organization_id", profile.active_organization_id);
 
       if (usersError) throw usersError;
@@ -353,6 +353,7 @@ export default function TopicalMedicationPage({ params }: TopicalMedicationPageP
       allUsers.map((u) => ({
         userId: u.id,
         name: u.name || u.email || "Unknown",
+        role: u.role,
       })),
     [allUsers]
   );

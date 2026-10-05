@@ -1,8 +1,9 @@
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from "next/server";
+import { getRouteAccessRedirect } from "./lib/route-access";
 
 const isProduction = process.env.NODE_ENV === "production";
-const protectedPathPrefixes = ["/dashboard", "/onboarding", "/admin"] as const;
+const protectedPathPrefixes = ["/dashboard", "/onboarding", "/admin", "/settings"] as const;
 // Paths under protected prefixes that should remain publicly accessible
 const publicExceptions = ["/onboarding/agency"] as const;
 
@@ -148,6 +149,18 @@ export async function middleware(req: NextRequest) {
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("redirectedFrom", req.nextUrl.pathname);
 
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    applyCspHeaders(redirectResponse, requestHeaders, contentSecurityPolicy, nonce);
+    return redirectResponse;
+  }
+
+  // Per-role page access (lib/route-access.ts): pages a role may not open redirect to its home,
+  // so hidden pages cannot be reached by typing the URL or via browser Back.
+  const accessRedirect = getRouteAccessRedirect(req.nextUrl.pathname, user?.app_metadata?.role);
+  if (user && accessRedirect) {
+    const redirectUrl = req.nextUrl.clone();
+    redirectUrl.pathname = accessRedirect;
+    redirectUrl.search = "";
     const redirectResponse = NextResponse.redirect(redirectUrl);
     applyCspHeaders(redirectResponse, requestHeaders, contentSecurityPolicy, nonce);
     return redirectResponse;

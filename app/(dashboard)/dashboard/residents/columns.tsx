@@ -930,7 +930,7 @@ export function getResidentsColumns({
               {resident.first_name} {resident.last_name}
             </p>
             <span className="text-muted-foreground text-sm">
-              Room {resident.room_number || "—"} · {age} years old
+              Room {resident.room_number || "—"} · {age === null ? "Age unknown" : `${age} years old`}
             </span>
           </div>
         </div>

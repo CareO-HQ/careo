@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { HospitalPassportFormData, HospitalPassportSchema } from "./types";
@@ -136,7 +137,8 @@ export function HospitalPassportInlineForm({
 
   return (
     <Form {...(form as any)}>
-      <form onSubmit={form.handleSubmit(onSubmit) as any} className="space-y-8">
+      <form
+        onSubmit={form.handleSubmit(onSubmit, () => toast.error("Please complete the required fields marked *")) as any} className="space-y-8">
         <div className="space-y-8">
           {/* Section 1: Person in Care Information */}
           <div className="space-y-6">

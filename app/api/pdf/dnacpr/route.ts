@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRequestUserId } from "@/lib/api-auth";
 import { chromium } from "playwright";
 
 export const runtime = "nodejs";
@@ -379,6 +380,10 @@ function generateDnacprHTML(data: any): string {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await getRequestUserId(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     // Check for API token authentication (server-to-server)
     const authHeader = request.headers.get("authorization");

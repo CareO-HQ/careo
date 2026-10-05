@@ -13,6 +13,11 @@ import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
  */
 export const UK_TIMEZONE = 'Europe/London';
 
+/** Current UK wall-clock time as "HH:mm", independent of the device timezone. */
+export function getCurrentUKTime(): string {
+  return formatInTimeZone(new Date(), UK_TIMEZONE, 'HH:mm');
+}
+
 /**
  * Get current date in UK timezone as YYYY-MM-DD string
  * Use this for all date-based queries and new record creation
@@ -201,7 +206,9 @@ export function getNearestMedicationTime(allTimes: string[]): string | null {
   allTimes.forEach(time => {
     const [hours, minutes] = time.split(':').map(Number);
     const timeInMinutes = hours * 60 + minutes;
-    const diff = Math.abs(timeInMinutes - currentTimeInMinutes);
+    // Distance on a 24h clock, so 23:50 is 10 minutes from 00:00.
+    const rawDiff = Math.abs(timeInMinutes - currentTimeInMinutes);
+    const diff = Math.min(rawDiff, 24 * 60 - rawDiff);
 
     if (diff < smallestDiff) {
       smallestDiff = diff;
@@ -210,4 +217,4 @@ export function getNearestMedicationTime(allTimes: string[]): string | null {
   });
 
   return nearestTime;
-}
+}

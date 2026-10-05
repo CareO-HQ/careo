@@ -192,10 +192,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { residentId, type, date, time, note, authorId, authorName } = body;
+    const { residentId, type, date, time, note } = body;
 
-    // Validate required fields
-    if (!residentId || !type || !date || !time || !note || !authorId || !authorName) {
+    // Validate required fields. The author is always the signed-in user; any
+    // authorId/authorName in the body is ignored so notes cannot be misattributed.
+    if (!residentId || !type || !date || !time || !note) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -215,6 +216,14 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    const { data: author } = await supabase
+      .from("users")
+      .select("name, email")
+      .eq("id", user.id)
+      .single();
+    const authorId = user.id;
+    const authorName = author?.name || author?.email || user.email || "Unknown";
 
     // Insert progress note
     const { data: newNote, error: insertError } = await supabase

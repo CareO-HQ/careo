@@ -1,0 +1,731 @@
+<!doctype html><html><head><meta charset="utf-8"><title>CareO tests branch – bug report</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm; }
+  :root { --ink:#1b2430; --muted:#5d6b7a; --line:#dfe4ea; --accent:#0f6e6e; --bg:#f6f8fa; }
+  * { box-sizing: border-box; }
+  body { font: 10pt/1.45 "Segoe UI", Arial, sans-serif; color: var(--ink); margin: 0; }
+  h1 { font-size: 22pt; margin: 0 0 4px; color: var(--accent); }
+  h2 { font-size: 14pt; margin: 22px 0 6px; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 3px; }
+  h3 { font-size: 10.5pt; margin: 4px 0 6px; }
+  p { margin: 4px 0 8px; }
+  code { font-family: Consolas, monospace; font-size: 8.6pt; background: var(--bg); padding: 0 3px; border-radius: 3px; }
+  .cover { border-left: 6px solid var(--accent); padding: 4px 0 4px 14px; margin-bottom: 14px; }
+  .meta { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 9pt; }
+  th, td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: var(--bg); font-weight: 600; }
+  td.num, th.num { text-align: center; width: 52px; }
+  td.id { font-weight: 700; width: 34px; }
+  tr.group td { background: #e9f3f3; font-weight: 600; color: var(--accent); }
+  tr { page-break-inside: avoid; }
+  .sev { display: inline-block; font-size: 7.6pt; font-weight: 700; padding: 1px 6px; border-radius: 9px; color: #fff; white-space: nowrap; }
+  .sev-critical { background: #a4262c; } .sev-high { background: #d9601a; } .sev-medium { background: #b58a00; } .sev-low { background: #607080; }
+  .bug { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 8px 0; page-break-inside: avoid; }
+  .bug header { display: flex; gap: 8px; align-items: center; font-size: 8.6pt; }
+  .bug header .id { font-weight: 800; font-size: 10pt; }
+  .bug header .area { color: var(--muted); }
+  .bug header .status { margin-left: auto; color: #1f7a3a; font-weight: 700; }
+  .bug header .status.nofix { color: var(--muted); }
+  .bug header .status.open { color: #b4540a; }
+  dl { display: grid; grid-template-columns: 112px 1fr; gap: 3px 10px; margin: 0; }
+  dt { color: var(--muted); font-weight: 600; }
+  dd { margin: 0; }
+  ol { margin: 0; padding-left: 16px; }
+  ul.steps { list-style: none; padding: 0; margin: 0; }
+  ul.steps li { padding-left: 18px; position: relative; }
+  ul.steps li.do::before { content: "▸"; position: absolute; left: 2px; color: var(--muted); }
+  ul.steps li.exp { color: #1f6a35; }
+  ul.steps li.exp::before { content: "✓"; position: absolute; left: 2px; font-weight: 700; }
+  .intro { color: var(--muted); }
+  .box { background: var(--bg); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
+  .phase { page-break-before: always; }
+  ul { margin: 4px 0 8px; padding-left: 18px; }
+</style></head><body>
+<div class="cover">
+  <h1>Bug report – “tests” branch</h1>
+  <div class="meta">CareO care home management · 5 October 2026 · 68 issues found by automated tests · 66 fixed on this branch · 1 open</div>
+</div>
+
+<h2>Summary</h2>
+<p>Testing on this branch ran in four passes: database security tests, application/unit tests, a Playwright suite covering every feature of the resident profile, and a last pass over the remaining features (full medication, incident and hospital passport forms, handover, action plans, CareO audit, staff, settings, and a sweep that opens every main page as each staff role). Each fixed bug has an automated test that failed before the fix and passes now. The tests are kept as regression tests and are still named <code>BUG: …</code> after the defect they guard against. Open items (D13) are kept as expected-failure tests.</p>
+<table><thead><tr><th>Pass</th><th class="num">Critical</th><th class="num">High</th><th class="num">Medium</th><th class="num">Low</th><th class="num">Total</th></tr></thead>
+<tbody><tr><td><b>A</b> · Security &amp; data isolation (database / server actions)</td><td class="num">8</td><td class="num">5</td><td class="num">2</td><td class="num">–</td><td class="num"><b>15</b></td></tr><tr><td><b>B</b> · Application flows (end-to-end and unit tests)</td><td class="num">–</td><td class="num">7</td><td class="num">9</td><td class="num">6</td><td class="num"><b>22</b></td></tr><tr><td><b>C</b> · Resident profile (Playwright suite)</td><td class="num">1</td><td class="num">11</td><td class="num">2</td><td class="num">4</td><td class="num"><b>18</b></td></tr><tr><td><b>D</b> · Remaining features (medication, incidents, handover, audits, staff)</td><td class="num">–</td><td class="num">6</td><td class="num">6</td><td class="num">1</td><td class="num"><b>13</b></td></tr><tr><td><b>All</b></td><td class="num"><b>9</b></td><td class="num"><b>29</b></td><td class="num"><b>19</b></td><td class="num"><b>11</b></td><td class="num"><b>68</b></td></tr></tbody></table>
+
+<h3>Automated test results after the fixes</h3>
+<table><thead><tr><th>Suite</th><th>Command</th><th class="num">Passed</th><th class="num">Failed</th><th>Notes</th></tr></thead><tbody><tr><td>Unit (Vitest)</td><td><code>npm run test:unit</code></td><td class="num">302</td><td class="num">0</td><td>Includes every tests/unit BUG regression.</td></tr><tr><td>Database security (Vitest)</td><td><code>npm run test:db</code></td><td class="num">109</td><td class="num">0</td><td>Against local Supabase with all four new migrations applied. Includes 2 expected failures (it.fails) for open item D13 and the staff_trainings access tests.</td></tr><tr><td>End-to-end (Playwright)</td><td><code>npx playwright test</code></td><td class="num">239</td><td class="num">0</td><td>One clean full run on the final code (16.2 min), including the staff training records, owner-free witness lists and the dashboard incidents card.</td></tr></tbody></table>
+
+<h2>Setting up for manual testing</h2>
+<div class="box"><ol>
+  <li>Start the local stack: <code>npx supabase start</code>, then apply migrations with <code>npx supabase db reset</code> (or <code>npx supabase migration up</code>). Four migrations are new on this branch: <code>20261005120000_security_hardening.sql</code>, <code>20261005150000_resident_record_integrity.sql</code>, <code>20261005170000_handover_delete_policies.sql</code> and <code>20261005180000_staff_trainings.sql</code>.</li>
+  <li>Run the app against local Supabase: <code>npm run dev</code> with the values from <code>.env.test</code> (the Playwright config does this automatically on port 3100).</li>
+  <li>Test accounts: running any e2e spec (e.g. <code>npx playwright test tests/e2e/journeys.spec.ts</code>) creates two organisations, three care homes, a resident per home and one user per role. Their emails are written to <code>tests/e2e/.auth/world.json</code>; the password for all of them is <code>Test-Password-123!</code>.</li>
+  <li>For the time-zone bugs (C9, C13, C14, D2–D4, D6) change the computer's time zone to one ahead of the UK (e.g. India) before testing, or test between March and October; everything should still show UK time and the dates you picked.</li>
+</ol></div>
+<h3>Running the automated tests</h3>
+<ul>
+  <li>Unit: <code>npm run test:unit</code> · Database security: <code>npm run test:db</code> (needs local Supabase)</li>
+  <li>End-to-end: <code>npm run test:e2e</code>; only the resident profile: <code>npx playwright test tests/e2e/resident-</code></li>
+  <li>HTML report with traces and screenshots of any failure: <code>npx playwright show-report</code></li>
+</ul>
+
+<h2>Manual vs automated testing</h2>
+<p>The Playwright tests do what a tester does (open pages, click, type, submit) in a real Chrome browser against the real app and local database. They also check the saved data directly in the database, which a manual tester can't easily see. They don't replace a person, because they only check what someone wrote them to check.</p>
+<table><thead><tr><th style="width:50%">Playwright covers well</th><th>Still needs a person</th></tr></thead><tbody>
+<tr><td>Same steps every time, all 239 tests in about 16 minutes</td><td>Does the page look right and make sense to care staff?</td></tr>
+<tr><td>Checks what was saved in the database, not only what is shown</td><td>Real devices: tablets and phones, touch, slow Wi-Fi</td></tr>
+<tr><td>Role and organisation boundaries (8 roles, 2 organisations)</td><td>PDF/print output, real emails arriving, real NHS data</td></tr>
+<tr><td>Time-zone and edge cases that are hard to set up by hand</td><td>Things nobody thought to test: exploratory use</td></tr>
+<tr><td>Catches regressions on every change</td><td>Final acceptance before release</td></tr>
+</tbody></table>
+<p>Suggested use: run the automated suites on every change, and use the manual checks in this report for release sign-off and anything visual.</p>
+
+<h2>Bug register</h2>
+<table><thead><tr><th>ID</th><th>Severity</th><th>Area</th><th>Bug</th></tr></thead><tbody>
+  <tr class="group"><td colspan="4">A · Security &amp; data isolation (database / server actions)</td></tr>
+  <tr><td class="id">A1</td><td><span class="sev sev-critical">Critical</span></td><td>Tenancy</td><td>A nurse could move themselves into another organisation and read its residents</td></tr><tr><td class="id">A2</td><td><span class="sev sev-critical">Critical</span></td><td>Tenancy</td><td>A care assistant could switch to another care home in the same organisation</td></tr><tr><td class="id">A3</td><td><span class="sev sev-critical">Critical</span></td><td>Sign-up</td><td>A brand-new self sign-up could attach itself to any organisation</td></tr><tr><td class="id">A4</td><td><span class="sev sev-critical">Critical</span></td><td>Sign-up</td><td>Agency self sign-up could pick an elevated role via user metadata</td></tr><tr><td class="id">A5</td><td><span class="sev sev-high">High</span></td><td>Roles</td><td>A manager could promote a colleague to owner (above their own level)</td></tr><tr><td class="id">A6</td><td><span class="sev sev-high">High</span></td><td>Roles</td><td>Kitchen staff could read clinical records (medications, DNACPR, notes)</td></tr><tr><td class="id">A7</td><td><span class="sev sev-high">High</span></td><td>Rota</td><td>A nurse could self-approve as 'manager approved nurse' to gain rota management</td></tr><tr><td class="id">A8</td><td><span class="sev sev-critical">Critical</span></td><td>Rota</td><td>Managers could create / manage rotas and temporary staff for another organisation's team</td></tr><tr><td class="id">A9</td><td><span class="sev sev-critical">Critical</span></td><td>Server actions</td><td>Anonymous callers could invoke Server Actions by passing someone else's actorId</td></tr><tr><td class="id">A10</td><td><span class="sev sev-high">High</span></td><td>Staff</td><td>Cross-organisation staff changes (approve rota manager, toggle RQIA login)</td></tr><tr><td class="id">A11</td><td><span class="sev sev-critical">Critical</span></td><td>Email</td><td>Anonymous callers could send email from care@careo.uk; invite HTML was injectable</td></tr><tr><td class="id">A12</td><td><span class="sev sev-critical">Critical</span></td><td>Tenancy</td><td>Tenant isolation gaps on data tables (cross-organisation SELECT / UPDATE / DELETE)</td></tr><tr><td class="id">A13</td><td><span class="sev sev-high">High</span></td><td>Tenancy</td><td>Non-owner staff in care home A1 could read records of care home A2 in the same organisation</td></tr><tr><td class="id">A14</td><td><span class="sev sev-medium">Medium</span></td><td>Kitchen</td><td>Diet notifications: sent on no-op saves, and visible to other care homes' kitchens</td></tr><tr><td class="id">A15</td><td><span class="sev sev-medium">Medium</span></td><td>Visitors</td><td>External visitor login logs were visible across organisations</td></tr>
+  <tr class="group"><td colspan="4">B · Application flows (end-to-end and unit tests)</td></tr>
+  <tr><td class="id">B1</td><td><span class="sev sev-high">High</span></td><td>Auth</td><td>Anonymous visitors were not redirected away from /settings pages</td></tr><tr><td class="id">B2</td><td><span class="sev sev-medium">Medium</span></td><td>Auth</td><td>Kitchen staff could reach blocked pages via browser Back</td></tr><tr><td class="id">B3</td><td><span class="sev sev-low">Low</span></td><td>Accessibility</td><td>Login form labels were not associated with their inputs</td></tr><tr><td class="id">B4</td><td><span class="sev sev-high">High</span></td><td>API</td><td>PDF API routes produced resident documents without a session</td></tr><tr><td class="id">B5</td><td><span class="sev sev-high">High</span></td><td>Invitations</td><td>Accepting an invitation / agency onboarding wrote role and organisation from the browser</td></tr><tr><td class="id">B6</td><td><span class="sev sev-medium">Medium</span></td><td>Members</td><td>Removing a member from the organisation failed</td></tr><tr><td class="id">B7</td><td><span class="sev sev-medium">Medium</span></td><td>Rota</td><td>Shift swaps listed other teams' shifts and draft rotas</td></tr><tr><td class="id">B8</td><td><span class="sev sev-low">Low</span></td><td>Onboarding</td><td>Care home form overwrote the name the user had typed</td></tr><tr><td class="id">B9</td><td><span class="sev sev-medium">Medium</span></td><td>Audit</td><td>Action-plan queries failed (400) on tables without assigned_to_email</td></tr><tr><td class="id">B10</td><td><span class="sev sev-medium">Medium</span></td><td>Medication</td><td>Nearest medication round did not wrap past midnight (23:50 picked 20:00)</td></tr><tr><td class="id">B11</td><td><span class="sev sev-low">Low</span></td><td>Incidents</td><td>Incident time parsing accepted minutes like 10:99</td></tr><tr><td class="id">B12</td><td><span class="sev sev-low">Low</span></td><td>Dates</td><td>'30 days ago' shown as '2 days' (weeks wrapped modulo 4)</td></tr><tr><td class="id">B13</td><td><span class="sev sev-medium">Medium</span></td><td>Food &amp; fluid</td><td>Refused drinks (0 ml) counted as intake; 'Cup of tea' not recognised as fluid</td></tr><tr><td class="id">B14</td><td><span class="sev sev-medium">Medium</span></td><td>Privacy</td><td>getAge logged residents' dates of birth to the browser console</td></tr><tr><td class="id">B15</td><td><span class="sev sev-high">High</span></td><td>Uploads</td><td>File upload check allowed scripts / HTML / SVG</td></tr><tr><td class="id">B16</td><td><span class="sev sev-high">High</span></td><td>Residents</td><td>Resident form accepted invalid DOB, future DOB, admission before birth, invalid NHS numbers, blank names</td></tr><tr><td class="id">B17</td><td><span class="sev sev-high">High</span></td><td>Medication</td><td>Medication form accepted non-numeric strength, invalid/duplicate times, CD without schedule, negative stock</td></tr><tr><td class="id">B18</td><td><span class="sev sev-medium">Medium</span></td><td>Auth</td><td>New password only required 8 characters (policy says capital, number, special)</td></tr><tr><td class="id">B19</td><td><span class="sev sev-high">High</span></td><td>Medication</td><td>Blood sugar accepted text; insulin could be recorded without site or second signature</td></tr><tr><td class="id">B20</td><td><span class="sev sev-low">Low</span></td><td>Residents</td><td>getAge returned NaN for an invalid date of birth</td></tr><tr><td class="id">B21</td><td><span class="sev sev-low">Low</span></td><td>Rota</td><td>Rota generator allows back-to-back day + night shifts <i>(By design)</i></td></tr><tr><td class="id">B22</td><td><span class="sev sev-medium">Medium</span></td><td>Auth</td><td>Login could hang on 'Redirecting...' after a correct password</td></tr>
+  <tr class="group"><td colspan="4">C · Resident profile (Playwright suite)</td></tr>
+  <tr><td class="id">C1</td><td><span class="sev sev-high">High</span></td><td>Progress notes</td><td>Editing a progress note always failed (500); no error shown</td></tr><tr><td class="id">C2</td><td><span class="sev sev-high">High</span></td><td>Progress notes</td><td>Deleting a progress note always failed (500)</td></tr><tr><td class="id">C3</td><td><span class="sev sev-critical">Critical</span></td><td>Progress notes</td><td>A note could be posted under another staff member's name</td></tr><tr><td class="id">C4</td><td><span class="sev sev-high">High</span></td><td>Food &amp; fluid</td><td>A custom fluid volume could not be typed ('Expected number, received nan')</td></tr><tr><td class="id">C5</td><td><span class="sev sev-high">High</span></td><td>Food &amp; fluid</td><td>A fluid entry saved without a volume was counted as food</td></tr><tr><td class="id">C6</td><td><span class="sev sev-medium">Medium</span></td><td>Food &amp; fluid</td><td>Editing a diet wiped the chef notification / chef name</td></tr><tr><td class="id">C7</td><td><span class="sev sev-high">High</span></td><td>Food &amp; fluid</td><td>A diet saved without consistency levels could never be edited (Update did nothing)</td></tr><tr><td class="id">C8</td><td><span class="sev sev-low">Low</span></td><td>Food &amp; fluid</td><td>'This Month' on the food &amp; fluid records page always showed 0</td></tr><tr><td class="id">C9</td><td><span class="sev sev-medium">Medium</span></td><td>Records</td><td>Report dates shown a day early on devices ahead of UK time (food &amp; fluid, continence)</td></tr><tr><td class="id">C10</td><td><span class="sev sev-high">High</span></td><td>Vital signs</td><td>Non-numeric or impossible vital values were saved (e.g. temperature 'abc')</td></tr><tr><td class="id">C11</td><td><span class="sev sev-high">High</span></td><td>Vital signs</td><td>Blood pressure could be saved without a diastolic value</td></tr><tr><td class="id">C12</td><td><span class="sev sev-high">High</span></td><td>Weight</td><td>Negative or implausible weights were saved (-5 kg, 900 kg)</td></tr><tr><td class="id">C13</td><td><span class="sev sev-high">High</span></td><td>Appointments</td><td>Appointment times were stored in the device's time zone (2:30 PM saved as 10:00 UK on an India-time device)</td></tr><tr><td class="id">C14</td><td><span class="sev sev-high">High</span></td><td>Daily care</td><td>Personal care (and continence, dependency, choking and falls forms) time-stamped with the device clock</td></tr><tr><td class="id">C15</td><td><span class="sev sev-high">High</span></td><td>MDT notes</td><td>No way to open 'Add Team Member', so residents without a GP on file had no one to attribute a note to</td></tr><tr><td class="id">C16</td><td><span class="sev sev-low">Low</span></td><td>Lifestyle &amp; social</td><td>A missing activity name was only rejected on the last step, with no visible error</td></tr><tr><td class="id">C17</td><td><span class="sev sev-low">Low</span></td><td>Care file</td><td>Upload presets (GP input / SALT / Dietitian) were overwritten by the file's own name</td></tr><tr><td class="id">C18</td><td><span class="sev sev-low">Low</span></td><td>Care file</td><td>Care file v1 folder misspelled 'Depenency'</td></tr>
+  <tr class="group"><td colspan="4">D · Remaining features (medication, incidents, handover, audits, staff)</td></tr>
+  <tr><td class="id">D1</td><td><span class="sev sev-high">High</span></td><td>Medication</td><td>A nurse could pick themselves (or the owner) as the witness for their own dose</td></tr><tr><td class="id">D2</td><td><span class="sev sev-medium">Medium</span></td><td>Medication</td><td>The 'prepared' time on a dose was shown in UTC (an hour behind during British Summer Time)</td></tr><tr><td class="id">D3</td><td><span class="sev sev-high">High</span></td><td>Incidents</td><td>Dates picked in the incident report (incident, date of birth, admission, completed) were saved a day early</td></tr><tr><td class="id">D4</td><td><span class="sev sev-high">High</span></td><td>Residents</td><td>Add Resident saved the picked date of birth and admission date a day early</td></tr><tr><td class="id">D5</td><td><span class="sev sev-high">High</span></td><td>Hospital passport</td><td>A hospital passport could be generated with every required (*) field blank</td></tr><tr><td class="id">D6</td><td><span class="sev sev-medium">Medium</span></td><td>Hospital passport</td><td>The default transfer time and last-medication time were UTC, not UK time</td></tr><tr><td class="id">D7</td><td><span class="sev sev-medium">Medium</span></td><td>Handover</td><td>Handover deletes did nothing: archived notes were never cleared and 'Overwrite?' created duplicate reports</td></tr><tr><td class="id">D8</td><td><span class="sev sev-medium">Medium</span></td><td>Handover</td><td>A shift note could carry over to the other shift (or overwrite it) after switching shift or date</td></tr><tr><td class="id">D9</td><td><span class="sev sev-low">Low</span></td><td>Action plans</td><td>An action plan due today was shown as overdue</td></tr><tr><td class="id">D10</td><td><span class="sev sev-medium">Medium</span></td><td>Action plans</td><td>Staff of other care homes could be assigned a care home's action plan, and received its status notifications</td></tr><tr><td class="id">D11</td><td><span class="sev sev-high">High</span></td><td>API</td><td>Any signed-in user could resolve photo-refresh alerts for any resident, including another organisation's</td></tr><tr><td class="id">D12</td><td><span class="sev sev-high">High</span></td><td>Staff</td><td>Staff training records were never saved (lost on reload, although the page said 'added successfully')</td></tr><tr><td class="id">D13</td><td><span class="sev sev-medium">Medium</span></td><td>Care homes</td><td>The database lets managers create care homes and rename their own, although Settings &gt; Care home is owner-only <i>(Open)</i></td></tr></tbody></table>
+
+<h2>Follow-ups and decisions for the team</h2>
+<ul>
+  <li>Decide on the open item D13: which care-home fields managers may change (the agency link code needs manager access). D12 is now fixed; confirm the access rule chosen for training records (owners/managers of the care home edit, staff read their own) and whether RQIA inspectors should see them.</li><li>Apply all four new migrations when deploying: <code>20261005120000_security_hardening.sql</code>, <code>20261005150000_resident_record_integrity.sql</code>, <code>20261005170000_handover_delete_policies.sql</code> and <code>20261005180000_staff_trainings.sql</code>.</li><li>Dates saved with <code>toISOString().split(&quot;T&quot;)[0]</code> remain in about 50 other places. The 47 that compute 'today' are only wrong between midnight and 1 AM UK time in summer; the rest convert a date (care-file assessment dialogs, rota and document date ranges) and should be checked one by one the way D3/D4 were fixed.</li><li>Handover reports saved before D7 may include duplicates for the same shift; the next save of that shift replaces them all. A one-off clean-up query is optional.</li><li>Dead code worth deleting: <code>.bak</code>/backup copies of the hospital passport form, the unused <code>comprehensive-incident-form.tsx</code> and <code>report-incident-form.tsx</code>, and <code>components/medication/daily/history-columns.tsx</code> (unused, with the same UTC-time display as D2).</li><li>Manual testing still matters for what the automated suites cannot judge: layout on tablets/phones, wording and usability, PDF/print output, real email delivery, and production data. See the 'Manual vs automated testing' section.</li><li>NHS number validation (B16): editing an existing resident whose stored NHS number fails the Modulus 11 check now requires correcting it. Consider a one-off report of residents with invalid numbers.</li><li>The <code>resident-files</code> storage bucket still accepts any MIME type; only the browser restricts uploads to PDF/images. <code>components/files/UploadFileButton.tsx</code> accepts any file, so restricting the bucket needs checking against that feature first.</li><li>Pages the page sweep only opens (no deeper flow yet): manager audit (CSV import), appointments and notifications read state, quick-info checks, wounds and medications overviews, agency, MDT summary, settings teams/labels/security.</li>
+</ul>
+
+
+  <section class="phase">
+    <h2>A · Security &amp; data isolation (database / server actions)</h2>
+    <p class="intro">Found by the Vitest DB suite (tests/db) against local Supabase. Fixed mainly in supabase/migrations/20261005120000_security_hardening.sql (new RESTRICTIVE RLS policies, a users-table privilege guard and vetted RPCs) and by making Server Actions identify the caller from the session (lib/server-auth.ts).</p>
+    
+      <article class="bug">
+        <header><span class="id">A1</span><span class="sev sev-critical">Critical</span><span class="area">Tenancy</span><span class="status">Fixed</span></header>
+        <h3>A nurse could move themselves into another organisation and read its residents</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/privilege-escalation.test.ts - &quot;CRITICAL BUG: a nurse can move themselves into another organization...&quot;</dd>
+          <dt>Fix</dt><dd>guard_user_privileged_columns() trigger on public.users blocks self-changes to organization / care home / role (migration section 2).</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Sign in as a nurse. In the browser dev tools run a Supabase update on your own users row setting active_organization_id to another organisation's id.</li><li class="exp">the update is rejected and the residents list still only shows your own care home.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A2</span><span class="sev sev-critical">Critical</span><span class="area">Tenancy</span><span class="status">Fixed</span></header>
+        <h3>A care assistant could switch to another care home in the same organisation</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/privilege-escalation.test.ts - &quot;a care assistant can switch to another care home...&quot;</dd>
+          <dt>Fix</dt><dd>Same users-table guard; care-home switching is only allowed for roles that may work across homes.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Sign in as a care assistant and try to change care home from the sidebar switcher.</li><li class="exp">other care homes are not offered / the change is refused.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A3</span><span class="sev sev-critical">Critical</span><span class="area">Sign-up</span><span class="status">Fixed</span></header>
+        <h3>A brand-new self sign-up could attach itself to any organisation</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/privilege-escalation.test.ts - &quot;a brand-new self-signup can attach itself to any organization...&quot;</dd>
+          <dt>Fix</dt><dd>Users-table guard plus accept_invitation() RPC: organisation, care home and role now come only from a stored invitation (migration section 3).</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Sign up a new account without an invitation.</li><li class="exp">the account has no organisation and cannot see any residents.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A4</span><span class="sev sev-critical">Critical</span><span class="area">Sign-up</span><span class="status">Fixed</span></header>
+        <h3>Agency self sign-up could pick an elevated role via user metadata</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/privilege-escalation.test.ts - &quot;agency-flagged self-signup can choose an elevated role...&quot;</dd>
+          <dt>Fix</dt><dd>Agency self sign-up may only take an agency role; complete_agency_onboarding() RPC assigns it server-side.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Complete agency onboarding from an agency invite link.</li><li class="exp">the account is agency_nurse / agency_care_assistant, never manager or owner.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A5</span><span class="sev sev-high">High</span><span class="area">Roles</span><span class="status">Fixed</span></header>
+        <h3>A manager could promote a colleague to owner (above their own level)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/privilege-escalation.test.ts - &quot;a manager can promote a colleague to owner&quot;</dd>
+          <dt>Fix</dt><dd>user_role_rank() check in the users guard: you cannot grant a role above your own.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">As a manager, open Settings &gt; Members and try to change a member's role to Owner.</li><li class="exp">refused.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A6</span><span class="sev sev-high">High</span><span class="area">Roles</span><span class="status">Fixed</span></header>
+        <h3>Kitchen staff could read clinical records (medications, DNACPR, notes)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/role-scope.test.ts - &quot;kitchen staff cannot read clinical records&quot;</dd>
+          <dt>Fix</dt><dd>RESTRICTIVE role policies per clinical table (migration section 6); diet data and notifications stay readable for the kitchen portal.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Sign in as kitchen staff.</li><li class="exp">only the Kitchen Portal is available; diet changes are visible, medication/notes are not.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A7</span><span class="sev sev-high">High</span><span class="area">Rota</span><span class="status">Fixed</span></header>
+        <h3>A nurse could self-approve as 'manager approved nurse' to gain rota management</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/role-scope.test.ts - &quot;a nurse cannot self-approve...&quot;</dd>
+          <dt>Fix</dt><dd>is_manager_approved_nurse is a privileged column in the users guard.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">As a nurse, confirm the rota management controls are not available until a manager approves you.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A8</span><span class="sev sev-critical">Critical</span><span class="area">Rota</span><span class="status">Fixed</span></header>
+        <h3>Managers could create / manage rotas and temporary staff for another organisation's team</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/role-scope.test.ts and tests/db/server-actions.test.ts - rota scope tests</dd>
+          <dt>Fix</dt><dd>Rota RLS scoped to the caller's organisation (migration section 4); every rota Server Action calls requireActor() + assertTeamInScope() (app/actions/rota.ts).</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">As a manager, build and publish a weekly rota for your own unit.</li><li class="exp">works. Rotas of other organisations never appear.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A9</span><span class="sev sev-critical">Critical</span><span class="area">Server actions</span><span class="status">Fixed</span></header>
+        <h3>Anonymous callers could invoke Server Actions by passing someone else's actorId</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/server-actions.test.ts - &quot;anonymous caller impersonating a manager cannot change contracted hours&quot;, &quot;...cannot regenerate a care home's agency link code&quot;</dd>
+          <dt>Fix</dt><dd>lib/server-auth.ts: the caller is read from the Supabase session cookie; actorId arguments are cross-checked, never trusted.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">As a manager, change a staff member's contracted hours on the Staff page.</li><li class="exp">saves. Signed out, the same action fails.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A10</span><span class="sev sev-high">High</span><span class="area">Staff</span><span class="status">Fixed</span></header>
+        <h3>Cross-organisation staff changes (approve rota manager, toggle RQIA login)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/server-actions.test.ts - &quot;a manager of org A cannot approve a nurse of org B&quot;, &quot;code review #6&quot;</dd>
+          <dt>Fix</dt><dd>assertUserInScope() in the actions; deactivating an account also bans it at the auth layer.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Deactivate an RQIA user in your organisation, then try to sign in as them.</li><li class="exp">sign-in is refused with a 'deactivated' message.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A11</span><span class="sev sev-critical">Critical</span><span class="area">Email</span><span class="status">Fixed</span></header>
+        <h3>Anonymous callers could send email from care@careo.uk; invite HTML was injectable</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/server-actions.test.ts - &quot;anonymous caller cannot send an email...&quot;, &quot;invitation HTML escapes caller-controlled fields&quot;, &quot;email query parameter ... URL-encoded&quot;</dd>
+          <dt>Fix</dt><dd>app/actions/invitations.ts and agency-onboarding.ts load the stored invitation, check the sender, escape HTML (lib/html.ts) and URL-encode the link.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Invite a member whose care home name contains &lt;b&gt;bold&lt;/b&gt;.</li><li class="exp">the email shows the text literally and the link opens the invitation.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A12</span><span class="sev sev-critical">Critical</span><span class="area">Tenancy</span><span class="status">Fixed</span></header>
+        <h3>Tenant isolation gaps on data tables (cross-organisation SELECT / UPDATE / DELETE)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/tenant-isolation.test.ts - seeds one row in every tenant table and checks each role in org A against org B</dd>
+          <dt>Fix</dt><dd>zz_scope_care_home RESTRICTIVE policy on every tenant table (migration section 6).</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Open a resident URL from another organisation (copy an id).</li><li class="exp">'Resident not found'.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A13</span><span class="sev sev-high">High</span><span class="area">Tenancy</span><span class="status">Fixed</span></header>
+        <h3>Non-owner staff in care home A1 could read records of care home A2 in the same organisation</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/tenant-isolation.test.ts - &quot;non-owner A1 roles cannot SELECT A2 rows&quot;</dd>
+          <dt>Fix</dt><dd>can_access_resident / can_access_care_home helpers scope by active care home unless owner (migration section 1).</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">As a nurse in one care home, check the residents list.</li><li class="exp">only that care home's residents.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A14</span><span class="sev sev-medium">Medium</span><span class="area">Kitchen</span><span class="status">Fixed</span></header>
+        <h3>Diet notifications: sent on no-op saves, and visible to other care homes' kitchens</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/triggers.test.ts - two diet notification tests; tests/e2e/smoke.spec.ts kitchen bell flow</dd>
+          <dt>Fix</dt><dd>Update trigger fires only when a diet field changes (migration section 7); bell filtered to the kitchen's care home; 'mark all read' only marks diet items.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Change a resident's diet, then sign in as kitchen staff.</li><li class="exp">one diet notification; saving the diet again unchanged creates none.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">A15</span><span class="sev sev-medium">Medium</span><span class="area">Visitors</span><span class="status">Fixed</span></header>
+        <h3>External visitor login logs were visible across organisations</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/role-scope.test.ts - &quot;BUG: rqia_login_logs / mdt_login_logs of another organization are hidden&quot; (code-review finding #5)</dd>
+          <dt>Fix</dt><dd>Same-organisation / care-home scoping on external login logs (migration section 5).</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">As a nurse, open the RQIA/MDT visit log.</li><li class="exp">only visits to your care home.</li></ul></dd>
+        </dl>
+      </article>
+  </section>
+  <section class="phase">
+    <h2>B · Application flows (end-to-end and unit tests)</h2>
+    <p class="intro">Found by the Playwright journeys/smoke/API specs (tests/e2e) and the Vitest unit suite (tests/unit).</p>
+    
+      <article class="bug">
+        <header><span class="id">B1</span><span class="sev sev-high">High</span><span class="area">Auth</span><span class="status">Fixed</span></header>
+        <h3>Anonymous visitors were not redirected away from /settings pages</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/journeys.spec.ts - &quot;BUG: anonymous visitor is not redirected away from /settings pages&quot;</dd>
+          <dt>Fix</dt><dd>middleware.ts: /settings added to the protected path prefixes.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Sign out and open /settings/members.</li><li class="exp">redirected to /login.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B2</span><span class="sev sev-medium">Medium</span><span class="area">Auth</span><span class="status">Fixed</span></header>
+        <h3>Kitchen staff could reach blocked pages via browser Back</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/journeys.spec.ts - &quot;BUG (code review #7): kitchen staff can reach blocked pages via browser back navigation&quot;</dd>
+          <dt>Fix</dt><dd>middleware.ts redirects kitchen_staff to /dashboard/kitchen-portal for any other /dashboard path; the dashboard layout no longer renders a blocked page while the redirect is pending (fixed in this session).</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Sign in as kitchen staff, type /dashboard/residents in the address bar, then press Back.</li><li class="exp">you stay on the Kitchen Portal; the residents page never appears.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B3</span><span class="sev sev-low">Low</span><span class="area">Accessibility</span><span class="status">Fixed</span></header>
+        <h3>Login form labels were not associated with their inputs</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/journeys.spec.ts - &quot;BUG (a11y): login form labels are associated with their inputs&quot;</dd>
+          <dt>Fix</dt><dd>components/auth/forms/LoginForm.tsx: removed the hard-coded ids that broke the label/input link.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">On /login click the 'Email' label.</li><li class="exp">the email box gets focus.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B4</span><span class="sev sev-high">High</span><span class="area">API</span><span class="status">Fixed</span></header>
+        <h3>PDF API routes produced resident documents without a session</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/api-auth.spec.ts - every non-public API route must return 401 without a session</dd>
+          <dt>Fix</dt><dd>app/api/pdf/{admission,care-plan,dnacpr,pre-admission}/route.ts call getRequestUserId() (lib/api-auth.ts) and return 401 when signed out.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Signed out, open /api/pdf/admission in the browser.</li><li class="exp">401 Unauthorized.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B5</span><span class="sev sev-high">High</span><span class="area">Invitations</span><span class="status">Fixed</span></header>
+        <h3>Accepting an invitation / agency onboarding wrote role and organisation from the browser</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/smoke.spec.ts - owner/manager invitation and onboarding journey</dd>
+          <dt>Fix</dt><dd>accept_invitation() and complete_agency_onboarding() SECURITY DEFINER RPCs validate token, email and expiry and assign everything server-side.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Invite a manager, sign up through the link and accept.</li><li class="exp">lands on the dashboard of the inviting care home with the manager role.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B6</span><span class="sev sev-medium">Medium</span><span class="area">Members</span><span class="status">Fixed</span></header>
+        <h3>Removing a member from the organisation failed</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/smoke.spec.ts - &quot;manager removes a care assistant from the organization&quot;</dd>
+          <dt>Fix</dt><dd>remove_organization_member() RPC (migration section 9) used by app/(settings)/settings/members/page.tsx.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">As a manager, remove a care assistant in Settings &gt; Members.</li><li class="exp">they disappear from the list and lose access.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B7</span><span class="sev sev-medium">Medium</span><span class="area">Rota</span><span class="status">Fixed</span></header>
+        <h3>Shift swaps listed other teams' shifts and draft rotas</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>Fixed earlier on this branch; exercised by tests/e2e/smoke.spec.ts &quot;manager builds and publishes a weekly rota&quot;</dd>
+          <dt>Fix</dt><dd>app/(dashboard)/dashboard/rota/components/ShiftSwaps.tsx filters by team and published rotas.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Open Rota &gt; Shift Swaps.</li><li class="exp">only shifts from your team's published rotas.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B8</span><span class="sev sev-low">Low</span><span class="area">Onboarding</span><span class="status">Fixed</span></header>
+        <h3>Care home form overwrote the name the user had typed</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>Fixed earlier on this branch; exercised by tests/e2e/smoke.spec.ts owner onboarding journey</dd>
+          <dt>Fix</dt><dd>CareHomeForm only suggests the organisation name when the field is empty.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">During onboarding, type a care home name and wait.</li><li class="exp">your text is kept.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B9</span><span class="sev sev-medium">Medium</span><span class="area">Audit</span><span class="status">Fixed</span></header>
+        <h3>Action-plan queries failed (400) on tables without assigned_to_email</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>Fixed earlier on this branch (PostgREST 400 on a missing column); exercised by the action-plan pages</dd>
+          <dt>Fix</dt><dd>lib/audit-service.ts only filters on assigned_to_email for tables that have it.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Open Action Plans as a nurse.</li><li class="exp">assigned plans load with no error.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B10</span><span class="sev sev-medium">Medium</span><span class="area">Medication</span><span class="status">Fixed</span></header>
+        <h3>Nearest medication round did not wrap past midnight (23:50 picked 20:00)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/date-time.test.ts</dd>
+          <dt>Fix</dt><dd>lib/date-utils.ts nearest-round calculation wraps across midnight.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Open Medication &gt; Today's Medications just before midnight.</li><li class="exp">the 00:00 round is selected.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B11</span><span class="sev sev-low">Low</span><span class="area">Incidents</span><span class="status">Fixed</span></header>
+        <h3>Incident time parsing accepted minutes like 10:99</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/date-time.test.ts</dd>
+          <dt>Fix</dt><dd>lib/incident-time-utils.ts accepts minutes 00-59 only.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Enter 10:99 as an incident time.</li><li class="exp">rejected / falls back.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B12</span><span class="sev sev-low">Low</span><span class="area">Dates</span><span class="status">Fixed</span></header>
+        <h3>'30 days ago' shown as '2 days' (weeks wrapped modulo 4)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/date-time.test.ts</dd>
+          <dt>Fix</dt><dd>lib/utils/dateUtils.ts breaks durations down hierarchically.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Look at a record created 30 days ago.</li><li class="exp">about '4 weeks 2 days'.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B13</span><span class="sev sev-medium">Medium</span><span class="area">Food &amp; fluid</span><span class="status">Fixed</span></header>
+        <h3>Refused drinks (0 ml) counted as intake; 'Cup of tea' not recognised as fluid</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/domain-logic.test.ts</dd>
+          <dt>Fix</dt><dd>lib/food-fluid-log-classification.ts: a recorded volume is authoritative; keyword match per word.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Log water with 0 ml.</li><li class="exp">fluid intake total does not increase.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B14</span><span class="sev sev-medium">Medium</span><span class="area">Privacy</span><span class="status">Fixed</span></header>
+        <h3>getAge logged residents' dates of birth to the browser console</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/domain-logic.test.ts</dd>
+          <dt>Fix</dt><dd>Removed the console.log in lib/utils.ts.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Open the residents list with dev tools open.</li><li class="exp">no dates of birth in the console.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B15</span><span class="sev sev-high">High</span><span class="area">Uploads</span><span class="status">Fixed</span></header>
+        <h3>File upload check allowed scripts / HTML / SVG</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/domain-logic.test.ts - file upload security</dd>
+          <dt>Fix</dt><dd>lib/files/checkFileSecurity.ts uses an allow-list of document and image types.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Try uploading a .html or .exe file in Documents.</li><li class="exp">rejected.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B16</span><span class="sev sev-high">High</span><span class="area">Residents</span><span class="status">Fixed</span></header>
+        <h3>Resident form accepted invalid DOB, future DOB, admission before birth, invalid NHS numbers, blank names</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/schemas.test.ts - CreateResidentSchema BUG tests (still failing before this session)</dd>
+          <dt>Fix</dt><dd>schemas/CreateResidentSchema.ts with lib/validation.ts: real date, not in future, admission &gt;= DOB, NHS number 10 digits with Modulus 11 check, trimmed names. Note: editing a resident whose stored NHS number is invalid now requires correcting it.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Add Resident with NHS number 9434765918 (bad check digit).</li><li class="exp">'Enter a valid 10-digit NHS / H&amp;C number'. 943 476 5919 is accepted.</li><li class="do">Set admission date earlier than date of birth.</li><li class="exp">'Admission date cannot be before the date of birth'.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B17</span><span class="sev sev-high">High</span><span class="area">Medication</span><span class="status">Fixed</span></header>
+        <h3>Medication form accepted non-numeric strength, invalid/duplicate times, CD without schedule, negative stock</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/schemas.test.ts - CreateMedicationSchema BUG tests</dd>
+          <dt>Fix</dt><dd>schemas/medication/CreateMedicationSchema.ts rules, and a new 'Controlled drug schedule' picker in CreateMedicationForm that appears when 'Controlled Medication' is ticked.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Add Medication &gt; Scheduled. Enter strength 'lots' and press Next.</li><li class="exp">'Strength must be a number'.</li><li class="do">Tick Controlled Medication without choosing a schedule.</li><li class="exp">'Select the controlled drug schedule'.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B18</span><span class="sev sev-medium">Medium</span><span class="area">Auth</span><span class="status">Fixed</span></header>
+        <h3>New password only required 8 characters (policy says capital, number, special)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/schemas.test.ts</dd>
+          <dt>Fix</dt><dd>schemas/auth/NewPasswordSchema.ts enforces capital letter, number and special character.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Reset a password to 'aaaaaaaa'.</li><li class="exp">rejected with a clear message.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B19</span><span class="sev sev-high">High</span><span class="area">Medication</span><span class="status">Fixed</span></header>
+        <h3>Blood sugar accepted text; insulin could be recorded without site or second signature</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/schemas.test.ts - medication record schemas</dd>
+          <dt>Fix</dt><dd>schemas/residents/medication/bloodMonitoringSchema.ts: numeric 0.5-40 mmol/L; insulin requires site and second signature.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">In the blood monitoring chart enter 'high' or tick insulin without a second signature.</li><li class="exp">validation errors.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B20</span><span class="sev sev-low">Low</span><span class="area">Residents</span><span class="status">Fixed</span></header>
+        <h3>getAge returned NaN for an invalid date of birth</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/domain-logic.test.ts</dd>
+          <dt>Fix</dt><dd>getAge returns null; the residents table shows 'Age unknown'.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">(Data issue only) A resident with a malformed DOB shows 'Age unknown' instead of 'NaN years old'.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B21</span><span class="sev sev-low">Low</span><span class="area">Rota</span><span class="status nofix">By design</span></header>
+        <h3>Rota generator allows back-to-back day + night shifts</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/unit/rota-generator.test.ts - originally flagged as a bug (no 11-hour rest between shifts)</dd>
+          <dt>Fix</dt><dd>Not changed: the care team confirmed back-to-back shifts must be allowed. The test now guards that behaviour (&quot;allows back-to-back day+night shifts&quot;); the generator still prevents overlapping shifts.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Generate a rota with 08:00-20:00 day and 20:00-08:00 night templates.</li><li class="exp">the same person can be given both shifts; never two overlapping shifts.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">B22</span><span class="sev sev-medium">Medium</span><span class="area">Auth</span><span class="status">Fixed</span></header>
+        <h3>Login could hang on 'Redirecting...' after a correct password</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>Intermittent failures of login() in the full e2e runs (screenshot stuck on 'Redirecting...'); found while re-running the suite in this session</dd>
+          <dt>Fix</dt><dd>app/(auth)/login/page.tsx raced LoginForm: both called router.push (to /onboarding and /dashboard) when the new session appeared. The page now only redirects visitors who were already signed in on arrival, and sends onboarded users to /dashboard.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Sign in 10 times in a row (sign out between).</li><li class="exp">every time you land on the dashboard within a couple of seconds.</li><li class="do">While signed in, open /login.</li><li class="exp">redirected to the dashboard (not onboarding).</li></ul></dd>
+        </dl>
+      </article>
+  </section>
+  <section class="phase">
+    <h2>C · Resident profile (Playwright suite)</h2>
+    <p class="intro">Found by the new resident-profile specs (tests/e2e/resident-*.spec.ts), which drive each profile feature in a real browser and check what was saved in the database.</p>
+    
+      <article class="bug">
+        <header><span class="id">C1</span><span class="sev sev-high">High</span><span class="area">Progress notes</span><span class="status">Fixed</span></header>
+        <h3>Editing a progress note always failed (500); no error shown</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-clinical.spec.ts - &quot;BUG: editing a progress note fails (PATCH ... returns 500)&quot;</dd>
+          <dt>Fix</dt><dd>app/api/progress-notes/[id]/route.ts copied NextResponse.next() headers into the reply, which Next.js rejects in route handlers. Plain JSON responses now.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Resident &gt; Progress Notes &gt; ⋮ &gt; Edit Note, change the text, Update Note.</li><li class="exp">'Progress note updated successfully' and the new text shows.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C2</span><span class="sev sev-high">High</span><span class="area">Progress notes</span><span class="status">Fixed</span></header>
+        <h3>Deleting a progress note always failed (500)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-clinical.spec.ts - &quot;BUG: deleting a progress note fails&quot;</dd>
+          <dt>Fix</dt><dd>Same route fix as C1.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">⋮ &gt; Delete Note &gt; confirm.</li><li class="exp">'Progress note deleted successfully' and the note disappears.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C3</span><span class="sev sev-critical">Critical</span><span class="area">Progress notes</span><span class="status">Fixed</span></header>
+        <h3>A note could be posted under another staff member's name</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-clinical.spec.ts - &quot;BUG: a progress note cannot be posted under another staff member's name&quot; and &quot;progress notes (database guard)&quot;</dd>
+          <dt>Fix</dt><dd>POST /api/progress-notes takes the author from the session; new trigger enforce_progress_note_author (migration 20261005150000) sets author on insert and keeps it on edit for any direct DB write.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Add a progress note.</li><li class="exp">the author shown is you. Editing a colleague's note keeps their name as author.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C4</span><span class="sev sev-high">High</span><span class="area">Food &amp; fluid</span><span class="status">Fixed</span></header>
+        <h3>A custom fluid volume could not be typed ('Expected number, received nan')</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-food-fluid.spec.ts - &quot;BUG: a custom fluid volume cannot be typed&quot;</dd>
+          <dt>Fix</dt><dd>The volume Select only ever holds a real item (a preset or 'custom'); custom mode is tracked explicitly so typing 2500 doesn't hide the box at 250.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Food &amp; Fluid &gt; Log Fluid Entry &gt; type 120 in 'Enter custom amount in ml'. Save.</li><li class="exp">saved; Fluid tab shows 'Volume: 120ml'. 2500 is blocked (max 2000).</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C5</span><span class="sev sev-high">High</span><span class="area">Food &amp; fluid</span><span class="status">Fixed</span></header>
+        <h3>A fluid entry saved without a volume was counted as food</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-food-fluid.spec.ts - &quot;BUG: a fluid entry saved without a volume is counted as a food entry&quot;</dd>
+          <dt>Fix</dt><dd>Fluid entries require a volume ('Volume is required for fluid entries').</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Log Fluid Entry with a drink name but no volume. Save.</li><li class="exp">validation error; Food Entries count unchanged.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C6</span><span class="sev sev-medium">Medium</span><span class="area">Food &amp; fluid</span><span class="status">Fixed</span></header>
+        <h3>Editing a diet wiped the chef notification / chef name</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-food-fluid.spec.ts - &quot;BUG: re-saving an existing diet keeps the chef notification and name&quot;</dd>
+          <dt>Fix</dt><dd>Edit form is prefilled from the camelCase fields it was loaded into (chefNotified / chefName).</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Save a diet with Chef Notified = Yes and a name. Edit Diet &gt; Next &gt; Next.</li><li class="exp">Yes is selected and the chef name is filled; after Update the badge still shows the name.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C7</span><span class="sev sev-high">High</span><span class="area">Food &amp; fluid</span><span class="status">Fixed</span></header>
+        <h3>A diet saved without consistency levels could never be edited (Update did nothing)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-food-fluid.spec.ts - &quot;BUG: a diet saved without consistency levels can be edited again&quot; (found while fixing C6)</dd>
+          <dt>Fix</dt><dd>NULL columns are loaded as undefined (the form's optional enums rejected null); invalid submits now show an error toast.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Save a diet without food/fluid consistency. Edit it, add Vegetarian, Update.</li><li class="exp">'Diet information updated successfully'.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C8</span><span class="sev sev-low">Low</span><span class="area">Food &amp; fluid</span><span class="status">Fixed</span></header>
+        <h3>'This Month' on the food &amp; fluid records page always showed 0</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-food-fluid.spec.ts - &quot;BUG: 'This Month' stat ... ignores reports from this month&quot;</dd>
+          <dt>Fix</dt><dd>Counted with get_paginated_food_fluid_dates for the current UK month instead of a placeholder.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Log an entry today, open See All Records.</li><li class="exp">This Month = 1.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C9</span><span class="sev sev-medium">Medium</span><span class="area">Records</span><span class="status">Fixed</span></header>
+        <h3>Report dates shown a day early on devices ahead of UK time (food &amp; fluid, continence)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-food-fluid.spec.ts - &quot;BUG: report dates are shown a day early...&quot; (browser set to Asia/Kolkata)</dd>
+          <dt>Fix</dt><dd>Date-only values are formatted as calendar dates (parseISO) instead of device-local midnight converted to UK time.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Set the computer's time zone to e.g. India, log an entry, open See All Records.</li><li class="exp">today's UK date.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C10</span><span class="sev sev-high">High</span><span class="area">Vital signs</span><span class="status">Fixed</span></header>
+        <h3>Non-numeric or impossible vital values were saved (e.g. temperature 'abc')</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-clinical.spec.ts - &quot;BUG: non-numeric or impossible vital values are accepted&quot;</dd>
+          <dt>Fix</dt><dd>health-monitoring schema checks numbers and plausible ranges (temp 30-45 °C, HR 20-250, RR 4-60, SpO2 50-100).</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Health &amp; Monitoring &gt; Record Vital &gt; Temperature 'abc' or 95.</li><li class="exp">validation error, nothing saved.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C11</span><span class="sev sev-high">High</span><span class="area">Vital signs</span><span class="status">Fixed</span></header>
+        <h3>Blood pressure could be saved without a diastolic value</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-clinical.spec.ts - &quot;BUG: blood pressure can be saved without a diastolic value&quot;</dd>
+          <dt>Fix</dt><dd>Systolic 50-260 and diastolic 20-160 both required.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Record Vital &gt; Blood Pressure &gt; Systolic 130 only.</li><li class="exp">'Diastolic is required'.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C12</span><span class="sev sev-high">High</span><span class="area">Weight</span><span class="status">Fixed</span></header>
+        <h3>Negative or implausible weights were saved (-5 kg, 900 kg)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-clinical.spec.ts - &quot;BUG: negative or implausible weights are accepted&quot;</dd>
+          <dt>Fix</dt><dd>WeightChart rejects weights outside 20-300 kg (or lb equivalent); DB CHECK constraint weight_records_weight_kg_range (NOT VALID, so old rows stay readable).</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Weight &gt; Record &gt; -5.</li><li class="exp">'Weight must be between 20 and 300 kg'.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C13</span><span class="sev sev-high">High</span><span class="area">Appointments</span><span class="status">Fixed</span></header>
+        <h3>Appointment times were stored in the device's time zone (2:30 PM saved as 10:00 UK on an India-time device)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-care-records.spec.ts - &quot;BUG: appointment time is stored in the device timezone&quot;</dd>
+          <dt>Fix</dt><dd>components/ui/date-time-picker.tsx treats the picked date/time as Europe/London and displays stored times in UK time.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Set the computer to another time zone; create an appointment at 2:30 PM.</li><li class="exp">it shows and is stored as 14:30 UK time.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C14</span><span class="sev sev-high">High</span><span class="area">Daily care</span><span class="status">Fixed</span></header>
+        <h3>Personal care (and continence, dependency, choking and falls forms) time-stamped with the device clock</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-care-records.spec.ts - &quot;BUG: personal care is time-stamped with the device clock instead of UK time&quot;</dd>
+          <dt>Fix</dt><dd>New getCurrentUKTime() in lib/date-utils.ts replaces new Date().toTimeString() defaults; assessment dates use getUKTodayDate().</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">On a non-UK time zone, Log Personal Care now.</li><li class="exp">the log shows the current UK time.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C15</span><span class="sev sev-high">High</span><span class="area">MDT notes</span><span class="status">Fixed</span></header>
+        <h3>No way to open 'Add Team Member', so residents without a GP on file had no one to attribute a note to</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-care-records.spec.ts - &quot;BUG: there is no way to open the 'Add Team Member' dialog&quot;</dd>
+          <dt>Fix</dt><dd>'+ Add Team Member' button next to the Team Member field in Create Note.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Multi Disciplinary Note &gt; Create Note &gt; Add Team Member. Add a physiotherapist.</li><li class="exp">they appear in the Team Member list.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C16</span><span class="sev sev-low">Low</span><span class="area">Lifestyle &amp; social</span><span class="status">Fixed</span></header>
+        <h3>A missing activity name was only rejected on the last step, with no visible error</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-care-records.spec.ts - &quot;BUG: a missing activity name is only rejected on the last step&quot;</dd>
+          <dt>Fix</dt><dd>'Next' validates step 1; an invalid final submit shows a toast and returns to step 1.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Record Activity &gt; Next without a name.</li><li class="exp">'Activity name is required' on step 1.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C17</span><span class="sev sev-low">Low</span><span class="area">Care file</span><span class="status">Fixed</span></header>
+        <h3>Upload presets (GP input / SALT / Dietitian) were overwritten by the file's own name</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-care-file.spec.ts - &quot;BUG: nutrition folder upload presets ... are overwritten&quot;</dd>
+          <dt>Fix</dt><dd>UploadFileModal keeps the preset name and resyncs it each time it opens.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Care File &gt; Nutrition and Hydration &gt; Documents + &gt; SALT &gt; choose any PDF.</li><li class="exp">File Name stays 'SALT'.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">C18</span><span class="sev sev-low">Low</span><span class="area">Care file</span><span class="status">Fixed</span></header>
+        <h3>Care file v1 folder misspelled 'Depenency'</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-care-file.spec.ts - &quot;BUG: v1 dependency folder name is misspelled&quot;</dd>
+          <dt>Fix</dt><dd>config.ts label fixed; migration renames existing files' folder_name. v1 and v2 'Dependency' folders now share uploads.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Open the v1 Care File.</li><li class="exp">'5. Dependency'.</li></ul></dd>
+        </dl>
+      </article>
+  </section>
+  <section class="phase">
+    <h2>D · Remaining features (medication, incidents, handover, audits, staff)</h2>
+    <p class="intro">Found by the specs added in the last pass: tests/e2e/medication-flows, incident-flows, hospital-passport, handover, action-plans, careo-audit, staff, settings, resident-dates, page-sweep and new cases in api-auth.spec.ts and tests/db/role-scope.test.ts. Open items are kept as expected-failure tests (test.fail / it.fails), so the suites stay green and flag when the behaviour changes.</p>
+    
+      <article class="bug">
+        <header><span class="id">D1</span><span class="sev sev-high">High</span><span class="area">Medication</span><span class="status">Fixed</span></header>
+        <h3>A nurse could pick themselves (or the owner) as the witness for their own dose</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/medication-flows.spec.ts - &quot;BUG: neither the administering nurse nor the owner can be picked as witness&quot;; tests/unit/witness.test.ts</dd>
+          <dt>Fix</dt><dd>lib/medication/witness.ts (isEligibleWitness) leaves the signed-in user and the organisation owner out of every witness picker: the medication round, the PRN/topical administer dialogs and the eMAR administration modal. Marking a dose taken with yourself as witness is refused.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Medication &gt; Today's Medications: prepare a dose and open 'Select witness'.</li><li class="exp">neither your own name nor the owner is offered. The same applies in the PRN/topical 'Administer' dialog and the eMAR modal.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D2</span><span class="sev sev-medium">Medium</span><span class="area">Medication</span><span class="status">Fixed</span></header>
+        <h3>The 'prepared' time on a dose was shown in UTC (an hour behind during British Summer Time)</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/medication-flows.spec.ts - &quot;BUG: the prepared time is shown in UK time, not UTC&quot;</dd>
+          <dt>Fix</dt><dd>columns.tsx formats the prepared/administered time in Europe/London.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Between March and October, prepare a dose at a known time.</li><li class="exp">the time shown under the tick is the current UK time.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D3</span><span class="sev sev-high">High</span><span class="area">Incidents</span><span class="status">Fixed</span></header>
+        <h3>Dates picked in the incident report (incident, date of birth, admission, completed) were saved a day early</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/incident-flows.spec.ts - &quot;BUG: a date picked in the calendar is saved as the day before&quot; (browser in Asia/Kolkata; the same happens on UK devices during BST)</dd>
+          <dt>Fix</dt><dd>simple-incident-form.tsx saves calendar dates with formatDateToLocal() instead of toISOString(), and loads stored dates with parseISO().</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Between March and October, create an incident and pick the 1st of the month as the incident date.</li><li class="exp">the saved report and the PDF show the 1st, not the last day of the previous month.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D4</span><span class="sev sev-high">High</span><span class="area">Residents</span><span class="status">Fixed</span></header>
+        <h3>Add Resident saved the picked date of birth and admission date a day early</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/resident-dates.spec.ts - &quot;BUG: picked date of birth and admission date are kept, not shifted a day early&quot;</dd>
+          <dt>Fix</dt><dd>CreateResidentForm.tsx stores the picked calendar day with formatDateToLocal() and displays it with parseISO().</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Add Resident &gt; Date of Birth &gt; pick 17 May 1990.</li><li class="exp">the button shows 17/05/1990 and the resident's profile shows 17 May 1990.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D5</span><span class="sev sev-high">High</span><span class="area">Hospital passport</span><span class="status">Fixed</span></header>
+        <h3>A hospital passport could be generated with every required (*) field blank</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/hospital-passport.spec.ts - &quot;BUG: a passport with the required (*) fields left blank cannot be generated&quot;</dd>
+          <dt>Fix</dt><dd>hospital-transfer/types.ts requires every field the form marks with * (hospital, next of kin, GP, SBAR, past medical history, skin state, medication regime, sign-off); an invalid submit shows 'Please complete the required fields marked *'.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Hospital Transfer &gt; Create Passport &gt; Generate Passport without filling anything in.</li><li class="exp">the toast and inline 'Required' messages; no passport is saved.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D6</span><span class="sev sev-medium">Medium</span><span class="area">Hospital passport</span><span class="status">Fixed</span></header>
+        <h3>The default transfer time and last-medication time were UTC, not UK time</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/hospital-passport.spec.ts - &quot;BUG: the default transfer and last-medication times are UK time, not UTC&quot;</dd>
+          <dt>Fix</dt><dd>lib/hospital-passport-prefill.ts defaults both to the current Europe/London time.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Between March and October, open Create Passport.</li><li class="exp">'Date and Time of Transfer' shows the current UK time, not an hour earlier.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D7</span><span class="sev sev-medium">Medium</span><span class="area">Handover</span><span class="status">Fixed</span></header>
+        <h3>Handover deletes did nothing: archived notes were never cleared and 'Overwrite?' created duplicate reports</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/handover.spec.ts - &quot;Save Handover archives the shift ... and clears the live sheet&quot; and &quot;BUG: saving the same shift twice overwrites the report instead of duplicating it&quot;</dd>
+          <dt>Fix</dt><dd>New migration 20261005170000_handover_delete_policies.sql adds the missing DELETE policies on handover_comments and handover_reports; the save replaces every existing report for the shift (cleaning up earlier duplicates) and reports delete errors.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Handover: type a shift note, Save Handover, then Save Handover again for the same shift and confirm the overwrite.</li><li class="exp">All Handovers lists one report for that shift, and the live sheet's notes are empty after saving.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D8</span><span class="sev sev-medium">Medium</span><span class="area">Handover</span><span class="status">Fixed</span></header>
+        <h3>A shift note could carry over to the other shift (or overwrite it) after switching shift or date</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/handover.spec.ts - &quot;BUG: switching to the other shift does not carry over or overwrite this shift's note&quot; (failed intermittently in a full run)</dd>
+          <dt>Fix</dt><dd>handover-sheet-view.tsx keys each notes cell by resident, date and shift, so every shift starts with its own note state.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Type a note on Day Shift, switch to Night Shift.</li><li class="exp">the night note is empty; typing there leaves the day note unchanged.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D9</span><span class="sev sev-low">Low</span><span class="area">Action plans</span><span class="status">Fixed</span></header>
+        <h3>An action plan due today was shown as overdue</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/action-plans.spec.ts - &quot;BUG: a plan due today is not shown as overdue&quot;</dd>
+          <dt>Fix</dt><dd>action-plans/page.tsx treats the due date as a calendar day: overdue only once that day has ended.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Create an action plan due today.</li><li class="exp">no red overdue marker until tomorrow.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D10</span><span class="sev sev-medium">Medium</span><span class="area">Action plans</span><span class="status">Fixed</span></header>
+        <h3>Staff of other care homes could be assigned a care home's action plan, and received its status notifications</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/action-plans.spec.ts - &quot;BUG: a care home's action plan cannot be assigned to staff of another care home&quot;</dd>
+          <dt>Fix</dt><dd>auditService.getOrganizationMembers() now filters by organisation (its argument was ignored) and optionally by care home; the action-plans page passes the active care home.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">As a manager of one care home, Action Plans &gt; Add action plan &gt; Assign To.</li><li class="exp">only staff of your care home (owner excluded) are listed.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D11</span><span class="sev sev-high">High</span><span class="area">API</span><span class="status">Fixed</span></header>
+        <h3>Any signed-in user could resolve photo-refresh alerts for any resident, including another organisation's</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/api-auth.spec.ts - &quot;BUG: org A nurse cannot resolve photo-refresh alerts of an org B resident&quot;</dd>
+          <dt>Fix</dt><dd>app/api/alerts/resolve-photo-refresh/route.ts checks the caller can see the resident (under RLS) before the service-role update; otherwise 404.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Signed in, POST /api/alerts/resolve-photo-refresh with another organisation's residentId.</li><li class="exp">404 and the alert stays open. Updating your own resident's photo still clears the alert.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D12</span><span class="sev sev-high">High</span><span class="area">Staff</span><span class="status">Fixed</span></header>
+        <h3>Staff training records were never saved (lost on reload, although the page said 'added successfully')</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/e2e/staff.spec.ts - &quot;BUG: a training record survives a page reload&quot;</dd>
+          <dt>Fix</dt><dd>New table staff_trainings (migration 20261005180000_staff_trainings.sql). The Trainings page loads and saves records there; organisation and care home are taken from the staff member by a trigger. Owners/managers of the staff member's care home can read and write; staff can read their own. A completed training past its expiry date shows as Expired. Access is covered by tests/db/role-scope.test.ts &quot;staff training records&quot;.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">Staff &gt; a staff member &gt; Trainings &gt; Add Training, then reload.</li><li class="exp">the training is still listed. A nurse or care assistant cannot add trainings.</li></ul></dd>
+        </dl>
+      </article>
+      <article class="bug">
+        <header><span class="id">D13</span><span class="sev sev-medium">Medium</span><span class="area">Care homes</span><span class="status open">Open</span></header>
+        <h3>The database lets managers create care homes and rename their own, although Settings &gt; Care home is owner-only</h3>
+        <dl>
+          <dt>How it was caught</dt><dd>tests/db/role-scope.test.ts - &quot;BUG (open): a manager cannot create care homes&quot; / &quot;... cannot rename the care home&quot; (marked it.fails). Deleting another care home is already blocked.</dd>
+          <dt>Fix</dt><dd>Not fixed. The policy &quot;Owners and Managers manage care homes&quot; grants managers ALL operations on care homes in their organisation (deleting another home is blocked by the scope policy). The agency link code is written with the service role (app/actions/agency-onboarding.ts), so restricting care_homes INSERT/UPDATE to owners would not break it; needs a decision on whether managers should rename their home.</dd>
+          <dt>Manual check</dt><dd><ul class="steps"><li class="do">As a manager, in dev tools run a Supabase insert into care_homes for your organisation.</li><li class="exp">Expected (today): it succeeds. After the fix it should be refused.</li></ul></dd>
+        </dl>
+      </article>
+  </section>
+</body></html>

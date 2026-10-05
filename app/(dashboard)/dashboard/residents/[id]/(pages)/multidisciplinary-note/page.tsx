@@ -1235,7 +1235,19 @@ export default function MultidisciplinaryNotePage({ params }: MultidisciplinaryN
                         name="teamMemberId"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Team Member *</FormLabel>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Team Member *</FormLabel>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => setIsTeamMemberDialogOpen(true)}
+                              >
+                                <Plus className="w-3 h-3 mr-1" />
+                                Add Team Member
+                              </Button>
+                            </div>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                               <FormControl>
                                 <SelectTrigger>

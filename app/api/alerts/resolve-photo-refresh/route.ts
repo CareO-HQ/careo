@@ -73,6 +73,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "residentId is required" }, { status: 400 });
     }
 
+    // The update below bypasses RLS, so first confirm the caller can see this resident.
+    const { data: resident } = await supabase
+      .from("residents")
+      .select("id")
+      .eq("id", body.residentId)
+      .maybeSingle();
+    if (!resident) {
+      return NextResponse.json({ error: "Resident not found" }, { status: 404 });
+    }
+
     const serviceSupabase = createServiceClient();
     const { error } = await serviceSupabase
       .from("alerts")

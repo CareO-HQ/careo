@@ -27,28 +27,6 @@ export function canViewSidebarHome(role?: string): boolean {
   );
 }
 
-/**
- * Define which fields require elevated permissions
- */
-export const SENSITIVE_FIELDS = {
-  nhsHealthNumber: ["owner", "saas_admin", "nurse", "agency_nurse"],
-  medicalConditions: ["owner", "saas_admin", "nurse", "agency_nurse"],
-  medications: ["owner", "saas_admin", "nurse", "agency_nurse"],
-  allergies: ["owner", "saas_admin", "nurse", "care_assistant", "agency_nurse", "agency_care_assistant"],
-  risks: ["owner", "saas_admin", "nurse", "care_assistant", "agency_nurse", "agency_care_assistant"],
-  emergencyContacts: ["owner", "saas_admin", "nurse", "care_assistant", "agency_nurse", "agency_care_assistant"],
-  gpDetails: ["owner", "saas_admin", "nurse", "agency_nurse"],
-  careManagerDetails: ["owner", "saas_admin", "nurse", "care_assistant", "agency_nurse", "agency_care_assistant"],
-} as const;
-
-/**
- * Check if user has permission to view a specific field
- */
-export function canViewField(field: keyof typeof SENSITIVE_FIELDS, userRole: UserRole): boolean {
-  const allowedRoles = SENSITIVE_FIELDS[field];
-  return allowedRoles.includes(userRole as any);
-}
-
 export function canViewSidebarResidents(role?: string): boolean {
   return (
     role === "owner" ||
@@ -76,10 +54,6 @@ export function canViewSidebarStaff(role?: string): boolean {
 
 export function canViewSidebarAgency(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin";
-}
-
-export function canSwitchTeam(role?: string): boolean {
-  return role !== "agency_nurse" && role !== "agency_care_assistant";
 }
 
 export function canViewSidebarHandover(role?: string): boolean {
@@ -130,7 +104,6 @@ export function canViewSidebarAudit(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "saas_admin";
 }
 
-
 // Resident Overview
 export function canViewOverview(role?: string): boolean {
   return (
@@ -168,7 +141,7 @@ export function canAddDietMenu(role?: string): boolean {
 }
 
 export function canManageMenu(role?: string): boolean {
-  return role === "manager" || role === "nurse" || role === "agency_nurse";
+  return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin" || role === "agency_nurse";
 }
 
 export function canLogFoodFluidEntry(role?: string): boolean {
@@ -202,18 +175,6 @@ export function canLogDailyCare(role?: string): boolean {
 
 // Continence (Bowel & Bladder Care)
 export function canViewContinence(role?: string): boolean {
-  return (
-    role === "owner" ||
-    role === "manager" ||
-    role === "nurse" ||
-    role === "care_assistant" ||
-    role === "saas_admin" ||
-    role === "agency_nurse" ||
-    role === "agency_care_assistant"
-  );
-}
-
-export function canLogContinence(role?: string): boolean {
   return (
     role === "owner" ||
     role === "manager" ||
@@ -285,6 +246,24 @@ export function canAddLifestyleActivity(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin" || role === "care_assistant" || role === "agency_nurse" || role === "agency_care_assistant";
 }
 
+// Care-assistant routes into otherwise nurse-only areas (cards / links shown to care assistants)
+const isCareAssistantRole = (role?: string) => role === "care_assistant" || role === "agency_care_assistant";
+
+/** Care file folders: care assistants may browse them read-only (forms are disabled for them). */
+export function canBrowseCareFile(role?: string): boolean {
+  return canViewCareFile(role) || isCareAssistantRole(role);
+}
+
+/** Topical medication (creams): the profile shows this card to care assistants. */
+export function canViewTopicalMedication(role?: string): boolean {
+  return canViewMedication(role) || isCareAssistantRole(role);
+}
+
+/** Weight monitoring: Quick Info > Weight Check links care assistants here. */
+export function canViewWeightMonitoring(role?: string): boolean {
+  return canViewHealthMonitoring(role) || isCareAssistantRole(role);
+}
+
 // Hospital Transfer
 export function canViewHospitalTransfer(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "nurse" || role === "saas_admin" || role === "agency_nurse";
@@ -297,36 +276,6 @@ export function canViewMultidisciplinaryNotes(role?: string): boolean {
 
 export function canEditIncident(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "saas_admin" || role === "nurse" || role === "agency_nurse";
-}
-
-export function canCreateIncident(role?: string): boolean {
-  return role === "owner" || role === "manager" || role === "saas_admin" || role === "nurse" || role === "agency_nurse";
-}
-
-export function canForwardIncident(role?: string): boolean {
-  return role === "owner" || role === "manager" || role === "saas_admin" || role === "nurse" || role === "agency_nurse";
-}
-
-export function canViewAlert(alertType: string, role?: string): boolean {
-  if (!role) return false;
-
-  if (alertType === "food_fluid") {
-    return role === "care_assistant" || role === "agency_care_assistant";
-  }
-
-  if (alertType === "medication") {
-    return role === "nurse" || role === "agency_nurse";
-  }
-
-  if (role === "owner" || role === "manager" || role === "saas_admin") {
-    return alertType !== "food_fluid" && alertType !== "medication";
-  }
-
-  return true;
-}
-
-export function canViewAuditLogs(role?: string): boolean {
-  return role === "owner" || role === "manager" || role === "saas_admin";
 }
 
 export function canViewStaffList(role?: string): boolean {
@@ -343,11 +292,6 @@ export function canViewFullStaffList(role?: string): boolean {
 
 export function canToggleExternalAccess(role?: string): boolean {
   return role === "owner" || role === "manager" || role === "saas_admin" || role === "nurse";
-}
-
-export function canManageDiet(role?: string): boolean {
-  if (!role) return false;
-  return role === "owner" || role === "manager" || role === "nurse" || role === "agency_nurse";
 }
 
 export function canViewResidentSection(section: string, role?: string): boolean {
@@ -371,8 +315,8 @@ export function canViewResidentSection(section: string, role?: string): boolean 
     case "documents":
       return canViewDocuments(role);
     case "checks":
-      // Page is visible to all users
-      return true;
+      // Visible to care staff and RQIA inspectors; not kitchen staff or MDT visitors
+      return role !== "kitchen_staff" && role !== "mdt";
     case "appointments":
       return canViewAppointments(role);
     case "incidents":
@@ -413,17 +357,6 @@ export function getAllowedRolesToInvite(role: UserRole): UserRole[] {
   return [];
 }
 
-export function canViewKitchenPortal(role?: string): boolean {
-  return (
-    role === "owner" ||
-    role === "manager" ||
-    role === "nurse" ||
-    role === "care_assistant" ||
-    role === "saas_admin" ||
-    role === "kitchen_staff"
-  );
-}
-
 export function canViewSidebarRota(role?: string): boolean {
   return (
     role === "owner" ||
@@ -435,12 +368,6 @@ export function canViewSidebarRota(role?: string): boolean {
 }
 
 export function canManageRotaTemplatesAndRules(role?: string, isApprovedNurse?: boolean): boolean {
-  if (role === "saas_admin" || role === "owner" || role === "manager") return true;
-  if (role === "nurse" && isApprovedNurse) return true;
-  return false;
-}
-
-export function canManagePreferences(role?: string, isApprovedNurse?: boolean): boolean {
   if (role === "saas_admin" || role === "owner" || role === "manager") return true;
   if (role === "nurse" && isApprovedNurse) return true;
   return false;

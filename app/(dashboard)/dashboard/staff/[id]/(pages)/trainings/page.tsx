@@ -49,7 +49,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React from "react";
-import { format } from "date-fns";
+import { addMonths, addYears, format, parseISO } from "date-fns";
+import { formatDateToLocal, getUKTodayDate } from "@/lib/date-utils";
 
 type TrainingsPageProps = {
   params: Promise<{ id: string }>;
@@ -64,6 +65,45 @@ type Training = {
   expiryDate?: string;
   certificateUrl?: string;
 };
+
+type StaffTrainingRow = {
+  id: string;
+  training_type: "online" | "inperson";
+  name: string;
+  provider: string;
+  status: Training["status"];
+  completion_date: string | null;
+  expiry_date: string | null;
+};
+
+/** Completion and expiry are calendar days ("yyyy-MM-dd"). */
+function calculateExpiryDate(completionDate: string, expiryPeriod: string): string | undefined {
+  if (!completionDate || !expiryPeriod) return undefined;
+  const completion = parseISO(completionDate);
+  switch (expiryPeriod) {
+    case "6_months":
+      return formatDateToLocal(addMonths(completion, 6));
+    case "1_year":
+      return formatDateToLocal(addYears(completion, 1));
+    case "2_years":
+      return formatDateToLocal(addYears(completion, 2));
+    default:
+      return undefined;
+  }
+}
+
+function toTraining(row: StaffTrainingRow): Training {
+  // A completed training whose expiry date has passed is shown as expired.
+  const lapsed = row.status === "completed" && !!row.expiry_date && row.expiry_date < getUKTodayDate();
+  return {
+    id: row.id,
+    name: row.name,
+    provider: row.provider,
+    status: lapsed ? "expired" : row.status,
+    completionDate: row.completion_date ?? undefined,
+    expiryDate: row.expiry_date ?? undefined,
+  };
+}
 
 export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
   const { id } = React.use(params);
@@ -111,9 +151,29 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
     expiryPeriod: "" as "" | "6_months" | "1_year" | "2_years",
   });
 
-  // Dynamic training lists - starts empty
   const [onlineTrainings, setOnlineTrainings] = React.useState<Training[]>([]);
   const [inPersonTrainings, setInPersonTrainings] = React.useState<Training[]>([]);
+  const [isSavingTraining, setIsSavingTraining] = React.useState(false);
+
+  const loadTrainings = React.useCallback(async () => {
+    if (!supabase || !id) return;
+    const { data, error } = await supabase
+      .from("staff_trainings")
+      .select("id, training_type, name, provider, status, completion_date, expiry_date")
+      .eq("user_id", id)
+      .order("created_at", { ascending: true });
+    if (error) {
+      toast({ title: "Could not load trainings", description: error.message, variant: "destructive" });
+      return;
+    }
+    const rows = (data ?? []) as StaffTrainingRow[];
+    setOnlineTrainings(rows.filter((r) => r.training_type === "online").map(toTraining));
+    setInPersonTrainings(rows.filter((r) => r.training_type === "inperson").map(toTraining));
+  }, [supabase, id, toast]);
+
+  React.useEffect(() => {
+    void loadTrainings();
+  }, [loadTrainings]);
 
   // Reset form
   const resetForm = () => {
@@ -126,58 +186,40 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
     });
   };
 
-  // Calculate expiry date based on completion date and expiry period
-  const calculateExpiryDate = (completionDate: string, expiryPeriod: string): string | undefined => {
-    if (!completionDate || !expiryPeriod) return undefined;
-
-    const completion = new Date(completionDate);
-    const expiry = new Date(completion);
-
-    switch (expiryPeriod) {
-      case "6_months":
-        expiry.setMonth(expiry.getMonth() + 6);
-        break;
-      case "1_year":
-        expiry.setFullYear(expiry.getFullYear() + 1);
-        break;
-      case "2_years":
-        expiry.setFullYear(expiry.getFullYear() + 2);
-        break;
-    }
-
-    return expiry.toISOString();
-  };
-
   // Handle form submission
-  const handleAddTraining = (type: "online" | "inperson") => {
-    // Calculate expiry date from completion date and expiry period
-    const expiryDate = calculateExpiryDate(newTraining.completionDate, newTraining.expiryPeriod);
+  const handleAddTraining = async (type: "online" | "inperson") => {
+    if (!supabase || isSavingTraining) return;
+    setIsSavingTraining(true);
+    try {
+      const { error } = await supabase.from("staff_trainings").insert({
+        user_id: id,
+        training_type: type,
+        name: newTraining.name.trim(),
+        provider: newTraining.provider.trim(),
+        status: newTraining.status,
+        completion_date: newTraining.completionDate || null,
+        expiry_period: newTraining.expiryPeriod || null,
+        expiry_date: calculateExpiryDate(newTraining.completionDate, newTraining.expiryPeriod) ?? null,
+      });
+      if (error) throw error;
 
-    // Create new training object with unique ID
-    const trainingToAdd: Training = {
-      id: Date.now().toString(), // Simple ID generation
-      name: newTraining.name,
-      provider: newTraining.provider,
-      status: newTraining.status,
-      completionDate: newTraining.completionDate || undefined,
-      expiryDate: expiryDate,
-    };
-
-    // Add to appropriate list
-    if (type === "online") {
-      setOnlineTrainings([...onlineTrainings, trainingToAdd]);
-      setIsOnlineDialogOpen(false);
-    } else {
-      setInPersonTrainings([...inPersonTrainings, trainingToAdd]);
-      setIsInPersonDialogOpen(false);
+      if (type === "online") setIsOnlineDialogOpen(false);
+      else setIsInPersonDialogOpen(false);
+      toast({
+        title: "Training Added",
+        description: `${newTraining.name} has been added successfully.`,
+      });
+      resetForm();
+      await loadTrainings();
+    } catch (error) {
+      toast({
+        title: "Could not add training",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingTraining(false);
     }
-
-    toast({
-      title: "Training Added",
-      description: `${newTraining.name} has been added successfully.`,
-    });
-
-    resetForm();
   };
 
   const getStatusBadge = (status: Training["status"]) => {
@@ -363,7 +405,7 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
                           >
                             <Calendar className="mr-2 h-4 w-4" />
                             {newTraining.completionDate ? (
-                              format(new Date(newTraining.completionDate), "PPP")
+                              format(parseISO(newTraining.completionDate), "PPP")
                             ) : (
                               <span>Pick a date</span>
                             )}
@@ -372,11 +414,11 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
                         <PopoverContent className="w-auto p-0" align="start">
                           <CalendarComponent
                             mode="single"
-                            selected={newTraining.completionDate ? new Date(newTraining.completionDate) : undefined}
+                            selected={newTraining.completionDate ? parseISO(newTraining.completionDate) : undefined}
                             onSelect={(date) => {
                               setNewTraining({
                                 ...newTraining,
-                                completionDate: date ? date.toISOString() : ""
+                                completionDate: date ? formatDateToLocal(date) : ""
                               });
                               setIsCompletionDateOpen(false);
                             }}
@@ -410,7 +452,7 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
                     </Button>
                     <Button
                       onClick={() => handleAddTraining("online")}
-                      disabled={!newTraining.name || !newTraining.provider}
+                      disabled={!newTraining.name.trim() || !newTraining.provider.trim() || isSavingTraining}
                     >
                       Add Training
                     </Button>
@@ -446,12 +488,12 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
                     <TableCell>{getStatusBadge(training.status)}</TableCell>
                     <TableCell>
                       {training.completionDate
-                        ? format(new Date(training.completionDate), "dd MMM yyyy")
+                        ? format(parseISO(training.completionDate), "dd MMM yyyy")
                         : "-"}
                     </TableCell>
                     <TableCell>
                       {training.expiryDate
-                        ? format(new Date(training.expiryDate), "dd MMM yyyy")
+                        ? format(parseISO(training.expiryDate), "dd MMM yyyy")
                         : "-"}
                     </TableCell>
                   </TableRow>
@@ -534,7 +576,7 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
                           >
                             <Calendar className="mr-2 h-4 w-4" />
                             {newTraining.completionDate ? (
-                              format(new Date(newTraining.completionDate), "PPP")
+                              format(parseISO(newTraining.completionDate), "PPP")
                             ) : (
                               <span>Pick a date</span>
                             )}
@@ -543,11 +585,11 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
                         <PopoverContent className="w-auto p-0" align="start">
                           <CalendarComponent
                             mode="single"
-                            selected={newTraining.completionDate ? new Date(newTraining.completionDate) : undefined}
+                            selected={newTraining.completionDate ? parseISO(newTraining.completionDate) : undefined}
                             onSelect={(date) => {
                               setNewTraining({
                                 ...newTraining,
-                                completionDate: date ? date.toISOString() : ""
+                                completionDate: date ? formatDateToLocal(date) : ""
                               });
                               setIsCompletionDateOpen(false);
                             }}
@@ -581,7 +623,7 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
                     </Button>
                     <Button
                       onClick={() => handleAddTraining("inperson")}
-                      disabled={!newTraining.name || !newTraining.provider}
+                      disabled={!newTraining.name.trim() || !newTraining.provider.trim() || isSavingTraining}
                     >
                       Add Training
                     </Button>
@@ -617,12 +659,12 @@ export default function StaffTrainingsPage({ params }: TrainingsPageProps) {
                     <TableCell>{getStatusBadge(training.status)}</TableCell>
                     <TableCell>
                       {training.completionDate
-                        ? format(new Date(training.completionDate), "dd MMM yyyy")
+                        ? format(parseISO(training.completionDate), "dd MMM yyyy")
                         : "-"}
                     </TableCell>
                     <TableCell>
                       {training.expiryDate
-                        ? format(new Date(training.expiryDate), "dd MMM yyyy")
+                        ? format(parseISO(training.expiryDate), "dd MMM yyyy")
                         : "-"}
                     </TableCell>
                   </TableRow>

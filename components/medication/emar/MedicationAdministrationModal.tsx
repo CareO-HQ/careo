@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { isEligibleWitness } from "@/lib/medication/witness";
 import {
   Dialog,
   DialogContent,
@@ -66,11 +67,13 @@ export function MedicationAdministrationModal({
 
       const { data: users } = await supabase
         .from("users")
-        .select("id, name, email")
-        .eq("active_organization_id", profile.active_organization_id)
-        .neq("id", profile.id); // Exclude current user
+        .select("id, name, email, role")
+        .eq("active_organization_id", profile.active_organization_id);
 
-      setAvailableWitnesses(users || []);
+      // Not the person administering, and not the owner.
+      setAvailableWitnesses(
+        (users || []).filter((u) => isEligibleWitness({ userId: u.id, role: u.role }, profile.id))
+      );
     };
 
     if (isOpen) {

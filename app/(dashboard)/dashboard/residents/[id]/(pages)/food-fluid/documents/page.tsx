@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { supabase } from "@/lib/supabase";
 import { getUKTodayDate, formatTimestampToUKTime, formatDateForDisplay, UK_TIMEZONE } from "@/lib/date-utils";
@@ -211,6 +211,24 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
     }
   }, [id, selectedYear, selectedMonth, sortOrder, currentPage, itemsPerPage]);
 
+  // Number of report dates in the current UK month, independent of the active filters
+  const [thisMonthCount, setThisMonthCount] = useState(0);
+  useEffect(() => {
+    const now = new Date();
+    supabase
+      .rpc("get_paginated_food_fluid_dates", {
+        p_resident_id: id,
+        p_limit: 1,
+        p_offset: 0,
+        p_year: parseInt(formatInTimeZone(now, UK_TIMEZONE, "yyyy")),
+        p_month: parseInt(formatInTimeZone(now, UK_TIMEZONE, "M")),
+        p_sort_order: "DESC",
+      })
+      .then(({ data, error }) => {
+        if (!error) setThisMonthCount(data && data.length > 0 ? Number(data[0].total_dates_count) : 0);
+      });
+  }, [id]);
+
   // Fetch paginated dates when filters change
   useEffect(() => {
     fetchPaginatedDates();
@@ -381,14 +399,12 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
       ? paginatedData.totalCount
       : paginatedData.totalCount;
 
-    // Calculate this month/week from total count (approximation)
-    // In production, you'd want a separate query for accurate stats
     return {
       total,
-      thisMonth: selectedMonth === new Date().getMonth().toString() ? total : 0,
+      thisMonth: thisMonthCount,
       thisWeek: 0, // Would need separate query for accurate count
     };
-  }, [paginatedData, selectedYear, selectedMonth]);
+  }, [paginatedData, selectedYear, selectedMonth, thisMonthCount]);
 
   const handleDownloadReport = async (report: any, subtype: FoodFluidSubtype) => {
     if (!resident) {
@@ -402,7 +418,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
 
     // If data isn't loaded (e.g. from history table directly), fetch it first
     if (!reportToDownload) {
-      const loadingToast = toast.loading(`Preparing report for ${formatInTimeZone(new Date(report.date + "T00:00:00"), UK_TIMEZONE, "dd MMM yyyy")}...`);
+      const loadingToast = toast.loading(`Preparing report for ${format(parseISO(report.date), "dd MMM yyyy")}...`);
       try {
         const { data: logs, error } = await supabase
           .from("food_fluid_logs")
@@ -478,7 +494,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
         orgLogoUrl: profile?.organization_logo_url || undefined
       });
       const subtypeLabel = subtype === "food" ? "Food" : "Fluid";
-      toast.success(`${subtypeLabel} report generated for ${formatInTimeZone(new Date(report.date + "T00:00:00"), UK_TIMEZONE, "dd MMM yyyy")}`);
+      toast.success(`${subtypeLabel} report generated for ${format(parseISO(report.date), "dd MMM yyyy")}`);
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast.error("Failed to generate PDF report");
@@ -841,7 +857,7 @@ export default function FoodFluidDocumentsPage({ params }: FoodFluidDocumentsPag
                         <TableCell className="font-medium">
                           <div className="flex items-center space-x-2">
                             <Calendar className="w-4 h-4 text-gray-400" />
-                            <span>{formatInTimeZone(new Date(report.date + "T00:00:00"), UK_TIMEZONE, "dd MMM yyyy")}</span>
+                            <span>{format(parseISO(report.date), "dd MMM yyyy")}</span>
                           </div>
                         </TableCell>
                         <TableCell>

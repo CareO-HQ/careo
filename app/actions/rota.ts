@@ -1,25 +1,41 @@
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
+import {
+  assertTeamInScope,
+  assertUserInScope,
+  getServiceClient,
+  requireActor,
+  type ActorProfile,
+} from "@/lib/server-auth";
 import { revalidatePath } from "next/cache";
 
-// 1. Helper to initialize Supabase client bypassing RLS for server-side actions
-function getSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) {
-    throw new Error("Missing Supabase env configuration for server actions");
+// 1. Service-role client (RLS bypassed): every action first verifies the caller
+// from the session via requireActor() and checks the target is in their scope.
+const getSupabaseClient = getServiceClient;
+
+type RotaEntity = "shift_templates" | "rotas" | "rota_shifts" | "leave_requests" | "shift_swaps" | "temporary_staff";
+
+/** Resolves the team that owns a rota entity and checks it is within the actor's scope. */
+async function assertRotaEntityInScope(actor: ActorProfile, entity: RotaEntity, id: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  let teamId: string | null = null;
+  if (entity === "rota_shifts") {
+    const { data } = await supabase.from("rota_shifts").select("rotas!inner(team_id)").eq("id", id).single();
+    const rota = data?.rotas as { team_id: string } | { team_id: string }[] | undefined;
+    teamId = (Array.isArray(rota) ? rota[0]?.team_id : rota?.team_id) ?? null;
+  } else if (entity === "shift_swaps") {
+    const { data } = await supabase.from("shift_swaps").select("requesting_shift_id").eq("id", id).single();
+    if (data?.requesting_shift_id) return assertRotaEntityInScope(actor, "rota_shifts", data.requesting_shift_id);
+  } else {
+    const { data } = await supabase.from(entity).select("team_id").eq("id", id).single();
+    teamId = (data?.team_id as string | undefined) ?? null;
   }
-  return createClient(url, serviceKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  if (!teamId) throw new Error("Not found.");
+  await assertTeamInScope(actor, teamId);
 }
 
 // 2. Audit Trail Logger
-export async function logRotaAudit(action: {
+async function logRotaAudit(action: {
   actorId: string;
   actionType: string;
   teamId: string;
@@ -61,6 +77,8 @@ export async function updateStaffWorkforceAction(
 ) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertUserInScope(sessionActor, staffId);
 
     // Verify actor role
     const { data: actor } = await supabase
@@ -126,6 +144,10 @@ export async function updateStaffWorkforceAction(
     }
 
     if (updates.is_login_allowed !== undefined) {
+      // Enforce at the auth layer too: a deactivated account cannot sign in at all.
+      await supabase.auth.admin.updateUserById(staffId, {
+        ban_duration: updates.is_login_allowed ? "none" : "876000h",
+      });
       await logRotaAudit({
         actorId,
         actionType: updates.is_login_allowed ? "mdt_login_allowed" : "mdt_login_disabled",
@@ -153,6 +175,8 @@ export async function createShiftTemplateAction(actorId: string, teamId: string,
 }) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertTeamInScope(sessionActor, teamId);
     const { data: newTemplate, error } = await supabase
       .from("shift_templates")
       .insert({
@@ -194,6 +218,8 @@ export async function updateShiftTemplateAction(actorId: string, templateId: str
 }) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "shift_templates", templateId);
     const { data: template } = await supabase
       .from("shift_templates")
       .select("team_id")
@@ -234,6 +260,8 @@ export async function updateShiftTemplateAction(actorId: string, templateId: str
 export async function deleteShiftTemplateAction(actorId: string, templateId: string) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "shift_templates", templateId);
     const { data: template } = await supabase
       .from("shift_templates")
       .select("team_id, name")
@@ -270,6 +298,11 @@ export async function reorderShiftTemplatesAction(
 ) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertTeamInScope(sessionActor, teamId);
+    for (const templateId of orderedTemplateIds) {
+      await assertRotaEntityInScope(sessionActor, "shift_templates", templateId);
+    }
     
     // Update sort_order for each template sequentially
     for (let i = 0; i < orderedTemplateIds.length; i++) {
@@ -309,6 +342,8 @@ export async function configureStaffingRequirementsAction(
 ) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertTeamInScope(sessionActor, teamId);
 
     // Clear existing rules and insert new ones
     const { error: deleteError } = await supabase
@@ -349,6 +384,8 @@ export async function configureStaffingRequirementsAction(
 export async function createRotaAction(actorId: string, teamId: string, startDate: string, endDate: string) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertTeamInScope(sessionActor, teamId);
     
     // Check if rota already exists
     const { data: existing } = await supabase
@@ -405,6 +442,8 @@ export async function addManualShiftAction(actorId: string, shiftData: {
 }) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "rotas", shiftData.rotaId);
 
     // Fetch rota info to get team_id
     const { data: rota } = await supabase
@@ -498,6 +537,8 @@ export async function addManualShiftAction(actorId: string, shiftData: {
 export async function deleteManualShiftAction(actorId: string, shiftId: string, reason?: string) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "rota_shifts", shiftId);
 
     // Fetch shift to audit
     const { data: shift } = await supabase
@@ -538,6 +579,8 @@ export async function deleteManualShiftAction(actorId: string, shiftId: string, 
 export async function clearRotaShiftsAction(actorId: string, rotaId: string) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "rotas", rotaId);
 
     // Fetch rota info to verify existence and get team_id for audit
     const { data: rota } = await supabase
@@ -572,6 +615,8 @@ export async function clearRotaShiftsAction(actorId: string, rotaId: string) {
 export async function publishRotaAction(actorId: string, rotaId: string, bypassValidation = false) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "rotas", rotaId);
 
     const { data: rota } = await supabase
       .from("rotas")
@@ -694,6 +739,8 @@ export async function requestLeaveAction(actorId: string, leaveData: {
 }) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertTeamInScope(sessionActor, leaveData.teamId);
 
     // Check if duplicate request on same unit/date exists (US-007)
     const { data: existingTeamRequests } = await supabase
@@ -755,6 +802,9 @@ export async function assignLeaveAction(actorId: string, leaveData: {
 }) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertTeamInScope(sessionActor, leaveData.teamId);
+    await assertUserInScope(sessionActor, leaveData.userId);
 
     // Verify actor role is manager/owner/saas_admin
     const { data: actor } = await supabase
@@ -834,6 +884,8 @@ export async function assignLeaveAction(actorId: string, leaveData: {
 export async function approveLeaveAction(actorId: string, leaveId: string, approve: boolean, rejectionReason?: string) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "leave_requests", leaveId);
 
     const { data: request } = await supabase
       .from("leave_requests")
@@ -900,6 +952,8 @@ export async function requestShiftSwapAction(actorId: string, swapData: {
 }) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "rota_shifts", swapData.requestingShiftId);
 
     // Fetch requesting shift details to get team ID
     const { data: requestingShift } = await supabase
@@ -955,6 +1009,8 @@ export async function requestShiftSwapAction(actorId: string, swapData: {
 export async function approveShiftSwapAction(actorId: string, swapId: string, approve: boolean, rejectionReason?: string) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "shift_swaps", swapId);
 
     const { data: swap } = await supabase
       .from("shift_swaps")
@@ -1236,6 +1292,10 @@ export async function swapOrMoveShiftAction(
 ) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "rota_shifts", sourceShiftId);
+    if (targetShiftId) await assertRotaEntityInScope(sessionActor, "rota_shifts", targetShiftId);
+    if (targetTemplateId) await assertRotaEntityInScope(sessionActor, "shift_templates", targetTemplateId);
 
     // 1. Fetch source shift
     const { data: sourceShift, error: srcError } = await supabase
@@ -1511,6 +1571,8 @@ export async function swapOrMoveShiftAction(
 export async function unpublishRotaAction(actorId: string, rotaId: string) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "rotas", rotaId);
     
     // Fetch actor details to verify role
     const { data: userDetails } = await supabase
@@ -1570,6 +1632,8 @@ export async function createTemporaryStaffAction(
 ) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertTeamInScope(sessionActor, teamId);
 
     // Verify actor role is authorized
     const { data: actor } = await supabase
@@ -1621,6 +1685,8 @@ export async function deleteTemporaryStaffAction(
 ) {
   try {
     const supabase = getSupabaseClient();
+    const sessionActor = await requireActor(actorId);
+    await assertRotaEntityInScope(sessionActor, "temporary_staff", temporaryStaffId);
 
     // Get team_id first
     const { data: staff } = await supabase

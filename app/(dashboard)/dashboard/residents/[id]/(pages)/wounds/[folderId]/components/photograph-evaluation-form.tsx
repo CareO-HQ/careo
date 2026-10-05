@@ -38,7 +38,7 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { buildStorageObjectUrl } from "@/lib/storage";
-import { formatTimestampToUKDateTime } from "@/lib/date-utils";
+import { getCurrentUKTime, formatTimestampToUKDateTime } from "@/lib/date-utils";
 import {
   fetchWoundGalleryPhotos,
   type WoundGalleryPhotoRecord,
@@ -388,7 +388,7 @@ export function PhotographEvaluationForm({
         resident_id: residentId,
         organization_id: profile.active_organization_id,
         photograph_date: format(values.photographDate, "yyyy-MM-dd"),
-        photograph_time: new Date().toTimeString().slice(0, 5),
+        photograph_time: getCurrentUKTime(),
         photograph_url: photographUrl,
         site_of_wound: `${values.siteOfWound}${siteInfo ? ` (${siteInfo})` : ""}`,
         length_cm: values.actualMeasurement ? parseFloat(values.actualMeasurement.split("x")[0]) : null,

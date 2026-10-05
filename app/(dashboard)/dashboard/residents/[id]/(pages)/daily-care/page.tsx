@@ -55,7 +55,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
-import { getUKTodayDate, formatTimestampToUKTime, formatTimestampToUKDate, formatTimestampToUKDateTime, formatDateForDisplay } from "@/lib/date-utils";
+import { getCurrentUKTime, getUKTodayDate, formatTimestampToUKTime, formatTimestampToUKDate, formatTimestampToUKDateTime, formatDateForDisplay } from "@/lib/date-utils";
 import { TimePicker } from "@/components/ui/date-time-picker";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/hooks/use-profile";
@@ -268,7 +268,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   // Daily Activity Record state variables
   const [activityRecordTime, setActivityRecordTime] = React.useState(() => {
     // Get current time in HH:MM format
-    return new Date().toTimeString().slice(0, 5);
+    return getCurrentUKTime();
   });
   const [activityRecordNotes, setActivityRecordNotes] = React.useState("");
 
@@ -280,7 +280,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
   // Update activity record time to current time when dialog opens
   React.useEffect(() => {
     if (isActivityRecordDialogOpen) {
-      setActivityRecordTime(new Date().toTimeString().slice(0, 5));
+      setActivityRecordTime(getCurrentUKTime());
     }
   }, [isActivityRecordDialogOpen]);
 
@@ -292,7 +292,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
 
       // Only set time if it's not already set (don't override user's selection)
       if (!form.getValues('time')) {
-        const currentTime = new Date().toTimeString().slice(0, 5);
+        const currentTime = getCurrentUKTime();
         form.setValue('time', currentTime);
       }
     }
@@ -444,7 +444,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
       if (taskError) throw taskError;
 
       // Clear form and close dialog (keep current user as staff)
-      setActivityRecordTime(new Date().toTimeString().slice(0, 5));
+      setActivityRecordTime(getCurrentUKTime());
       setActivityRecordNotes("");
       setIsActivityRecordDialogOpen(false);
 
@@ -2019,7 +2019,7 @@ export default function DailyCarePage({ params }: DailyCarePageProps) {
                   variant="outline"
                   onClick={() => {
                     setIsActivityRecordDialogOpen(false);
-                    setActivityRecordTime(new Date().toTimeString().slice(0, 5));
+                    setActivityRecordTime(getCurrentUKTime());
                     setActivityRecordNotes("");
                   }}
                 >

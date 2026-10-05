@@ -72,49 +72,9 @@ function AcceptInvitationContent() {
 
     setIsAccepting(true);
     try {
-      // 1. Update user role in auth.users metadata
-      // 2. Update user with organization and care home info in public.users
-      // The DB trigger on_user_change_sync_metadata will automatically sync this to auth.users metadata
-      const { error: userError } = await supabase
-        .from("users")
-        .update({
-          role: invitation.role,
-          is_saas_admin: false,
-          active_organization_id: invitation.organization_id,
-          active_care_home_id: invitation.care_home_id,
-          active_team_id: invitation.team_id,
-          is_onboarding_complete: false,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", session?.user.id);
-
-      if (userError) {
-        console.error("User update error:", userError);
-        throw userError;
-      }
-      // 3. Add to junction tables based on role
-      if (invitation.role === "manager" && invitation.care_home_id) {
-        await supabase.from("care_home_managers").upsert({
-          care_home_id: invitation.care_home_id,
-          user_id: session?.user.id,
-          assigned_at: new Date().toISOString()
-        });
-      } else if ((invitation.role === "nurse" || invitation.role === "care_assistant") && invitation.team_id) {
-        await supabase.from("team_staff").upsert({
-          team_id: invitation.team_id,
-          user_id: session?.user.id,
-          role: invitation.role,
-          assigned_at: new Date().toISOString()
-        });
-      }
-
-      // Add owner to users table with organization info
-      if (invitation.role === "owner") {
-        // Already handled in the users table update above
-        console.log("Owner role set successfully");
-      }
-
-      // 4. Mark invitation as accepted via a scoped RPC.
+      // Accepting is done in one SECURITY DEFINER RPC: it validates the token/email/expiry and
+      // assigns role, organization, care home and team from the stored invitation (the client
+      // can no longer write these columns itself). team_staff is synced by a DB trigger.
       const { data: accepted, error: acceptError } = await supabase.rpc("accept_invitation", {
         p_token: token,
       });
@@ -122,6 +82,9 @@ function AcceptInvitationContent() {
       if (acceptError || !accepted) {
         throw acceptError ?? new Error("Failed to accept invitation");
       }
+
+      // Pick up the new role/organization claims in the session token.
+      await supabase.auth.refreshSession();
 
       await refreshProfile();
       toast.success("Invitation accepted!");

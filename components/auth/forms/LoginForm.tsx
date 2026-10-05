@@ -128,7 +128,6 @@ export default function LoginForm() {
                 <FormControl>
                   <Input
                     icon={MailIcon}
-                    id="email"
                     type="email"
                     placeholder="email@example.com"
                     required
@@ -157,7 +156,6 @@ export default function LoginForm() {
                 <FormControl>
                   <Input
                     icon={LockIcon}
-                    id="password"
                     type={showPassword ? "text" : "password"}
                     required
                     disabled={isLoading}

@@ -16,10 +16,11 @@ export function formatRoleName(role: string): string {
 }
 
 // dateOfBirth is like 2025-08-15
-export function getAge(dateOfBirth: string) {
+/** Age in whole years, or null when the date of birth is missing or not a valid date. */
+export function getAge(dateOfBirth: string): number | null {
   const today = new Date();
   const birthDate = new Date(dateOfBirth);
-  console.log(birthDate);
+  if (!dateOfBirth || Number.isNaN(birthDate.getTime())) return null;
   let age = today.getFullYear() - birthDate.getFullYear();
   const m = today.getMonth() - birthDate.getMonth();
   if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {

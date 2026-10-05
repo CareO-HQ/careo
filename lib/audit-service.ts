@@ -87,13 +87,18 @@ function resolveActionPlanTableName(category: string): string {
 
 const ACTIVE_ACTION_PLAN_STATUSES = ["pending", "in_progress", "overdue"] as const;
 
-function buildAssigneeOrFilter(userId: string, email: string): string {
+/** Tables that store the assignee email separately (others only have `assigned_to`). */
+const TABLES_WITH_ASSIGNEE_EMAIL = new Set<string>(["audit_manager_action_plans", "care_home_common_action_plans"]);
+
+function buildAssigneeOrFilter(userId: string, email: string, includeEmailColumn = true): string {
     const orParts: string[] = [];
     if (userId) {
         orParts.push(`assigned_to.eq.${userId}`);
     }
     if (email) {
-        orParts.push(`assigned_to.eq.${email}`, `assigned_to_email.eq.${email}`);
+        orParts.push(`assigned_to.eq.${email}`);
+        // Filtering on a column a table lacks makes PostgREST reject the whole query (400).
+        if (includeEmailColumn) orParts.push(`assigned_to_email.eq.${email}`);
     }
     return orParts.join(",");
 }
@@ -631,10 +636,14 @@ export const auditService = {
 
     // --- Global / Helper ---
     /** Staff list for pickers; kept org-shaped for callers but not filtered by DB column here — RLS already limits rows to who the viewer may see (same care home / org owner rules), and team-visible staff often have null active_organization_id. */
-    async getOrganizationMembers(_organizationId: string) {
-        const { data, error } = await supabase
+    /** Active members of an organisation, optionally only those working in one care home. */
+    async getOrganizationMembers(organizationId: string, careHomeId?: string | null) {
+        let query = supabase
             .from("users")
-            .select("id, email, name, image_url, role");
+            .select("id, email, name, image_url, role")
+            .eq("active_organization_id", organizationId);
+        if (careHomeId) query = query.eq("active_care_home_id", careHomeId);
+        const { data, error } = await query;
         if (error) {
             console.warn("Could not fetch users:", error);
             return [];
@@ -760,7 +769,7 @@ export const auditService = {
                 let query = supabase
                     .from(table.name)
                     .select("*")
-                    .or(assigneeOr)
+                    .or(buildAssigneeOrFilter(userId, email, TABLES_WITH_ASSIGNEE_EMAIL.has(table.name)))
                     .in("status", [...ACTIVE_ACTION_PLAN_STATUSES]);
                 if (organizationId) {
                     query = query.eq("organization_id", organizationId);

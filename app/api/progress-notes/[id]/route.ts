@@ -48,7 +48,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { supabase, response } = createSupabaseClient(request);
+    const { supabase } = createSupabaseClient(request);
     const { id } = await params;
     
     // Get user
@@ -106,7 +106,7 @@ export async function PATCH(
       updatedAt: updatedNote.updated_at,
     };
 
-    return NextResponse.json(transformedNote, { headers: response.headers });
+    return NextResponse.json(transformedNote);
   } catch (error: any) {
     console.error("Error in PATCH /api/progress-notes/[id]:", error);
     return NextResponse.json(
@@ -122,7 +122,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { supabase, response } = createSupabaseClient(request);
+    const { supabase } = createSupabaseClient(request);
     const { id } = await params;
     
     // Get user
@@ -145,7 +145,7 @@ export async function DELETE(
       );
     }
 
-    return NextResponse.json({ success: true }, { headers: response.headers });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Error in DELETE /api/progress-notes/[id]:", error);
     return NextResponse.json(

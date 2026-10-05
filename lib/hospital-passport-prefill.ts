@@ -1,5 +1,7 @@
 import type { HospitalPassportFormData } from "@/app/(dashboard)/dashboard/residents/[id]/(pages)/hospital-transfer/types";
 import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
+import { UK_TIMEZONE } from "@/lib/date-utils";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -190,7 +192,8 @@ export function buildHospitalPassportFormValues(input: BuildHospitalPassportPref
   const medRegime = formatMedicationRegime(medications);
   const skinState = "";
 
-  const nowSlice = new Date().toISOString().slice(0, 16);
+  // The form edits UK wall-clock times ("yyyy-MM-ddTHH:mm"), so default to the current UK time, not UTC.
+  const nowSlice = formatInTimeZone(new Date(), UK_TIMEZONE, "yyyy-MM-dd'T'HH:mm");
 
   const prefill: HospitalPassportFormData = {
     generalDetails: {

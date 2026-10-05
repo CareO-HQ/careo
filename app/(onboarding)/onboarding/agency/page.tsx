@@ -100,74 +100,17 @@ function AgencyOnboardingContent() {
 
     setIsActivating(true);
     try {
-      const timestamp = new Date().toISOString();
-      
-      // Determine the persona based on agency role
-      const agencyRole = requestData.agency_staff?.role;
-      const careoRole = agencyRole === "nurse" ? "agency_nurse" : "agency_care_assistant";
+      // One SECURITY DEFINER RPC validates the activation token and email, then creates the
+      // agency profile, team membership and marks the request/staff active.
+      const { error: activationError } = await supabase.rpc("complete_agency_onboarding", {
+        p_token: token,
+      });
 
-      // 1. Update public.users
-      const { error: userError } = await supabase
-        .from("users")
-        .upsert({
-          id: session.user.id,
-          email: targetEmail,
-          name: requestData.agency_staff?.name,
-          role: careoRole,
-          is_saas_admin: false,
-          active_organization_id: requestData.organization_id,
-          active_care_home_id: requestData.care_home_id,
-          active_team_id: requestData.team_id,
-          is_onboarding_complete: true,
-          updated_at: timestamp
-        }, {
-          onConflict: 'id'
-        });
+      if (activationError) throw activationError;
 
-      if (userError) throw userError;
+      // Pick up the new role/organization claims in the session token.
+      await supabase.auth.refreshSession();
 
-      // 2. Add to public.team_staff
-      if (requestData.team_id) {
-        const { error: teamStaffError } = await supabase
-          .from("team_staff")
-          .upsert({
-            team_id: requestData.team_id,
-            user_id: session.user.id,
-            role: careoRole,
-            assigned_at: timestamp
-          }, {
-            onConflict: 'team_id,user_id'
-          });
-
-        if (teamStaffError) throw teamStaffError;
-      }
-
-      // 3. Update agency_requests status
-      const { error: requestError } = await supabase
-        .from("agency_requests")
-        .update({
-          status: "active",
-          activated_at: timestamp,
-          updated_at: timestamp
-        })
-        .eq("id", requestData.id);
-
-      if (requestError) throw requestError;
-
-      // 4. Update agency_staff status and auth ID
-      const { error: staffError } = await supabase
-        .from("agency_staff")
-        .update({
-          status: "active",
-          auth_user_id: session.user.id,
-          updated_at: timestamp
-        })
-        .eq("id", requestData.agency_staff_id);
-
-      if (staffError) throw staffError;
-
-      // 5. Force auth metadata update via RPC or trigger (trigger on_user_change_sync_metadata will sync role and IDs automatically)
-      
       toast.success("Shift assignment successfully activated!");
       await refreshProfile();
       

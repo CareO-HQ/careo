@@ -25,7 +25,8 @@ import {
   CloudDrizzle,
   CloudSun,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, isToday, isYesterday, parseISO } from "date-fns";
+import { formatIncidentType } from "@/lib/incident-audit-utils";
 import { auditService } from "@/lib/audit-service";
 import {
   computeOccupancyRate,
@@ -431,6 +432,7 @@ export default function DashboardPage() {
           resident:residents!inner(first_name, last_name, care_home_id, team_id, room_number)
         `)
           .order("date", { ascending: false })
+          .order("time", { ascending: false })
           .limit(5),
         effectiveScope
       );
@@ -532,20 +534,11 @@ export default function DashboardPage() {
   const formatIncidentTime = (dateStr: string, timeStr: string) => {
     if (!dateStr) return "N/A";
     try {
-      const d = new Date(dateStr);
-      const today = new Date();
-      const yesterday = new Date();
-      yesterday.setDate(today.getDate() - 1);
-
-      const timeFormatted = timeStr ? timeStr.toUpperCase() : "";
-
-      if (d.toDateString() === today.toDateString()) {
-        return `Today, ${timeFormatted || "N/A"}`;
-      } else if (d.toDateString() === yesterday.toDateString()) {
-        return `Yesterday, ${timeFormatted || "N/A"}`;
-      } else {
-        return `${format(d, "d MMM")}, ${timeFormatted || "N/A"}`;
-      }
+      // `date` is a calendar day and `time` is "HH:mm[:ss]"; show "Today, 17:59".
+      const d = parseISO(dateStr);
+      const time = /^\d{1,2}:\d{2}/.test(timeStr ?? "") ? timeStr.slice(0, timeStr.indexOf(":") + 3) : timeStr || "";
+      const day = isToday(d) ? "Today" : isYesterday(d) ? "Yesterday" : format(d, "d MMM");
+      return time ? `${day}, ${time}` : day;
     } catch (e) {
       return dateStr;
     }
@@ -856,79 +849,63 @@ export default function DashboardPage() {
               View all
             </span>
           </div>
-          <div className="flex-1 overflow-y-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pb-2">Resident</th>
-                  <th className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pb-2">Incident</th>
-                  <th className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pb-2">Time</th>
-                  <th className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pb-2">Priority</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dashboardData?.latestIncidents && dashboardData.latestIncidents.length > 0 ? (
-                  dashboardData.latestIncidents.map((incident: any) => {
-                    const initials = getInitials(
-                      incident.resident?.first_name || "",
-                      incident.resident?.last_name || ""
-                    );
-                    const initialsColor = getInitialsColor(initials);
-                    const prio = getPriorityStyles(incident.incident_level || "");
+          <div className="flex-1 overflow-y-auto -mx-2">
+            {dashboardData?.latestIncidents && dashboardData.latestIncidents.length > 0 ? (
+              <ul className="divide-y divide-gray-100">
+                {dashboardData.latestIncidents.map((incident: any) => {
+                  const initials = getInitials(
+                    incident.resident?.first_name || "",
+                    incident.resident?.last_name || ""
+                  );
+                  const initialsColor = getInitialsColor(initials);
+                  const prio = getPriorityStyles(incident.incident_level || "");
+                  const types: string[] = incident.incident_types ?? [];
+                  const typeLabel = types.length > 0
+                    ? formatIncidentType(types[0])
+                    : incident.type_other_details || "Unknown";
+                  const residentName = incident.resident
+                    ? `${incident.resident.first_name} ${incident.resident.last_name}`
+                    : "Unknown";
 
-                    return (
-                      <tr
-                        key={incident.id}
-                        className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() =>
-                          incident.resident_id &&
-                          router.push(`/dashboard/residents/${incident.resident_id}/incidents`)
-                        }
-                      >
-                        <td className="py-3 text-xs">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] uppercase shrink-0 ${initialsColor}`}>
-                              {initials}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-bold text-gray-900 truncate">
-                                {incident.resident
-                                  ? `${incident.resident.first_name} ${incident.resident.last_name}`
-                                  : "Unknown"}
-                              </div>
-                              <div className="text-[9px] text-gray-400">
-                                {incident.resident?.room_number
-                                  ? `Room ${incident.resident.room_number}`
-                                  : "N/A"}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 text-xs text-gray-600 max-w-[100px] truncate">
-                          {incident.incident_types && incident.incident_types.length > 0
-                            ? incident.incident_types[0]
-                            : incident.type_other_details || "Unknown"}
-                        </td>
-                        <td className="py-3 text-[10px] text-gray-400 whitespace-nowrap">
+                  return (
+                    <li
+                      key={incident.id}
+                      className="flex items-center gap-3 px-2 py-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() =>
+                        incident.resident_id &&
+                        router.push(`/dashboard/residents/${incident.resident_id}/incidents`)
+                      }
+                    >
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-[11px] uppercase shrink-0 ${initialsColor}`}>
+                        {initials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-gray-900 truncate" title={residentName}>
+                          {residentName}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate mt-0.5" title={types.map(formatIncidentType).join(", ") || typeLabel}>
+                          <span className="text-gray-700">{typeLabel}</span>
+                          {types.length > 1 && <span className="text-gray-400"> +{types.length - 1}</span>}
+                          {incident.resident?.room_number && (
+                            <span className="text-gray-400"> · Room {incident.resident.room_number}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span className={`text-[10px] font-bold border rounded-full px-2 py-0.5 ${prio.className}`}>
+                          {prio.label}
+                        </span>
+                        <span className="text-[11px] text-gray-400 whitespace-nowrap">
                           {formatIncidentTime(incident.date, incident.time)}
-                        </td>
-                        <td className="py-3 text-xs">
-                          <span className={`text-[10px] font-bold border rounded-full px-2 py-0.5 ${prio.className}`}>
-                            {prio.label}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="text-center py-10 text-gray-400 text-xs">
-                      No recent incidents recorded.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="text-center py-10 text-gray-400 text-xs">No recent incidents recorded.</div>
+            )}
           </div>
         </div>
 

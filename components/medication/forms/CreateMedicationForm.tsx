@@ -329,7 +329,10 @@ export default function CreateMedicationForm({
       "dosageForm",
       "route",
       "frequency",
-      "scheduleType"
+      "scheduleType",
+      "isControlledDrug",
+      "controlledDrugSchedule",
+      "totalCount"
     ] as const;
 
     const isValid = await form.trigger(fieldsToValidate);
@@ -506,13 +509,41 @@ export default function CreateMedicationForm({
                       <FormControl>
                         <Checkbox
                           checked={field.value}
-                          onCheckedChange={field.onChange}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked);
+                            if (!checked) form.setValue("controlledDrugSchedule", undefined);
+                          }}
                         />
                       </FormControl>
                     </FormItem>
                   )}
                 />
               </div>
+              {form.watch("isControlledDrug") && (
+                <FormField
+                  control={form.control}
+                  name="controlledDrugSchedule"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Controlled drug schedule</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select CD schedule" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="2">Schedule 2</SelectItem>
+                          <SelectItem value="3">Schedule 3</SelectItem>
+                          <SelectItem value="4">Schedule 4</SelectItem>
+                          <SelectItem value="5">Schedule 5</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}

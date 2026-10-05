@@ -53,7 +53,7 @@ export const INCIDENT_AUDIT_OPTION_PILLS: Record<string, string[]> = {
   "acc-q-4": ["None", "Minor", "Major (medical advice / A&E)"],
 };
 
-const INCIDENT_TYPE_LABELS: Record<string, string> = {
+export const INCIDENT_TYPE_LABELS: Record<string, string> = {
   FallWitnessed: "Fall (witnessed)",
   FallUnwitnessed: "Fall (unwitnessed)",
   PressureUlcer: "Pressure ulcer",
@@ -83,6 +83,11 @@ const INCIDENT_TYPE_LABELS: Record<string, string> = {
   MissingResident: "Missing resident",
   Other: "Other",
 };
+
+/** Readable label for a stored incident type code, e.g. "FallUnwitnessed" -> "Fall (unwitnessed)". */
+export function formatIncidentType(type: string): string {
+  return INCIDENT_TYPE_LABELS[type] ?? type.replace(/([a-z])([A-Z])/g, "$1 $2");
+}
 
 export interface IncidentAuditQuestion {
   id: string;

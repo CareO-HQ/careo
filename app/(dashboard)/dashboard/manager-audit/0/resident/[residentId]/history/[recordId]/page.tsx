@@ -379,4 +379,4 @@ function ResidentCareFileRecordPage({ params }: ResidentCareFileRecordPageProps)
   );
 }
 
-export default withRoleGuard(ResidentCareFileRecordPage, ["manager", "admin", "owner"]);
+export default withRoleGuard(ResidentCareFileRecordPage, ["owner", "manager", "saas_admin"]);

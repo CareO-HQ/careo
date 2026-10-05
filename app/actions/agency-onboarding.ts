@@ -1,20 +1,47 @@
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
 import resend from "@/lib/resend";
+import { escapeHtml } from "@/lib/html";
+import {
+  AuthorizationError,
+  assertCareHomeInScope,
+  getServiceClient,
+  requireSessionActor,
+  type ActorProfile,
+} from "@/lib/server-auth";
 
-function getSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) {
-    throw new Error("Missing Supabase env configuration for server actions");
+const getSupabaseClient = getServiceClient;
+
+// Roles that can open the Agency page (see canViewSidebarAgency in lib/permissions.ts).
+const AGENCY_MANAGER_ROLES = ["saas_admin", "owner", "manager", "nurse"];
+
+async function requireAgencyManager(): Promise<ActorProfile> {
+  const actor = await requireSessionActor();
+  if (!actor.is_saas_admin && !AGENCY_MANAGER_ROLES.includes(actor.role)) {
+    throw new AuthorizationError();
   }
-  return createClient(url, serviceKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  return actor;
+}
+
+interface ScopedAgencyRequest {
+  id: string;
+  care_home_id: string;
+  agency_staff_id: string;
+  agency_staff: { email: string; role: string; auth_user_id: string | null } | null;
+  care_homes: { name: string } | null;
+}
+
+/** Loads an agency request and checks its care home is within the actor's scope. */
+async function loadRequestInScope(actor: ActorProfile, requestId: string): Promise<ScopedAgencyRequest> {
+  const { data, error } = await getSupabaseClient()
+    .from("agency_requests")
+    .select("id, care_home_id, agency_staff_id, agency_staff:agency_staff_id (email, role, auth_user_id), care_homes:care_home_id (name)")
+    .eq("id", requestId)
+    .single();
+  if (error || !data) throw new Error("Agency request not found");
+  const request = data as unknown as ScopedAgencyRequest;
+  await assertCareHomeInScope(actor, request.care_home_id);
+  return request;
 }
 
 // 0. Fetch agency request by activation token (server-side, bypasses RLS)
@@ -50,6 +77,8 @@ export async function getAgencyRequestByToken(token: string) {
 export async function acceptAgencyRequest(requestId: string) {
   try {
     const supabase = getSupabaseClient();
+    const actor = await requireAgencyManager();
+    await loadRequestInScope(actor, requestId);
 
     const { error: updateError } = await supabase
       .from("agency_requests")
@@ -79,6 +108,10 @@ export async function approveAgencyRequest(
 ) {
   try {
     const supabase = getSupabaseClient();
+    const actor = await requireAgencyManager();
+    await loadRequestInScope(actor, requestId);
+    // The verifier is the signed-in user, not a client-supplied name.
+    profileVerifiedBy = actor.name ?? profileVerifiedBy;
     
     // Update request status to 'approved' and save verification details
     const { error: updateError } = await supabase
@@ -130,10 +163,18 @@ export async function inviteAgencyStaff(args: {
   careHomeName: string;
   inviterName: string;
 }) {
-  const { requestId, email, role, careHomeName, inviterName } = args;
+  const { requestId } = args;
   
   try {
     const supabase = getSupabaseClient();
+    const actor = await requireAgencyManager();
+    const request = await loadRequestInScope(actor, requestId);
+    // Recipient, role and care home come from the stored request, never from the caller.
+    const email = request.agency_staff?.email;
+    if (!email) throw new Error("Agency staff email not found");
+    const role = request.agency_staff?.role ?? "staff";
+    const careHomeName = escapeHtml(request.care_homes?.name ?? args.careHomeName);
+    const inviterName = escapeHtml(actor.name ?? args.inviterName);
     const token = crypto.randomUUID();
 
     // Update activation details on the request
@@ -149,7 +190,7 @@ export async function inviteAgencyStaff(args: {
     if (updateError) throw updateError;
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-    const inviteLink = `${baseUrl}/onboarding/agency?token=${token}&email=${email}`;
+    const inviteLink = `${baseUrl}/onboarding/agency?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
 
     // Send email using Resend
     const result = await resend.emails.send({
@@ -159,7 +200,7 @@ export async function inviteAgencyStaff(args: {
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
           <h2 style="color: #0f766e;">Hello,</h2>
-          <p>You have been assigned as an agency <strong>${role.replace("_", " ")}</strong> to <strong>${careHomeName}</strong> by <strong>${inviterName}</strong>.</p>
+          <p>You have been assigned as an agency <strong>${escapeHtml(role.replace("_", " "))}</strong> to <strong>${careHomeName}</strong> by <strong>${inviterName}</strong>.</p>
           <p>Please click the button below to activate your account and start your shift:</p>
           <div style="margin: 30px 0;">
             <a href="${inviteLink}" style="background-color: #0d9488; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Activate & Log In</a>
@@ -190,10 +231,15 @@ export async function offboardAgencyStaff(args: {
   requestId: string;
   staffId: string;
 }) {
-  const { userId, requestId, staffId } = args;
+  const { requestId } = args;
 
   try {
     const supabase = getSupabaseClient();
+    const actor = await requireAgencyManager();
+    const request = await loadRequestInScope(actor, requestId);
+    // Target worker/account are taken from the stored request, not the caller.
+    const staffId = request.agency_staff_id;
+    const userId = request.agency_staff?.auth_user_id ?? null;
     const timestamp = new Date().toISOString();
 
     // Update request record
@@ -273,6 +319,8 @@ export async function offboardAgencyStaff(args: {
 export async function regenerateAgencyLinkCode(careHomeId: string) {
   try {
     const supabase = getSupabaseClient();
+    const actor = await requireAgencyManager();
+    await assertCareHomeInScope(actor, careHomeId);
     
     // Generate unique 5-char alphanumeric code
     const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";

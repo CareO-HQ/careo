@@ -43,7 +43,8 @@ export default function CareHomeForm({
   });
 
   useEffect(() => {
-    if (profile?.organization_name) {
+    // Suggest the organization name only if the user hasn't typed a name yet.
+    if (profile?.organization_name && !form.getValues("name")) {
       form.setValue("name", profile.organization_name);
     }
   }, [profile?.organization_name, form]);

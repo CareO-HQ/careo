@@ -70,7 +70,7 @@ export default function ShiftSwaps({ profile, isPowerUser }: { profile: any; isP
           *,
           requester:users!requesting_user_id(name),
           target_user:users!target_user_id(name),
-          requesting_shift:rota_shifts!requesting_shift_id(date, start_time, end_time, shift_templates(name)),
+          requesting_shift:rota_shifts!requesting_shift_id!inner(date, start_time, end_time, shift_templates(name), rotas!inner(team_id)),
           target_shift:rota_shifts!target_shift_id(date, start_time, end_time, shift_templates(name))
         `)
         .order("created_at", { ascending: false });
@@ -90,7 +90,7 @@ export default function ShiftSwaps({ profile, isPowerUser }: { profile: any; isP
       // 2. Fetch my shifts for swapping (only published shifts)
       const { data: myS } = await supabase
         .from("rota_shifts")
-        .select("id, date, start_time, end_time, shift_templates(name)")
+        .select("id, date, start_time, end_time, shift_templates(name), rotas!inner(status)")
         .eq("user_id", profile.id)
         .eq("rotas.status", "published")
         .gte("date", new Date().toISOString().split("T")[0]);
@@ -127,7 +127,7 @@ export default function ShiftSwaps({ profile, isPowerUser }: { profile: any; isP
     // Fetch this colleague's shifts
     const { data } = await supabase
       .from("rota_shifts")
-      .select("id, date, start_time, end_time, shift_templates(name)")
+      .select("id, date, start_time, end_time, shift_templates(name), rotas!inner(status)")
       .eq("user_id", colleagueId)
       .eq("rotas.status", "published")
       .gte("date", new Date().toISOString().split("T")[0]);
