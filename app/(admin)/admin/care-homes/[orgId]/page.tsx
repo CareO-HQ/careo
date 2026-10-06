@@ -60,7 +60,7 @@ export default function CareHomeDetailsPage() {
         .select(`
           id, name, created_at,
           organization_status (status),
-          members:users (count),
+          members:users!users_organization_id_fkey (count),
           teams (count)
         `)
         .eq("id", orgId)
@@ -80,7 +80,7 @@ export default function CareHomeDetailsPage() {
         id: orgData.id,
         name: orgData.name,
         createdAt: orgData.created_at,
-        status: orgData.organization_status?.[0]?.status || "active",
+        status: (Array.isArray(orgData.organization_status) ? orgData.organization_status[0] : orgData.organization_status)?.status || "active",
         memberCount: orgData.members?.[0]?.count || 0,
         teamCount: orgData.teams?.[0]?.count || 0,
       });

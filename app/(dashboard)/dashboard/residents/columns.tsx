@@ -489,7 +489,7 @@ const NotificationsCell = ({
     if (carePlanAlertIds.length > 0) {
       const { data: carePlanRows } = await supabase
         .from("care_plan_assessments")
-        .select("id, care_plan_type, folder_key, goals, wound_folder_id")
+        .select("id, care_plan_type, goals, wound_folder_id")
         .in("id", [...new Set(carePlanAlertIds)]);
 
       const carePlanById = new Map(
@@ -524,7 +524,6 @@ const NotificationsCell = ({
             care_plan_type: assessment.care_plan_type,
             wound_folder_id: assessment.wound_folder_id,
             care_file_folder_key:
-              assessment.folder_key ??
               extractRawCareFileFolderKeyFromGoals(assessment.goals),
           },
         };

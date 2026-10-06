@@ -62,6 +62,9 @@ function buildContentSecurityPolicy(nonce: string): string {
       supabaseOrigin,
       supabaseRealtimeOrigin,
       posthogOrigin,
+      // Dashboard location + weather card.
+      "https://ipapi.co",
+      "https://api.open-meteo.com",
     ])}`,
     "frame-src 'self' https://view.officeapps.live.com",
     "object-src 'none'",

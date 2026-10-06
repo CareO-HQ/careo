@@ -22,7 +22,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  image?: string;
+  image_url?: string | null;
   role?: string;
 }
 
@@ -30,6 +30,14 @@ interface Collaborator extends User {
   added_at: string;
   added_by?: string;
 }
+
+interface CollaboratorRow {
+  user_id: string;
+  added_at: string;
+  users: User | null;
+}
+
+const USER_COLUMNS = "id, name, email, image_url, role";
 
 interface CollaboratorsDialogProps {
   folderId: string;
@@ -66,29 +74,15 @@ export function CollaboratorsDialog({
     try {
       const { data, error } = await supabase
         .from(tableName)
-        .select(`
-          user_id,
-          added_at,
-          users:user_id (
-            id,
-            name,
-            email,
-            image,
-            role
-          )
-        `)
-        .eq(folderColumnName, folderId);
+        .select(`user_id, added_at, users:user_id (${USER_COLUMNS})`)
+        .eq(folderColumnName, folderId)
+        .returns<CollaboratorRow[]>();
 
       if (error) throw error;
 
-      const collabList: Collaborator[] = (data || []).map((item: any) => ({
-        id: item.users.id,
-        name: item.users.name,
-        email: item.users.email,
-        image: item.users.image,
-        role: item.users.role,
-        added_at: item.added_at,
-      }));
+      const collabList: Collaborator[] = (data || [])
+        .filter((item): item is CollaboratorRow & { users: User } => item.users !== null)
+        .map((item) => ({ ...item.users, added_at: item.added_at }));
 
       setCollaborators(collabList);
     } catch (error) {
@@ -101,24 +95,11 @@ export function CollaboratorsDialog({
   const fetchAvailableUsers = async () => {
     try {
       // Fetch users from the same organization
-      const { data: teamMembers, error: teamError } = await supabase
-        .from("team_members")
-        .select("user_id")
-        .eq("organization_id", organizationId);
-
-      if (teamError) throw teamError;
-
-      const userIds = teamMembers?.map((tm) => tm.user_id) || [];
-
-      if (userIds.length === 0) {
-        setAvailableUsers([]);
-        return;
-      }
-
       const { data: users, error: usersError } = await supabase
         .from("users")
-        .select("id, name, email, image, role")
-        .in("id", userIds);
+        .select(USER_COLUMNS)
+        .eq("active_organization_id", organizationId)
+        .returns<User[]>();
 
       if (usersError) throw usersError;
 
@@ -250,7 +231,7 @@ export function CollaboratorsDialog({
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="w-8 h-8">
-                          <AvatarImage src={collab.image} />
+                          <AvatarImage src={collab.image_url ?? undefined} />
                           <AvatarFallback className="text-xs">
                             {getInitials(collab.name)}
                           </AvatarFallback>
@@ -306,7 +287,7 @@ export function CollaboratorsDialog({
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="w-8 h-8">
-                          <AvatarImage src={user.image} />
+                          <AvatarImage src={user.image_url ?? undefined} />
                           <AvatarFallback className="text-xs">
                             {getInitials(user.name)}
                           </AvatarFallback>

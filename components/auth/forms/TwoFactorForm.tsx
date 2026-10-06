@@ -78,23 +78,6 @@ export default function TwoFactorForm() {
           });
           // #endregion
 
-          // Check active organizations for non-SaaS Admin
-          if (!userFromDb?.is_saas_admin) {
-            // Check if user has active organizations
-            // We can check memberships or just if active_organization_id is set?
-            // Convex code checked if activeOrgs.length === 0.
-            // We can check organisation_members table.
-            const { count } = await supabase
-              .from("organization_members")
-              .select("id", { count: 'exact', head: true })
-              .eq("user_id", data.session.user.id);
-
-            if (count === 0) {
-              toast.error("Your account has no active organizations. Please contact support.");
-              return;
-            }
-          }
-
           if (userFromDb?.is_onboarding_complete) {
             if (userFromDb.is_saas_admin) {
               router.push("/admin");

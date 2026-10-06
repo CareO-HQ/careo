@@ -181,6 +181,31 @@ export async function buildWorld(): Promise<World> {
   await addUser("B1", "nurse");
   await addUser("B1", "mdt");
   await addUser("B1", "rqia");
+  await addUser("A1", "agency_care_assistant");
+  // Only one platform admin may exist (idx_single_saas_admin), so reuse the local one.
+  const platformAdmin = await must(
+    admin.from("users").select("id, email").or("is_saas_admin.eq.true,role.eq.saas_admin").limit(1).single(),
+    "find platform admin"
+  );
+  const { error: resetError } = await admin.auth.admin.updateUserById(platformAdmin.id as string, {
+    password: PASSWORD,
+  });
+  if (resetError) throw new Error(`fixture: reset platform admin password: ${resetError.message}`);
+  await must(
+    admin
+      .from("users")
+      .update({ is_onboarding_complete: true, is_login_allowed: true })
+      .eq("id", platformAdmin.id as string)
+      .select("id")
+      .single(),
+    "complete platform admin onboarding"
+  );
+  users["A1.saas_admin"] = {
+    id: platformAdmin.id as string,
+    email: platformAdmin.email as string,
+    role: "saas_admin",
+    home: homes.A1,
+  };
 
   const clientCache = new Map<string, SupabaseClient>();
   const as = async (key: string) => {

@@ -380,7 +380,7 @@ export default function SmokingRiskAssessmentDialog({
     const ignitionQuestions: QuestionConfig[] = [
         {
             id: "materialsControlled",
-            label: "Are the Resident&apos;s smoking materials controlled by the Home? If &apos;Yes&apos;, detail where they are secured and who is designated as the Responsible Person.",
+            label: "Are the Resident's smoking materials controlled by the Home? If 'Yes', detail where they are secured and who is designated as the Responsible Person.",
             detailsId: "materialsControlledDetails"
         },
         {

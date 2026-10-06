@@ -53,8 +53,8 @@ export async function GET(request: NextRequest) {
 
     // Get user profile
     const { data: profile } = await supabase
-      .from("profiles")
-      .select("organization_id, active_team_id, active_care_home_id, name, role")
+      .from("users")
+      .select("organization_id:active_organization_id, active_team_id, active_care_home_id, name, role")
       .eq("id", user.id)
       .single();
 
@@ -181,8 +181,8 @@ export async function POST(request: NextRequest) {
 
     // Get user profile
     const { data: profile } = await supabase
-      .from("profiles")
-      .select("organization_id, role")
+      .from("users")
+      .select("organization_id:active_organization_id, role")
       .eq("id", user.id)
       .single();
 
@@ -319,8 +319,8 @@ export async function DELETE(request: NextRequest) {
 
     // Get user profile
     const { data: profile } = await supabase
-      .from("profiles")
-      .select("organization_id, role")
+      .from("users")
+      .select("organization_id:active_organization_id, role")
       .eq("id", user.id)
       .single();
 

@@ -144,7 +144,7 @@ export default function OnboardingPage() {
           </p>
           <p className="text-muted-foreground my-2">
             {step === 1 &&
-              "Welcome! As the platform administrator, set up your profile. You&apos;ll be able to manage all care homes and create new owners."}
+              "Welcome! As the platform administrator, set up your profile. You'll be able to manage all care homes and create new owners."}
           </p>
           {step === 1 && <ProfileForm step={step} setStep={setStep} isLastStep={true} />}
         </div>

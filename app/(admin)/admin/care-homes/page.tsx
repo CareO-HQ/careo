@@ -48,7 +48,7 @@ export default function CareHomesPage() {
             name,
             created_at,
             organization_status(status),
-            users(count),
+            users!users_organization_id_fkey(count),
             teams(count),
             residents(count)
           `)
@@ -60,7 +60,7 @@ export default function CareHomesPage() {
           id: org.id,
           name: org.name,
           createdAt: org.created_at,
-          status: org.organization_status?.[0]?.status || "active",
+          status: (Array.isArray(org.organization_status) ? org.organization_status[0] : org.organization_status)?.status || "active",
           memberCount: (org as any).users?.[0]?.count || 0,
           teamCount: (org as any).teams?.[0]?.count || 0,
           residentCount: (org as any).residents?.[0]?.count || 0,

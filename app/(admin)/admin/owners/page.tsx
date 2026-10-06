@@ -128,7 +128,7 @@ export default function OwnersPage() {
             care_homes (count),
             teams (count),
             residents (count),
-            staff:users (count)
+            staff:users!users_organization_id_fkey (count)
           )
         `)
         .not("active_organization_id", "is", null)
@@ -149,7 +149,7 @@ export default function OwnersPage() {
           id: p.organizations?.id || "",
           name: p.organizations?.name || "Unknown",
           slug: p.organizations?.slug || "",
-          status: p.organizations?.organization_status?.[0]?.status || "active",
+          status: (Array.isArray(p.organizations?.organization_status) ? p.organizations.organization_status[0] : p.organizations?.organization_status)?.status || "active",
         },
         stats: {
           careHomeCount: p.organizations?.care_homes?.[0]?.count || 0,

@@ -128,7 +128,8 @@ export default function DashboardPage() {
   const [userPendingTodos, setUserPendingTodos] = useState<any[]>([]);
   const [residentTrend, setResidentTrend] = useState(0);
   const [staffTrend, setStaffTrend] = useState(0);
-  const [occupancyRate, setOccupancyRate] = useState(0);
+  // null when no unit has a bed count configured, so occupancy is unknown.
+  const [occupancyRate, setOccupancyRate] = useState<number | null>(0);
   const [occupancyTrend, setOccupancyTrend] = useState(0);
 
   // Weather / Geolocation state
@@ -295,20 +296,21 @@ export default function DashboardPage() {
       const activeResData = await activeResQuery;
       const activeCount = activeResData.count || 0;
       const teams = teamsRes.data ?? [];
-      const bedCapacity = getBedCapacityForScope(
-        effectiveScope,
-        teams,
-        activeCount
-      );
-      const computedOccupancyRate = computeOccupancyRate(activeCount, bedCapacity);
-      setOccupancyRate(computedOccupancyRate);
+      const bedCapacity = getBedCapacityForScope(effectiveScope, teams);
+      if (bedCapacity === null) {
+        setOccupancyRate(null);
+        setOccupancyTrend(0);
+      } else {
+        const computedOccupancyRate = computeOccupancyRate(activeCount, bedCapacity);
+        setOccupancyRate(computedOccupancyRate);
 
-      const activeCount7DaysAgo = Math.max(0, activeCount - netResChange);
-      const occupancyRate7DaysAgo = computeOccupancyRate(
-        activeCount7DaysAgo,
-        bedCapacity
-      );
-      setOccupancyTrend(computedOccupancyRate - occupancyRate7DaysAgo);
+        const activeCount7DaysAgo = Math.max(0, activeCount - netResChange);
+        const occupancyRate7DaysAgo = computeOccupancyRate(
+          activeCount7DaysAgo,
+          bedCapacity
+        );
+        setOccupancyTrend(computedOccupancyRate - occupancyRate7DaysAgo);
+      }
 
       // Incident Graph Query (last 7 or 30 days)
       const startDate = new Date();
@@ -818,19 +820,30 @@ export default function DashboardPage() {
               <Briefcase className="w-5 h-5" />
             </div>
             <div className="text-right">
-              <div className="flex items-baseline justify-end gap-1.5">
-                <span className="text-3xl font-extrabold text-gray-900 tracking-tight leading-none">
-                  {occupancyRate}%
-                </span>
-                <span className={`text-[10px] font-bold rounded-md px-1.5 py-0.5 self-center ${
-                  occupancyTrend >= 0
-                    ? "text-green-700 bg-green-50 border border-green-200"
-                    : "text-red-700 bg-red-50 border border-red-200"
-                }`}>
-                  {occupancyTrend >= 0 ? `+${occupancyTrend}%` : `${occupancyTrend}%`}
-                </span>
-              </div>
-              <div className="text-[11px] text-gray-400 mt-1">vs last 7 days</div>
+              {occupancyRate === null ? (
+                <>
+                  <span className="text-3xl font-extrabold text-gray-900 tracking-tight leading-none">
+                    —
+                  </span>
+                  <div className="text-[11px] text-gray-400 mt-1">Bed count not set</div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-baseline justify-end gap-1.5">
+                    <span className="text-3xl font-extrabold text-gray-900 tracking-tight leading-none">
+                      {occupancyRate}%
+                    </span>
+                    <span className={`text-[10px] font-bold rounded-md px-1.5 py-0.5 self-center ${
+                      occupancyTrend >= 0
+                        ? "text-green-700 bg-green-50 border border-green-200"
+                        : "text-red-700 bg-red-50 border border-red-200"
+                    }`}>
+                      {occupancyTrend >= 0 ? `+${occupancyTrend}%` : `${occupancyTrend}%`}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-400 mt-1">vs last 7 days</div>
+                </>
+              )}
             </div>
           </div>
         </div>

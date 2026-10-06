@@ -23,7 +23,6 @@ interface AssessmentRow {
   organization_id: string;
   care_plan_type: string | null;
   next_evaluation_date: string | null;
-  folder_key?: string | null;
   goals: { nameOfCarePlan?: string; folderKey?: string; folder_key?: string } | null;
   wound_folder_id: string | null;
 }
@@ -118,24 +117,11 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceClient();
     const today = getUKTodayDate();
 
-    const initialQuery = await supabase
+    // The care file folder key lives in `goals`; care_plan_assessments has no folder_key column.
+    const { data: assessmentRows, error: assessmentsError } = await supabase
       .from("care_plan_assessments")
-      .select("id, resident_id, organization_id, care_plan_type, next_evaluation_date, folder_key, goals, wound_folder_id")
+      .select("id, resident_id, organization_id, care_plan_type, next_evaluation_date, goals, wound_folder_id")
       .eq("status", "active");
-
-    let assessmentRows = initialQuery.data as AssessmentRow[] | null;
-    let assessmentsError = initialQuery.error;
-
-    // Some environments may not have `folder_key` on care_plan_assessments yet.
-    // Retry without it so cron stays functional.
-    if (assessmentsError) {
-      const fallback = await supabase
-        .from("care_plan_assessments")
-        .select("id, resident_id, organization_id, care_plan_type, next_evaluation_date, goals, wound_folder_id")
-        .eq("status", "active");
-      assessmentRows = fallback.data as AssessmentRow[] | null;
-      assessmentsError = fallback.error;
-    }
 
     if (assessmentsError) {
       console.error("Cron care-plan evaluation assessments query failed:", assessmentsError);
@@ -296,7 +282,7 @@ export async function GET(request: NextRequest) {
         care_file_folder_key: woundFolderId
           ? null
           : resolveCareFileV2FolderKey(
-              assessment.folder_key ?? extractRawCareFileFolderKeyFromGoals(assessment.goals),
+              extractRawCareFileFolderKeyFromGoals(assessment.goals),
               assessment.care_plan_type
             ),
         generated_by: "care-plan-evaluation-alerts-cron",

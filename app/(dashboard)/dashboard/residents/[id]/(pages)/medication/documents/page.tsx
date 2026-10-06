@@ -99,11 +99,37 @@ export default function MedicationDocumentsPage({ params }: MedicationDocumentsP
           .from("medication_intakes")
           .select(`
             *,
-            medication:medication_id (*),
-            administered_by:administered_by_id (name)
+            medication:medication_id (*)
           `)
           .eq("resident_id", id);
-        setAllIntakes(intakes || []);
+
+        // administered_by_id references auth.users, so PostgREST can't embed it; resolve names separately.
+        const administratorIds = [
+          ...new Set(
+            (intakes || [])
+              .map((intake) => intake.administered_by_id)
+              .filter((userId): userId is string => typeof userId === "string")
+          ),
+        ];
+        const administratorNames = new Map<string, string>();
+        if (administratorIds.length > 0) {
+          const { data: administrators } = await supabase
+            .from("users")
+            .select("id, name")
+            .in("id", administratorIds);
+          (administrators || []).forEach((user) => {
+            if (user.name) administratorNames.set(user.id, user.name);
+          });
+        }
+
+        setAllIntakes(
+          (intakes || []).map((intake) => ({
+            ...intake,
+            administered_by: intake.administered_by_id
+              ? { name: administratorNames.get(intake.administered_by_id) ?? null }
+              : null,
+          }))
+        );
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {

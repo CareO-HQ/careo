@@ -29,12 +29,12 @@ export default function DashboardLayout({
   // Role redirects must re-run on client-side navigation (links, back/forward), not only on profile load.
   const pathname = usePathname();
 
-  // Redirect SaaS Admin to admin dashboard
+  // Redirect SaaS Admin to admin dashboard; Help and Support is linked from the admin sidebar too.
   useEffect(() => {
-    if (!isLoading && profile?.is_saas_admin) {
+    if (!isLoading && profile?.is_saas_admin && pathname !== "/dashboard/help") {
       router.push("/admin");
     }
-  }, [profile, isLoading, router]);
+  }, [profile, isLoading, router, pathname]);
 
   // Handle MDT and RQIA session redirects and restriction
   useEffect(() => {

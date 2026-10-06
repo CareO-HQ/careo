@@ -84,6 +84,13 @@ describe("middleware: security headers", () => {
     expect(csp).toContain("connect-src 'self' http://127.0.0.1:54321 ws://127.0.0.1:54321");
   });
 
+  it("BUG: lets the dashboard reach its location and weather APIs", async () => {
+    const csp = (await run("/dashboard")).headers.get("content-security-policy") ?? "";
+    const connectSrc = csp.split("; ").find((directive) => directive.startsWith("connect-src")) ?? "";
+    expect(connectSrc).toContain("https://ipapi.co");
+    expect(connectSrc).toContain("https://api.open-meteo.com");
+  });
+
   it("uses a fresh nonce per request", async () => {
     const a = (await run("/login")).headers.get("content-security-policy");
     const b = (await run("/login")).headers.get("content-security-policy");
