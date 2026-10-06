@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRequestUserId } from "@/lib/api-auth";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
@@ -225,6 +226,10 @@ function generatePDF(data: any): ArrayBuffer {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await getRequestUserId(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     // Check for API token authentication (server-to-server)
     const authHeader = request.headers.get("authorization");

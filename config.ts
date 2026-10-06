@@ -103,8 +103,8 @@ export const config = {
     {
       type: "folder",
       key: "depenency",
-      value: "Depenency",
-      description: "Depenency Assessment",
+      value: "Dependency",
+      description: "Dependency Assessment",
       carePlan: true,
       forms: [
         {

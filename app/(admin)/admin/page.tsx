@@ -48,7 +48,7 @@ export default function AdminDashboardPage() {
           id,
           name,
           created_at,
-          users(count),
+          users!users_organization_id_fkey(count),
           teams(count)
         `)
         .order("created_at", { ascending: false })

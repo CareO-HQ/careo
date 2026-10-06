@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import NextReviewDateField from "./NextReviewDateField";
+import { getCurrentUKTime, getUKTodayDate } from "@/lib/date-utils";
 
 interface DependencyAssessmentDialogProps {
     teamId: string;
@@ -59,9 +60,9 @@ export default function DependencyAssessmentDialog({
         defaultValues: initialData ? {
             residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
             dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
-            dateOfAssessment: initialData.dateOfAssessment || new Date().toISOString().split("T")[0],
+            dateOfAssessment: initialData.dateOfAssessment || getUKTodayDate(),
             nextReviewDate: initialData.nextReviewDate || initialData.assessment_details?.nextReviewDate || "",
-            time: initialData.time || new Date().toTimeString().slice(0, 5),
+            time: initialData.time || getCurrentUKTime(),
             completedBy: initialData.completedBy || profile?.name || "",
             signature: initialData.signature || "",
             mobility: initialData.assessment_details?.mobility || 0,
@@ -79,9 +80,9 @@ export default function DependencyAssessmentDialog({
         } : {
             residentName: `${resident.first_name} ${resident.last_name}`,
             dateOfBirth: resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).toISOString().split("T")[0] : "",
-            dateOfAssessment: new Date().toISOString().split("T")[0],
+            dateOfAssessment: getUKTodayDate(),
             nextReviewDate: "",
-            time: new Date().toTimeString().slice(0, 5),
+            time: getCurrentUKTime(),
             completedBy: userName || profile?.name || "",
             signature: "",
             mobility: 0, dressing: 0, personalHygiene: 0, feeding: 0, eyesight: 0, hearing: 0,
@@ -182,9 +183,9 @@ export default function DependencyAssessmentDialog({
                 form.reset({
                     ...form.getValues(),
                     signature: "",
-                    dateOfAssessment: new Date().toISOString().split("T")[0],
+                    dateOfAssessment: getUKTodayDate(),
                     nextReviewDate: "",
-                    time: new Date().toTimeString().slice(0, 5),
+                    time: getCurrentUKTime(),
                     mobility: 0,
                     dressing: 0,
                     personalHygiene: 0,

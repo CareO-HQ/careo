@@ -1,32 +1,35 @@
 import { z } from "zod";
 
+/** A field the passport form marks with * (hospital staff rely on it on arrival). */
+const required = () => z.string().trim().min(1, "Required");
+
 // Hospital Passport Schema
 export const HospitalPassportSchema = z.object({
   // General & Transfer Details
   generalDetails: z.object({
-    personName: z.string(),
-    knownAs: z.string(),
-    dateOfBirth: z.string(),
-    nhsNumber: z.string(),
+    personName: required(),
+    knownAs: required(),
+    dateOfBirth: required(),
+    nhsNumber: required(),
     religion: z.string().optional(),
     weightOnTransfer: z.string().optional(),
     careType: z.enum(["nursing", "residential", "ld", "mental_health"]).optional(),
-    transferDateTime: z.string(),
+    transferDateTime: required(),
     accompaniedBy: z.string().optional(),
     englishFirstLanguage: z.enum(["yes", "no"]),
     firstLanguage: z.string().optional(),
-    careHomeName: z.string(),
-    careHomeAddress: z.string(),
-    careHomePhone: z.string(),
-    hospitalName: z.string(),
-    hospitalAddress: z.string(),
+    careHomeName: required(),
+    careHomeAddress: required(),
+    careHomePhone: required(),
+    hospitalName: required(),
+    hospitalAddress: required(),
     hospitalPhone: z.string().optional(),
-    nextOfKinName: z.string(),
-    nextOfKinAddress: z.string(),
-    nextOfKinPhone: z.string(),
-    gpName: z.string(),
-    gpAddress: z.string(),
-    gpPhone: z.string(),
+    nextOfKinName: required(),
+    nextOfKinAddress: required(),
+    nextOfKinPhone: required(),
+    gpName: required(),
+    gpAddress: required(),
+    gpPhone: required(),
     careManagerName: z.string().optional(),
     careManagerAddress: z.string().optional(),
     careManagerPhone: z.string().optional(),
@@ -35,13 +38,13 @@ export const HospitalPassportSchema = z.object({
   // Medical & Care Needs
   medicalCareNeeds: z.object({
     // SBAR Format
-    situation: z.string(),
-    background: z.string(),
-    assessment: z.string(),
-    recommendations: z.string(),
+    situation: required(),
+    background: required(),
+    assessment: required(),
+    recommendations: required(),
 
     // Medical History
-    pastMedicalHistory: z.string(),
+    pastMedicalHistory: required(),
     knownAllergies: z.string().optional(),
     historyOfConfusion: z.enum(["yes", "no", "sometimes"]).optional(),
     learningDisabilityMentalHealth: z.string().optional(),
@@ -81,15 +84,15 @@ export const HospitalPassportSchema = z.object({
     // Skin Care
     skinIntegrityAssistance: z.enum(["independent", "minimum", "full"]),
     bradenScore: z.string().optional(),
-    skinStateOnTransfer: z.string(),
+    skinStateOnTransfer: required(),
     currentSkinCareRegime: z.string().optional(),
     pressureRelievingEquipment: z.string().optional(),
     knownToTVN: z.boolean().default(false),
     tvnName: z.string().optional(),
 
     // Medication
-    currentMedicationRegime: z.string(),
-    lastMedicationDateTime: z.string(),
+    currentMedicationRegime: required(),
+    lastMedicationDateTime: required(),
     lastMealDrinkDateTime: z.string().optional(),
 
     // Attachments
@@ -106,11 +109,11 @@ export const HospitalPassportSchema = z.object({
 
   // Sign-off Section
   signOff: z.object({
-    signature: z.string(),
-    printedName: z.string(),
-    designation: z.string(),
-    contactPhone: z.string(),
-    completedDate: z.string(),
+    signature: required(),
+    printedName: required(),
+    designation: required(),
+    contactPhone: required(),
+    completedDate: required(),
   }),
 });
 

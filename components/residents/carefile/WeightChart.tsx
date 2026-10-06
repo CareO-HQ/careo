@@ -33,6 +33,10 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
+// Plausible adult weight range; anything outside is almost certainly a typo.
+const MIN_WEIGHT_KG = 20;
+const MAX_WEIGHT_KG = 300;
+
 interface WeightRecord {
   id: string;
   resident_id: string;
@@ -190,9 +194,19 @@ export function WeightChart({
       return;
     }
 
+    const weightValue = parseFloat(weight);
+    const weightKg = unit === "kg" ? weightValue : weightValue * 0.453592;
+    if (!Number.isFinite(weightValue) || weightKg < MIN_WEIGHT_KG || weightKg > MAX_WEIGHT_KG) {
+      toast.error(
+        unit === "kg"
+          ? `Weight must be between ${MIN_WEIGHT_KG} and ${MAX_WEIGHT_KG} kg`
+          : `Weight must be between ${Math.round(MIN_WEIGHT_KG * 2.20462)} and ${Math.round(MAX_WEIGHT_KG * 2.20462)} lb`
+      );
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const weightValue = parseFloat(weight);
       const { data, error } = await supabase.from("weight_records").insert({
         resident_id: residentId,
         organization_id: profile?.active_organization_id,

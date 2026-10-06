@@ -87,7 +87,41 @@ const SingleVitalSchema = z.object({
   unit: z.string().optional(),
   notes: z.string().optional(),
   recordedBy: z.string().min(1, "Recorded by is required"),
+}).superRefine((data, ctx) => {
+  const range = vitalRange(data.vitalType, data.unit);
+  const check = (raw: string | undefined, bounds: [number, number], label: string, path: "value" | "value2") => {
+    const n = Number((raw ?? "").trim());
+    if (!raw || !raw.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: `${label} is required` });
+    } else if (!Number.isFinite(n)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: `${label} must be a number` });
+    } else if (n < bounds[0] || n > bounds[1]) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: `${label} must be between ${bounds[0]} and ${bounds[1]}` });
+    }
+  };
+  if (data.vitalType === "bloodPressure") {
+    check(data.value, [50, 260], "Systolic", "value");
+    check(data.value2, [20, 160], "Diastolic", "value2");
+  } else {
+    check(data.value, range, "Value", "value");
+  }
 });
+
+/** Plausible measurement ranges used to reject typos and non-numeric entries. */
+function vitalRange(vitalType: string, unit?: string): [number, number] {
+  switch (vitalType) {
+    case "temperature":
+      return unit === "fahrenheit" ? [86, 113] : [30, 45];
+    case "heartRate":
+      return [20, 250];
+    case "respiratoryRate":
+      return [4, 60];
+    case "oxygenSaturation":
+      return [50, 100];
+    default:
+      return [0, Number.MAX_SAFE_INTEGER];
+  }
+}
 
 type SingleVitalFormData = z.infer<typeof SingleVitalSchema>;
 

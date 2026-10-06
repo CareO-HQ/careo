@@ -259,4 +259,4 @@ function ResidentCareFileHistoryPage({ params }: ResidentCareFileHistoryPageProp
   );
 }
 
-export default withRoleGuard(ResidentCareFileHistoryPage, ["manager", "admin", "owner"]);
+export default withRoleGuard(ResidentCareFileHistoryPage, ["owner", "manager", "saas_admin"]);

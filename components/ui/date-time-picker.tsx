@@ -3,7 +3,9 @@
 import * as React from "react"
 import { CalendarIcon, ClockIcon, ChevronDownIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { formatTimestampToUKTime } from "@/lib/date-utils"
+import { formatTimestampToUKTime, UK_TIMEZONE } from "@/lib/date-utils"
+import { format } from "date-fns"
+import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -228,12 +230,10 @@ export function FormDateTimePicker({
         return { dateValue: undefined, timeValue: "" }
       }
 
-      // Format time as HH:mm
-      const timeString = date.toTimeString().slice(0, 5)
-
+      // Show the stored instant as UK wall-clock time, whatever the device timezone
       return {
-        dateValue: date,
-        timeValue: timeString
+        dateValue: toZonedTime(date, UK_TIMEZONE),
+        timeValue: formatInTimeZone(date, UK_TIMEZONE, "HH:mm")
       }
     } catch {
       return { dateValue: undefined, timeValue: formatTimestampToUKTime(new Date()) }
@@ -250,10 +250,10 @@ export function FormDateTimePicker({
     const hours = parseInt(timeParts[0] || "9", 10)
     const minutes = parseInt(timeParts[1] || "0", 10)
 
-    // Create new date object to avoid mutating the original
-    const combined = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes, 0, 0)
+    // Interpret the picked calendar day and time as UK local time (care homes run on UK time)
+    const wallClock = `${format(date, "yyyy-MM-dd")}T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`
 
-    return combined.toISOString()
+    return fromZonedTime(wallClock, UK_TIMEZONE).toISOString()
   }, [])
 
   // Handle date changes
@@ -272,8 +272,8 @@ export function FormDateTimePicker({
   // Handle time changes
   const handleTimeChange = React.useCallback((newTime: string) => {
     if (!dateValue) {
-      // If no date selected yet, select today's date
-      const today = new Date()
+      // If no date selected yet, select today's UK date
+      const today = toZonedTime(new Date(), UK_TIMEZONE)
       const newIsoString = combineDateTime(today, newTime)
       onChange?.(newIsoString)
       return

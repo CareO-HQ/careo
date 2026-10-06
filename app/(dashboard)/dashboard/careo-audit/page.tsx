@@ -801,4 +801,4 @@ function CareOAuditPageContent() {
   );
 }
 
-export default withRoleGuard(CareOAuditPageContent, ["manager", "admin", "nurse"]);
+export default withRoleGuard(CareOAuditPageContent, ["owner", "manager", "nurse", "saas_admin"]);

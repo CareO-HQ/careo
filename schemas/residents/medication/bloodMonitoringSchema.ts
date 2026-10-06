@@ -14,6 +14,24 @@ export const BloodMonitoringSchema = z.object({
   siteUsed: z.string().optional(),
   signature1: z.string().min(1, "Signature 1 is required"),
   signature2: z.string().optional(),
+}).superRefine((data, ctx) => {
+  const value = Number(data.bloodSugar.trim());
+  if (data.bloodSugar.trim() && (!Number.isFinite(value) || value < 0.5 || value > 40)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["bloodSugar"],
+      message: "Blood sugar must be a number between 0.5 and 40 mmol/L",
+    });
+  }
+  // Insulin is a high-risk medicine: record the site and a second checker.
+  if (data.insulinAdministered) {
+    if (!data.siteUsed?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["siteUsed"], message: "Injection site is required when insulin is given" });
+    }
+    if (!data.signature2?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["signature2"], message: "A second signature is required when insulin is given" });
+    }
+  }
 });
 
 export type BloodMonitoringFormValues = z.infer<typeof BloodMonitoringSchema>;

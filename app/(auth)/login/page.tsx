@@ -3,7 +3,7 @@
 import LoginForm from "@/components/auth/forms/LoginForm";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -24,8 +24,16 @@ function LoginContent() {
     }
   }, []);
 
+  // Only redirect visitors who were already signed in when the page loaded. A session
+  // created by submitting the form is routed by LoginForm; redirecting here as well
+  // raced it (two router.push calls) and could leave the user stuck on "Redirecting...".
+  const hadSessionOnLoad = useRef<boolean | null>(null);
+  if (!isLoading && hadSessionOnLoad.current === null) {
+    hadSessionOnLoad.current = !!session;
+  }
+
   useEffect(() => {
-    if (session && !isLoading) {
+    if (session && !isLoading && hadSessionOnLoad.current) {
       const redirect = searchParams.get("redirect");
       const token = searchParams.get("token");
       const email = searchParams.get("email");
@@ -50,7 +58,12 @@ function LoginContent() {
         return;
       }
 
-      router.push("/onboarding");
+      const appMetadata = session.user?.app_metadata ?? {};
+      if (appMetadata.is_onboarding_complete) {
+        router.push(appMetadata.is_saas_admin ? "/admin" : "/dashboard");
+      } else {
+        router.push("/onboarding");
+      }
     }
   }, [session, isLoading, router, searchParams]);
 
@@ -64,7 +77,7 @@ function LoginContent() {
   }
 
   // If already logged in, show loading while redirecting
-  if (session) {
+  if (session && hadSessionOnLoad.current) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen w-full">
         <div>Redirecting...</div>

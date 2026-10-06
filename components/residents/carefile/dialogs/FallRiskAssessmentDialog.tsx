@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import NextReviewDateField from "./NextReviewDateField";
+import { getCurrentUKTime, getUKTodayDate } from "@/lib/date-utils";
 
 interface FallRiskAssessmentDialogProps {
     teamId: string;
@@ -59,9 +60,9 @@ export default function FallRiskAssessmentDialog({
         defaultValues: initialData ? {
             residentName: initialData.residentName || `${resident.first_name} ${resident.last_name}`,
             dateOfBirth: initialData.dateOfBirth || (resident.date_of_birth ? new Date(resident.date_of_birth).toISOString().split("T")[0] : ""),
-            dateOfAssessment: initialData.assessment_date ? new Date(initialData.assessment_date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+            dateOfAssessment: initialData.assessment_date ? new Date(initialData.assessment_date).toISOString().split("T")[0] : getUKTodayDate(),
             nextReviewDate: initialData.nextReviewDate || initialData.assessment_details?.nextReviewDate || "",
-            time: initialData.assessment_date ? new Date(initialData.assessment_date).toTimeString().slice(0, 5) : new Date().toTimeString().slice(0, 5),
+            time: initialData.assessment_date ? new Date(initialData.assessment_date).toTimeString().slice(0, 5) : getCurrentUKTime(),
             completedBy: initialData.completed_by || profile?.name || "",
             signature: initialData.signature || "",
             age: initialData.assessment_details?.age?.toString() || "Under 65",
@@ -83,9 +84,9 @@ export default function FallRiskAssessmentDialog({
         } : {
             residentName: `${resident.first_name} ${resident.last_name}`,
             dateOfBirth: resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).toISOString().split("T")[0] : "",
-            dateOfAssessment: new Date().toISOString().split("T")[0],
+            dateOfAssessment: getUKTodayDate(),
             nextReviewDate: "",
-            time: new Date().toTimeString().slice(0, 5),
+            time: getCurrentUKTime(),
             completedBy: userName || profile?.name || "",
             signature: "",
             age: "Under 65", gender: "Male", historyOfFalls: "Never Fallen", mobilityLevel: "Independent and safe unaided", balance: "Yes",
@@ -192,8 +193,8 @@ export default function FallRiskAssessmentDialog({
                 form.reset({
                     residentName: `${resident.first_name} ${resident.last_name}`,
                     dateOfBirth: resident.date_of_birth ? new Date(typeof resident.date_of_birth === 'number' ? resident.date_of_birth : resident.date_of_birth).toISOString().split("T")[0] : "",
-                    dateOfAssessment: new Date().toISOString().split("T")[0],
-                    time: new Date().toTimeString().slice(0, 5),
+                    dateOfAssessment: getUKTodayDate(),
+                    time: getCurrentUKTime(),
                     nextReviewDate: "",
                     completedBy: userName || profile?.name || "",
                     signature: "",

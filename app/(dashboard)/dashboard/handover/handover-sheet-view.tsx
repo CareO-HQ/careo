@@ -131,6 +131,8 @@ function MobileResidentRow({
         <div className="px-4 pb-4 space-y-4 border-t border-border/60">
           <HandoverEventsCell data={handoverData} compact />
           <HandoverNotesCell
+            // Remount per shift/date so a note never carries over to (or updates) another shift's row.
+            key={`${resident.id}-${date}-${shift}`}
             residentId={resident.id}
             teamId={teamId}
             date={date}
@@ -433,6 +435,7 @@ export function HandoverSheetView({
                     </td>
                     <td className="border-b border-border px-3 py-2 align-top">
                       <HandoverNotesCell
+                        key={`${resident.id}-${dateString}-${selectedShift}`}
                         residentId={resident.id}
                         teamId={teamId}
                         date={dateString}

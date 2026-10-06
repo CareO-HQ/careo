@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
+import { format, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { formatDateForDisplay, UK_TIMEZONE } from "@/lib/date-utils";
 import {
@@ -744,7 +745,7 @@ export default function ContinenceDocumentsPage({ params }: ContinenceDocumentsP
                         <TableCell className="font-medium">
                           <div className="flex items-center space-x-2">
                             <Calendar className="w-4 h-4 text-gray-400" />
-                            <span>{formatInTimeZone(new Date(report.date + "T00:00:00"), UK_TIMEZONE, "dd MMM yyyy")}</span>
+                            <span>{format(parseISO(report.date), "dd MMM yyyy")}</span>
                           </div>
                         </TableCell>
                         <TableCell>

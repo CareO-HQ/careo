@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useRouter } from "next/navigation";
 import { BarChart3, TrendingUp, Users, Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { GrowthTrends } from "./growth-trends";
 
 interface PlatformStats {
   totalOrganizations: number;
@@ -194,22 +195,7 @@ export default function AnalyticsPage() {
         </CardContent>
       </Card>
 
-      {/* Placeholder for future analytics */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Growth Trends</CardTitle>
-          <CardDescription>
-            Platform growth metrics (coming soon)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-12">
-            <p className="text-muted-foreground">
-              Advanced analytics and charts will be available here
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <GrowthTrends />
     </div>
   );
 }

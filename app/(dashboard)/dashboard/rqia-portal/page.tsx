@@ -1450,13 +1450,6 @@ function RqiaPortalContent() {
 
         // Profiles & Users map for staff resolution
         const profMap: Record<string, string> = {};
-        const { data: profs, error: profsErr } = await supabase.from("profiles").select("id, name, email");
-        if (!profsErr && profs) {
-          profs.forEach((p: any) => {
-            const val = p.name || p.email;
-            if (p.id && val) profMap[p.id] = val;
-          });
-        }
         const { data: usersData, error: usersErr } = await supabase.from("users").select("id, name, email");
         if (!usersErr && usersData) {
           usersData.forEach((u: any) => {

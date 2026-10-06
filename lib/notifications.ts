@@ -211,7 +211,9 @@ export const getNotifications = async (
     onlyUnread = false,
     careHomeId?: string | null,
     activeTeamId?: string | null,
-    userRole?: string | null
+    userRole?: string | null,
+    /** Only diet notifications (kitchen bell); filtered in the query so older diet items are not crowded out. */
+    dietOnly = false
 ) => {
     // 1. Fetch dismissals first to filter them out
     const { data: dismissals } = await supabase
@@ -237,6 +239,10 @@ export const getNotifications = async (
         personalQuery = personalQuery.eq("care_home_id", careHomeId);
     }
 
+    if (dietOnly) {
+        personalQuery = personalQuery.or("type.eq.diet_change,title.ilike.%diet%");
+    }
+
     let broadcastQuery = supabase
         .from("notifications")
         .select("*")
@@ -247,6 +253,10 @@ export const getNotifications = async (
 
     if (careHomeId) {
         broadcastQuery = broadcastQuery.eq("care_home_id", careHomeId);
+    }
+
+    if (dietOnly) {
+        broadcastQuery = broadcastQuery.or("type.eq.diet_change,title.ilike.%diet%");
     }
 
     if (!isPower && activeTeamId) {

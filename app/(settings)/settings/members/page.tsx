@@ -175,26 +175,14 @@ export default function MembersPage() {
     if (!supabase) return;
 
     try {
-      // First delete from team_staff to remove them from all teams
-      const { error: teamStaffError } = await supabase
-        .from('team_staff')
-        .delete()
-        .eq('user_id', memberId);
-
-      if (teamStaffError) throw teamStaffError;
-
-      // Then remove from organization by clearing all active context fields
-      const { error } = await supabase
-        .from('users')
-        .update({
-          active_organization_id: null,
-          active_care_home_id: null,
-          active_team_id: null,
-          is_onboarding_complete: false
-        })
-        .eq('id', memberId);
+      // One vetted RPC removes team assignments and clears the member's organization context
+      // (a direct update fails RLS once the member is no longer in the organization).
+      const { data: removed, error } = await supabase.rpc('remove_organization_member', {
+        p_member_id: memberId
+      });
 
       if (error) throw error;
+      if (!removed) throw new Error("Member could not be removed");
 
       toast.success("Member removed from organization");
       setMembers(members.filter(m => m.id !== memberId));

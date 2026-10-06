@@ -5867,4 +5867,4 @@ function AuditDetailPage({ params }: AuditDetailPageProps) {
   );
 }
 
-export default withRoleGuard(AuditDetailPage, ["manager", "admin", "owner"]);
+export default withRoleGuard(AuditDetailPage, ["owner", "manager", "saas_admin"]);

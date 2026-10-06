@@ -1,11 +1,17 @@
 import { z } from "zod";
 import { PRNProtocolSchema } from "@/schemas/residents/medication/prnProtocolSchema";
+import { isHHmm } from "@/lib/validation";
 
 
 export const CreateMedicationSchema = z
   .object({
     name: z.string().min(1),
-    strength: z.string().min(1),
+    // A number, or slash-separated numbers for combination products (e.g. 500/125)
+    strength: z
+      .string()
+      .trim()
+      .min(1)
+      .regex(/^\d+(\.\d+)?(\/\d+(\.\d+)?)*$/, "Strength must be a number, e.g. 500 or 500/125"),
     strengthUnit: z.union([
       z.literal("mg"),
       z.literal("mcg"),
@@ -15,7 +21,7 @@ export const CreateMedicationSchema = z
       z.literal("IU"),
       z.literal("%")
     ]),
-    totalCount: z.number().optional(),
+    totalCount: z.number().min(0, "Stock count cannot be negative").optional(),
     dosageForm: z.union([
       z.literal("Tablet"),
       z.literal("Capsule"),
@@ -74,7 +80,10 @@ export const CreateMedicationSchema = z
       z.literal("Topical"),
       z.literal("Supplement")
     ]),
-    times: z.array(z.string()).optional(),
+    times: z
+      .array(z.string().refine(isHHmm, "Times must be valid 24-hour times (HH:mm)"))
+      .refine((t) => new Set(t).size === t.length, "Each administration time can only be added once")
+      .optional(),
     timeQuantities: z.record(z.string(), z.number().min(1)).optional(),
     prescriberName: z.string().optional(),
     instructions: z.string().optional(),
@@ -105,6 +114,10 @@ export const CreateMedicationSchema = z
     ).optional(),
     /** Secondary signatory verifying the MAR entry — must differ from the logged-in user in the UI */
     checkedByUserId: z.string().uuid({ message: "Select a staff member for Checked by" })
+  })
+  .refine((data) => !data.isControlledDrug || !!data.controlledDrugSchedule, {
+    message: "Select the controlled drug schedule",
+    path: ["controlledDrugSchedule"]
   })
   .refine(
     (data) => {

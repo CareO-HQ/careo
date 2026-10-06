@@ -1535,4 +1535,4 @@ function ManagerAuditPage() {
   );
 }
 
-export default withRoleGuard(ManagerAuditPage, ["manager", "admin", "owner"]);
+export default withRoleGuard(ManagerAuditPage, ["owner", "manager", "saas_admin"]);

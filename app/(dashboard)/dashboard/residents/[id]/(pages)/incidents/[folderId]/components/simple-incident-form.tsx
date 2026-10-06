@@ -47,7 +47,8 @@ import {
   ChevronDownIcon,
   CheckCircle,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
+import { formatDateToLocal } from "@/lib/date-utils";
 import { IncidentTimeSelect } from "@/components/incidents/incident-time-select";
 import { getDefaultIncidentTimeValue } from "@/lib/incident-time-utils";
 import { cn } from "@/lib/utils";
@@ -423,18 +424,18 @@ export function SimpleIncidentForm({
           }
 
           form.reset({
-            date: inc.date ? new Date(inc.date) : new Date(),
+            date: inc.date ? parseISO(inc.date) : new Date(),
             time: inc.time || getDefaultIncidentTimeValue(),
             homeName: inc.home_name || "",
             unit: inc.unit || "",
             injuredPersonFirstName: inc.injured_person_first_name || "",
             injuredPersonSurname: inc.injured_person_surname || "",
             injuredPersonDOB: inc.injured_person_dob
-              ? new Date(inc.injured_person_dob)
+              ? parseISO(inc.injured_person_dob)
               : new Date(),
             residentInternalId: inc.resident_internal_id || "",
             dateOfAdmission: inc.date_of_admission
-              ? new Date(inc.date_of_admission)
+              ? parseISO(inc.date_of_admission)
               : undefined,
             healthCareNumber: inc.health_care_number || "",
             injuredPersonStatus: inc.injured_person_status || ["Resident"],
@@ -501,7 +502,7 @@ export function SimpleIncidentForm({
             completedByJobTitle: inc.completed_by_job_title || "",
             completedBySignature: inc.completed_by_signature || "",
             dateCompleted: inc.date_completed
-              ? new Date(inc.date_completed)
+              ? parseISO(inc.date_completed)
               : new Date(),
           });
         };
@@ -516,13 +517,13 @@ export function SimpleIncidentForm({
           injuredPersonFirstName: resident?.first_name || "",
           injuredPersonSurname: resident?.last_name || "",
           injuredPersonDOB: resident?.date_of_birth
-            ? new Date(resident.date_of_birth)
+            ? parseISO(resident.date_of_birth)
             : new Date(),
           residentInternalId: resident?.room_number
             ? `Room ${resident.room_number}`
             : residentId,
           dateOfAdmission: resident?.admission_date
-            ? new Date(resident.admission_date)
+            ? parseISO(resident.admission_date)
             : undefined,
           healthCareNumber: resident?.nhs_health_number || "",
           injuredPersonStatus: ["Resident"],
@@ -588,19 +589,19 @@ export function SimpleIncidentForm({
       setIsSubmitting(true);
 
       const incidentData = {
-        date: values.date.toISOString().split("T")[0],
+        date: formatDateToLocal(values.date),
         time: values.time,
         home_name: values.homeName,
         unit: values.unit,
         injured_person_first_name: values.injuredPersonFirstName,
         injured_person_surname: values.injuredPersonSurname,
-        injured_person_dob: values.injuredPersonDOB.toISOString().split("T")[0],
+        injured_person_dob: formatDateToLocal(values.injuredPersonDOB),
         resident_id: residentId,
         folder_id: folderId,
         resident_internal_id: values.residentInternalId,
         date_of_admission: values.dateOfAdmission
-          ?.toISOString()
-          .split("T")[0],
+          ? formatDateToLocal(values.dateOfAdmission)
+          : undefined,
         health_care_number: values.healthCareNumber,
         care_home_id: resident?.care_home_id,
         organization_id: resident?.organization_id,
@@ -659,7 +660,7 @@ export function SimpleIncidentForm({
         completed_by_full_name: values.completedByFullName,
         completed_by_job_title: values.completedByJobTitle,
         completed_by_signature: values.completedBySignature,
-        date_completed: values.dateCompleted.toISOString().split("T")[0],
+        date_completed: formatDateToLocal(values.dateCompleted),
         created_by: profile?.id,
         updated_at: new Date().toISOString(),
       };

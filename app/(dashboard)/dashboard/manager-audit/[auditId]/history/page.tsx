@@ -256,4 +256,4 @@ function AuditHistoryPage({ params }: AuditHistoryPageProps) {
   );
 }
 
-export default withRoleGuard(AuditHistoryPage, ["manager", "admin", "owner"]);
+export default withRoleGuard(AuditHistoryPage, ["owner", "manager", "saas_admin"]);

@@ -25,15 +25,20 @@ export function getTimeDifference(
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
-  const weeks = Math.floor(days / 7);
-  const months = Math.floor(days / 30.44); // Average days per month
+
+  // Break the day count down hierarchically so every unit is a remainder of the larger one
+  // (e.g. 30 days = 4 weeks 2 days, not "2 days").
   const years = Math.floor(days / 365.25); // Account for leap years
+  const daysAfterYears = days - Math.floor(years * 365.25);
+  const months = Math.floor(daysAfterYears / 30.44); // Average days per month
+  const daysAfterMonths = daysAfterYears - Math.floor(months * 30.44);
+  const weeks = Math.floor(daysAfterMonths / 7);
 
   return {
-    years: years,
-    months: months % 12,
-    weeks: weeks % 4,
-    days: days % 7,
+    years,
+    months,
+    weeks,
+    days: daysAfterMonths - weeks * 7,
     hours: hours % 24,
     minutes: minutes % 60,
     seconds: seconds % 60

@@ -1,17 +1,25 @@
 import z from "zod";
+import { isFutureIsoDate, isIsoDate, isValidNhsNumber } from "@/lib/validation";
+
+const dateOfBirthField = z
+  .string()
+  .min(1, { message: "Date of birth is required" })
+  .refine(isIsoDate, { message: "Enter a valid date of birth" })
+  .refine((v) => !isFutureIsoDate(v), { message: "Date of birth cannot be in the future" });
 
 export const CreateResidentSchema = z.object({
-  firstName: z.string().min(1, { message: "First name is required" }),
+  firstName: z.string().trim().min(1, { message: "First name is required" }),
   middleName: z.string().optional(),
-  lastName: z.string().min(1, { message: "Last name is required" }),
-  dateOfBirth: z.string().min(1, { message: "Date of birth is required" }),
+  lastName: z.string().trim().min(1, { message: "Last name is required" }),
+  dateOfBirth: dateOfBirthField,
   phoneNumber: z.string().optional(),
   roomNumber: z.string().min(1, { message: "Room number is required" }),
   admissionDate: z.string().min(1, { message: "Admission date is required" }),
   teamId: z.string().min(1, { message: "Team/Unit is required" }),
   nhsHealthNumber: z
     .string()
-    .min(1, { message: "NHS Health & Care Number is required" }),
+    .min(1, { message: "NHS Health & Care Number is required" })
+    .refine(isValidNhsNumber, { message: "Enter a valid 10-digit NHS / H&C number" }),
   healthConditions: z
     .array(
       z.object({
@@ -75,18 +83,29 @@ export const CreateResidentSchema = z.object({
     address: z.string().optional(),
     phoneNumber: z.string().optional(),
   }).optional()
+}).superRefine((data, ctx) => {
+  if (isIsoDate(data.dateOfBirth) && isIsoDate(data.admissionDate) && data.admissionDate < data.dateOfBirth) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["admissionDate"],
+      message: "Admission date cannot be before the date of birth",
+    });
+  }
 });
 
 export const EditResidentSchema = z.object({
-  firstName: z.string().min(1, { message: "First name is required" }),
+  firstName: z.string().trim().min(1, { message: "First name is required" }),
   middleName: z.string().optional(),
-  lastName: z.string().min(1, { message: "Last name is required" }),
-  dateOfBirth: z.string().min(1, { message: "Date of birth is required" }),
+  lastName: z.string().trim().min(1, { message: "Last name is required" }),
+  dateOfBirth: dateOfBirthField,
   phoneNumber: z.string().optional(),
   roomNumber: z.string().optional(),
   admissionDate: z.string().optional(),
   teamId: z.string().optional(),
-  nhsHealthNumber: z.string().optional(),
+  nhsHealthNumber: z
+    .string()
+    .optional()
+    .refine((v) => !v || isValidNhsNumber(v), { message: "Enter a valid 10-digit NHS / H&C number" }),
   healthConditions: z
     .array(
       z.object({

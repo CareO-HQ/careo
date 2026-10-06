@@ -977,7 +977,8 @@ export default function MedicationPage({ params }: MedicationPageProps) {
     return allUsers.map(u => ({
       userId: u.id,
       name: u.name || u.email || "Unknown",
-      email: u.email
+      email: u.email,
+      role: u.role
     }));
   }, [allUsers]);
 

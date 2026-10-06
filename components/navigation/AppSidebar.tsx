@@ -142,7 +142,8 @@ export function AppSidebar() {
 
   // Fetch all sidebar counts
   const fetchCounts = useCallback(async () => {
-    if (!user) return;
+    // Every badge is organization-scoped; platform admins (no organization) have none.
+    if (!user || !activeOrganizationId) return;
     try {
       // Fetch dismissals first
       const { data: dismissals } = await supabase

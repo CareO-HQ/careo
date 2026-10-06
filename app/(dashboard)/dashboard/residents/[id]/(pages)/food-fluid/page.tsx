@@ -110,7 +110,16 @@ const FoodFluidLogSchema = z.object({
 }, {
   message: "Portion served is required for food entries",
   path: ["portionServed"]
+}).refine((data) => {
+  // Rows without a volume are classified as food, so a fluid entry must carry one.
+  if (data.entryType === "food") return true;
+  return typeof data.fluidConsumedMl === "number" && data.fluidConsumedMl > 0;
+}, {
+  message: "Volume is required for fluid entries",
+  path: ["fluidConsumedMl"]
 });
+
+const FLUID_VOLUME_PRESETS = [50, 100, 150, 200, 250, 300, 330, 400, 500, 600, 750, 1000];
 
 const generateTimeOptions = () => {
   const options: string[] = [];
@@ -161,6 +170,9 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
   const [fluidTarget, setFluidTarget] = useState<string>("");
 
   const [typeComboOpen, setTypeComboOpen] = useState(false);
+  // True once the user picks "Custom Amount" or types a volume, so the custom input
+  // stays visible even when the typed number passes through a preset (e.g. 250 -> 2500).
+  const [isCustomVolume, setIsCustomVolume] = useState(false);
   const [typeComboSearchValue, setTypeComboSearchValue] = useState("");
 
   const { profile } = useProfile();
@@ -243,12 +255,14 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
           otherDietType: dietData.other_diet_type || "",
           culturalRestrictions: dietData.cultural_restrictions || "",
           allergies: dietData.allergies || [],
-          chokingRisk: dietData.choking_risk,
-          foodConsistency: dietData.food_consistency,
-          fluidConsistency: dietData.fluid_consistency,
-          assistanceRequired: dietData.assistance_required,
-          chefNotified: dietData.chef_notified,
-          chefName: dietData.chef_name,
+          // NULL columns become undefined: the form's optional enums reject null, which
+          // previously made any diet saved without e.g. a consistency level un-editable.
+          chokingRisk: dietData.choking_risk ?? undefined,
+          foodConsistency: dietData.food_consistency ?? undefined,
+          fluidConsistency: dietData.fluid_consistency ?? undefined,
+          assistanceRequired: dietData.assistance_required ?? undefined,
+          chefNotified: dietData.chef_notified ?? undefined,
+          chefName: dietData.chef_name ?? "",
         });
       } else {
         setExistingDiet(null);
@@ -369,8 +383,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
         foodConsistency: existingDiet.foodConsistency,
         fluidConsistency: existingDiet.fluidConsistency,
         assistanceRequired: existingDiet.assistanceRequired,
-        chefNotified: existingDiet.chef_notified,
-        chefName: existingDiet.chef_name || "",
+        chefNotified: existingDiet.chefNotified,
+        chefName: existingDiet.chefName || "",
       });
     }
   }, [existingDiet, form]);
@@ -579,6 +593,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
     logForm.setValue("entryType", type);
     logForm.setValue("typeOfFoodDrink", type === "fluid" ? "Water" : "");
     logForm.setValue("fluidConsumedMl", undefined);
+    setIsCustomVolume(false);
     setIsFoodFluidDialogOpen(true);
     setShowLogAnotherActions(false);
   };
@@ -880,6 +895,7 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                     logForm.setValue("typeOfFoodDrink", "");
                     logForm.setValue("fluidConsumedMl", undefined);
                     logForm.setValue("time", getCurrentUKTime());
+                    setIsCustomVolume(false);
                     setIsFoodFluidDialogOpen(true);
                   }}
                 >
@@ -894,7 +910,9 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                     setEntryType("fluid");
                     logForm.setValue("entryType", "fluid");
                     logForm.setValue("typeOfFoodDrink", "");
+                    logForm.setValue("fluidConsumedMl", undefined);
                     logForm.setValue("time", getCurrentUKTime());
+                    setIsCustomVolume(false);
                     setIsFoodFluidDialogOpen(true);
                   }}
                 >
@@ -1144,6 +1162,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 foodConsistency: existingDiet.foodConsistency,
                 fluidConsistency: existingDiet.fluidConsistency,
                 assistanceRequired: existingDiet.assistanceRequired,
+                chefNotified: existingDiet.chefNotified,
+                chefName: existingDiet.chefName || "",
               });
             } else {
               form.reset({
@@ -1155,6 +1175,8 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                 foodConsistency: undefined,
                 fluidConsistency: undefined,
                 assistanceRequired: undefined,
+                chefNotified: undefined,
+                chefName: "",
               });
             }
           }
@@ -1515,7 +1537,9 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                         disabled={isLoading}
                         onClick={() => {
                           // Only submit when explicitly clicking save
-                          form.handleSubmit(onSubmit)();
+                          form.handleSubmit(onSubmit, () => {
+                            toast.error("Some diet details are invalid. Please review the previous steps.");
+                          })();
                         }}
                       >
                         {isLoading ? "Saving..." : existingDiet ? "Update Diet Information" : "Save Diet Information"}
@@ -1883,13 +1907,23 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                         <div className="space-y-2">
                           <Select
                             onValueChange={(value) => {
+                              // Radix emits "" when the controlled value has no matching item.
+                              if (!value) return;
                               if (value === "custom") {
-                                // Don't set value for custom, let user input manually
+                                setIsCustomVolume(true);
+                                field.onChange(undefined);
                                 return;
                               }
-                              field.onChange(parseInt(value));
+                              setIsCustomVolume(false);
+                              field.onChange(parseInt(value, 10));
                             }}
-                            value={field.value?.toString()}
+                            value={
+                              isCustomVolume
+                                ? "custom"
+                                : field.value !== undefined && FLUID_VOLUME_PRESETS.includes(field.value)
+                                  ? field.value.toString()
+                                  : undefined
+                            }
                           >
                             <FormControl>
                               <SelectTrigger>
@@ -1919,12 +1953,16 @@ export default function FoodFluidPage({ params }: { params: Promise<{ id: string
                             </SelectContent>
                           </Select>
                           {/* Show custom input when custom is selected or no preset matches */}
-                          {(!field.value || ![50, 100, 150, 200, 250, 300, 330, 400, 500, 600, 750, 1000].includes(field.value)) && (
+                          {(isCustomVolume || field.value === undefined) && (
                             <Input
                               type="number"
                               placeholder="Enter custom amount in ml..."
-                              value={field.value || ""}
-                              onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                              value={field.value ?? ""}
+                              onChange={(e) => {
+                                setIsCustomVolume(true);
+                                const ml = parseInt(e.target.value, 10);
+                                field.onChange(Number.isNaN(ml) ? undefined : ml);
+                              }}
                               min="0"
                               max="2000"
                             />

@@ -1216,7 +1216,14 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                     {currentActivityStep < 3 ? (
                       <Button
                         type="button"
-                        onClick={() => setCurrentActivityStep(currentActivityStep + 1)}
+                        onClick={async () => {
+                          // Validate the details step while its fields (and errors) are still visible
+                          if (currentActivityStep === 1) {
+                            const ok = await form.trigger(["activityDate", "activityTime", "activityType", "activityName"]);
+                            if (!ok) return;
+                          }
+                          setCurrentActivityStep(currentActivityStep + 1);
+                        }}
                         className="bg-purple-600 hover:bg-purple-700"
                       >
                         Next
@@ -1226,7 +1233,10 @@ export default function LifestyleSocialPage({ params }: LifestyleSocialPageProps
                         type="button"
                         className="bg-purple-600 hover:bg-purple-700"
                         onClick={() => {
-                          form.handleSubmit(handleSubmit)();
+                          form.handleSubmit(handleSubmit, () => {
+                            toast.error("Please complete the required activity details");
+                            setCurrentActivityStep(1);
+                          })();
                         }}
                       >
                         Record Activity

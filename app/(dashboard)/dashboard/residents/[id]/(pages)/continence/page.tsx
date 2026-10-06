@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { getUKTodayDate, formatTimestampToUKDate } from "@/lib/date-utils";
+import { getCurrentUKTime, getUKTodayDate, formatTimestampToUKDate } from "@/lib/date-utils";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -44,7 +44,7 @@ export default function ContinencePage({ params }: ContinencePageProps) {
   const [notes, setNotes] = React.useState("");
   const [entryTime, setEntryTime] = React.useState(() => {
     // Initialize with current time
-    return new Date().toTimeString().slice(0, 5);
+    return getCurrentUKTime();
   });
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [entries, setEntries] = React.useState<any[]>([]);
@@ -68,7 +68,7 @@ export default function ContinencePage({ params }: ContinencePageProps) {
     setUrineColor("");
     setContinenceAid("");
     setNotes("");
-    setEntryTime(new Date().toTimeString().slice(0, 5));
+    setEntryTime(getCurrentUKTime());
     setUrineStep(1);
   };
 
@@ -242,7 +242,7 @@ export default function ContinencePage({ params }: ContinencePageProps) {
       setSelectedStoolType("");
       setBowelSize("");
       setNotes("");
-      setEntryTime(new Date().toTimeString().slice(0, 5));
+      setEntryTime(getCurrentUKTime());
 
       // Refresh entries
       try {
@@ -439,7 +439,7 @@ export default function ContinencePage({ params }: ContinencePageProps) {
                     variant="outline"
                     className="h-20 text-base bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 hover:border-amber-300"
                     onClick={() => {
-                      setEntryTime(new Date().toTimeString().slice(0, 5));
+                      setEntryTime(getCurrentUKTime());
                       setIsBowelDialogOpen(true);
                     }}
                   >

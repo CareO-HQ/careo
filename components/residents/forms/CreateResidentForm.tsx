@@ -8,6 +8,8 @@ import { ChevronDownIcon, PlusIcon, Trash2Icon, User2Icon, X } from "lucide-reac
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { parseISO } from "date-fns";
+import { formatDateToLocal } from "@/lib/date-utils";
 import { useRouter } from "next/navigation";
 import z from "zod";
 import { buildStorageObjectUrl } from "@/lib/storage";
@@ -579,7 +581,7 @@ export function CreateResidentForm({
                           disabled={isLoading}
                         >
                           {field.value
-                            ? new Date(field.value).toLocaleDateString()
+                            ? parseISO(field.value).toLocaleDateString()
                             : "Select date"}
                           <ChevronDownIcon />
                         </Button>
@@ -587,11 +589,11 @@ export function CreateResidentForm({
                       <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value ? new Date(field.value) : undefined}
+                          selected={field.value ? parseISO(field.value) : undefined}
                           captionLayout="dropdown"
                           onSelect={(date) => {
                             if (date) {
-                              field.onChange(date.toISOString().split("T")[0]);
+                              field.onChange(formatDateToLocal(date));
                               setDobPopoverOpen(false);
                             }
                           }}
@@ -670,7 +672,7 @@ export function CreateResidentForm({
                           disabled={isLoading}
                         >
                           {field.value
-                            ? new Date(field.value).toLocaleDateString()
+                            ? parseISO(field.value).toLocaleDateString()
                             : "Select date"}
                           <ChevronDownIcon />
                         </Button>
@@ -678,11 +680,11 @@ export function CreateResidentForm({
                       <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value ? new Date(field.value) : undefined}
+                          selected={field.value ? parseISO(field.value) : undefined}
                           captionLayout="dropdown"
                           onSelect={(date) => {
                             if (date) {
-                              field.onChange(date.toISOString().split("T")[0]);
+                              field.onChange(formatDateToLocal(date));
                               setAdmissionDatePopoverOpen(false);
                             }
                           }}

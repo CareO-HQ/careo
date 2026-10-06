@@ -13,12 +13,15 @@ export interface FoodFluidLogLike {
   timestamp?: string | null;
 }
 
+const FLUID_KEYWORDS = ["water", "tea", "coffee", "juice", "milk"];
+
 export function isFluidLogEntry(log: FoodFluidLogLike): boolean {
-  if (typeof log.fluid_consumed_ml === "number" && log.fluid_consumed_ml > 0) {
-    return true;
+  if (typeof log.fluid_consumed_ml === "number") {
+    // A recorded volume is authoritative: 0 ml means the drink was refused.
+    return log.fluid_consumed_ml > 0;
   }
-  const type = (log.type_of_food_drink || "").toLowerCase();
-  return ["water", "tea", "coffee", "juice", "milk"].includes(type);
+  const words = (log.type_of_food_drink || "").toLowerCase().trim().split(/[^a-z]+/);
+  return words.some((word) => FLUID_KEYWORDS.includes(word));
 }
 
 export function isQualifyingFoodLog(log: FoodFluidLogLike): boolean {

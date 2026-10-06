@@ -67,7 +67,7 @@ export async function generateWeeklyRota(supabase: SupabaseClient, config: Gener
   const prevMonday = format(addDays(parseISO(startDate), -7), "yyyy-MM-dd");
   const { data: prevShifts } = await supabase
     .from("rota_shifts")
-    .select("*, rotas(start_date)")
+    .select("*, rotas!inner(start_date, team_id)")
     .eq("rotas.team_id", teamId)
     .eq("rotas.start_date", prevMonday);
 
@@ -266,7 +266,7 @@ function evaluateCandidateScore(params: any): number {
 
 function checkRestPeriodViolation(userId: string, targetSlot: any, currentAssignments: any[]): boolean {
   // Ensure we prevent overlapping/double-booked shifts at the same exact time.
-  // We allow consecutive/back-to-back shifts by omitting the 11-hour rest period rule.
+  // Back-to-back shifts (e.g. day 08-20 then night 20-08) are allowed by design.
   const assignedShifts = currentAssignments.filter(s => s.assignedTo === userId);
   
   const targetStart = new Date(`${targetSlot.date}T${targetSlot.template.start_time}`);

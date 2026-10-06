@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { useActiveTeam } from "@/hooks/use-active-team";
 import { useProfile } from "@/hooks/use-profile";
 import { FileIcon, Upload, X } from "lucide-react";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { buildStorageObjectUrl } from "@/lib/storage";
@@ -45,6 +45,11 @@ export default function UploadFileModal({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState(defaultFileName);
   const [isUploading, setIsUploading] = useState(false);
+
+  // The same modal instance is reused for different presets, so resync on open
+  useEffect(() => {
+    if (isOpen) setFileName(defaultFileName ?? "");
+  }, [isOpen, defaultFileName]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { activeTeamId: defaultActiveTeamId } = useActiveTeam();
@@ -99,9 +104,9 @@ export default function UploadFileModal({
     }
 
     setSelectedFile(file);
-    // Remove .pdf extension for default name
+    // A preset (e.g. "SALT", "GP input") names the document; otherwise use the file's name
     const nameWithoutExt = file.name.replace(/\.pdf$/i, "");
-    setFileName(nameWithoutExt);
+    setFileName(defaultFileName?.trim() ? defaultFileName : nameWithoutExt);
   };
 
   const handleUpload = async () => {

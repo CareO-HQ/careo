@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { ColumnDef } from "@tanstack/react-table";
 import { ControlledDrugBadge } from "@/components/medication/ControlledDrugBadge";
 import { formatInTimeZone } from "date-fns-tz";
+import { UK_TIMEZONE } from "@/lib/date-utils";
+import { isEligibleWitness } from "@/lib/medication/witness";
 import { toast } from "sonner";
 import {
   Select,
@@ -162,7 +164,7 @@ const PreparedCell = ({
               <Check className="w-3 h-3 text-white" />
             </div>
             <span className="text-xs text-muted-foreground">
-              {displayTime ? formatInTimeZone(new Date(displayTime), "UTC", "HH:mm") : "Done"}
+              {displayTime ? formatInTimeZone(new Date(displayTime), UK_TIMEZONE, "HH:mm") : "Done"}
             </span>
           </div>
         </TooltipTrigger>
@@ -434,6 +436,8 @@ export const createColumns = (
       cell: ({ row }) => {
         const medicationIntake = row.original;
         const witnessName = members.find(m => m.userId === medicationIntake.witness_id)?.name;
+        // A witness is a second member of care staff: not the signed-in user, not the owner.
+        const witnessOptions = members.filter(m => isEligibleWitness(m, currentUser?.userId));
 
         const setWitness = async (value: string) => {
           if (!setWithnessForMedicationIntake) {
@@ -459,7 +463,7 @@ export const createColumns = (
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {members.map((member, index) => (
+              {witnessOptions.map((member, index) => (
                 <SelectItem key={index} value={member.userId}>
                   {member.name}
                 </SelectItem>
@@ -501,6 +505,11 @@ export const createColumns = (
           // Check if witness is selected when marking as taken
           if (newStatus === "taken" && !medicationIntake.witness_id) {
             toast.error("Please select a witness before marking as taken");
+            return;
+          }
+
+          if (newStatus === "taken" && medicationIntake.witness_id === currentUser?.userId) {
+            toast.error("The witness must be another staff member");
             return;
           }
 

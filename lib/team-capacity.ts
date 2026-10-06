@@ -106,25 +106,20 @@ export function sumTeamBedCounts(teams: TeamBedRecord[]): number | null {
   return configuredTeams.reduce((sum, team) => sum + (team.bed_count ?? 0), 0);
 }
 
+/**
+ * Configured bed capacity for the scope, or null when no unit has a bed count yet -
+ * occupancy can't be known without it, so callers must not invent one.
+ */
 export function getBedCapacityForScope(
   scope: { kind: "team" | "care_home" | "organization"; id: string },
-  teams: TeamBedRecord[],
-  activeResidentCount: number
-): number {
+  teams: TeamBedRecord[]
+): number | null {
   if (scope.kind === "team") {
     const team = teams.find((entry) => entry.id === scope.id);
-    if (team?.bed_count != null && team.bed_count > 0) {
-      return team.bed_count;
-    }
-    return Math.max(50, activeResidentCount);
+    return team?.bed_count != null && team.bed_count > 0 ? team.bed_count : null;
   }
 
-  const totalBedCount = sumTeamBedCounts(teams);
-  if (totalBedCount != null && totalBedCount > 0) {
-    return totalBedCount;
-  }
-
-  return Math.max(50, activeResidentCount);
+  return sumTeamBedCounts(teams);
 }
 
 export function computeOccupancyRate(

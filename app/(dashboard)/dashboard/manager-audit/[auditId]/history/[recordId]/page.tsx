@@ -24,4 +24,4 @@ function AuditRecordViewPage({ params }: AuditRecordViewPageProps) {
   );
 }
 
-export default withRoleGuard(AuditRecordViewPage, ["manager", "admin", "owner"]);
+export default withRoleGuard(AuditRecordViewPage, ["owner", "manager", "saas_admin"]);

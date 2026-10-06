@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { endOfDay, format } from "date-fns";
 import { toast } from "sonner";
 import { Trash2, CalendarIcon, PlusCircle } from "lucide-react";
 import { useActiveTeam } from "@/hooks/use-active-team";
@@ -249,7 +249,8 @@ export default function MyActionPlansPage() {
   useEffect(() => {
     if (!activeOrganizationId) return;
     let cancelled = false;
-    void auditService.getOrganizationMembers(activeOrganizationId).then((data) => {
+    // Care-home action plans can only be actioned by staff of that care home.
+    void auditService.getOrganizationMembers(activeOrganizationId, activeCareHomeId).then((data) => {
       if (!cancelled && Array.isArray(data)) {
         setOrgMembers(data as OrgMemberRow[]);
       }
@@ -257,7 +258,7 @@ export default function MyActionPlansPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeOrganizationId]);
+  }, [activeOrganizationId, activeCareHomeId]);
 
   useEffect(() => {
     if (searchParams.get("create") === "1") {
@@ -394,7 +395,8 @@ export default function MyActionPlansPage() {
           ? String(rawDue)
           : "";
     const s = normalizePlanStatus(p["status"]);
-    return !!dueDate && new Date(dueDate).getTime() < Date.now() && s !== "completed";
+    // Due dates are calendar days: a plan is overdue only once its due day has ended.
+    return !!dueDate && endOfDay(new Date(dueDate)).getTime() < Date.now() && s !== "completed";
   };
 
   // Handle action plan click

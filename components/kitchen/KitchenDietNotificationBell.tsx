@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabase";
 import {
   getNotifications,
   markNotificationAsRead,
-  markAllNotificationsAsRead,
   dismissNotificationsForUser,
   type Notification,
 } from "@/lib/notifications";
@@ -49,7 +48,8 @@ export function KitchenDietNotificationBell({
         false,
         careHomeId,
         activeTeamId,
-        userRole
+        userRole,
+        true
       );
 
       // Filter specifically for diet change notifications or general diet updates
@@ -82,7 +82,8 @@ export function KitchenDietNotificationBell({
           event: "INSERT",
           schema: "public",
           table: "notifications",
-          filter: `organization_id=eq.${organizationId}`,
+          // Scope to the kitchen's care home when known (RLS also enforces this).
+          filter: careHomeId ? `care_home_id=eq.${careHomeId}` : `organization_id=eq.${organizationId}`,
         },
         (payload) => {
           const newNotif = payload.new as any;
@@ -100,7 +101,7 @@ export function KitchenDietNotificationBell({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [organizationId, fetchDietNotifications]);
+  }, [organizationId, careHomeId, fetchDietNotifications]);
 
   const handleMarkAsRead = async (notifId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -117,7 +118,10 @@ export function KitchenDietNotificationBell({
 
   const handleMarkAllRead = async () => {
     try {
-      await markAllNotificationsAsRead(userId, careHomeId);
+      // Only mark the diet notifications shown here; other notification types stay unread.
+      await Promise.all(
+        notifications.filter((n) => !n.isRead).map((n) => markNotificationAsRead(n.id, userId))
+      );
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
       toast.success("All diet notifications marked as read");
