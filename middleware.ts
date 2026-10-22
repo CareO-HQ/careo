@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from "next/server";
+import { getMfaStep, mfaStepPath } from "./lib/mfa";
 import { getRouteAccessRedirect } from "./lib/route-access";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -155,6 +156,21 @@ export async function middleware(req: NextRequest) {
     const redirectResponse = NextResponse.redirect(redirectUrl);
     applyCspHeaders(redirectResponse, requestHeaders, contentSecurityPolicy, nonce);
     return redirectResponse;
+  }
+
+  // Authenticator-app MFA (lib/mfa.ts): a password-only session must finish TOTP before any
+  // protected page. RLS enforces the same rule for direct database calls.
+  if (user && isProtectedPath(req.nextUrl.pathname)) {
+    const mfaStep = await getMfaStep(supabase, user.app_metadata?.role as string | undefined);
+    if (mfaStep !== "none") {
+      const redirectUrl = req.nextUrl.clone();
+      redirectUrl.pathname = mfaStepPath(mfaStep);
+      redirectUrl.search = "";
+      redirectUrl.searchParams.set("redirectedFrom", req.nextUrl.pathname);
+      const redirectResponse = NextResponse.redirect(redirectUrl);
+      applyCspHeaders(redirectResponse, requestHeaders, contentSecurityPolicy, nonce);
+      return redirectResponse;
+    }
   }
 
   // Per-role page access (lib/route-access.ts): pages a role may not open redirect to its home,

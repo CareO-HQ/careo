@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { PASSWORD } from "../db/fixtures";
-import { fillLogin, world } from "./helpers";
+import { fillLogin, passTwoFactor, world } from "./helpers";
 
 /**
  * Signs in as every persona and clicks each link its sidebar actually shows (main
@@ -45,6 +45,7 @@ async function signIn(page: Page, key: string): Promise<void> {
   await page.goto("/login");
   await fillLogin(page, user.email, PASSWORD);
   await page.getByRole("button", { name: "Login" }).click();
+  if (user.totpSecret) await passTwoFactor(page, user.totpSecret);
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 60_000 });
   await page.waitForLoadState("networkidle");
 }

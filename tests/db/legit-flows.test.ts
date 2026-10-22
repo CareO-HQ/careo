@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildWorld, refreshClaims, type World } from "./fixtures";
+import { authenticator } from "otplib";
 
 /**
  * Regression tests: legitimate browser-side flows that write public.users (or call the
@@ -155,6 +156,16 @@ describe("invitation acceptance (accept_invitation RPC)", () => {
     });
     const claims = await refreshClaims(client);
     expect(claims.role).toBe("nurse");
+    // A new nurse sees no resident data until they set up an authenticator app.
+    const { data: beforeMfa } = await client.from("residents").select("id").eq("id", w.homes.A1.residentId);
+    expect(beforeMfa ?? []).toHaveLength(0);
+    const { data: factor, error: enrollError } = await client.auth.mfa.enroll({ factorType: "totp" });
+    expect(enrollError).toBeNull();
+    const { error: verifyError } = await client.auth.mfa.challengeAndVerify({
+      factorId: factor!.id,
+      code: authenticator.generate(factor!.totp.secret),
+    });
+    expect(verifyError).toBeNull();
     const { data: res } = await client.from("residents").select("id").eq("id", w.homes.A1.residentId);
     expect(res ?? []).toHaveLength(1);
   });

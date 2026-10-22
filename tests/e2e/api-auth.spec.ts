@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { serviceClient } from "../db/fixtures";
-import { login, world } from "./helpers";
+import { PASSWORD, serviceClient } from "../db/fixtures";
+import { fillLogin, login, world } from "./helpers";
 
 interface RouteCase {
   url: string;
@@ -153,5 +153,30 @@ test.describe("API routes enforce tenancy for signed-in users", () => {
     expect(res.status()).toBe(200);
     const { data: after } = await admin.from("alerts").select("is_resolved, resolved_by").eq("id", alert!.id).single();
     expect(after).toEqual({ is_resolved: true, resolved_by: w.users["A1.nurse"].id });
+  });
+});
+
+test.describe("API routes need the authenticator step, not just the password", () => {
+  async function passwordOnly(page: import("@playwright/test").Page, key: string): Promise<void> {
+    await page.goto("/login");
+    await fillLogin(page, world().users[key].email, PASSWORD);
+    await page.getByRole("button", { name: "Login" }).click();
+    await expect(page).toHaveURL(/\/login\/two-factor/);
+  }
+
+  test("a password-only session gets 401 from a session-checked route", async ({ page }) => {
+    await passwordOnly(page, "A1.nurse");
+    const res = await page.request.post("/api/pdf/care-plan", { data: {}, failOnStatusCode: false });
+    expect(res.status()).toBe(401);
+  });
+
+  test("a password-only session reads no rows through an RLS-backed route", async ({ page }) => {
+    await passwordOnly(page, "A1.nurse");
+    const res = await page.request.get(`/api/progress-notes?residentId=${world().homes.A1.residentId}`, {
+      failOnStatusCode: false,
+    });
+    const body = res.ok() ? await res.json() : null;
+    const rows = Array.isArray(body) ? body : ((body?.data ?? body?.notes ?? []) as unknown[]);
+    expect(rows).toEqual([]);
   });
 });

@@ -3,13 +3,23 @@ import { NextRequest } from "next/server";
 
 interface MockUser {
   id: string;
+  app_metadata?: { role?: string };
 }
 
-const auth = { user: null as MockUser | null };
+type Level = "aal1" | "aal2";
+
+const auth = {
+  user: null as MockUser | null,
+  // Default: MFA already completed, so non-MFA tests are unaffected.
+  aal: { currentLevel: "aal2", nextLevel: "aal2" } as { currentLevel: Level; nextLevel: Level },
+};
 
 vi.mock("@supabase/auth-helpers-nextjs", () => ({
   createServerClient: () => ({
-    auth: { getUser: async () => ({ data: { user: auth.user } }) },
+    auth: {
+      getUser: async () => ({ data: { user: auth.user } }),
+      mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: auth.aal, error: null }) },
+    },
   }),
 }));
 
@@ -28,6 +38,7 @@ function isLoginRedirect(res: Response): boolean {
 describe("middleware: authentication gate", () => {
   beforeEach(() => {
     auth.user = null;
+    auth.aal = { currentLevel: "aal2", nextLevel: "aal2" };
   });
 
   it.each(["/dashboard", "/dashboard/residents/123", "/onboarding", "/admin/organizations"])(
@@ -72,6 +83,57 @@ describe("middleware: authentication gate", () => {
     expect(new RegExp(`^${source}$`).test("/api/cron/anything")).toBe(false);
     expect(new RegExp(`^${source}$`).test("/dashboard")).toBe(true);
   });
+});
+
+describe("middleware: authenticator-app MFA gate", () => {
+  const redirectPath = (res: Response) => {
+    const loc = res.headers.get("location");
+    return res.status === 307 && loc ? new URL(loc).pathname : null;
+  };
+
+  beforeEach(() => {
+    auth.user = { id: "u1", app_metadata: { role: "nurse" } };
+  });
+
+  it("sends a password-only session with an enrolled app to the code page", async () => {
+    auth.aal = { currentLevel: "aal1", nextLevel: "aal2" };
+    const res = await run("/dashboard/residents");
+    expect(redirectPath(res)).toBe("/login/two-factor");
+    expect(new URL(res.headers.get("location")!).searchParams.get("redirectedFrom")).toBe("/dashboard/residents");
+  });
+
+  it("sends a user without an authenticator to setup", async () => {
+    auth.aal = { currentLevel: "aal1", nextLevel: "aal1" };
+    expect(redirectPath(await run("/dashboard"))).toBe("/login/setup-authenticator");
+  });
+
+  it.each(["/dashboard", "/settings/security", "/onboarding", "/admin"])("gates %s", async (path) => {
+    auth.aal = { currentLevel: "aal1", nextLevel: "aal2" };
+    expect(redirectPath(await run(path))).toBe("/login/two-factor");
+  });
+
+  it("lets an aal2 session through", async () => {
+    auth.aal = { currentLevel: "aal2", nextLevel: "aal2" };
+    expect(redirectPath(await run("/dashboard"))).toBeNull();
+  });
+
+  it.each(["mdt", "rqia", "agency_nurse", "agency_care_assistant"])(
+    "does not gate exempt role %s",
+    async (role) => {
+      auth.user = { id: "u1", app_metadata: { role } };
+      auth.aal = { currentLevel: "aal1", nextLevel: "aal1" };
+      const path = redirectPath(await run("/dashboard"));
+      expect(path === "/login/two-factor" || path === "/login/setup-authenticator").toBe(false);
+    }
+  );
+
+  it.each(["/login/two-factor", "/login/setup-authenticator", "/login", "/accept-invitation", "/onboarding/agency"])(
+    "never gates %s, so the MFA pages cannot redirect to themselves",
+    async (path) => {
+      auth.aal = { currentLevel: "aal1", nextLevel: "aal2" };
+      expect(redirectPath(await run(path))).toBeNull();
+    }
+  );
 });
 
 describe("middleware: security headers", () => {

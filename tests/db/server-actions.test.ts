@@ -15,6 +15,15 @@ vi.mock("@supabase/auth-helpers-nextjs", () => ({
   createServerClient: () => ({
     auth: {
       getUser: async () => ({ data: { user: session.userId ? { id: session.userId } : null }, error: null }),
+      // Sessions here have completed MFA; tests/db/mfa-enforcement.test.ts covers aal1.
+      getSession: async () => ({
+        data: {
+          session: session.userId
+            ? { access_token: `h.${Buffer.from(JSON.stringify({ aal: "aal2" })).toString("base64url")}.s` }
+            : null,
+        },
+        error: null,
+      }),
     },
   }),
 }));

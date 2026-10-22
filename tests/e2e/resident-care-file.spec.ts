@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { anonClient, PASSWORD } from "../db/fixtures";
+import { anonClient, completeTotp, PASSWORD } from "../db/fixtures";
 import { login, world } from "./helpers";
 import { createResident, db, expectToast, openResidentPage, pickOption, trackPageErrors, waitForRows } from "./resident-helpers";
 
@@ -309,13 +309,16 @@ test.describe("care file permissions & isolation", () => {
     const path = `${r.id}/Dependency/${Date.now()}_secret.pdf`;
     expect((await db().storage.from("resident-files").upload(path, PDF, { contentType: "application/pdf" })).error).toBeNull();
 
+    // Both clients complete MFA so the check is about tenancy, not the missing second factor.
     const outsider = anonClient();
     await outsider.auth.signInWithPassword({ email: world().users["B1.nurse"].email, password: PASSWORD });
+    await completeTotp(outsider, world().users["B1.nurse"].totpSecret!);
     const { error } = await outsider.storage.from("resident-files").download(path);
     expect(error).not.toBeNull();
 
     const insider = anonClient();
     await insider.auth.signInWithPassword({ email: world().users["A1.nurse"].email, password: PASSWORD });
+    await completeTotp(insider, world().users["A1.nurse"].totpSecret!);
     expect((await insider.storage.from("resident-files").download(path)).error).toBeNull();
   });
 });

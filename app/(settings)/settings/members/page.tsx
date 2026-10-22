@@ -267,6 +267,7 @@ export default function MembersPage() {
                       userId={member.id}
                       email={member.email}
                       isOwner={isOwner}
+                      memberRole={member.role}
                     />
                   </>
                 )}
