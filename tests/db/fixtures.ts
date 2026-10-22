@@ -1,4 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { authenticator } from "otplib";
+import { requiresMfa } from "@/lib/mfa";
 import type { UserRole } from "@/lib/permissions";
 
 export const PASSWORD = "Test-Password-123!";
@@ -15,6 +17,8 @@ export interface FixtureUser {
   email: string;
   role: UserRole;
   home: Home;
+  /** TOTP secret of the user's enrolled authenticator; absent for MFA-exempt roles. */
+  totpSecret?: string;
 }
 
 export interface World {
@@ -23,10 +27,19 @@ export interface World {
   /** Org A has two care homes (A1, A2); org B has one (B1). */
   homes: { A1: Home; A2: Home; B1: Home };
   users: Record<string, FixtureUser>;
-  /** Signed-in client for a fixture user key, e.g. "A1.nurse". */
+  /** Signed-in client for a fixture user key, e.g. "A1.nurse", with MFA completed (aal2). */
   as(key: string): Promise<SupabaseClient>;
-  /** Creates an extra, isolated user for tests that mutate the user itself. */
-  freshUser(homeKey: keyof World["homes"], role: UserRole): Promise<{ client: SupabaseClient; user: FixtureUser }>;
+  /** New client signed in with the password only (aal1), for MFA enforcement tests. Not cached. */
+  passwordOnly(key: string): Promise<SupabaseClient>;
+  /**
+   * Creates an extra, isolated user for tests that mutate the user itself. By default the
+   * user has an enrolled authenticator; pass { enrollMfa: false } to test first-time setup.
+   */
+  freshUser(
+    homeKey: keyof World["homes"],
+    role: UserRole,
+    options?: { enrollMfa?: boolean }
+  ): Promise<{ client: SupabaseClient; user: FixtureUser }>;
   /** Fresh client that has signed up through the public signup endpoint (attacker model). */
   signUp(meta?: Record<string, unknown>): Promise<{ client: SupabaseClient; userId: string; email: string }>;
   cleanup(): Promise<void>;
@@ -63,7 +76,7 @@ async function ensurePlatformAdmin(admin: SupabaseClient): Promise<void> {
   await createAuthUser(admin, "platform-admin@test.local");
 }
 
-async function createAuthUser(admin: SupabaseClient, email: string): Promise<string> {
+export async function createAuthUser(admin: SupabaseClient, email: string): Promise<string> {
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password: PASSWORD,
@@ -74,7 +87,7 @@ async function createAuthUser(admin: SupabaseClient, email: string): Promise<str
   return data.user.id;
 }
 
-async function placeUser(admin: SupabaseClient, id: string, role: UserRole, home: Home): Promise<void> {
+export async function placeUser(admin: SupabaseClient, id: string, role: UserRole, home: Home): Promise<void> {
   await must(
     admin
       .from("users")
@@ -93,6 +106,51 @@ async function placeUser(admin: SupabaseClient, id: string, role: UserRole, home
       .single(),
     `place user ${id} as ${role}`
   );
+}
+
+/** A TOTP code that is valid now; waits for the next 30s step if `notThis` was just used. */
+export async function freshTotp(secret: string, notThis?: string): Promise<string> {
+  let code = authenticator.generate(secret);
+  while (code === notThis) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    code = authenticator.generate(secret);
+  }
+  return code;
+}
+
+/** Completes the TOTP step on a password-signed-in client, raising it to aal2. */
+export async function completeTotp(client: SupabaseClient, secret: string): Promise<void> {
+  const { data, error } = await client.auth.mfa.listFactors();
+  const factor = data?.totp[0];
+  if (error || !factor) throw new Error(`fixture: no verified TOTP factor: ${error?.message ?? "none"}`);
+  let code = await freshTotp(secret);
+  let result = await client.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+  // A code may be refused if it was already used in this 30s window; retry with the next one.
+  if (result.error) {
+    code = await freshTotp(secret, code);
+    result = await client.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+  }
+  if (result.error) throw new Error(`fixture: TOTP verify: ${result.error.message}`);
+}
+
+/** Enrols a TOTP authenticator for a user (removing any earlier ones) and returns its secret. */
+export async function enrollTotp(admin: SupabaseClient, userId: string, email: string): Promise<string> {
+  const { data: existing } = await admin.auth.admin.mfa.listFactors({ userId });
+  for (const factor of existing?.factors ?? []) {
+    await admin.auth.admin.mfa.deleteFactor({ id: factor.id, userId });
+  }
+  const c = anonClient();
+  const { error: signInError } = await c.auth.signInWithPassword({ email, password: PASSWORD });
+  if (signInError) throw new Error(`fixture: sign in ${email} to enrol: ${signInError.message}`);
+  const { data, error } = await c.auth.mfa.enroll({ factorType: "totp", friendlyName: "fixture" });
+  if (error) throw new Error(`fixture: enrol TOTP for ${email}: ${error.message}`);
+  const verify = await c.auth.mfa.challengeAndVerify({
+    factorId: data.id,
+    code: authenticator.generate(data.totp.secret),
+  });
+  if (verify.error) throw new Error(`fixture: verify TOTP for ${email}: ${verify.error.message}`);
+  await c.auth.signOut({ scope: "local" });
+  return data.totp.secret;
 }
 
 const ROLES_IN_A1: UserRole[] = [
@@ -171,7 +229,8 @@ export async function buildWorld(): Promise<World> {
     const id = await createAuthUser(admin, email);
     createdAuthIds.push(id);
     await placeUser(admin, id, role, homes[homeKey]);
-    users[`${homeKey}.${role}`] = { id, email, role, home: homes[homeKey] };
+    const totpSecret = requiresMfa(role) ? await enrollTotp(admin, id, email) : undefined;
+    users[`${homeKey}.${role}`] = { id, email, role, home: homes[homeKey], totpSecret };
   };
 
   for (const role of ROLES_IN_A1) await addUser("A1", role);
@@ -205,6 +264,7 @@ export async function buildWorld(): Promise<World> {
     email: platformAdmin.email as string,
     role: "saas_admin",
     home: homes.A1,
+    totpSecret: await enrollTotp(admin, platformAdmin.id as string, platformAdmin.email as string),
   };
 
   const clientCache = new Map<string, SupabaseClient>();
@@ -216,7 +276,17 @@ export async function buildWorld(): Promise<World> {
     const c = anonClient();
     const { error } = await c.auth.signInWithPassword({ email: u.email, password: PASSWORD });
     if (error) throw new Error(`sign in ${key}: ${error.message}`);
+    if (u.totpSecret) await completeTotp(c, u.totpSecret);
     clientCache.set(key, c);
+    return c;
+  };
+
+  const passwordOnly = async (key: string) => {
+    const u = users[key];
+    if (!u) throw new Error(`unknown fixture user ${key}`);
+    const c = anonClient();
+    const { error } = await c.auth.signInWithPassword({ email: u.email, password: PASSWORD });
+    if (error) throw new Error(`sign in ${key}: ${error.message}`);
     return c;
   };
 
@@ -234,13 +304,18 @@ export async function buildWorld(): Promise<World> {
   };
 
   let freshCount = 0;
-  const freshUser = async (homeKey: keyof typeof homes, role: UserRole) => {
+  const freshUser = async (
+    homeKey: keyof typeof homes,
+    role: UserRole,
+    { enrollMfa = true }: { enrollMfa?: boolean } = {}
+  ) => {
     const key = `${homeKey}.${role}.fresh${freshCount++}`;
     const email = `${key.replace(/\./g, "-").toLowerCase()}-${runId}@test.local`;
     const id = await createAuthUser(admin, email);
     createdAuthIds.push(id);
     await placeUser(admin, id, role, homes[homeKey]);
-    users[key] = { id, email, role, home: homes[homeKey] };
+    const totpSecret = enrollMfa && requiresMfa(role) ? await enrollTotp(admin, id, email) : undefined;
+    users[key] = { id, email, role, home: homes[homeKey], totpSecret };
     return { client: await as(key), user: users[key] };
   };
 
@@ -251,7 +326,7 @@ export async function buildWorld(): Promise<World> {
     for (const id of createdAuthIds) await admin.auth.admin.deleteUser(id).catch(() => undefined);
   };
 
-  return { runId, admin, homes, users, as, freshUser, signUp, cleanup };
+  return { runId, admin, homes, users, as, passwordOnly, freshUser, signUp, cleanup };
 }
 
 /** Re-authenticate to pick up app_metadata changes made by triggers. */

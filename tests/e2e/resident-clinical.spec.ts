@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { anonClient, PASSWORD } from "../db/fixtures";
+import { anonClient, completeTotp, PASSWORD } from "../db/fixtures";
 import { login, world } from "./helpers";
 import { createResident, db, expectToast, openResidentPage, pickOption, waitForRows } from "./resident-helpers";
 
@@ -140,6 +140,7 @@ test.describe("progress notes (database guard)", () => {
     const manager = world().users["A1.manager"];
     const client = anonClient();
     await client.auth.signInWithPassword({ email: nurse.email, password: PASSWORD });
+    await completeTotp(client, nurse.totpSecret!);
     const { data, error } = await client
       .from("progress_notes")
       .insert({

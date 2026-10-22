@@ -10,12 +10,24 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { EllipsisVerticalIcon, UsersIcon } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
+import { resetUserMfa } from "@/app/actions/mfa";
+import { requiresMfa } from "@/lib/mfa";
+import { EllipsisVerticalIcon, ShieldOffIcon, UsersIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useProfile } from "@/hooks/use-profile";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { UserRole } from "@/lib/permissions";
 
 interface MemberActionsProps {
@@ -24,6 +36,7 @@ interface MemberActionsProps {
   isOwner: boolean;
   userId: string;
   email: string;
+  memberRole?: string;
 }
 
 export default function MemberActions({
@@ -31,13 +44,16 @@ export default function MemberActions({
   memberName,
   isOwner,
   userId,
-  email
+  email,
+  memberRole
 }: MemberActionsProps) {
   const { supabase } = useSupabase();
   const { profile } = useProfile();
   const router = useRouter();
   const [teams, setTeams] = useState<any[]>([]);
   const [memberTeams, setMemberTeams] = useState<any[]>([]);
+  const [confirmMfaReset, setConfirmMfaReset] = useState(false);
+  const [isResettingMfa, startMfaReset] = useTransition();
 
   const activeOrganizationId = profile?.active_organization_id;
 
@@ -194,13 +210,35 @@ export default function MemberActions({
     return memberTeams?.some((memberTeam) => memberTeam.id === teamId);
   };
 
+  // Server action re-checks all of this; the menu only hides what would be refused.
+  const actorRole = profile?.role;
+  const actorIsSenior = actorRole === "owner" || actorRole === "saas_admin" || !!profile?.is_saas_admin;
+  const canResetAuthenticator =
+    (actorIsSenior || actorRole === "manager") &&
+    userId !== profile?.id &&
+    requiresMfa(memberRole) &&
+    (actorIsSenior || (memberRole !== "owner" && memberRole !== "saas_admin"));
+
+  const handleResetAuthenticator = () => {
+    startMfaReset(async () => {
+      const result = await resetUserMfa(userId);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      setConfirmMfaReset(false);
+      toast.success(`${memberName || "Member"} will set up a new authenticator at their next sign-in`);
+    });
+  };
+
   const handleManageSessions = () => {
     router.push(`/settings/members/session?userId=${userId}&email=${email}`);
   };
 
   return (
+    <>
     <DropdownMenu>
-      <DropdownMenuTrigger className="p-0 w-fit">
+      <DropdownMenuTrigger className="p-0 w-fit" aria-label={`Actions for ${memberName || email}`}>
         <EllipsisVerticalIcon className="w-4 h-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent>
@@ -262,7 +300,43 @@ export default function MemberActions({
             )}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+
+        {canResetAuthenticator && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => setConfirmMfaReset(true)}>
+              <ShieldOffIcon className="w-4 h-4 mr-2" />
+              Reset authenticator
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
+
+    <AlertDialog open={confirmMfaReset} onOpenChange={setConfirmMfaReset}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reset {memberName || "this member"}&apos;s authenticator?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Use this when they have lost their phone and their backup codes. Their authenticator and backup
+            codes are removed, they are signed out everywhere, and they set up a new authenticator at their
+            next sign-in. This is recorded.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isResettingMfa}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={isResettingMfa}
+            onClick={(event) => {
+              event.preventDefault();
+              handleResetAuthenticator();
+            }}
+          >
+            {isResettingMfa ? "Resetting..." : "Reset authenticator"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

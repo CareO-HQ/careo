@@ -7,7 +7,7 @@
 ### Technology Stack
 - **Frontend**: Next.js 15 with React 19, TypeScript
 - **Backend**: Convex (real-time database)
-- **Authentication**: Better Auth with session management
+- **Authentication**: Supabase Auth with mandatory authenticator-app (TOTP) MFA
 - **UI**: shadcn/ui components with Radix UI primitives
 - **Styling**: Tailwind CSS v4
 - **Forms**: React Hook Form with Zod validation
@@ -59,9 +59,9 @@ lib/
   - Data tables with filtering and pagination
 
 #### 2. **Authentication & Authorization**
-- **BetterAuth Integration**: Session-based authentication with role-based permissions
+- **Supabase Auth**: Session-based authentication with role-based permissions
 - **Security Middleware**: Route protection for dashboard and settings
-- **Multi-factor Authentication**: Two-factor authentication support
+- **Multi-factor Authentication**: Authenticator-app (TOTP) required for every role except MDT, RQIA and agency staff (`lib/mfa.ts`). Enforced in middleware, server helpers (`lib/server-auth.ts`, `lib/api-auth.ts`) and RLS (`zz_mfa_required` policies, migration `20261014120000_mfa_enforcement.sql`). New RLS tables and SECURITY DEFINER RPCs need the same treatment. Recovery: one-time backup codes or a manager reset (`app/actions/mfa.ts`)
 - **Access Control**: Owner/Admin/Member role hierarchy
 
 #### 3. **Healthcare Compliance Features**
@@ -85,7 +85,7 @@ lib/
 ## Security & Healthcare Compliance
 
 ### Current Security Measures
-- **Authentication**: Secure session management with Better Auth
+- **Authentication**: Secure session management with Supabase Auth and TOTP MFA
 - **Route Protection**: Middleware-based access control
 - **Role-Based Permissions**: Granular access control system
 - **Data Validation**: Zod schema validation throughout

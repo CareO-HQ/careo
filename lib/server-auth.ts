@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import {
+  getAalFromAccessToken,
+  requiresMfa,
+  type AuthenticatorLevel,
+} from "@/lib/mfa";
 
 /**
  * Server-side session helpers for Server Actions.
@@ -39,8 +44,33 @@ export function getServiceClient(): SupabaseClient {
   });
 }
 
-/** Returns the id of the user in the request's Supabase session, or null. */
+/**
+ * Returns the id of the user in the request's Supabase session, or null.
+ * A user whose role requires MFA counts as signed in only after completing TOTP (aal2).
+ */
 export async function getSessionUserId(): Promise<string | null> {
+  const session = await readSessionUser();
+  if (!session) return null;
+  if (requiresMfa(session.role) && session.aal !== "aal2") return null;
+  return session.userId;
+}
+
+/**
+ * Like getSessionUserId() but returns the session details and accepts a password-only (aal1) session. Only for the MFA
+ * recovery steps that run before the second factor, such as redeeming a backup code.
+ */
+export async function getPasswordSession(): Promise<SessionUser | null> {
+  return readSessionUser();
+}
+
+export interface SessionUser {
+  userId: string;
+  email: string | undefined;
+  role: string | undefined;
+  aal: AuthenticatorLevel | null;
+}
+
+async function readSessionUser(): Promise<SessionUser | null> {
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -59,10 +89,19 @@ export async function getSessionUserId(): Promise<string | null> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  return user?.id ?? null;
+  if (!user) return null;
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return {
+    userId: user.id,
+    email: user.email,
+    role: user.app_metadata?.role as string | undefined,
+    aal: getAalFromAccessToken(session?.access_token),
+  };
 }
 
-async function loadProfile(userId: string): Promise<ActorProfile> {
+export async function loadProfile(userId: string): Promise<ActorProfile> {
   const { data, error } = await getServiceClient()
     .from("users")
     .select(

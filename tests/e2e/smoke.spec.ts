@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { PASSWORD, serviceClient } from "../db/fixtures";
-import { login, world } from "./helpers";
+import { enrolThroughUi, login, world } from "./helpers";
 
 /**
  * Manual smoke test, automated: clicks through the flows touched by the security
@@ -40,6 +40,9 @@ async function signUpViaInvite(page: Page, token: string, email: string, name: s
   await page.getByRole("button", { name: /sign up|create account|register/i }).click();
   await expect(page).toHaveURL(/\/accept-invitation/);
   await page.getByRole("button", { name: "Accept Invitation" }).click();
+  // New staff set up an authenticator app before they can reach onboarding or the dashboard.
+  await expect(page).toHaveURL(/\/login\/setup-authenticator/, { timeout: 30_000 });
+  await enrolThroughUi(page);
   await expect(page).toHaveURL(/\/onboarding|\/dashboard/, { timeout: 30_000 });
 }
 

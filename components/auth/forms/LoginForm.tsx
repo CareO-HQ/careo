@@ -10,6 +10,8 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { getMfaStep, mfaStepPath } from "@/lib/mfa";
+import { getPostLoginPath, withLoginParams, type LoginAppMetadata } from "@/lib/post-login-route";
 import { supabase } from "@/lib/supabase";
 import { LoginFormSchema } from "@/schemas/auth/LoginFormSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -66,9 +68,8 @@ export default function LoginForm() {
           return;
         }
 
-        const appMetadata = user.app_metadata || {};
+        const appMetadata: LoginAppMetadata = user.app_metadata || {};
         const isSaasAdmin = !!appMetadata.is_saas_admin;
-        const isOnboardingComplete = !!appMetadata.is_onboarding_complete;
         const activeOrgId = appMetadata.active_organization_id;
 
         // Agency staff activating for the first time have no active org yet — allow through
@@ -80,28 +81,14 @@ export default function LoginForm() {
           return;
         }
 
-        if (isAgencyOnboarding) {
-          // Build the redirect URL preserving token and email
-          const params = new URLSearchParams();
-          params.set("token", token!);
-          if (email) params.set("email", email);
-          router.push(`/onboarding/agency?${params.toString()}` as Route);
+        const loginParams = { redirect, token, email };
+        const mfaStep = await getMfaStep(supabase, appMetadata.role);
+        if (mfaStep !== "none") {
+          router.push(withLoginParams(mfaStepPath(mfaStep), loginParams) as Route);
           return;
         }
 
-        if (isOnboardingComplete) {
-          if (isSaasAdmin) {
-            router.push("/admin");
-          } else {
-            router.push("/dashboard");
-          }
-        } else {
-          if (redirect && token) {
-            router.push(`/${redirect}?token=${token}` as Route);
-          } else {
-            router.push("/onboarding");
-          }
-        }
+        router.push(getPostLoginPath(appMetadata, loginParams) as Route);
 
       } catch (err: any) {
         console.error("Login failed:", err);

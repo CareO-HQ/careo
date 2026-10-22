@@ -1,47 +1,28 @@
 "use client";
 
+import MfaPageShell, { MfaPageLoading } from "@/components/auth/MfaPageShell";
 import TwoFactorForm from "@/components/auth/forms/TwoFactorForm";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription
-} from "@/components/ui/card";
-import { useSupabase } from "@/components/providers/SupabaseProvider";
-import { redirect } from "next/navigation";
+import { useMfaGate } from "@/hooks/use-mfa-gate";
 import { Suspense } from "react";
 
-export default function TwoFactorPage() {
-  const { session } = useSupabase();
-  if (session) {
-    redirect("/login");
-  }
+function TwoFactorContent() {
+  const { ready, finish, signOut } = useMfaGate("verify");
+  if (!ready) return <MfaPageLoading />;
 
   return (
-    <div className="flex flex-col justify-center items-center h-dvh px-4 w-full">
-      <div className="flex items-center gap-2 mb-6">
-        <img
-          src="/images/CareO_Logo.png"
-          alt="CareO"
-          className="h-8 w-auto max-w-[140px] object-contain object-left"
-        />
-        <p className="font-semibold">Acme Inc.</p>
-      </div>
+    <MfaPageShell
+      title="Two-factor authentication"
+      description="Enter the 6-digit code from your authenticator app."
+    >
+      <TwoFactorForm onVerified={finish} onSignOut={signOut} />
+    </MfaPageShell>
+  );
+}
 
-      <Card className="w-full max-w-sm">
-        <CardHeader className="w-full">
-          <CardTitle>Two-Factor Authentication</CardTitle>
-          <CardDescription>
-            Enter the 6-digit code we have sent to your email.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Suspense fallback={<div>Loading...</div>}>
-            <TwoFactorForm />
-          </Suspense>
-        </CardContent>
-      </Card>
-    </div>
+export default function TwoFactorPage() {
+  return (
+    <Suspense fallback={<MfaPageLoading />}>
+      <TwoFactorContent />
+    </Suspense>
   );
 }
